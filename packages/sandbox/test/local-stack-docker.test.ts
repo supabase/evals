@@ -165,18 +165,21 @@ describe('buildLocalStackScoringContext environmentMarker', () => {
     });
   }
 
-  it('includes an optional channel when present', async () => {
-    const marker = {
-      runtime: 'local-stack',
-      channel: 'beta',
-      cliVersion: '2.109.1',
-      docker: 'available',
-      sessionStartedMs: 1_700_000_000_000,
-    };
-    const readRootFile = vi.fn().mockResolvedValue(JSON.stringify(marker));
-    const ctx = buildLocalStackScoringContext(fakeSandbox(readRootFile));
-    await expect(ctx.environmentMarker()).resolves.toEqual(marker);
-  });
+  it.each(['beta', 'canary'])(
+    'includes an optional channel %s when present',
+    async (channel) => {
+      const marker = {
+        runtime: 'local-stack',
+        channel,
+        cliVersion: '2.109.1',
+        docker: 'available',
+        sessionStartedMs: 1_700_000_000_000,
+      };
+      const readRootFile = vi.fn().mockResolvedValue(JSON.stringify(marker));
+      const ctx = buildLocalStackScoringContext(fakeSandbox(readRootFile));
+      await expect(ctx.environmentMarker()).resolves.toEqual(marker);
+    }
+  );
 
   it('reads the marker as root, not through exec or resolveSandboxPath', async () => {
     const readRootFile = vi.fn().mockResolvedValue(

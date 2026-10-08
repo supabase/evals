@@ -13,7 +13,7 @@ import {
   sandboxUsageSchema,
   type SandboxUsage,
 } from '@supabase-evals/core/eval-metadata';
-import { resolveCliVersion, type CliChannel } from '@supabase-evals/sandbox';
+import { resolveCliDistTag } from '@supabase-evals/sandbox';
 import { execFileSync } from 'node:child_process';
 import { readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
@@ -61,19 +61,10 @@ export const BROKERED_KEYS: {
 ];
 export const BROKERED_KEY_PLACEHOLDER = 'injected-by-sandbox-firewall';
 /**
- * Pins the CLI channel version resolved for this run across sandbox jobs.
+ * Pins the CLI dist-tag versions resolved for this run across sandbox jobs.
  * Provider keys belong in `BROKERED_KEYS` so the sandbox never sees them.
  */
-export const FORWARDED_ENV_NAMES = [
-  'SUPABASE_CLI_STABLE_VERSION',
-  'SUPABASE_CLI_BETA_VERSION',
-  'SUPABASE_CLI_NEXT_VERSION',
-];
-const CLI_CHANNEL_ENV: Record<CliChannel, string> = {
-  stable: 'SUPABASE_CLI_STABLE_VERSION',
-  beta: 'SUPABASE_CLI_BETA_VERSION',
-  next: 'SUPABASE_CLI_NEXT_VERSION',
-};
+export const FORWARDED_ENV_NAMES = ['SUPABASE_CLI_DIST_TAG_PINS'];
 /**
  * Slack for the non-agent work inside `pnpm eval` (supabase start, resets,
  * scoring, export). Cold image pulls alone can take ~10 min.
@@ -125,46 +116,51 @@ interface PairOptions extends RunnerOptions {
 }
 
 /**
- * Resolves each requested CLI channel's pin once, so every sandbox job in a
+ * Resolves each requested CLI dist-tag's pin once, so every sandbox job in a
  * fan-out runs against the same concrete version rather than each resolving
- * independently and risking a mid-run release landing between them. An
- * already-set env var is used verbatim, matching the workflow/manual
- * override path in resolveCliVersion. An empty set does no network work.
+ * independently and risking a mid-run release landing between them. A tag
+ * already pinned in SUPABASE_CLI_DIST_TAG_PINS is used verbatim by
+ * resolveCliDistTag. An empty set does no network work.
  */
-export async function resolveChannelPins(
-  channels: ReadonlySet<CliChannel>
+export async function resolveDistTagPins(
+  distTags: ReadonlySet<string>
 ): Promise<Record<string, string>> {
   const resolved = await Promise.all(
-    [...channels].map(async (channel) => {
-      const envVar = CLI_CHANNEL_ENV[channel];
-      // A workflow that exports a blank input still sets the env var, so
-      // blank/whitespace must be treated as unset rather than as a pin of ''.
-      const override = process.env[envVar]?.trim();
-      return [envVar, override || (await resolveCliVersion(channel))] as const;
-    })
+    [...distTags].map(
+      async (distTag) => [distTag, await resolveCliDistTag(distTag)] as const
+    )
   );
   return Object.fromEntries(resolved);
 }
 
-export interface RequiredCliChannelsDeps {
+/** The `.env` pin forwarded to every sandbox job, or none when no dist-tag was resolved. */
+export function distTagPinsEnv(
+  pins: Readonly<Record<string, string>>
+): Record<string, string> {
+  return Object.keys(pins).length > 0
+    ? { SUPABASE_CLI_DIST_TAG_PINS: JSON.stringify(pins) }
+    : {};
+}
+
+export interface RequiredCliDistTagsDeps {
   loadEvalMetadata: (pair: EvalPair) => Pick<EvalMetadata, 'cliVersion'>;
   loadExperimentConfig: (
     experiment: string
-  ) => Promise<{ localStack?: { cliChannel?: CliChannel } }>;
+  ) => Promise<{ localStack?: { cliDistTag?: string } }>;
 }
 
 /**
- * Maps a pair set to the CLI channels at least one pair needs, so
- * resolveChannelPins only resolves those. An eval's own `cliVersion`
- * frontmatter is an exact pin that wins over its experiment's channel and
- * needs no resolution; a pair whose experiment has no `localStack.cliChannel`
+ * Maps a pair set to the CLI dist-tags at least one pair needs, so
+ * resolveDistTagPins only resolves those. An eval's own `cliVersion`
+ * frontmatter is an exact pin that wins over its experiment's dist-tag and
+ * needs no resolution; a pair whose experiment has no `localStack.cliDistTag`
  * needs none either.
  */
-export async function requiredCliChannels(
+export async function requiredCliDistTags(
   pairs: readonly EvalPair[],
-  { loadEvalMetadata, loadExperimentConfig }: RequiredCliChannelsDeps
-): Promise<Set<CliChannel>> {
-  const channels = new Set<CliChannel>();
+  { loadEvalMetadata, loadExperimentConfig }: RequiredCliDistTagsDeps
+): Promise<Set<string>> {
+  const distTags = new Set<string>();
   const configs = new Map<string, ReturnType<typeof loadExperimentConfig>>();
 
   for (const pair of pairs) {
@@ -175,11 +171,11 @@ export async function requiredCliChannels(
       config = loadExperimentConfig(pair.experiment);
       configs.set(pair.experiment, config);
     }
-    const channel = (await config).localStack?.cliChannel;
-    if (channel) channels.add(channel);
+    const distTag = (await config).localStack?.cliDistTag;
+    if (distTag) distTags.add(distTag);
   }
 
-  return channels;
+  return distTags;
 }
 
 /** Mirrors run-eval.ts's evals/<suite>/<id>/PROMPT.md convention. */
@@ -207,8 +203,8 @@ function experimentPathsByName(): Promise<Map<string, string>> {
 }
 
 /**
- * Throws rather than treating a config it can't find as needing no channel,
- * which would silently resolve every channel per-sandbox again.
+ * Throws rather than treating a config it can't find as needing no dist-tag,
+ * which would silently resolve every dist-tag per-sandbox again.
  */
 async function loadExperimentConfig(
   experiment: string
@@ -259,14 +255,14 @@ async function runPairs(options: RunnerOptions): Promise<void> {
       `max ${options.concurrency} at a time`
   );
 
-  // Resolved once, for only the channels this run's pairs actually need, so
+  // Resolved once, for only the dist-tags this run's pairs actually need, so
   // every job below writes the same pin rather than each sandbox resolving
-  // its own channel version independently.
-  const channels = await requiredCliChannels(options.pairs, {
+  // its own dist-tag version independently.
+  const distTags = await requiredCliDistTags(options.pairs, {
     loadEvalMetadata,
     loadExperimentConfig,
   });
-  const pins = await resolveChannelPins(channels);
+  const pins = distTagPinsEnv(await resolveDistTagPins(distTags));
 
   const results = await runBounded(
     jobs,
@@ -825,7 +821,7 @@ export function brokeredNetworkPolicy(): NetworkPolicy {
   return { allow };
 }
 
-/** Builds the sandbox `.env` from key placeholders and CLI channel pins. An explicit pin wins over process.env. */
+/** Builds the sandbox `.env` from key placeholders and CLI dist-tag pins. An explicit pin wins over process.env. */
 export function agentEnvironment(pins: Record<string, string> = {}): string {
   const lines: string[] = [];
   for (const { name } of BROKERED_KEYS) {

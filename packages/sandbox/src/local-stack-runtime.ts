@@ -24,11 +24,7 @@ import {
   teardownSupabaseProject,
 } from './supabase.js';
 import { buildSkillsPrompt, installSkills } from './skills.js';
-import {
-  isCliChannel,
-  resolveCliVersionOption,
-  type CliChannel,
-} from './cli-channel.js';
+import { isExactCliVersion, resolveCliVersionOption } from './cli-channel.js';
 import type { SupabaseService } from './types.js';
 
 const DEFAULT_BASH_TIMEOUT_SEC = 240;
@@ -53,11 +49,11 @@ const STACK_CONFIG_RETRY_MS = 2_000;
 export interface LocalStackRuntimeOptions {
   /**
    * Supabase CLI version baked into the sandbox image: an exact version
-   * (e.g. `2.109.1`) or a channel tag (`'stable'` | `'beta'` | `'next'`) resolved
-   * against npm's dist-tag and memoised per process. An eval's own
+   * (e.g. `2.109.1`) or any npm dist-tag of `supabase` (e.g. `'latest'`,
+   * `'beta'`, `'next'`), resolved once per process. An eval's own
    * `cliVersion:` frontmatter pin always wins over this option.
    */
-  cliVersion?: CliChannel | (string & {});
+  cliVersion?: string;
   /**
    * Supabase MCP feature groups to expose to the agent when the eval links to
    * a hosted project (`hostedProject: true`). The MCP server runs host-side and
@@ -130,8 +126,8 @@ export function localStackRuntime(
 ): LocalStackRuntime {
   return {
     id: buildRuntimeId(options),
-    cliChannel:
-      options.cliVersion !== undefined && isCliChannel(options.cliVersion)
+    cliDistTag:
+      options.cliVersion !== undefined && !isExactCliVersion(options.cliVersion)
         ? options.cliVersion
         : undefined,
     async startSession({
@@ -148,11 +144,11 @@ export function localStackRuntime(
       // Stamped before setup so it's comparable with the scorer's PID-1 fallback.
       const sessionStartedMs = Date.now();
       const docker = options.docker ?? 'available';
-      // Only an unpinned eval inherits a channel; an eval's own pin always wins.
+      // Only an unpinned eval inherits a dist-tag; an eval's own pin always wins.
       const channel =
         cliVersion === undefined &&
         options.cliVersion !== undefined &&
-        isCliChannel(options.cliVersion)
+        !isExactCliVersion(options.cliVersion)
           ? options.cliVersion
           : undefined;
       const version =
@@ -369,7 +365,7 @@ function buildLocalStackMarker(
   docker: DockerState,
   cliVersion: string,
   sessionStartedMs: number,
-  channel?: CliChannel
+  channel?: string
 ): LocalStackEnvironmentMarker {
   return {
     runtime: 'local-stack',
@@ -836,10 +832,7 @@ function isLocalStackEnvironmentMarker(
       value.docker === 'no-daemon' ||
       value.docker === 'absent') &&
     typeof value.sessionStartedMs === 'number' &&
-    (value.channel === undefined ||
-      value.channel === 'stable' ||
-      value.channel === 'beta' ||
-      value.channel === 'next')
+    (value.channel === undefined || typeof value.channel === 'string')
   );
 }
 

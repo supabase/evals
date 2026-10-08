@@ -1,5 +1,5 @@
 import { APIError } from '@vercel/sandbox';
-import { resolveCliVersion, type CliChannel } from '@supabase-evals/sandbox';
+import { resolveCliDistTag } from '@supabase-evals/sandbox';
 import { execFileSync } from 'node:child_process';
 import {
   copyFileSync,
@@ -21,20 +21,21 @@ import {
   cleanupSandbox,
   downloadResults,
   finalizeResult,
+  distTagPinsEnv,
   FORWARDED_ENV_NAMES,
   isRetryableSandboxCreateError,
   isTerminalSandboxCreateError,
   packWorkspaceScript,
   parsePairs,
-  requiredCliChannels,
-  resolveChannelPins,
+  requiredCliDistTags,
+  resolveDistTagPins,
   runBounded,
   tagValue,
   expandJobs,
   type EvalPair,
 } from './run-vercel-evals.js';
 
-vi.mock('@supabase-evals/sandbox', () => ({ resolveCliVersion: vi.fn() }));
+vi.mock('@supabase-evals/sandbox', () => ({ resolveCliDistTag: vi.fn() }));
 
 const BROKERED_NAMES = BROKERED_KEYS.map(({ name }) => name);
 
@@ -71,41 +72,51 @@ describe('agentEnvironment', () => {
     }
   });
 
-  it('omits the CLI channel pins when unset', () => {
+  it('omits the CLI dist-tag pins when unset', () => {
     process.env.ANTHROPIC_API_KEY = 'anthropic-value';
 
     const env = agentEnvironment();
     expect(env).toBe(`ANTHROPIC_API_KEY=${BROKERED_KEY_PLACEHOLDER}`);
-    expect(env).not.toContain('SUPABASE_CLI_STABLE_VERSION');
-    expect(env).not.toContain('SUPABASE_CLI_BETA_VERSION');
-    expect(env).not.toContain('SUPABASE_CLI_NEXT_VERSION');
+    expect(env).not.toContain('SUPABASE_CLI_DIST_TAG_PINS');
   });
 
   it('prefers an explicit pin over the same-named process.env value', () => {
-    process.env.SUPABASE_CLI_STABLE_VERSION = 'env-value';
+    process.env.SUPABASE_CLI_DIST_TAG_PINS = '{"latest":"1.0.0"}';
 
     const env = agentEnvironment({
-      SUPABASE_CLI_STABLE_VERSION: 'pinned-value',
+      SUPABASE_CLI_DIST_TAG_PINS: '{"latest":"2.117.0"}',
     });
 
-    expect(env).toContain('SUPABASE_CLI_STABLE_VERSION=pinned-value');
-    expect(env).not.toContain('env-value');
+    expect(env).toContain('SUPABASE_CLI_DIST_TAG_PINS={"latest":"2.117.0"}');
+    expect(env).not.toContain('1.0.0');
   });
 
   it('shares one pin value across multiple .env writes, simulating a two-job fan-out', () => {
-    const pins = {
-      SUPABASE_CLI_STABLE_VERSION: '2.117.0',
-      SUPABASE_CLI_BETA_VERSION: '2.118.0-beta.5',
-      SUPABASE_CLI_NEXT_VERSION: '3.0.0-next.2',
-    };
+    const pins = distTagPinsEnv({
+      latest: '2.117.0',
+      beta: '2.118.0-beta.5',
+      next: '3.0.0-next.2',
+    });
 
     const jobOneEnv = agentEnvironment(pins);
     const jobTwoEnv = agentEnvironment(pins);
 
     expect(jobOneEnv).toBe(jobTwoEnv);
-    expect(jobOneEnv).toContain('SUPABASE_CLI_STABLE_VERSION=2.117.0');
-    expect(jobOneEnv).toContain('SUPABASE_CLI_BETA_VERSION=2.118.0-beta.5');
-    expect(jobOneEnv).toContain('SUPABASE_CLI_NEXT_VERSION=3.0.0-next.2');
+    expect(jobOneEnv).toBe(
+      'SUPABASE_CLI_DIST_TAG_PINS={"latest":"2.117.0","beta":"2.118.0-beta.5","next":"3.0.0-next.2"}'
+    );
+  });
+});
+
+describe('distTagPinsEnv', () => {
+  it('forwards a single JSON env var for the resolved pins', () => {
+    expect(distTagPinsEnv({ canary: '1.4.0-canary.7' })).toEqual({
+      SUPABASE_CLI_DIST_TAG_PINS: '{"canary":"1.4.0-canary.7"}',
+    });
+  });
+
+  it('forwards nothing when no dist-tag was resolved', () => {
+    expect(distTagPinsEnv({})).toEqual({});
   });
 });
 
@@ -166,111 +177,61 @@ describe('brokeredNetworkPolicy', () => {
   });
 });
 
-describe('resolveChannelPins', () => {
-  const STABLE_ENV = 'SUPABASE_CLI_STABLE_VERSION';
-  const BETA_ENV = 'SUPABASE_CLI_BETA_VERSION';
-  const NEXT_ENV = 'SUPABASE_CLI_NEXT_VERSION';
-  const BOTH_CHANNELS = new Set<CliChannel>(['stable', 'beta']);
-  const originalValues = new Map<string, string | undefined>();
-
+describe('resolveDistTagPins', () => {
   beforeEach(() => {
-    for (const name of [STABLE_ENV, BETA_ENV, NEXT_ENV]) {
-      originalValues.set(name, process.env[name]);
-      delete process.env[name];
-    }
-    vi.mocked(resolveCliVersion).mockReset();
+    vi.mocked(resolveCliDistTag).mockReset();
   });
 
-  afterEach(() => {
-    for (const [name, value] of originalValues) {
-      if (value === undefined) delete process.env[name];
-      else process.env[name] = value;
-    }
-  });
-
-  it('resolves only the requested channels and returns a pin every job can share', async () => {
-    vi.mocked(resolveCliVersion).mockImplementation(async (channel) =>
-      channel === 'stable' ? '2.117.0' : '2.118.0-beta.5'
+  it('resolves only the requested dist-tags into one pin map every job can share', async () => {
+    vi.mocked(resolveCliDistTag).mockImplementation(async (tag) =>
+      tag === 'latest' ? '2.117.0' : '2.118.0-beta.5'
     );
 
-    const pins = await resolveChannelPins(BOTH_CHANNELS);
+    const pins = await resolveDistTagPins(new Set(['latest', 'beta']));
 
-    expect(resolveCliVersion).toHaveBeenCalledTimes(2);
-    expect(resolveCliVersion).toHaveBeenCalledWith('stable');
-    expect(resolveCliVersion).toHaveBeenCalledWith('beta');
+    expect(pins).toEqual({ latest: '2.117.0', beta: '2.118.0-beta.5' });
+    expect(resolveCliDistTag).toHaveBeenCalledTimes(2);
+    expect(resolveCliDistTag).toHaveBeenCalledWith('latest');
+    expect(resolveCliDistTag).toHaveBeenCalledWith('beta');
 
-    // Two fanned-out jobs writing their own .env from the same pins object
-    // must get the identical value the resolver was called once for.
-    const jobOneEnv = agentEnvironment(pins);
-    const jobTwoEnv = agentEnvironment(pins);
-    expect(jobOneEnv).toBe(jobTwoEnv);
-    expect(jobOneEnv).toContain(`${STABLE_ENV}=2.117.0`);
-    expect(jobOneEnv).toContain(`${BETA_ENV}=2.118.0-beta.5`);
-  });
-
-  it('resolves only stable when that is the only requested channel, never calling resolveCliVersion with beta', async () => {
-    vi.mocked(resolveCliVersion).mockImplementation(async (channel) =>
-      channel === 'stable' ? '2.117.0' : '2.118.0-beta.5'
+    // Two fanned-out jobs writing their own .env from the same pins must get
+    // the identical value the resolver was called once for.
+    const forwarded = distTagPinsEnv(pins);
+    expect(agentEnvironment(forwarded)).toBe(agentEnvironment(forwarded));
+    expect(agentEnvironment(forwarded)).toContain(
+      'SUPABASE_CLI_DIST_TAG_PINS={"latest":"2.117.0","beta":"2.118.0-beta.5"}'
     );
-
-    const pins = await resolveChannelPins(new Set<CliChannel>(['stable']));
-
-    expect(pins).toEqual({ [STABLE_ENV]: '2.117.0' });
-    expect(resolveCliVersion).toHaveBeenCalledTimes(1);
-    expect(resolveCliVersion).not.toHaveBeenCalledWith('beta');
   });
 
-  it('resolves the next channel into its own env pin', async () => {
-    vi.mocked(resolveCliVersion).mockResolvedValue('3.0.0-next.2');
+  it('resolves an arbitrary dist-tag without calling the resolver for others', async () => {
+    vi.mocked(resolveCliDistTag).mockResolvedValue('1.4.0-canary.7');
 
-    const pins = await resolveChannelPins(new Set<CliChannel>(['next']));
+    const pins = await resolveDistTagPins(new Set(['canary']));
 
-    expect(pins).toEqual({ [NEXT_ENV]: '3.0.0-next.2' });
-    expect(resolveCliVersion).toHaveBeenCalledWith('next');
+    expect(pins).toEqual({ canary: '1.4.0-canary.7' });
+    expect(resolveCliDistTag).toHaveBeenCalledTimes(1);
+    expect(resolveCliDistTag).toHaveBeenCalledWith('canary');
   });
 
-  it('does no network work for an empty channel set', async () => {
-    const pins = await resolveChannelPins(new Set());
+  it('does no network work for an empty dist-tag set', async () => {
+    const pins = await resolveDistTagPins(new Set());
 
     expect(pins).toEqual({});
-    expect(resolveCliVersion).not.toHaveBeenCalled();
-  });
-
-  it('uses an already-set env var verbatim without calling the resolver', async () => {
-    process.env[STABLE_ENV] = '9.9.9';
-    vi.mocked(resolveCliVersion).mockImplementation(
-      async () => '2.118.0-beta.5'
-    );
-
-    const pins = await resolveChannelPins(BOTH_CHANNELS);
-
-    expect(pins[STABLE_ENV]).toBe('9.9.9');
-    expect(resolveCliVersion).toHaveBeenCalledTimes(1);
-    expect(resolveCliVersion).toHaveBeenCalledWith('beta');
+    expect(resolveCliDistTag).not.toHaveBeenCalled();
   });
 
   it('propagates a resolution failure rather than swallowing it', async () => {
-    vi.mocked(resolveCliVersion).mockRejectedValue(
+    vi.mocked(resolveCliDistTag).mockRejectedValue(
       new Error('npm unreachable')
     );
 
-    await expect(
-      resolveChannelPins(new Set<CliChannel>(['stable']))
-    ).rejects.toThrow('npm unreachable');
-  });
-
-  it('treats a blank or whitespace-only env var as unset, resolving it instead', async () => {
-    process.env[STABLE_ENV] = '   ';
-    vi.mocked(resolveCliVersion).mockImplementation(async () => '2.117.0');
-
-    const pins = await resolveChannelPins(new Set<CliChannel>(['stable']));
-
-    expect(pins[STABLE_ENV]).toBe('2.117.0');
-    expect(resolveCliVersion).toHaveBeenCalledWith('stable');
+    await expect(resolveDistTagPins(new Set(['latest']))).rejects.toThrow(
+      'npm unreachable'
+    );
   });
 });
 
-describe('requiredCliChannels', () => {
+describe('requiredCliDistTags', () => {
   const pair = (overrides: Partial<EvalPair> = {}): EvalPair => ({
     eval_id: 'eval-1',
     experiment: 'experiment-1',
@@ -279,23 +240,23 @@ describe('requiredCliChannels', () => {
     ...overrides,
   });
 
-  it('resolves only the channel a stable-tagged experiment declares', async () => {
+  it('resolves only the dist-tag a latest-tagged experiment declares', async () => {
     const loadExperimentConfig = vi.fn(async () => ({
-      localStack: { cliChannel: 'stable' as const },
+      localStack: { cliDistTag: 'latest' },
     }));
 
-    const channels = await requiredCliChannels([pair()], {
+    const distTags = await requiredCliDistTags([pair()], {
       loadEvalMetadata: () => ({ cliVersion: undefined }),
       loadExperimentConfig,
     });
 
-    expect(channels).toEqual(new Set(['stable']));
+    expect(distTags).toEqual(new Set(['latest']));
   });
 
-  it('resolves nothing when no experiment in the pair set declares a channel', async () => {
+  it('resolves nothing when no experiment in the pair set declares a dist-tag', async () => {
     const loadExperimentConfig = vi.fn(async () => ({}));
 
-    const channels = await requiredCliChannels(
+    const distTags = await requiredCliDistTags(
       [pair(), pair({ eval_id: 'eval-2', experiment: 'experiment-2' })],
       {
         loadEvalMetadata: () => ({ cliVersion: undefined }),
@@ -303,29 +264,29 @@ describe('requiredCliChannels', () => {
       }
     );
 
-    expect(channels.size).toBe(0);
+    expect(distTags.size).toBe(0);
   });
 
-  it("an eval's pinned cliVersion contributes no channel, even when its experiment declares one", async () => {
+  it("an eval's pinned cliVersion contributes no dist-tag, even when its experiment declares one", async () => {
     const loadExperimentConfig = vi.fn(async () => ({
-      localStack: { cliChannel: 'beta' as const },
+      localStack: { cliDistTag: 'beta' },
     }));
 
-    const channels = await requiredCliChannels([pair()], {
+    const distTags = await requiredCliDistTags([pair()], {
       loadEvalMetadata: () => ({ cliVersion: '2.109.1' }),
       loadExperimentConfig,
     });
 
-    expect(channels.size).toBe(0);
+    expect(distTags.size).toBe(0);
     expect(loadExperimentConfig).not.toHaveBeenCalled();
   });
 
-  it('unions channels across pairs without resolving an experiment config twice', async () => {
+  it('unions dist-tags across pairs without resolving an experiment config twice', async () => {
     const loadExperimentConfig = vi.fn(async () => ({
-      localStack: { cliChannel: 'beta' as const },
+      localStack: { cliDistTag: 'beta' },
     }));
 
-    const channels = await requiredCliChannels(
+    const distTags = await requiredCliDistTags(
       [pair(), pair({ eval_id: 'eval-2' })],
       {
         loadEvalMetadata: () => ({ cliVersion: undefined }),
@@ -333,13 +294,13 @@ describe('requiredCliChannels', () => {
       }
     );
 
-    expect(channels).toEqual(new Set(['beta']));
+    expect(distTags).toEqual(new Set(['beta']));
     expect(loadExperimentConfig).toHaveBeenCalledTimes(1);
   });
 
   it('throws naming an experiment that cannot be resolved to a config', async () => {
     await expect(
-      requiredCliChannels([pair({ experiment: 'ghost' })], {
+      requiredCliDistTags([pair({ experiment: 'ghost' })], {
         loadEvalMetadata: () => ({ cliVersion: undefined }),
         loadExperimentConfig: async () => {
           throw new Error('no experiment config found for "ghost"');

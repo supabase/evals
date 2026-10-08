@@ -1,9 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cliDebUrl } from '../src/cli-channel.js';
 
-const STABLE_ENV = 'SUPABASE_CLI_STABLE_VERSION';
-const BETA_ENV = 'SUPABASE_CLI_BETA_VERSION';
-const NEXT_ENV = 'SUPABASE_CLI_NEXT_VERSION';
+const PINS_ENV = 'SUPABASE_CLI_DIST_TAG_PINS';
 const DIST_TAGS_URL = 'https://registry.npmjs.org/-/package/supabase/dist-tags';
 const PACKUMENT_URL = 'https://registry.npmjs.org/supabase';
 const INSTALL_V1_ACCEPT = 'application/vnd.npm.install-v1+json';
@@ -31,7 +29,7 @@ function headResponse(ok: boolean, status?: number, statusText?: string) {
 /**
  * Routes a single stubbed `fetch` by method + URL, mirroring the real
  * mixture of GET (dist-tags, packument) and HEAD (amd64 + arm64 asset check)
- * calls resolveCliVersion makes.
+ * calls resolveCliDistTag makes.
  */
 function routedFetchMock(routes: {
   distTags?: unknown;
@@ -62,28 +60,24 @@ function routedFetchMock(routes: {
 
 beforeEach(() => {
   vi.resetModules();
-  delete process.env[STABLE_ENV];
-  delete process.env[BETA_ENV];
-  delete process.env[NEXT_ENV];
+  delete process.env[PINS_ENV];
 });
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  delete process.env[STABLE_ENV];
-  delete process.env[BETA_ENV];
-  delete process.env[NEXT_ENV];
+  delete process.env[PINS_ENV];
 });
 
-describe('resolveCliVersion', () => {
-  it('resolves the stable channel from the "latest" dist-tag when its asset exists', async () => {
+describe('resolveCliDistTag', () => {
+  it('resolves the "latest" dist-tag when its asset exists', async () => {
     const fetchMock = routedFetchMock({
       distTags: { latest: '1.2.3', beta: '1.3.0-beta.1' },
       assetOk: () => true,
     });
     vi.stubGlobal('fetch', fetchMock);
-    const { resolveCliVersion } = await import('../src/cli-channel.js');
+    const { resolveCliDistTag } = await import('../src/cli-channel.js');
 
-    await expect(resolveCliVersion('stable')).resolves.toBe('1.2.3');
+    await expect(resolveCliDistTag('latest')).resolves.toBe('1.2.3');
 
     const headCalls = fetchMock.mock.calls.filter(
       ([, init]) => init?.method === 'HEAD'
@@ -94,64 +88,26 @@ describe('resolveCliVersion', () => {
     ]);
   });
 
-  it('resolves the beta channel from the "beta" dist-tag when its asset exists', async () => {
+  it('resolves the "beta" dist-tag when its asset exists', async () => {
     const fetchMock = routedFetchMock({
       distTags: { latest: '1.2.3', beta: '1.3.0-beta.1' },
       assetOk: () => true,
     });
     vi.stubGlobal('fetch', fetchMock);
-    const { resolveCliVersion } = await import('../src/cli-channel.js');
+    const { resolveCliDistTag } = await import('../src/cli-channel.js');
 
-    await expect(resolveCliVersion('beta')).resolves.toBe('1.3.0-beta.1');
+    await expect(resolveCliDistTag('beta')).resolves.toBe('1.3.0-beta.1');
   });
 
-  it('resolves the next channel from the "next" dist-tag when its asset exists', async () => {
+  it('resolves the "next" dist-tag when its asset exists', async () => {
     const fetchMock = routedFetchMock({
       distTags: { latest: '1.2.3', beta: '1.3.0-beta.1', next: '3.0.0-next.2' },
       assetOk: () => true,
     });
     vi.stubGlobal('fetch', fetchMock);
-    const { resolveCliVersion } = await import('../src/cli-channel.js');
+    const { resolveCliDistTag } = await import('../src/cli-channel.js');
 
-    await expect(resolveCliVersion('next')).resolves.toBe('3.0.0-next.2');
-  });
-
-  it('honours the next env override without touching the network', async () => {
-    process.env[NEXT_ENV] = 'v3.0.0-next.3';
-    const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
-    const { resolveCliVersion } = await import('../src/cli-channel.js');
-
-    await expect(resolveCliVersion('next')).resolves.toBe('3.0.0-next.3');
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it('prefers the env override over the network and strips a leading v', async () => {
-    process.env[STABLE_ENV] = 'v9.9.9';
-    const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
-    const { resolveCliVersion } = await import('../src/cli-channel.js');
-
-    await expect(resolveCliVersion('stable')).resolves.toBe('9.9.9');
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it('trims surrounding whitespace from the env override', async () => {
-    process.env[BETA_ENV] = '  1.4.0-rc.2  ';
-    vi.stubGlobal('fetch', vi.fn());
-    const { resolveCliVersion } = await import('../src/cli-channel.js');
-
-    await expect(resolveCliVersion('beta')).resolves.toBe('1.4.0-rc.2');
-  });
-
-  it('throws naming the env var when the override is not a valid version', async () => {
-    process.env[BETA_ENV] = 'not-a-version';
-    vi.stubGlobal('fetch', vi.fn());
-    const { resolveCliVersion } = await import('../src/cli-channel.js');
-
-    await expect(resolveCliVersion('beta')).rejects.toThrow(
-      `${BETA_ENV}="not-a-version" is not a valid Supabase CLI version`
-    );
+    await expect(resolveCliDistTag('next')).resolves.toBe('3.0.0-next.2');
   });
 
   it('throws with the HTTP status when the registry request fails', async () => {
@@ -164,20 +120,20 @@ describe('resolveCliVersion', () => {
       },
     });
     vi.stubGlobal('fetch', fetchMock);
-    const { resolveCliVersion } = await import('../src/cli-channel.js');
+    const { resolveCliDistTag } = await import('../src/cli-channel.js');
 
-    await expect(resolveCliVersion('stable')).rejects.toThrow(
+    await expect(resolveCliDistTag('latest')).rejects.toThrow(
       `${DIST_TAGS_URL} -> 500 Internal Server Error`
     );
   });
 
-  it('throws when the requested dist-tag is missing from the response', async () => {
+  it('throws listing the available dist-tags when the requested one is missing', async () => {
     const fetchMock = routedFetchMock({ distTags: { beta: '1.0.0-beta.1' } });
     vi.stubGlobal('fetch', fetchMock);
-    const { resolveCliVersion } = await import('../src/cli-channel.js');
+    const { resolveCliDistTag } = await import('../src/cli-channel.js');
 
-    await expect(resolveCliVersion('stable')).rejects.toThrow(
-      /did not have a valid "latest" version for the stable channel/
+    await expect(resolveCliDistTag('latest')).rejects.toThrow(
+      'npm has no "latest" dist-tag for "supabase"; available dist-tags: beta'
     );
   });
 
@@ -186,20 +142,20 @@ describe('resolveCliVersion', () => {
       distTags: { latest: 'not-a-version' },
     });
     vi.stubGlobal('fetch', fetchMock);
-    const { resolveCliVersion } = await import('../src/cli-channel.js');
+    const { resolveCliDistTag } = await import('../src/cli-channel.js');
 
-    await expect(resolveCliVersion('stable')).rejects.toThrow(
-      /did not have a valid "latest" version for the stable channel/
+    await expect(resolveCliDistTag('latest')).rejects.toThrow(
+      /did not have a valid "latest" version/
     );
   });
 
   it('treats an array dist-tags response as invalid rather than a record', async () => {
     const fetchMock = routedFetchMock({ distTags: ['not', 'a', 'record'] });
     vi.stubGlobal('fetch', fetchMock);
-    const { resolveCliVersion } = await import('../src/cli-channel.js');
+    const { resolveCliDistTag } = await import('../src/cli-channel.js');
 
-    await expect(resolveCliVersion('stable')).rejects.toThrow(
-      /did not have a valid "latest" version for the stable channel/
+    await expect(resolveCliDistTag('latest')).rejects.toThrow(
+      /were not a JSON object/
     );
   });
 
@@ -209,10 +165,10 @@ describe('resolveCliVersion', () => {
       assetOk: () => true,
     });
     vi.stubGlobal('fetch', fetchMock);
-    const { resolveCliVersion } = await import('../src/cli-channel.js');
+    const { resolveCliDistTag } = await import('../src/cli-channel.js');
 
-    await expect(resolveCliVersion('stable')).resolves.toBe('1.2.3');
-    await expect(resolveCliVersion('stable')).resolves.toBe('1.2.3');
+    await expect(resolveCliDistTag('latest')).resolves.toBe('1.2.3');
+    await expect(resolveCliDistTag('latest')).resolves.toBe('1.2.3');
 
     // One GET (dist-tags) + two HEAD (amd64+arm64 asset check) — the second
     // call hits the cache.
@@ -237,18 +193,18 @@ describe('resolveCliVersion', () => {
       throw new Error(`unexpected fetch: ${url}`);
     });
     vi.stubGlobal('fetch', fetchMock);
-    const { resolveCliVersion } = await import('../src/cli-channel.js');
+    const { resolveCliDistTag } = await import('../src/cli-channel.js');
 
-    await expect(resolveCliVersion('stable')).rejects.toThrow('500');
-    await expect(resolveCliVersion('stable')).resolves.toBe('1.2.3');
+    await expect(resolveCliDistTag('latest')).rejects.toThrow('500');
+    await expect(resolveCliDistTag('latest')).resolves.toBe('1.2.3');
     // A third call must still hit the cache populated by the successful
     // retry — the rejected first promise's cleanup must not evict it.
-    await expect(resolveCliVersion('stable')).resolves.toBe('1.2.3');
+    await expect(resolveCliDistTag('latest')).resolves.toBe('1.2.3');
 
     expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
-  it('does not let a beta rejection clear the stable cache entry', async () => {
+  it('does not let a beta rejection clear the latest cache entry', async () => {
     const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
       if (init?.method === 'HEAD') return headResponse(true);
       if (url === DIST_TAGS_URL) {
@@ -257,15 +213,15 @@ describe('resolveCliVersion', () => {
       throw new Error(`unexpected fetch: ${url}`);
     });
     vi.stubGlobal('fetch', fetchMock);
-    const { resolveCliVersion } = await import('../src/cli-channel.js');
+    const { resolveCliDistTag } = await import('../src/cli-channel.js');
 
-    await expect(resolveCliVersion('stable')).resolves.toBe('1.2.3');
-    await expect(resolveCliVersion('beta')).rejects.toThrow(
-      /did not have a valid "beta" version for the beta channel/
+    await expect(resolveCliDistTag('latest')).resolves.toBe('1.2.3');
+    await expect(resolveCliDistTag('beta')).rejects.toThrow(
+      /did not have a valid "beta" version/
     );
-    await expect(resolveCliVersion('stable')).resolves.toBe('1.2.3');
+    await expect(resolveCliDistTag('latest')).resolves.toBe('1.2.3');
 
-    // Two dist-tags GETs (stable, beta) + two HEAD (stable's amd64+arm64
+    // Two dist-tags GETs (latest, beta) + two HEAD (latest's amd64+arm64
     // asset check only — beta never gets that far).
     expect(fetchMock).toHaveBeenCalledTimes(4);
   });
@@ -284,9 +240,9 @@ describe('resolveCliVersion', () => {
       },
     });
     vi.stubGlobal('fetch', fetchMock);
-    const { resolveCliVersion } = await import('../src/cli-channel.js');
+    const { resolveCliDistTag } = await import('../src/cli-channel.js');
 
-    await expect(resolveCliVersion('beta')).resolves.toBe('2.118.0-beta.51');
+    await expect(resolveCliDistTag('beta')).resolves.toBe('2.118.0-beta.51');
 
     const packumentCall = fetchMock.mock.calls.find(
       ([url]) => url === PACKUMENT_URL
@@ -320,9 +276,9 @@ describe('resolveCliVersion', () => {
       },
     });
     vi.stubGlobal('fetch', fetchMock);
-    const { resolveCliVersion } = await import('../src/cli-channel.js');
+    const { resolveCliDistTag } = await import('../src/cli-channel.js');
 
-    await expect(resolveCliVersion('beta')).resolves.toBe('2.118.0-beta.60');
+    await expect(resolveCliDistTag('beta')).resolves.toBe('2.118.0-beta.60');
   });
 
   it('orders beta.10 ahead of beta.9 during the walk-back (not a string compare)', async () => {
@@ -340,9 +296,9 @@ describe('resolveCliVersion', () => {
       },
     });
     vi.stubGlobal('fetch', fetchMock);
-    const { resolveCliVersion } = await import('../src/cli-channel.js');
+    const { resolveCliDistTag } = await import('../src/cli-channel.js');
 
-    await expect(resolveCliVersion('beta')).resolves.toBe('2.118.0-beta.10');
+    await expect(resolveCliDistTag('beta')).resolves.toBe('2.118.0-beta.10');
 
     const headUrls = fetchMock.mock.calls
       .filter(([, init]) => init?.method === 'HEAD')
@@ -373,9 +329,9 @@ describe('resolveCliVersion', () => {
       },
     });
     vi.stubGlobal('fetch', fetchMock);
-    const { resolveCliVersion } = await import('../src/cli-channel.js');
+    const { resolveCliDistTag } = await import('../src/cli-channel.js');
 
-    await expect(resolveCliVersion('beta')).resolves.toBe('2.118.0-beta.49');
+    await expect(resolveCliDistTag('beta')).resolves.toBe('2.118.0-beta.49');
   });
 
   it('aborts the walk-back and propagates when a candidate probe throws, rather than continuing to the next candidate', async () => {
@@ -403,9 +359,9 @@ describe('resolveCliVersion', () => {
       throw new Error(`unexpected fetch: ${url}`);
     });
     vi.stubGlobal('fetch', fetchMock);
-    const { resolveCliVersion } = await import('../src/cli-channel.js');
+    const { resolveCliDistTag } = await import('../src/cli-channel.js');
 
-    await expect(resolveCliVersion('beta')).rejects.toThrow(
+    await expect(resolveCliDistTag('beta')).rejects.toThrow(
       /2\.118\.0-beta\.51.*-> 500 Internal Server Error/
     );
 
@@ -434,9 +390,9 @@ describe('resolveCliVersion', () => {
       },
     });
     vi.stubGlobal('fetch', fetchMock);
-    const { resolveCliVersion } = await import('../src/cli-channel.js');
+    const { resolveCliDistTag } = await import('../src/cli-channel.js');
 
-    await expect(resolveCliVersion('beta')).resolves.toBe('2.118.0-beta.50');
+    await expect(resolveCliDistTag('beta')).resolves.toBe('2.118.0-beta.50');
 
     const headUrls = fetchMock.mock.calls
       .filter(([, init]) => init?.method === 'HEAD')
@@ -460,9 +416,9 @@ describe('resolveCliVersion', () => {
       packument: { versions },
     });
     vi.stubGlobal('fetch', fetchMock);
-    const { resolveCliVersion } = await import('../src/cli-channel.js');
+    const { resolveCliDistTag } = await import('../src/cli-channel.js');
 
-    await expect(resolveCliVersion('beta')).rejects.toThrow();
+    await expect(resolveCliDistTag('beta')).rejects.toThrow();
 
     const probedVersions = [
       ...new Set(
@@ -496,28 +452,28 @@ describe('resolveCliVersion', () => {
       },
     });
     vi.stubGlobal('fetch', fetchMock);
-    const { resolveCliVersion } = await import('../src/cli-channel.js');
+    const { resolveCliDistTag } = await import('../src/cli-channel.js');
 
-    await expect(resolveCliVersion('beta')).rejects.toThrow(
+    await expect(resolveCliDistTag('beta')).rejects.toThrow(
       /2\.118\.0-beta\.52.*2\.118\.0-beta\.51/
     );
   });
 
-  it('throws instead of guessing when the stable dist-tag asset is a 404', async () => {
+  it('throws instead of guessing when the latest dist-tag asset is a 404', async () => {
     const fetchMock = routedFetchMock({
       distTags: { latest: '1.2.3', beta: '1.3.0-beta.1' },
       assetOk: () => false,
     });
     vi.stubGlobal('fetch', fetchMock);
-    const { resolveCliVersion } = await import('../src/cli-channel.js');
+    const { resolveCliDistTag } = await import('../src/cli-channel.js');
 
-    await expect(resolveCliVersion('stable')).rejects.toThrow(
+    await expect(resolveCliDistTag('latest')).rejects.toThrow(
       'checked amd64 and arm64 .deb assets at ' +
         'https://github.com/supabase/cli/releases/tag/v1.2.3'
     );
   });
 
-  it('throws instead of walking back when the next dist-tag asset is a 404', async () => {
+  it('throws instead of walking back when a non-beta-shaped dist-tag asset is a 404', async () => {
     const fetchMock = routedFetchMock({
       distTags: { latest: '1.2.3', next: '3.0.0-next.2' },
       assetOk: () => false,
@@ -526,9 +482,9 @@ describe('resolveCliVersion', () => {
       },
     });
     vi.stubGlobal('fetch', fetchMock);
-    const { resolveCliVersion } = await import('../src/cli-channel.js');
+    const { resolveCliDistTag } = await import('../src/cli-channel.js');
 
-    await expect(resolveCliVersion('next')).rejects.toThrow(
+    await expect(resolveCliDistTag('next')).rejects.toThrow(
       `npm's "next" dist-tag for "supabase" points at 3.0.0-next.2, but its ` +
         'release asset is missing (checked amd64 and arm64 .deb assets at ' +
         'https://github.com/supabase/cli/releases/tag/v3.0.0-next.2)'
@@ -555,9 +511,9 @@ describe('resolveCliVersion', () => {
       throw new Error(`unexpected fetch: ${url}`);
     });
     vi.stubGlobal('fetch', fetchMock);
-    const { resolveCliVersion } = await import('../src/cli-channel.js');
+    const { resolveCliDistTag } = await import('../src/cli-channel.js');
 
-    await expect(resolveCliVersion('beta')).rejects.toThrow(
+    await expect(resolveCliDistTag('beta')).rejects.toThrow(
       `${cliDebUrl('2.118.0-beta.52', 'amd64')} -> 500 Internal Server Error`
     );
 
@@ -566,16 +522,110 @@ describe('resolveCliVersion', () => {
     );
   });
 
-  it('does not hit the network at all for an env override', async () => {
-    process.env[STABLE_ENV] = '9.9.9';
-    process.env[BETA_ENV] = '9.9.9-beta.1';
+  it('resolves an arbitrary dist-tag name', async () => {
+    const fetchMock = routedFetchMock({
+      distTags: { latest: '1.2.3', canary: '1.4.0-canary.7' },
+      assetOk: () => true,
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { resolveCliDistTag } = await import('../src/cli-channel.js');
+
+    await expect(resolveCliDistTag('canary')).resolves.toBe('1.4.0-canary.7');
+  });
+
+  it('throws without fetching when the dist-tag name is invalid', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
-    const { resolveCliVersion } = await import('../src/cli-channel.js');
+    const { resolveCliDistTag } = await import('../src/cli-channel.js');
 
-    await expect(resolveCliVersion('stable')).resolves.toBe('9.9.9');
-    await expect(resolveCliVersion('beta')).resolves.toBe('9.9.9-beta.1');
+    await expect(resolveCliDistTag('1bad tag')).rejects.toThrow(
+      /neither an exact Supabase CLI version nor a valid npm dist-tag name/
+    );
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('walks back a beta-shaped version even when the dist-tag is not named beta', async () => {
+    const fetchMock = routedFetchMock({
+      distTags: { canary: '2.118.0-beta.52' },
+      assetOk: (version) => version === '2.118.0-beta.51',
+      packument: {
+        versions: { '2.118.0-beta.52': {}, '2.118.0-beta.51': {} },
+      },
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { resolveCliDistTag } = await import('../src/cli-channel.js');
+
+    await expect(resolveCliDistTag('canary')).resolves.toBe('2.118.0-beta.51');
+  });
+
+  it('throws instead of walking back a missing asset that is not beta-shaped, even on the beta dist-tag', async () => {
+    const fetchMock = routedFetchMock({
+      distTags: { beta: '1.4.0-rc.2' },
+      assetOk: () => false,
+      packument: { versions: { '1.4.0-rc.2': {} } },
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { resolveCliDistTag } = await import('../src/cli-channel.js');
+
+    await expect(resolveCliDistTag('beta')).rejects.toThrow(
+      `npm's "beta" dist-tag for "supabase" points at 1.4.0-rc.2, but its release asset is missing`
+    );
+    expect(fetchMock.mock.calls.some(([url]) => url === PACKUMENT_URL)).toBe(
+      false
+    );
+  });
+
+  describe(PINS_ENV, () => {
+    it('uses a pinned version without touching the network and strips a leading v', async () => {
+      process.env[PINS_ENV] = JSON.stringify({ latest: 'v9.9.9' });
+      const fetchMock = vi.fn();
+      vi.stubGlobal('fetch', fetchMock);
+      const { resolveCliDistTag } = await import('../src/cli-channel.js');
+
+      await expect(resolveCliDistTag('latest')).resolves.toBe('9.9.9');
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('only pins the tags it names and resolves the rest from npm', async () => {
+      process.env[PINS_ENV] = JSON.stringify({ latest: '9.9.9' });
+      const fetchMock = routedFetchMock({
+        distTags: { latest: '1.2.3', beta: '1.3.0-beta.1' },
+        assetOk: () => true,
+      });
+      vi.stubGlobal('fetch', fetchMock);
+      const { resolveCliDistTag } = await import('../src/cli-channel.js');
+
+      await expect(resolveCliDistTag('latest')).resolves.toBe('9.9.9');
+      await expect(resolveCliDistTag('beta')).resolves.toBe('1.3.0-beta.1');
+    });
+
+    it('treats a blank or whitespace-only value as unset', async () => {
+      process.env[PINS_ENV] = '   ';
+      const fetchMock = routedFetchMock({
+        distTags: { latest: '1.2.3' },
+        assetOk: () => true,
+      });
+      vi.stubGlobal('fetch', fetchMock);
+      const { resolveCliDistTag } = await import('../src/cli-channel.js');
+
+      await expect(resolveCliDistTag('latest')).resolves.toBe('1.2.3');
+    });
+
+    it.each([
+      ['malformed JSON', '{not json', /is not valid JSON/],
+      ['a non-object', '["9.9.9"]', /must be a JSON object/],
+      [
+        'an invalid version',
+        JSON.stringify({ latest: 'not-a-version' }),
+        /pins "latest" to "not-a-version", which is not a valid Supabase CLI version/,
+      ],
+    ])('throws for %s', async (_name, value, message) => {
+      process.env[PINS_ENV] = value;
+      vi.stubGlobal('fetch', vi.fn());
+      const { resolveCliDistTag } = await import('../src/cli-channel.js');
+
+      await expect(resolveCliDistTag('latest')).rejects.toThrow(message);
+    });
   });
 });
 
@@ -598,7 +648,16 @@ describe('resolveCliVersionOption', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('resolves a "stable" channel tag against npm', async () => {
+  it('strips a leading v from an exact version', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const { resolveCliVersionOption } = await import('../src/cli-channel.js');
+
+    await expect(resolveCliVersionOption('v2.109.1')).resolves.toBe('2.109.1');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('resolves a "latest" dist-tag against npm', async () => {
     const fetchMock = routedFetchMock({
       distTags: { latest: '1.2.3', beta: '1.3.0-beta.1' },
       assetOk: () => true,
@@ -606,10 +665,23 @@ describe('resolveCliVersionOption', () => {
     vi.stubGlobal('fetch', fetchMock);
     const { resolveCliVersionOption } = await import('../src/cli-channel.js');
 
-    await expect(resolveCliVersionOption('stable')).resolves.toBe('1.2.3');
+    await expect(resolveCliVersionOption('latest')).resolves.toBe('1.2.3');
   });
 
-  it('resolves a "beta" channel tag against npm', async () => {
+  it('resolves an arbitrary dist-tag against npm', async () => {
+    const fetchMock = routedFetchMock({
+      distTags: { latest: '1.2.3', canary: '1.4.0-canary.7' },
+      assetOk: () => true,
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { resolveCliVersionOption } = await import('../src/cli-channel.js');
+
+    await expect(resolveCliVersionOption('canary')).resolves.toBe(
+      '1.4.0-canary.7'
+    );
+  });
+
+  it('throws listing the available dist-tags for an unknown tag', async () => {
     const fetchMock = routedFetchMock({
       distTags: { latest: '1.2.3', beta: '1.3.0-beta.1' },
       assetOk: () => true,
@@ -617,8 +689,28 @@ describe('resolveCliVersionOption', () => {
     vi.stubGlobal('fetch', fetchMock);
     const { resolveCliVersionOption } = await import('../src/cli-channel.js');
 
-    await expect(resolveCliVersionOption('beta')).resolves.toBe('1.3.0-beta.1');
+    await expect(resolveCliVersionOption('canary')).rejects.toThrow(
+      'npm has no "canary" dist-tag for "supabase"; available dist-tags: latest, beta'
+    );
   });
+});
+
+describe('isExactCliVersion', () => {
+  it.each(['2.109.1', 'v2.109.1', '2.118.0-beta.5', '1.4.0-rc.2'])(
+    'accepts %s',
+    async (value) => {
+      const { isExactCliVersion } = await import('../src/cli-channel.js');
+      expect(isExactCliVersion(value)).toBe(true);
+    }
+  );
+
+  it.each(['latest', 'beta', 'next', 'canary', 'v1', '1.2'])(
+    'rejects %s',
+    async (value) => {
+      const { isExactCliVersion } = await import('../src/cli-channel.js');
+      expect(isExactCliVersion(value)).toBe(false);
+    }
+  );
 });
 
 describe('compareBetaVersionsDesc', () => {
