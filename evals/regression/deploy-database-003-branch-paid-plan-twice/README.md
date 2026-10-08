@@ -16,10 +16,8 @@ most once (calling it first is fine), and there are no tool errors.
 for the payments work too?") would ideally be a follow-up turn, but the harness
 runs one prompt per eval, so the prompt asks for both, one after the other.
 
-**Known harness limit: stopping to approve the price.** `get_cost` tells the
-agent to "repeat the cost to the user and confirm their understanding before
-proceeding", so an agent that quotes the price and waits for an OK before
-`confirm_cost` is doing the right thing. In a single-turn harness nobody
-answers, so that run fails with no branches. Read that failure shape as a
-harness limit, not an agent gap. The checks aren't relaxed for it, because a
-run that never creates a branch can't be told apart from one that gave up.
+**Cost consent.** `get_cost` tells the agent to confirm the price with the user
+before going ahead. A single-turn harness can't answer that, so the prompt ends
+with "Whatever it costs is fine, no need to check with me." The line is the
+same in 002-004. A run that still stops to ask for approval now ignored the
+user's consent and counts as an agent mistake.

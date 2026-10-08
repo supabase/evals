@@ -16,3 +16,5 @@ motivation: >-
 I've got a migration for the orders table that I want to try out before it goes anywhere near prod. Can you spin up a dev branch so I can test it there?
 
 Once that one's up, can you make another one for the payments work too?
+
+Whatever it costs is fine, no need to check with me.

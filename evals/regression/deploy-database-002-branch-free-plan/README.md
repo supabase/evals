@@ -11,7 +11,15 @@ server runs account-scoped with the `branching` feature, so `get_organization`
 
 **Checks.** The agent calls `get_organization`, never calls `get_cost`,
 `confirm_cost` or `create_branch`, gets no tool errors, and tells the user
-branching needs a paid plan (judge).
+branching needs a paid plan with a link to the org's billing page
+(`https://supabase.com/dashboard/org/<slug>/billing`, per
+[Manage your subscription](https://supabase.com/docs/guides/platform/manage-your-subscription))
+(judge).
+
+**Cost consent.** The prompt ends with "Whatever it costs is fine, no need to
+check with me." It stands in for the approval turn a single-turn harness can't
+provide. The line is the same in 002-004, so only the seeded plan and the MCP
+scoping differ.
 
 **Expected to fail** until the MCP server's `create_branch`/`get_cost`/
 `confirm_cost` descriptions tell agents to check the plan first and

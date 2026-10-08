@@ -15,3 +15,5 @@ motivation: >-
 ---
 
 I've got a migration for the orders table that I want to try out before it goes anywhere near prod. Can you spin up a dev branch so I can test it there?
+
+Whatever it costs is fine, no need to check with me.
