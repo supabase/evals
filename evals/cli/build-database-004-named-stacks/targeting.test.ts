@@ -24,12 +24,35 @@ describe('formatTargetingJudgeInput', () => {
         'Harness facts:',
         '- project directory: /ws',
         '- dev stack: database postgresql://127.0.0.1:29001/postgres (port 29001)',
+        '  found under the default CLI home',
         '- test stack: database postgresql://127.0.0.1:29002/postgres (port 29002)',
+        '  found under the default CLI home',
         '',
         'Executed commands, in order:',
         '1. supabase init',
         '2. ls',
       ].join('\n')
+    );
+  });
+
+  it("names each stack's CLI home, relocated or default", () => {
+    const input = formatTargetingJudgeInput(
+      '/ws',
+      {
+        dev: { ...STACKS.dev, cliHome: '/home/node/.supabase' },
+        test: {
+          ...named('postgresql://postgres:hunter2@127.0.0.1:29002/postgres'),
+          relocatedHome: '/tmp/sb/.supabase-home',
+          cliHome: '/tmp/sb/.supabase-home',
+        },
+      },
+      []
+    );
+    expect(input).toContain(
+      '(port 29001)\n  found under the default CLI home /home/node/.supabase'
+    );
+    expect(input).toContain(
+      '(port 29002)\n  found under relocated CLI home /tmp/sb/.supabase-home'
     );
   });
 

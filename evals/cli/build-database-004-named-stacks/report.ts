@@ -6,7 +6,22 @@ import {
 } from '../lib/stack.js';
 import { diffAgainstFixtures, isFixtureRow } from './fixtures.js';
 import type { OrdersProbe } from './orders.js';
+import type { CliFacts } from './metrics.js';
 import { STACK_NAMES, type NamedStacks, type StackName } from './stacks.js';
+
+function describeProbeCli({ versions, cliOverride }: CliFacts): string[] {
+  const installed = versions?.cliVersion ?? 'unknown';
+  const afterRun =
+    versions?.cliVersionAfterRun === undefined
+      ? ''
+      : `; PATH supabase reported ${versions.cliVersionAfterRun} after the run`;
+  return [
+    `- installed CLI: ${installed}${afterRun}; every stack probe below ran with the installed CLI, so stacks the agent created through a different Supabase CLI build may not appear here`,
+    ...(cliOverride !== null && cliOverride.length > 0
+      ? [`- agent ran ${cliOverride.join(', ')}; scorer uses the installed CLI`]
+      : []),
+  ];
+}
 
 function describeOrders(stackName: StackName, orders: OrdersProbe): string[] {
   if (!orders.ok) return [`  orders: unavailable (${orders.notes})`];
@@ -29,10 +44,12 @@ function describeOrders(stackName: StackName, orders: OrdersProbe): string[] {
 export function describeGroundTruth(
   workspace: string,
   stacks: NamedStacks,
-  orders: Record<StackName, OrdersProbe>
+  orders: Record<StackName, OrdersProbe>,
+  cli: CliFacts = { versions: null, cliOverride: [] }
 ): string[] {
   return [
     `- project directory: ${workspace}`,
+    ...describeProbeCli(cli),
     ...STACK_NAMES.flatMap((stackName) => {
       const stack: StackProbe = stacks[stackName];
       return [

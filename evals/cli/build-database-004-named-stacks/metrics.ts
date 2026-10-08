@@ -73,28 +73,19 @@ function stackMetrics(stack: StackProbe) {
     : { backend: 'none', runtime: 'none', dbPort: null, relocatedHome: null };
 }
 
-export async function checkMetrics(
+export type CliFacts = {
+  versions: Awaited<ReturnType<typeof readCliVersions>> | null;
+  cliOverride: string[] | null;
+};
+
+export async function readCliFacts(
   ctx: Pick<LocalStackEvalContext, 'exec'>,
   marker: LocalStackEnvironmentMarker | undefined,
-  facts: {
-    commands: readonly string[];
-    invocations: readonly SupabaseInvocation[];
-    stacks: NamedStacks;
-    dev: OrdersProbe;
-    test: OrdersProbe;
-  }
-): Promise<CheckResult> {
-  const { commands, invocations, stacks, dev, test } = facts;
+  invocations: readonly SupabaseInvocation[]
+): Promise<CliFacts> {
   const versions = await safely(() => readCliVersions(ctx, marker));
-  const devPort = await safely(() =>
-    stacks.dev.ok ? (urlPort(stacks.dev.dbUrl) ?? null) : null
-  );
-
-  const metrics = {
-    cliVersion: versions?.cliVersion ?? null,
-    ...(versions?.cliVersionAfterRun === undefined
-      ? {}
-      : { cliVersionAfterRun: versions.cliVersionAfterRun }),
+  return {
+    versions,
     cliOverride: await safely(() =>
       versions === null
         ? null
@@ -104,6 +95,34 @@ export async function checkMetrics(
             versions.cliVersionAfterRun ?? versions.cliVersion
           )
     ),
+  };
+}
+
+export async function checkMetrics(
+  ctx: Pick<LocalStackEvalContext, 'exec'>,
+  marker: LocalStackEnvironmentMarker | undefined,
+  facts: {
+    commands: readonly string[];
+    invocations: readonly SupabaseInvocation[];
+    stacks: NamedStacks;
+    dev: OrdersProbe;
+    test: OrdersProbe;
+    cli?: CliFacts;
+  }
+): Promise<CheckResult> {
+  const { commands, invocations, stacks, dev, test } = facts;
+  const { versions, cliOverride } =
+    facts.cli ?? (await readCliFacts(ctx, marker, invocations));
+  const devPort = await safely(() =>
+    stacks.dev.ok ? (urlPort(stacks.dev.dbUrl) ?? null) : null
+  );
+
+  const metrics = {
+    cliVersion: versions?.cliVersion ?? null,
+    ...(versions?.cliVersionAfterRun === undefined
+      ? {}
+      : { cliVersionAfterRun: versions.cliVersionAfterRun }),
+    cliOverride,
     channel: marker?.channel ?? 'pinned',
     stacks: await safely(() =>
       Object.fromEntries(

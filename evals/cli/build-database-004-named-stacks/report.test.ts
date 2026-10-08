@@ -22,6 +22,9 @@ const SAMPLES: OrderRow[] = [
   { customer: 'bob', item: 'lamp', quantity: 1 },
 ];
 
+const PROBE_NOTE =
+  'every stack probe below ran with the installed CLI, so stacks the agent created through a different Supabase CLI build may not appear here';
+
 const rows = (orders: readonly OrderRow[], pristine: boolean): OrdersProbe => ({
   ok: true,
   rows: [...orders],
@@ -39,6 +42,7 @@ describe('describeGroundTruth', () => {
     });
     expect(lines).toEqual([
       '- project directory: /ws',
+      `- installed CLI: unknown; ${PROBE_NOTE}`,
       '- dev stack: resolved: managed-named/native',
       '  db port: 29001',
       '  db url: postgresql://127.0.0.1:29001/postgres',
@@ -78,6 +82,35 @@ describe('describeGroundTruth', () => {
     expect(text).toContain("- dev stack: none (no stack named 'dev')");
     expect(text).toContain('db port: unavailable');
     expect(text).toContain("orders: unavailable (no stack named 'dev')");
+  });
+
+  it('states the installed CLI version and that probes used it', () => {
+    const lines = describeGroundTruth(
+      '/ws',
+      STACKS,
+      { dev: rows(SAMPLES, true), test: rows(ORDER_FIXTURES, false) },
+      { versions: { cliVersion: '2.117.0' }, cliOverride: [] }
+    );
+    expect(lines[1]).toBe(`- installed CLI: 2.117.0; ${PROBE_NOTE}`);
+    expect(lines.join('\n')).not.toContain('agent ran');
+  });
+
+  it('lists the detected CLI override runners', () => {
+    const lines = describeGroundTruth(
+      '/ws',
+      STACKS,
+      { dev: rows(SAMPLES, true), test: rows(ORDER_FIXTURES, false) },
+      {
+        versions: { cliVersion: '2.117.0', cliVersionAfterRun: '2.120.0' },
+        cliOverride: ['npx --yes supabase@2.120.0'],
+      }
+    );
+    expect(lines[1]).toContain(
+      'installed CLI: 2.117.0; PATH supabase reported 2.120.0 after the run'
+    );
+    expect(lines[2]).toBe(
+      '- agent ran npx --yes supabase@2.120.0; scorer uses the installed CLI'
+    );
   });
 
   it('never carries the stack credentials', () => {

@@ -15,7 +15,8 @@ import { readStackList, type StackListProbe } from '../lib/stack-list.js';
 
 export const STACK_NAMES = ['dev', 'test'] as const;
 export type StackName = (typeof STACK_NAMES)[number];
-export type NamedStacks = Record<StackName, StackProbe>;
+export type NamedStack = StackProbe & { cliHome?: string };
+export type NamedStacks = Record<StackName, NamedStack>;
 
 type ExecContext = Pick<LocalStackEvalContext, 'exec'>;
 type HomeStackList = { home?: InvocationEnv; list: StackListProbe };
@@ -82,7 +83,8 @@ async function defaultHomeRoot(ctx: ExecContext): Promise<string | undefined> {
 async function readStackLists(
   ctx: ExecContext,
   workspace: string,
-  invocations: readonly SupabaseInvocation[]
+  invocations: readonly SupabaseInvocation[],
+  defaultHome: string | undefined
 ): Promise<HomeStackList[]> {
   const homes = new Map<string, InvocationEnv>();
   for (const stackName of STACK_NAMES) {
@@ -95,7 +97,7 @@ async function readStackLists(
       if (root !== undefined) homes.set(root, home);
     }
   }
-  const known = new Set([...homes.keys(), await defaultHomeRoot(ctx)]);
+  const known = new Set([...homes.keys(), defaultHome]);
   for (const root of await discoverHomeRoots(ctx, workspace)) {
     if (!known.has(root)) homes.set(root, { SUPABASE_HOME: root });
   }
@@ -153,8 +155,9 @@ async function resolveNamedStack(
   stackName: StackName,
   workspace: string,
   listing: { stacks: readonly ListedStack[]; failures: readonly string[] },
-  realWorkspace: string
-): Promise<StackProbe> {
+  realWorkspace: string,
+  defaultHome: string | undefined
+): Promise<NamedStack> {
   const candidates = listing.stacks
     .filter(({ name, root }) => name === stackName && root === realWorkspace)
     .sort((a, b) => Number(b.reachable) - Number(a.reachable));
@@ -186,7 +189,9 @@ async function resolveNamedStack(
       notes.push(`resolved to the ${probe.backend} stack, not the named one`);
     } else {
       const relocatedHome = home && homeRoot(home);
-      return relocatedHome === undefined ? probe : { ...probe, relocatedHome };
+      return relocatedHome === undefined
+        ? { ...probe, cliHome: defaultHome }
+        : { ...probe, relocatedHome, cliHome: relocatedHome };
     }
   }
   return {
@@ -201,9 +206,10 @@ export async function resolveNamedStacks(
   workspace: string,
   invocations: readonly SupabaseInvocation[]
 ): Promise<NamedStacks> {
+  const defaultHome = await defaultHomeRoot(ctx);
   const listing = await listedStacks(
     ctx,
-    await readStackLists(ctx, workspace, invocations)
+    await readStackLists(ctx, workspace, invocations, defaultHome)
   );
   const realWorkspace = await realPath(ctx, workspace);
   const dev = await resolveNamedStack(
@@ -211,14 +217,16 @@ export async function resolveNamedStacks(
     'dev',
     workspace,
     listing,
-    realWorkspace
+    realWorkspace,
+    defaultHome
   );
   const test = await resolveNamedStack(
     ctx,
     'test',
     workspace,
     listing,
-    realWorkspace
+    realWorkspace,
+    defaultHome
   );
   return { dev, test };
 }
