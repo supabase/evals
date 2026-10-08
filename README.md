@@ -151,7 +151,7 @@ An experiment can pass `localStackRuntime({ docker: 'no-daemon' })` or `'absent'
 
 Scorers check what the agent produced, never what the harness provisioned: with `projectRunning: true` (the default) the running stack and the seeded `local/` workspace are setup, so score only the deltas the agent made on top; with `projectRunning: false` the agent creates that state itself, so depending on it is fair game.
 
-Test the sandbox plumbing without an agent run (Docker required, not part of `pnpm check`):
+Test the sandbox plumbing without an agent run (Docker required, not part of `pnpm test`):
 
 ```bash
 pnpm --filter @supabase-evals/sandbox test:docker
@@ -168,10 +168,11 @@ Skills are installed into the sandbox workspace with [Vercel's `skills` CLI](htt
 ## Framework Checks
 
 ```bash
-pnpm check
+pnpm typecheck
+pnpm test
 ```
 
-Runs typechecks plus local smoke tests.
+Typechecks every package, then runs the local tests.
 
 ## Contributing
 
