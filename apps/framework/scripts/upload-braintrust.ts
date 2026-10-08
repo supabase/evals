@@ -798,7 +798,9 @@ async function main() {
   if (process.env.GITHUB_STEP_SUMMARY) {
     const { pr_url } = prUrl();
     const lines = [
-      ...(pr_url ? [`**Pull request:** [#${pr_url.split('/').pop()}](${pr_url})`, ''] : []),
+      ...(pr_url
+        ? [`**Pull request:** [#${pr_url.split('/').pop()}](${pr_url})`, '']
+        : []),
       `**Braintrust experiments:** [view all](${runUrl})`,
       '',
       ...uploaded.map(({ name, url }) => `- [${name}](${url})`),
