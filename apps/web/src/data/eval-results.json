@@ -47697,7 +47697,6 @@
     ],
     "suite": "benchmark",
     "interface": "cli",
-    "cliVersion": "2.117.0",
     "passed": true,
     "checks": [
       {
@@ -47708,7 +47707,7 @@
       {
         "name": "signUp creates the account and returns its user id",
         "passed": true,
-        "notes": "db user 5cef4d55-57e8-4b16-80a7-bfacb6f48fe3, signUp returned {\"userId\":\"5cef4d55-57e8-4b16-80a7-bfacb6f48fe3\"}"
+        "notes": "db user bb42e89e-fdd3-492f-8a9f-8766dd2c2356, signUp returned {\"userId\":\"bb42e89e-fdd3-492f-8a9f-8766dd2c2356\"}"
       },
       {
         "name": "signup metadata reaches the profile (display name)",
@@ -47723,7 +47722,392 @@
       {
         "name": "signIn with the right password returns the user id",
         "passed": true,
-        "notes": "{\"userId\":\"5cef4d55-57e8-4b16-80a7-bfacb6f48fe3\"}"
+        "notes": "{\"userId\":\"bb42e89e-fdd3-492f-8a9f-8766dd2c2356\"}"
+      },
+      {
+        "name": "getMyProfile returns the signed-in user's profile",
+        "passed": true,
+        "notes": "{\"displayName\":\"Alex Doe\",\"plan\":\"free\"}"
+      },
+      {
+        "name": "app code does not use the secret / service-role key",
+        "passed": true,
+        "notes": "no secret-key references found"
+      },
+      {
+        "name": "implementation uses @supabase/supabase-js",
+        "passed": true,
+        "notes": "imports found in: app/src/auth.mjs"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"supabase-js signUp email password options data signInWithPassword auth getUser profiles select single createClient\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/auth0",
+              "title": "Migrate from Auth0 to Supabase Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passwords",
+              "title": "Password-based Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-saml-sso",
+              "title": "Configure SAML SSO"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/social-login/auth-azure",
+              "title": "Sign in with Azure (Microsoft)"
+            }
+          ],
+          "resultChars": 122411
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"auth-signup JavaScript signUp options data metadata\", limit: 3) { nodes { title href ... on ClientLibraryFunctionReference { methodName language } } } }",
+          "hasContent": false,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-signup"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/customizing-emails-by-language-KZ_38Q",
+              "title": "Customizing Emails by Language"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/dart/auth-signup"
+            }
+          ],
+          "resultChars": 529
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/reference/javascript/auth-signup signUp options data metadata signInWithPassword getUser",
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"auth-signinwithpassword\", limit: 2) { nodes { title href ... on ClientLibraryFunctionReference { language methodName content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-signinwithpassword"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/dart/auth-signinwithpassword"
+            }
+          ],
+          "resultChars": 2114
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | rg -n -i -C 2 'breaking.change|auth|Data API' | head -85; supabase status --help | head -45; supabase status -o env\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 3512
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"auth-getuser\", limit: 2) { nodes { href ... on ClientLibraryFunctionReference { language content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-getuser"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features"
+            }
+          ],
+          "resultChars": 853
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-sol",
+        "inputTokens": 446413,
+        "cacheReadInputTokens": 391883,
+        "cacheWriteInputTokens": 49237,
+        "outputTokens": 6437
+      }
+    ],
+    "stepCount": 16,
+    "toolCallCount": 16,
+    "agentRunDurationMs": 73749,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "Our app in `app/` needs accounts. Wire up `app/src/auth.mjs` — the stubs in\nthere describe what each function should do. People sign up with an email,\npassword, and display name, sign back in later, and the app greets them with\ntheir profile.\n\nThe Supabase project for this app is in `supabase/` and already running\nlocally. When you're done, the functions should work for real against it.",
+    "promptSourcePath": "evals/benchmark/build-auth-001-email-password-flow/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-sol/build-auth-001-email-password-flow/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-sol",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-sol",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-auth-001-email-password-flow",
+    "stage": "build",
+    "product": [
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "sdk",
+      "rls"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "auth module loads and the driver completes",
+        "passed": true,
+        "notes": "driver produced a result"
+      },
+      {
+        "name": "signUp creates the account and returns its user id",
+        "passed": true,
+        "notes": "db user e71696c4-8e06-482a-976d-32d312d1cde0, signUp returned {\"userId\":\"e71696c4-8e06-482a-976d-32d312d1cde0\"}"
+      },
+      {
+        "name": "signup metadata reaches the profile (display name)",
+        "passed": true,
+        "notes": "profiles.display_name = \"Alex Doe\""
+      },
+      {
+        "name": "wrong password is rejected gracefully (no throw, no session)",
+        "passed": true,
+        "notes": "{\"error\":\"Invalid login credentials\"}"
+      },
+      {
+        "name": "signIn with the right password returns the user id",
+        "passed": true,
+        "notes": "{\"userId\":\"e71696c4-8e06-482a-976d-32d312d1cde0\"}"
+      },
+      {
+        "name": "getMyProfile returns the signed-in user's profile",
+        "passed": true,
+        "notes": "{\"displayName\":\"Alex Doe\",\"plan\":\"free\"}"
+      },
+      {
+        "name": "app code does not use the secret / service-role key",
+        "passed": true,
+        "notes": "no secret-key references found"
+      },
+      {
+        "name": "implementation uses @supabase/supabase-js",
+        "passed": true,
+        "notes": "imports found in: app/src/auth.mjs"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"supabase javascript auth signUp options data signInWithPassword getUser profile table select single\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/auth0",
+              "title": "Migrate from Auth0 to Supabase Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/enterprise-sso",
+              "title": "Enterprise Single Sign-On"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/customizing-emails-by-language-KZ_38Q",
+              "title": "Customizing Emails by Language"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-getuser"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth",
+              "title": "Auth"
+            }
+          ],
+          "resultChars": 21470
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"auth-signup sign-in-password auth-getuser javascript supabase-js client\", limit: 8) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/auth0",
+              "title": "Migrate from Auth0 to Supabase Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth",
+              "title": "Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/social-login/auth-spotify",
+              "title": "Sign in with Spotify"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-saml-sso",
+              "title": "Configure SAML SSO"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/social-login/auth-figma",
+              "title": "Sign in with Figma"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/social-login/auth-bitbucket",
+              "title": "Sign in with Bitbucket"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/social-login/auth-azure",
+              "title": "Sign in with Azure (Microsoft)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/social-login/auth-github",
+              "title": "Sign in with GitHub"
+            }
+          ],
+          "resultChars": 137076
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"signInWithPassword\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/swift/auth-signinwithpassword",
+              "title": "signInWithPassword()"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passwords",
+              "title": "Password-based Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-signinwithpassword"
+            }
+          ],
+          "resultChars": 48875
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"npm view @supabase/supabase-js version; node --version; npm --version; curl -fsSL --max-time 15 https://supabase.com/changelog.md | rg -i 'breaking.change|supabase-js' | head -35\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 6665
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/reference/javascript/auth-signup options data signUp user",
+          "pages": []
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-sol",
+        "inputTokens": 497258,
+        "cacheReadInputTokens": 437087,
+        "cacheWriteInputTokens": 55098,
+        "outputTokens": 5919
+      }
+    ],
+    "stepCount": 15,
+    "toolCallCount": 18,
+    "agentRunDurationMs": 72857,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "Our app in `app/` needs accounts. Wire up `app/src/auth.mjs` — the stubs in\nthere describe what each function should do. People sign up with an email,\npassword, and display name, sign back in later, and the app greets them with\ntheir profile.\n\nThe Supabase project for this app is in `supabase/` and already running\nlocally. When you're done, the functions should work for real against it.",
+    "promptSourcePath": "evals/benchmark/build-auth-001-email-password-flow/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-sol/build-auth-001-email-password-flow/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-sol",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-sol",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-auth-001-email-password-flow",
+    "stage": "build",
+    "product": [
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "sdk",
+      "rls"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "passed": true,
+    "checks": [
+      {
+        "name": "auth module loads and the driver completes",
+        "passed": true,
+        "notes": "driver produced a result"
+      },
+      {
+        "name": "signUp creates the account and returns its user id",
+        "passed": true,
+        "notes": "db user ba3987c7-3d8e-4842-99e5-0761565db855, signUp returned {\"userId\":\"ba3987c7-3d8e-4842-99e5-0761565db855\"}"
+      },
+      {
+        "name": "signup metadata reaches the profile (display name)",
+        "passed": true,
+        "notes": "profiles.display_name = \"Alex Doe\""
+      },
+      {
+        "name": "wrong password is rejected gracefully (no throw, no session)",
+        "passed": true,
+        "notes": "{\"error\":\"Invalid login credentials\"}"
+      },
+      {
+        "name": "signIn with the right password returns the user id",
+        "passed": true,
+        "notes": "{\"userId\":\"ba3987c7-3d8e-4842-99e5-0761565db855\"}"
       },
       {
         "name": "getMyProfile returns the signed-in user's profile",
@@ -47754,147 +48138,87 @@
       "calls": [
         {
           "source": "shell_fetch",
-          "query": "/bin/bash -lc \"sed -n '1,125p' .agents/skills/supabase/SKILL.md; printf '\\\\n-- files --\\\\n'; cat app/src/auth.mjs app/package.json supabase/config.toml supabase/migrations/0000_profiles_schema.sql; printf '\\\\n-- tree --\\\\n'; ls -la; find app supabase -name AGENTS.md -print; printf '\\\\n-- changelog flags --\\\\n'; curl -fsSL https://supabase.com/changelog.md | rg -in 'breaking-change|auth|signup|sign.?in' | head -65\"",
+          "query": "/bin/bash -lc 'curl -fsSL --max-time 15 https://supabase.com/changelog.md | head -100'",
+          "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 29324
-        },
-        {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc \"printf '%s\\\\n' '-- auth --'; cat app/src/auth.mjs; printf '%s\\\\n' '-- package --'; cat app/package.json; printf '%s\\\\n' '-- migration --'; cat supabase/migrations/0000_profiles_schema.sql; printf '%s\\\\n' '-- config relevant --'; rg -n 'auth|email|port|seed' supabase/config.toml; printf '%s\\\\n' '-- dirs --'; ls -la app app/src supabase; printf '%s\\\\n' '-- agent files --'; find . -name AGENTS.md -print; printf '%s\\\\n' '-- changelog recent breaking --'; curl -fsSL https://supabase.com/changelog.md | rg -i -B2 -A3 'Breaking Change.*Auth|Breaking Change.*Database' | head -90\"",
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 10757
+          "resultChars": 5272
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query:\"javascript supabase auth signUp options data display_name signInWithPassword getUser profiles select createClient publishable key\", limit:6) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"javascript auth signUp signInWithPassword user metadata display name getUser profile table\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/auth0",
-              "title": "Migrate from Auth0 to Supabase Auth"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-signup"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/passkeys",
-              "title": "Passkey authentication"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-saml-sso",
-              "title": "Configure SAML SSO"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/social-login/auth-azure",
-              "title": "Sign in with Azure (Microsoft)"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/social-login/auth-google",
-              "title": "Sign in with Google"
-            }
-          ],
-          "resultChars": 128037
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query:\"signUp JavaScript auth signUp options data email password\",limit:2){nodes{title href content}} }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/auth/passwords",
-              "title": "Password-based Auth"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-signup"
-            }
-          ],
-          "resultChars": 48731
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query:\"JavaScript getUser signInWithPassword select single profiles\",limit:4){nodes{title href content}} }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-signinwithpassword"
+              "url": "https://supabase.com/docs/guides/auth/managing-user-data",
+              "title": "User Management"
             },
             {
               "url": "https://supabase.com/docs/reference/swift/auth-signinwithpassword",
               "title": "signInWithPassword()"
             },
             {
-              "url": "https://supabase.com/docs/reference/javascript/auth-signinwithoauth"
+              "url": "https://supabase.com/docs/reference/javascript/auth-signinwithpassword"
             },
             {
-              "url": "https://supabase.com/docs/reference/dart/auth-signinwithpassword"
-            }
-          ],
-          "resultChars": 4367
-        },
-        {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc \"printf '%s\\\\n' '-- local runtime --'; node -v; npm -v; command -v supabase || true; printf '%s\\\\n' '-- env presence --'; for var in SUPABASE_URL SUPABASE_PUBLISHABLE_KEY; do if [ -n \\\"\"'${!var}\" ]; then echo \"$var set\"; else echo \"$var missing\"; fi; done; printf '\"'%s\\\\n' '-- auth config --'; sed -n '60,96p' supabase/config.toml; printf '%s\\\\n' '-- local service --'; curl -sS -o /dev/null -w '%{http_code}\\\\n' http://127.0.0.1:54321/auth/v1/health || true; printf '%s\\\\n' '-- relevant changelog --'; curl -fsSL https://supabase.com/changelog/45329-breaking-change-tables-not-exposed-to-data-and-graphql-api-automatically | head -c 250 >/dev/null; echo fetched\"",
-          "pages": [
+              "url": "https://supabase.com/docs/reference/javascript/auth-signup"
+            },
             {
-              "url": "https://supabase.com/changelog/45329-breaking-change-tables-not-exposed-to-data-and-graphql-api-automatically"
+              "url": "https://supabase.com/docs/reference/swift/auth-signup",
+              "title": "signUp()"
             }
           ],
-          "resultChars": 57
+          "resultChars": 11766
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query:\"JavaScript auth getUser() current authenticated user\",limit:2){nodes{title href content}} }",
+          "query": "query { searchDocs(query: \"javascript auth getUser current user select from profiles eq single row level security\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/docs/reference/javascript/auth-getuser"
             },
             {
-              "url": "https://supabase.com/docs/reference/dart/auth-currentuser"
+              "url": "https://supabase.com/docs/reference/javascript/auth-admin-getuserbyid"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/why-is-my-select-returning-an-empty-data-array-and-i-have-data-in-the-table-xvOPgx",
+              "title": "Why is my select returning an empty data array and I have data in the table?"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth-legacy-jwt",
+              "title": "Integrating With Supabase Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-admin-listusers"
             }
           ],
-          "resultChars": 1074
-        },
-        {
-          "source": "web_search",
-          "query": "site:supabase.com/docs/reference/javascript/auth-signup options data signUp metadata",
-          "pages": []
+          "resultChars": 9330
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-sol",
-        "inputTokens": 494977,
-        "cacheReadInputTokens": 443808,
-        "cacheWriteInputTokens": 46706,
-        "outputTokens": 5562
+        "inputTokens": 245587,
+        "cacheReadInputTokens": 201085,
+        "cacheWriteInputTokens": 43822,
+        "outputTokens": 6295
       }
     ],
-    "stepCount": 18,
-    "toolCallCount": 16,
-    "agentRunDurationMs": 91007,
+    "stepCount": 10,
+    "toolCallCount": 12,
+    "agentRunDurationMs": 72299,
     "sandboxUsage": {
-      "activeCpuDurationMs": 258745,
-      "duration": 241780,
-      "memory": 8192,
-      "networkTransfer": {
-        "ingress": 1657288530,
-        "egress": 9301006
-      }
+      "memory": 8192
     },
     "prompt": "Our app in `app/` needs accounts. Wire up `app/src/auth.mjs` — the stubs in\nthere describe what each function should do. People sign up with an email,\npassword, and display name, sign back in later, and the app greets them with\ntheir profile.\n\nThe Supabase project for this app is in `supabase/` and already running\nlocally. When you're done, the functions should work for real against it.",
     "promptSourcePath": "evals/benchmark/build-auth-001-email-password-flow/PROMPT.md",
-    "run": 1,
-    "sourcePath": "codex-gpt-6-sol/build-auth-001-email-password-flow/run-1/result.json"
+    "run": 3,
+    "sourcePath": "codex-gpt-6-sol/build-auth-001-email-password-flow/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-6-sol",
