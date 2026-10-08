@@ -56,8 +56,9 @@ seeds both stacks.
 
 Verified on `supabase@2.121.0-beta.10`, macOS native runtime.
 
-- Named stacks exist only behind `SUPABASE_EXPERIMENTAL_STACK=1` (or
-  `--experimental`). `supabase stack start --stack dev` and `--stack test` in
+- Named stacks exist only behind `SUPABASE_EXPERIMENTAL_STACK=1`; the global
+  `--experimental` flag does not unlock `stack` (checked on 2.120.0 and
+  2.121.0-beta.10). `supabase stack start --stack dev` and `--stack test` in
   the same project directory run concurrently on different random DB ports, but only
   because the config pins no port: a pinned `[db] port` (or `[api] port`) is
   shared by both, and the second start fails with a port-in-use error. That is
