@@ -1972,9 +1972,9 @@
     "passed": true,
     "checks": [
       {
-        "name": "called get_cost or create_branch at most 1 time(s)",
+        "name": "exactly one branching-tool call returned the branching-unavailable result",
         "passed": true,
-        "notes": "called 1 time(s)"
+        "notes": "from: get_cost"
       },
       {
         "name": "called confirm_cost exactly 0 time(s)",
@@ -1988,7 +1988,7 @@
       {
         "name": "told the user their plan doesn't include branching",
         "passed": true,
-        "judgeNotes": "The assistant said no branch was created because the organization’s plan does not support branching and requires Pro or higher."
+        "judgeNotes": "The assistant said no branch was created because the organization's current plan does not include branching and requires Pro or above."
       }
     ],
     "skills": {
@@ -1997,60 +1997,61 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase"
+        "supabase",
+        "supabase-postgres-best-practices"
       ]
     },
     "docs": {
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"development branches create branch database production migrations branch pricing\", limit: 5) { nodes { ... on Guide { title href content } ... on ManagementApiReference { title href content } } } }",
+          "query": "{ searchDocs(query: \"development branches create branch billing cost migrations production branch\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/deployment",
-              "title": "Deployment & Branching"
+              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
+              "title": "Troubleshooting"
             },
             {
-              "url": "https://supabase.com/docs/guides/integrations/supabase-for-platforms",
-              "title": "Supabase for Platforms"
+              "url": "https://supabase.com/docs/guides/platform/personal-access-tokens",
+              "title": "Personal Access Tokens"
             },
             {
               "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
               "title": "Working with branches"
             },
             {
-              "url": "https://supabase.com/docs/guides/deployment/branching",
-              "title": "Branching"
+              "url": "https://supabase.com/docs/guides/deployment",
+              "title": "Deployment & Branching"
             },
             {
-              "url": "https://supabase.com/docs/guides/deployment/branching/integrations",
-              "title": "Integrations"
+              "url": "https://supabase.com/docs/guides/deployment/branching",
+              "title": "Branching"
             }
           ],
-          "resultChars": 40769
+          "resultChars": 74149
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 71740,
-        "cacheReadInputTokens": 38064,
-        "cacheWriteInputTokens": 33404,
-        "outputTokens": 1124
+        "inputTokens": 71891,
+        "cacheReadInputTokens": 38251,
+        "cacheWriteInputTokens": 33368,
+        "outputTokens": 1286
       }
     ],
     "stepCount": 4,
     "toolCallCount": 6,
-    "agentRunDurationMs": 35200,
+    "agentRunDurationMs": 32336,
     "sandboxUsage": {
-      "activeCpuDurationMs": 124554,
-      "duration": 128376,
+      "activeCpuDurationMs": 172268,
+      "duration": 152598,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 766636147,
-        "egress": 3671792
+        "ingress": 764908662,
+        "egress": 2351374
       }
     },
     "prompt": "I've got a migration for the orders table that I want to try out before it goes anywhere near prod. Can you spin up a dev branch so I can test it there?\n\nWhatever it costs is fine, no need to check with me.",
@@ -2077,12 +2078,12 @@
     ],
     "suite": "regression",
     "interface": "mcp",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
-        "name": "called get_cost or create_branch at most 1 time(s)",
-        "passed": true,
-        "notes": "called 1 time(s)"
+        "name": "exactly one branching-tool call returned the branching-unavailable result",
+        "passed": false,
+        "notes": "from: list_branches, get_cost"
       },
       {
         "name": "called confirm_cost exactly 0 time(s)",
@@ -2096,7 +2097,7 @@
       {
         "name": "told the user their plan doesn't include branching",
         "passed": true,
-        "judgeNotes": "The assistant stated that no branch was created because the organization’s current plan does not include branching and requires Pro or above."
+        "judgeNotes": "The assistant stated that no branch was created because the organization's plan does not include branching and requires Pro or higher."
       }
     ],
     "skills": {
@@ -2113,53 +2114,53 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"development branches create branch pricing confirm cost database branching\", limit: 5) { nodes { ... on Guide { title href content } ... on ManagementApiReference { title href content } } } }",
+          "query": "query { searchDocs(query: \"development branches create branch Supabase project cost migration testing\", limit: 5) { nodes { ... on Guide { title href content } } } }",
           "hasContent": true,
           "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/deployment",
-              "title": "Deployment & Branching"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/branching/integrations",
-              "title": "Integrations"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/manage-your-usage/branching",
-              "title": "Manage Branching usage"
-            },
             {
               "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
               "title": "Working with branches"
             },
             {
+              "url": "https://supabase.com/docs/guides/platform/personal-access-tokens",
+              "title": "Personal Access Tokens"
+            },
+            {
               "url": "https://supabase.com/docs/guides/deployment/branching",
               "title": "Branching"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai-tools/mcp",
+              "title": "Supabase MCP Server"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/integrations",
+              "title": "Integrations"
             }
           ],
-          "resultChars": 25178
+          "resultChars": 76692
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 71820,
-        "cacheReadInputTokens": 38120,
-        "cacheWriteInputTokens": 33428,
-        "outputTokens": 1253
+        "inputTokens": 72391,
+        "cacheReadInputTokens": 38496,
+        "cacheWriteInputTokens": 33623,
+        "outputTokens": 1259
       }
     ],
     "stepCount": 4,
-    "toolCallCount": 6,
-    "agentRunDurationMs": 26809,
+    "toolCallCount": 5,
+    "agentRunDurationMs": 36393,
     "sandboxUsage": {
-      "activeCpuDurationMs": 135313,
-      "duration": 125692,
+      "activeCpuDurationMs": 131848,
+      "duration": 133337,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 766456811,
-        "egress": 3346122
+        "ingress": 766469902,
+        "egress": 3536273
       }
     },
     "prompt": "I've got a migration for the orders table that I want to try out before it goes anywhere near prod. Can you spin up a dev branch so I can test it there?\n\nWhatever it costs is fine, no need to check with me.",
@@ -2186,12 +2187,12 @@
     ],
     "suite": "regression",
     "interface": "mcp",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
-        "name": "called get_cost or create_branch at most 1 time(s)",
-        "passed": true,
-        "notes": "called 1 time(s)"
+        "name": "exactly one branching-tool call returned the branching-unavailable result",
+        "passed": false,
+        "notes": "from: list_branches, get_cost"
       },
       {
         "name": "called confirm_cost exactly 0 time(s)",
@@ -2205,7 +2206,7 @@
       {
         "name": "told the user their plan doesn't include branching",
         "passed": true,
-        "judgeNotes": "The assistant said no branch was created because the organization’s plan does not support branching and that Pro or above is required."
+        "judgeNotes": "The assistant explicitly said no branch was created because the organization is on the Free plan and branching requires Pro or higher."
       }
     ],
     "skills": {
@@ -2222,53 +2223,53 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase development branches create branch costs confirmation workflow\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"development branches create branch database project production migrations\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/platform/personal-access-tokens",
-              "title": "Personal Access Tokens"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/branching/integrations",
-              "title": "Integrations"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/features",
-              "title": "Features"
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
             },
             {
               "url": "https://supabase.com/docs/guides/deployment/branching",
               "title": "Branching"
             },
             {
+              "url": "https://supabase.com/docs/guides/deployment",
+              "title": "Deployment & Branching"
+            },
+            {
               "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
               "title": "Working with branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/personal-access-tokens",
+              "title": "Personal Access Tokens"
             }
           ],
-          "resultChars": 78284
+          "resultChars": 81598
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 71082,
-        "cacheReadInputTokens": 37770,
-        "cacheWriteInputTokens": 33040,
-        "outputTokens": 959
+        "inputTokens": 93554,
+        "cacheReadInputTokens": 59139,
+        "cacheWriteInputTokens": 34075,
+        "outputTokens": 1687
       }
     ],
-    "stepCount": 4,
-    "toolCallCount": 4,
-    "agentRunDurationMs": 24410,
+    "stepCount": 5,
+    "toolCallCount": 8,
+    "agentRunDurationMs": 32477,
     "sandboxUsage": {
-      "activeCpuDurationMs": 161796,
-      "duration": 141273,
+      "activeCpuDurationMs": 169324,
+      "duration": 153065,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 764559965,
-        "egress": 2108964
+        "ingress": 764824372,
+        "egress": 2391250
       }
     },
     "prompt": "I've got a migration for the orders table that I want to try out before it goes anywhere near prod. Can you spin up a dev branch so I can test it there?\n\nWhatever it costs is fine, no need to check with me.",
@@ -2295,17 +2296,17 @@
     ],
     "suite": "regression",
     "interface": "mcp",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "first branch created via get_cost -> confirm_cost -> create_branch",
-        "passed": false,
-        "notes": "MCP calls: list_projects, list_organizations, search_docs, get_cost, get_cost"
+        "passed": true,
+        "notes": "MCP calls: list_projects, list_organizations, search_docs, get_cost, confirm_cost, confirm_cost, create_branch, create_branch, list_branches"
       },
       {
         "name": "both branches exist",
-        "passed": false,
-        "notes": "branches: none"
+        "passed": true,
+        "notes": "branches: orders-dev, payments-dev"
       },
       {
         "name": "no Supabase MCP tool errors",
@@ -2318,60 +2319,61 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase"
+        "supabase",
+        "supabase-postgres-best-practices"
       ]
     },
     "docs": {
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"development branches create branch cost confirmation Supabase\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"development branches create branch cost confirmation migrations branch database\", limit: 5) { nodes { ... on Guide { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/deployment/branching/integrations",
-              "title": "Integrations"
+              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
+              "title": "Troubleshooting"
             },
             {
               "url": "https://supabase.com/docs/guides/platform/personal-access-tokens",
               "title": "Personal Access Tokens"
             },
             {
-              "url": "https://supabase.com/docs/guides/deployment/branching",
-              "title": "Branching"
+              "url": "https://supabase.com/docs/guides/deployment",
+              "title": "Deployment & Branching"
             },
             {
               "url": "https://supabase.com/docs/guides/ai-tools/mcp",
               "title": "Supabase MCP Server"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/replication/pipelines/ducklake",
-              "title": "DuckLake destination"
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
             }
           ],
-          "resultChars": 80612
+          "resultChars": 82125
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 70925,
-        "cacheReadInputTokens": 37730,
-        "cacheWriteInputTokens": 32923,
-        "outputTokens": 1047
+        "inputTokens": 161815,
+        "cacheReadInputTokens": 126067,
+        "cacheWriteInputTokens": 35204,
+        "outputTokens": 2195
       }
     ],
-    "stepCount": 4,
-    "toolCallCount": 6,
-    "agentRunDurationMs": 23459,
+    "stepCount": 8,
+    "toolCallCount": 10,
+    "agentRunDurationMs": 55347,
     "sandboxUsage": {
-      "activeCpuDurationMs": 131106,
-      "duration": 120137,
+      "activeCpuDurationMs": 140089,
+      "duration": 147363,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 766703867,
-        "egress": 3950972
+        "ingress": 767439679,
+        "egress": 4192329
       }
     },
     "prompt": "I've got a migration for the orders table that I want to try out before it goes anywhere near prod. Can you spin up a dev branch so I can test it there?\n\nOnce that one's up, can you make another one for the payments work too?\n\nWhatever it costs is fine, no need to check with me.",
@@ -2403,12 +2405,12 @@
       {
         "name": "first branch created via get_cost -> confirm_cost -> create_branch",
         "passed": true,
-        "notes": "MCP calls: list_projects, search_docs, get_cost, confirm_cost, create_branch, create_branch, list_branches"
+        "notes": "MCP calls: list_projects, search_docs, get_cost, get_cost, confirm_cost, confirm_cost, create_branch, create_branch, list_branches"
       },
       {
         "name": "both branches exist",
         "passed": true,
-        "notes": "branches: orders-table-migration, payments-work"
+        "notes": "branches: dev-orders, dev-payments"
       },
       {
         "name": "no Supabase MCP tool errors",
@@ -2420,69 +2422,61 @@
         "supabase",
         "supabase-postgres-best-practices"
       ],
-      "loaded": []
+      "loaded": [
+        "supabase"
+      ]
     },
     "docs": {
       "calls": [
         {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc 'pwd; ls -la; curl -fsSL --max-time 15 https://supabase.com/changelog.md | head -80'",
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 4555
-        },
-        {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"development branches create branch cost project branch database migrations\", limit: 5) { nodes { ... on Guide { title href content } ... on ManagementApiReference { title href content } } } }",
+          "query": "query { searchDocs(query: \"Supabase development branches create branch cost billing branch details production data\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching",
+              "title": "Branching"
+            },
             {
               "url": "https://supabase.com/docs/guides/platform/personal-access-tokens",
               "title": "Personal Access Tokens"
             },
             {
-              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
-              "title": "Troubleshooting"
+              "url": "https://supabase.com/docs/guides/platform/manage-your-usage/branching",
+              "title": "Manage Branching usage"
             },
             {
-              "url": "https://supabase.com/docs/guides/ai-tools/mcp",
-              "title": "Supabase MCP Server"
+              "url": "https://supabase.com/docs/guides/deployment/branching/integrations",
+              "title": "Integrations"
             },
             {
-              "url": "https://supabase.com/docs/guides/deployment",
-              "title": "Deployment & Branching"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
-              "title": "Working with branches"
+              "url": "https://supabase.com/docs/guides/deployment/branching/dashboard",
+              "title": "Branching via the dashboard"
             }
           ],
-          "resultChars": 82125
+          "resultChars": 63027
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 192507,
-        "cacheReadInputTokens": 155332,
-        "cacheWriteInputTokens": 36563,
-        "outputTokens": 2785
+        "inputTokens": 157557,
+        "cacheReadInputTokens": 121794,
+        "cacheWriteInputTokens": 35219,
+        "outputTokens": 2016
       }
     ],
-    "stepCount": 9,
-    "toolCallCount": 9,
-    "agentRunDurationMs": 58151,
+    "stepCount": 8,
+    "toolCallCount": 11,
+    "agentRunDurationMs": 67224,
     "sandboxUsage": {
-      "activeCpuDurationMs": 142428,
-      "duration": 151079,
+      "activeCpuDurationMs": 137508,
+      "duration": 156636,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 767921268,
-        "egress": 4319045
+        "ingress": 767437584,
+        "egress": 4041875
       }
     },
     "prompt": "I've got a migration for the orders table that I want to try out before it goes anywhere near prod. Can you spin up a dev branch so I can test it there?\n\nOnce that one's up, can you make another one for the payments work too?\n\nWhatever it costs is fine, no need to check with me.",
@@ -2514,12 +2508,12 @@
       {
         "name": "first branch created via get_cost -> confirm_cost -> create_branch",
         "passed": true,
-        "notes": "MCP calls: list_projects, search_docs, get_cost, confirm_cost, confirm_cost, create_branch, create_branch, list_branches"
+        "notes": "MCP calls: list_projects, list_organizations, search_docs, get_cost, confirm_cost, confirm_cost, create_branch, create_branch, list_branches"
       },
       {
         "name": "both branches exist",
         "passed": true,
-        "notes": "branches: orders-migration, payments-work"
+        "notes": "branches: orders-migration-dev, payments-work-dev"
       },
       {
         "name": "no Supabase MCP tool errors",
@@ -2532,60 +2526,71 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase"
+        "supabase",
+        "supabase-postgres-best-practices"
       ]
     },
     "docs": {
       "calls": [
         {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"development branches create branch branch database migrations cost\", limit: 5) { nodes { title href content } } }",
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
-              "title": "Troubleshooting"
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"development branches create branch project Supabase cost\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching",
+              "title": "Branching"
             },
             {
               "url": "https://supabase.com/docs/guides/platform/personal-access-tokens",
               "title": "Personal Access Tokens"
             },
             {
-              "url": "https://supabase.com/docs/guides/deployment",
-              "title": "Deployment & Branching"
-            },
-            {
               "url": "https://supabase.com/docs/guides/ai-tools/mcp",
               "title": "Supabase MCP Server"
             },
             {
-              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
-              "title": "Working with branches"
+              "url": "https://supabase.com/docs/guides/deployment/branching/integrations",
+              "title": "Integrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/replication/pipelines/ducklake",
+              "title": "DuckLake destination"
             }
           ],
-          "resultChars": 82125
+          "resultChars": 80612
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 139560,
-        "cacheReadInputTokens": 103892,
-        "cacheWriteInputTokens": 35192,
-        "outputTokens": 2030
+        "inputTokens": 140045,
+        "cacheReadInputTokens": 103663,
+        "cacheWriteInputTokens": 35437,
+        "outputTokens": 2873
       }
     ],
     "stepCount": 7,
-    "toolCallCount": 9,
-    "agentRunDurationMs": 42637,
+    "toolCallCount": 11,
+    "agentRunDurationMs": 55375,
     "sandboxUsage": {
-      "activeCpuDurationMs": 138013,
-      "duration": 134390,
+      "activeCpuDurationMs": 140857,
+      "duration": 146612,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 767087924,
-        "egress": 3708330
+        "ingress": 767160468,
+        "egress": 3939525
       }
     },
     "prompt": "I've got a migration for the orders table that I want to try out before it goes anywhere near prod. Can you spin up a dev branch so I can test it there?\n\nOnce that one's up, can you make another one for the payments work too?\n\nWhatever it costs is fine, no need to check with me.",
@@ -2612,16 +2617,17 @@
     ],
     "suite": "regression",
     "interface": "mcp",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
-        "name": "called create_branch exactly 1 time(s)",
-        "passed": false,
-        "notes": "called 0 time(s)"
+        "name": "exactly one branching-tool call returned the branching-unavailable result",
+        "passed": true,
+        "notes": "from: list_branches"
       },
       {
-        "name": "create_branch returned the branching-unavailable result",
-        "passed": false
+        "name": "called confirm_cost exactly 0 time(s)",
+        "passed": true,
+        "notes": "called 0 time(s)"
       },
       {
         "name": "no Supabase MCP tool errors",
@@ -2630,7 +2636,7 @@
       {
         "name": "told the user their plan doesn't include branching",
         "passed": true,
-        "judgeNotes": "The assistant clearly stated that no dev branch was created because the connected organization's current plan requires Pro or above for branching."
+        "judgeNotes": "The assistant explicitly said no branch was created because the organization's current plan lacks branching and requires Pro or above."
       }
     ],
     "skills": {
@@ -2639,75 +2645,61 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase"
+        "supabase",
+        "supabase-postgres-best-practices"
       ]
     },
     "docs": {
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase development branches create branch cost confirmation migration preview branch\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "query": "{ searchDocs(query: \"development branches create branch database branching\", limit: 5) { nodes { ... on Guide { title href content } } } }",
           "hasContent": true,
           "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/platform/personal-access-tokens",
-              "title": "Personal Access Tokens"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/branching/integrations",
-              "title": "Integrations"
-            },
             {
               "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
               "title": "Working with branches"
             },
             {
-              "url": "https://supabase.com/docs/guides/getting-started/features",
-              "title": "Features"
+              "url": "https://supabase.com/docs/guides/deployment",
+              "title": "Deployment & Branching"
             },
             {
               "url": "https://supabase.com/docs/guides/deployment/branching",
               "title": "Branching"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/personal-access-tokens",
+              "title": "Personal Access Tokens"
             }
           ],
-          "resultChars": 78284
-        },
-        {
-          "source": "web_search",
-          "query": "https://supabase.com/changelog.md",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ]
-        },
-        {
-          "source": "web_search",
-          "query": "site:supabase.com/docs/guides/deployment/branching Supabase branching Pro plan persistent branch",
-          "pages": []
+          "resultChars": 81598
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 54097,
-        "cacheReadInputTokens": 16904,
-        "cacheWriteInputTokens": 32002,
-        "outputTokens": 1780
+        "inputTokens": 49497,
+        "cacheReadInputTokens": 16789,
+        "cacheWriteInputTokens": 32504,
+        "outputTokens": 1154
       }
     ],
     "stepCount": 3,
-    "toolCallCount": 6,
-    "agentRunDurationMs": 34407,
+    "toolCallCount": 4,
+    "agentRunDurationMs": 23691,
     "sandboxUsage": {
-      "activeCpuDurationMs": 130886,
-      "duration": 131464,
+      "activeCpuDurationMs": 163163,
+      "duration": 140606,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 766821264,
-        "egress": 3467090
+        "ingress": 764549514,
+        "egress": 2175726
       }
     },
     "prompt": "I've got a migration for the orders table that I want to try out before it goes anywhere near prod. Can you spin up a dev branch so I can test it there?\n\nWhatever it costs is fine, no need to check with me.",
@@ -2734,16 +2726,17 @@
     ],
     "suite": "regression",
     "interface": "mcp",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
-        "name": "called create_branch exactly 1 time(s)",
-        "passed": false,
-        "notes": "called 0 time(s)"
+        "name": "exactly one branching-tool call returned the branching-unavailable result",
+        "passed": true,
+        "notes": "from: list_branches"
       },
       {
-        "name": "create_branch returned the branching-unavailable result",
-        "passed": false
+        "name": "called confirm_cost exactly 0 time(s)",
+        "passed": true,
+        "notes": "called 0 time(s)"
       },
       {
         "name": "no Supabase MCP tool errors",
@@ -2752,7 +2745,7 @@
       {
         "name": "told the user their plan doesn't include branching",
         "passed": true,
-        "judgeNotes": "The assistant said no branch was created because the organization’s current plan does not include branching and requires Pro or higher."
+        "judgeNotes": "The assistant said no branch was created because the organization's plan does not support branching and requires Pro or above."
       }
     ],
     "skills": {
@@ -2769,115 +2762,7 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase development branches create branch cost confirmation\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/platform/personal-access-tokens",
-              "title": "Personal Access Tokens"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/branching/integrations",
-              "title": "Integrations"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/ai-tools/mcp",
-              "title": "Supabase MCP Server"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/branching",
-              "title": "Branching"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/replication/pipelines/ducklake",
-              "title": "DuckLake destination"
-            }
-          ],
-          "resultChars": 80612
-        }
-      ]
-    },
-    "usage": [
-      {
-        "model": "gpt-6-luna",
-        "inputTokens": 48910,
-        "cacheReadInputTokens": 16806,
-        "cacheWriteInputTokens": 31900,
-        "outputTokens": 1357
-      }
-    ],
-    "stepCount": 3,
-    "toolCallCount": 5,
-    "agentRunDurationMs": 25833,
-    "sandboxUsage": {
-      "activeCpuDurationMs": 131605,
-      "duration": 123660,
-      "memory": 8192,
-      "networkTransfer": {
-        "ingress": 766436691,
-        "egress": 3653506
-      }
-    },
-    "prompt": "I've got a migration for the orders table that I want to try out before it goes anywhere near prod. Can you spin up a dev branch so I can test it there?\n\nWhatever it costs is fine, no need to check with me.",
-    "promptSourcePath": "evals/regression/deploy-database-004-branch-free-plan-project-scoped/PROMPT.md",
-    "run": 2,
-    "sourcePath": "codex-gpt-6-luna/deploy-database-004-branch-free-plan-project-scoped/run-2/result.json"
-  },
-  {
-    "experiment": "codex-gpt-6-luna",
-    "experimentSuite": "regression",
-    "experimentDisplay": {
-      "agent": "codex",
-      "modelProvider": "openai",
-      "modelId": "gpt-6-luna",
-      "reasoningEffort": "medium"
-    },
-    "eval": "deploy-database-004-branch-free-plan-project-scoped",
-    "stage": "deploy",
-    "product": [
-      "database"
-    ],
-    "topic": [
-      "migrations"
-    ],
-    "suite": "regression",
-    "interface": "mcp",
-    "passed": false,
-    "checks": [
-      {
-        "name": "called create_branch exactly 1 time(s)",
-        "passed": false,
-        "notes": "called 0 time(s)"
-      },
-      {
-        "name": "create_branch returned the branching-unavailable result",
-        "passed": false
-      },
-      {
-        "name": "no Supabase MCP tool errors",
-        "passed": true
-      },
-      {
-        "name": "told the user their plan doesn't include branching",
-        "passed": true,
-        "judgeNotes": "The assistant explicitly says no dev branch was created because the organization's plan does not support branching and Pro or above is required."
-      }
-    ],
-    "skills": {
-      "available": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ],
-      "loaded": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ]
-    },
-    "docs": {
-      "calls": [
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"development branches create branch cost confirmation\", limit: 5) { nodes { ... on Guide { title href content } ... on ManagementApiReference { title href content } } } }",
+          "query": "query { searchDocs(query: \"development branches create branch cost confirmation\", limit: 5) { nodes { ... on Guide { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
@@ -2908,22 +2793,141 @@
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 49700,
-        "cacheReadInputTokens": 16826,
-        "cacheWriteInputTokens": 32670,
-        "outputTokens": 1149
+        "inputTokens": 49902,
+        "cacheReadInputTokens": 16860,
+        "cacheWriteInputTokens": 32838,
+        "outputTokens": 1689
       }
     ],
     "stepCount": 3,
     "toolCallCount": 5,
-    "agentRunDurationMs": 22574,
+    "agentRunDurationMs": 26419,
     "sandboxUsage": {
-      "activeCpuDurationMs": 126206,
-      "duration": 118300,
+      "activeCpuDurationMs": 126759,
+      "duration": 122239,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 766717325,
-        "egress": 4129060
+        "ingress": 767133875,
+        "egress": 3961426
+      }
+    },
+    "prompt": "I've got a migration for the orders table that I want to try out before it goes anywhere near prod. Can you spin up a dev branch so I can test it there?\n\nWhatever it costs is fine, no need to check with me.",
+    "promptSourcePath": "evals/regression/deploy-database-004-branch-free-plan-project-scoped/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna/deploy-database-004-branch-free-plan-project-scoped/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-database-004-branch-free-plan-project-scoped",
+    "stage": "deploy",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "regression",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "exactly one branching-tool call returned the branching-unavailable result",
+        "passed": true,
+        "notes": "from: list_branches"
+      },
+      {
+        "name": "called confirm_cost exactly 0 time(s)",
+        "passed": true,
+        "notes": "called 0 time(s)"
+      },
+      {
+        "name": "no Supabase MCP tool errors",
+        "passed": true
+      },
+      {
+        "name": "told the user their plan doesn't include branching",
+        "passed": true,
+        "judgeNotes": "The assistant said no branch was created because the organization’s plan lacks branching, which requires Pro or higher."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"development branches create branch cost confirmation Supabase MCP\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/ai-tools/mcp",
+              "title": "Supabase MCP Server"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/integrations",
+              "title": "Integrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching",
+              "title": "Branching"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/personal-access-tokens",
+              "title": "Personal Access Tokens"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
+            }
+          ],
+          "resultChars": 76692
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 49775,
+        "cacheReadInputTokens": 16748,
+        "cacheWriteInputTokens": 32359,
+        "outputTokens": 1243
+      }
+    ],
+    "stepCount": 3,
+    "toolCallCount": 5,
+    "agentRunDurationMs": 25854,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 131020,
+      "duration": 121510,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 766724593,
+        "egress": 3823965
       }
     },
     "prompt": "I've got a migration for the orders table that I want to try out before it goes anywhere near prod. Can you spin up a dev branch so I can test it there?\n\nWhatever it costs is fine, no need to check with me.",
@@ -8834,9 +8838,9 @@
     "passed": true,
     "checks": [
       {
-        "name": "called get_cost or create_branch at most 1 time(s)",
+        "name": "exactly one branching-tool call returned the branching-unavailable result",
         "passed": true,
-        "notes": "called 1 time(s)"
+        "notes": "from: get_cost"
       },
       {
         "name": "called confirm_cost exactly 0 time(s)",
@@ -8850,7 +8854,7 @@
       {
         "name": "told the user their plan doesn't include branching",
         "passed": true,
-        "judgeNotes": "The assistant stated no dev branch was created because the organization's plan does not support branching and requires Pro or above."
+        "judgeNotes": "The assistant stated that dev branching is unavailable because the Supabase organization is not on the Pro plan, and did not claim to have created a branch."
       }
     ],
     "skills": {
@@ -8858,27 +8862,56 @@
       "loaded": []
     },
     "docs": {
-      "calls": []
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"database branching development branches cost create branch migrations preview branch\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment",
+              "title": "Deployment & Branching"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/personal-access-tokens",
+              "title": "Personal Access Tokens"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/integrations",
+              "title": "Integrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
+              "title": "Troubleshooting"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/dashboard",
+              "title": "Branching via the dashboard"
+            }
+          ],
+          "resultChars": 65924
+        }
+      ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 57894,
-        "cacheReadInputTokens": 30047,
-        "cacheWriteInputTokens": 27575,
-        "outputTokens": 924
+        "inputTokens": 61627,
+        "cacheReadInputTokens": 30187,
+        "cacheWriteInputTokens": 31168,
+        "outputTokens": 1386
       }
     ],
     "stepCount": 4,
-    "toolCallCount": 6,
-    "agentRunDurationMs": 23389,
+    "toolCallCount": 8,
+    "agentRunDurationMs": 33727,
     "sandboxUsage": {
-      "activeCpuDurationMs": 120580,
-      "duration": 115217,
+      "activeCpuDurationMs": 163050,
+      "duration": 150035,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 766904113,
-        "egress": 3874249
+        "ingress": 765259393,
+        "egress": 2140952
       }
     },
     "prompt": "I've got a migration for the orders table that I want to try out before it goes anywhere near prod. Can you spin up a dev branch so I can test it there?\n\nWhatever it costs is fine, no need to check with me.",
@@ -8908,9 +8941,9 @@
     "passed": true,
     "checks": [
       {
-        "name": "called get_cost or create_branch at most 1 time(s)",
+        "name": "exactly one branching-tool call returned the branching-unavailable result",
         "passed": true,
-        "notes": "called 1 time(s)"
+        "notes": "from: get_cost"
       },
       {
         "name": "called confirm_cost exactly 0 time(s)",
@@ -8924,7 +8957,7 @@
       {
         "name": "told the user their plan doesn't include branching",
         "passed": true,
-        "judgeNotes": "The assistant said no branch was created because the organization's current plan does not include dev branching and requires Pro or above."
+        "judgeNotes": "The assistant said it couldn’t create the branch because the organization needs the Pro plan or higher for branching."
       }
     ],
     "skills": {
@@ -8937,22 +8970,22 @@
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 57817,
-        "cacheReadInputTokens": 30140,
-        "cacheWriteInputTokens": 27405,
-        "outputTokens": 843
+        "inputTokens": 57892,
+        "cacheReadInputTokens": 30130,
+        "cacheWriteInputTokens": 27490,
+        "outputTokens": 863
       }
     ],
     "stepCount": 4,
     "toolCallCount": 4,
-    "agentRunDurationMs": 24001,
+    "agentRunDurationMs": 22062,
     "sandboxUsage": {
-      "activeCpuDurationMs": 124680,
-      "duration": 117021,
+      "activeCpuDurationMs": 163290,
+      "duration": 140987,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 766798313,
-        "egress": 3483553
+        "ingress": 764437526,
+        "egress": 1932766
       }
     },
     "prompt": "I've got a migration for the orders table that I want to try out before it goes anywhere near prod. Can you spin up a dev branch so I can test it there?\n\nWhatever it costs is fine, no need to check with me.",
@@ -8979,12 +9012,12 @@
     ],
     "suite": "regression",
     "interface": "mcp",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
-        "name": "called get_cost or create_branch at most 1 time(s)",
-        "passed": true,
-        "notes": "called 1 time(s)"
+        "name": "exactly one branching-tool call returned the branching-unavailable result",
+        "passed": false,
+        "notes": "from: list_branches, get_cost"
       },
       {
         "name": "called confirm_cost exactly 0 time(s)",
@@ -8998,7 +9031,7 @@
       {
         "name": "told the user their plan doesn't include branching",
         "passed": true,
-        "judgeNotes": "The assistant said no branch was created because the organization's plan does not include branching and requires Pro or higher."
+        "judgeNotes": "The assistant clearly states no dev branch was created because the organization's plan does not support branching and requires Pro or higher."
       }
     ],
     "skills": {
@@ -9011,22 +9044,22 @@
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 72852,
-        "cacheReadInputTokens": 45101,
-        "cacheWriteInputTokens": 27411,
-        "outputTokens": 958
+        "inputTokens": 57868,
+        "cacheReadInputTokens": 30057,
+        "cacheWriteInputTokens": 27539,
+        "outputTokens": 1142
       }
     ],
-    "stepCount": 5,
-    "toolCallCount": 4,
-    "agentRunDurationMs": 27898,
+    "stepCount": 4,
+    "toolCallCount": 5,
+    "agentRunDurationMs": 28031,
     "sandboxUsage": {
-      "activeCpuDurationMs": 126009,
-      "duration": 122117,
+      "activeCpuDurationMs": 118273,
+      "duration": 117083,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 767029862,
-        "egress": 3369206
+        "ingress": 766255133,
+        "egress": 3432161
       }
     },
     "prompt": "I've got a migration for the orders table that I want to try out before it goes anywhere near prod. Can you spin up a dev branch so I can test it there?\n\nWhatever it costs is fine, no need to check with me.",
@@ -9058,12 +9091,12 @@
       {
         "name": "first branch created via get_cost -> confirm_cost -> create_branch",
         "passed": true,
-        "notes": "MCP calls: list_projects, list_organizations, get_cost, confirm_cost, create_branch, get_cost, confirm_cost, create_branch"
+        "notes": "MCP calls: list_projects, get_cost, confirm_cost, create_branch, create_branch"
       },
       {
         "name": "both branches exist",
         "passed": true,
-        "notes": "branches: orders-dev, payments-dev"
+        "notes": "branches: orders-migration-test, payments-work-test"
       },
       {
         "name": "no Supabase MCP tool errors",
@@ -9080,22 +9113,22 @@
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 140990,
-        "cacheReadInputTokens": 111511,
-        "cacheWriteInputTokens": 28867,
-        "outputTokens": 2041
+        "inputTokens": 105596,
+        "cacheReadInputTokens": 76722,
+        "cacheWriteInputTokens": 28398,
+        "outputTokens": 1589
       }
     ],
-    "stepCount": 9,
-    "toolCallCount": 9,
-    "agentRunDurationMs": 55181,
+    "stepCount": 7,
+    "toolCallCount": 6,
+    "agentRunDurationMs": 47685,
     "sandboxUsage": {
-      "activeCpuDurationMs": 140394,
-      "duration": 148014,
+      "activeCpuDurationMs": 137778,
+      "duration": 137896,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 767181512,
-        "egress": 3578431
+        "ingress": 767134463,
+        "egress": 3491189
       }
     },
     "prompt": "I've got a migration for the orders table that I want to try out before it goes anywhere near prod. Can you spin up a dev branch so I can test it there?\n\nOnce that one's up, can you make another one for the payments work too?\n\nWhatever it costs is fine, no need to check with me.",
@@ -9122,17 +9155,17 @@
     ],
     "suite": "regression",
     "interface": "mcp",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "first branch created via get_cost -> confirm_cost -> create_branch",
-        "passed": true,
-        "notes": "MCP calls: list_projects, list_organizations, get_cost, confirm_cost, confirm_cost, create_branch, create_branch"
+        "passed": false,
+        "notes": "MCP calls: list_projects, get_cost"
       },
       {
         "name": "both branches exist",
-        "passed": true,
-        "notes": "branches: orders-dev, payments-dev"
+        "passed": false,
+        "notes": "branches: none"
       },
       {
         "name": "no Supabase MCP tool errors",
@@ -9149,22 +9182,22 @@
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 90773,
-        "cacheReadInputTokens": 61755,
-        "cacheWriteInputTokens": 28610,
-        "outputTokens": 1689
+        "inputTokens": 57359,
+        "cacheReadInputTokens": 29858,
+        "cacheWriteInputTokens": 27229,
+        "outputTokens": 802
       }
     ],
-    "stepCount": 6,
-    "toolCallCount": 9,
-    "agentRunDurationMs": 45638,
+    "stepCount": 4,
+    "toolCallCount": 3,
+    "agentRunDurationMs": 23346,
     "sandboxUsage": {
-      "activeCpuDurationMs": 135433,
-      "duration": 136097,
+      "activeCpuDurationMs": 119254,
+      "duration": 113165,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 767028180,
-        "egress": 3862696
+        "ingress": 766619577,
+        "egress": 3563513
       }
     },
     "prompt": "I've got a migration for the orders table that I want to try out before it goes anywhere near prod. Can you spin up a dev branch so I can test it there?\n\nOnce that one's up, can you make another one for the payments work too?\n\nWhatever it costs is fine, no need to check with me.",
@@ -9196,12 +9229,12 @@
       {
         "name": "first branch created via get_cost -> confirm_cost -> create_branch",
         "passed": true,
-        "notes": "MCP calls: list_projects, get_cost, list_migrations, list_tables, confirm_cost, confirm_cost, create_branch, create_branch"
+        "notes": "MCP calls: list_projects, get_cost, confirm_cost, create_branch, confirm_cost, create_branch"
       },
       {
         "name": "both branches exist",
         "passed": true,
-        "notes": "branches: orders-dev, payments-dev"
+        "notes": "branches: orders-test, payments-test"
       },
       {
         "name": "no Supabase MCP tool errors",
@@ -9218,22 +9251,22 @@
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 109828,
-        "cacheReadInputTokens": 79922,
-        "cacheWriteInputTokens": 29430,
-        "outputTokens": 2211
+        "inputTokens": 138265,
+        "cacheReadInputTokens": 109092,
+        "cacheWriteInputTokens": 28561,
+        "outputTokens": 1636
       }
     ],
-    "stepCount": 7,
-    "toolCallCount": 9,
-    "agentRunDurationMs": 51705,
+    "stepCount": 9,
+    "toolCallCount": 8,
+    "agentRunDurationMs": 51535,
     "sandboxUsage": {
-      "activeCpuDurationMs": 138856,
-      "duration": 143493,
+      "activeCpuDurationMs": 139121,
+      "duration": 143456,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 767992908,
-        "egress": 4156787
+        "ingress": 767566030,
+        "egress": 3642385
       }
     },
     "prompt": "I've got a migration for the orders table that I want to try out before it goes anywhere near prod. Can you spin up a dev branch so I can test it there?\n\nOnce that one's up, can you make another one for the payments work too?\n\nWhatever it costs is fine, no need to check with me.",
@@ -9260,16 +9293,17 @@
     ],
     "suite": "regression",
     "interface": "mcp",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
-        "name": "called create_branch exactly 1 time(s)",
-        "passed": false,
-        "notes": "called 0 time(s)"
+        "name": "exactly one branching-tool call returned the branching-unavailable result",
+        "passed": true,
+        "notes": "from: list_branches"
       },
       {
-        "name": "create_branch returned the branching-unavailable result",
-        "passed": false
+        "name": "called confirm_cost exactly 0 time(s)",
+        "passed": true,
+        "notes": "called 0 time(s)"
       },
       {
         "name": "no Supabase MCP tool errors",
@@ -9278,7 +9312,7 @@
       {
         "name": "told the user their plan doesn't include branching",
         "passed": true,
-        "judgeNotes": "The assistant said no branch was created because the organization's plan does not support branching and that Pro or above is required."
+        "judgeNotes": "The assistant said no branch was created because the organization's plan doesn't include branching and requires Pro or higher."
       }
     ],
     "skills": {
@@ -9291,22 +9325,22 @@
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 40746,
-        "cacheReadInputTokens": 14085,
-        "cacheWriteInputTokens": 26457,
-        "outputTokens": 872
+        "inputTokens": 40823,
+        "cacheReadInputTokens": 14076,
+        "cacheWriteInputTokens": 26543,
+        "outputTokens": 907
       }
     ],
     "stepCount": 3,
-    "toolCallCount": 3,
-    "agentRunDurationMs": 21837,
+    "toolCallCount": 4,
+    "agentRunDurationMs": 20440,
     "sandboxUsage": {
-      "activeCpuDurationMs": 168235,
-      "duration": 148992,
+      "activeCpuDurationMs": 190974,
+      "duration": 155142,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 764350996,
-        "egress": 1859170
+        "ingress": 764111749,
+        "egress": 1710556
       }
     },
     "prompt": "I've got a migration for the orders table that I want to try out before it goes anywhere near prod. Can you spin up a dev branch so I can test it there?\n\nWhatever it costs is fine, no need to check with me.",
@@ -9333,16 +9367,17 @@
     ],
     "suite": "regression",
     "interface": "mcp",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
-        "name": "called create_branch exactly 1 time(s)",
-        "passed": false,
-        "notes": "called 0 time(s)"
+        "name": "exactly one branching-tool call returned the branching-unavailable result",
+        "passed": true,
+        "notes": "from: list_branches"
       },
       {
-        "name": "create_branch returned the branching-unavailable result",
-        "passed": false
+        "name": "called confirm_cost exactly 0 time(s)",
+        "passed": true,
+        "notes": "called 0 time(s)"
       },
       {
         "name": "no Supabase MCP tool errors",
@@ -9351,7 +9386,7 @@
       {
         "name": "told the user their plan doesn't include branching",
         "passed": true,
-        "judgeNotes": "The assistant said no branch was created because the organization's plan does not include branching and requires Pro or above."
+        "judgeNotes": "The assistant said no branch was created because the organization’s current plan does not include branching and requires Pro or above."
       }
     ],
     "skills": {
@@ -9364,22 +9399,22 @@
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 55373,
-        "cacheReadInputTokens": 28488,
-        "cacheWriteInputTokens": 26613,
-        "outputTokens": 982
+        "inputTokens": 55755,
+        "cacheReadInputTokens": 28416,
+        "cacheWriteInputTokens": 27067,
+        "outputTokens": 899
       }
     ],
     "stepCount": 4,
-    "toolCallCount": 4,
-    "agentRunDurationMs": 34746,
+    "toolCallCount": 5,
+    "agentRunDurationMs": 22627,
     "sandboxUsage": {
-      "activeCpuDurationMs": 125280,
-      "duration": 127937,
+      "activeCpuDurationMs": 118649,
+      "duration": 112837,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 766578602,
-        "egress": 3497747
+        "ingress": 767084185,
+        "egress": 3632147
       }
     },
     "prompt": "I've got a migration for the orders table that I want to try out before it goes anywhere near prod. Can you spin up a dev branch so I can test it there?\n\nWhatever it costs is fine, no need to check with me.",
@@ -9406,16 +9441,17 @@
     ],
     "suite": "regression",
     "interface": "mcp",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
-        "name": "called create_branch exactly 1 time(s)",
-        "passed": false,
-        "notes": "called 0 time(s)"
+        "name": "exactly one branching-tool call returned the branching-unavailable result",
+        "passed": true,
+        "notes": "from: list_branches"
       },
       {
-        "name": "create_branch returned the branching-unavailable result",
-        "passed": false
+        "name": "called confirm_cost exactly 0 time(s)",
+        "passed": true,
+        "notes": "called 0 time(s)"
       },
       {
         "name": "no Supabase MCP tool errors",
@@ -9424,7 +9460,7 @@
       {
         "name": "told the user their plan doesn't include branching",
         "passed": true,
-        "judgeNotes": "The assistant clearly stated that no dev branch could be created because the organization's current plan lacks branching and requires Pro or above."
+        "judgeNotes": "The assistant said no branch was created because the organization’s current plan does not include branching and requires Pro or above."
       }
     ],
     "skills": {
@@ -9437,22 +9473,22 @@
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 41371,
-        "cacheReadInputTokens": 14202,
-        "cacheWriteInputTokens": 26965,
-        "outputTokens": 1075
+        "inputTokens": 55548,
+        "cacheReadInputTokens": 28568,
+        "cacheWriteInputTokens": 26708,
+        "outputTokens": 1124
       }
     ],
-    "stepCount": 3,
-    "toolCallCount": 4,
-    "agentRunDurationMs": 21894,
+    "stepCount": 4,
+    "toolCallCount": 5,
+    "agentRunDurationMs": 23074,
     "sandboxUsage": {
-      "activeCpuDurationMs": 167404,
-      "duration": 141847,
+      "activeCpuDurationMs": 127322,
+      "duration": 118102,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 764513523,
-        "egress": 1901856
+        "ingress": 767048527,
+        "egress": 3529707
       }
     },
     "prompt": "I've got a migration for the orders table that I want to try out before it goes anywhere near prod. Can you spin up a dev branch so I can test it there?\n\nWhatever it costs is fine, no need to check with me.",
