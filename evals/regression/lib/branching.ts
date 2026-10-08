@@ -57,23 +57,35 @@ export function checkCostFlowBeforeFirstBranch(
   };
 }
 
+// Tools that answer "branching isn't available" when the org can't branch
+// (`get_cost` only for type `branch`).
+const BRANCHING_TOOLS = [
+  'create_branch',
+  'list_branches',
+  'delete_branch',
+  'merge_branch',
+  'reset_branch',
+  'rebase_branch',
+  'get_cost',
+];
+
 /**
- * A `toolName` call got the server's non-error "branching isn't available"
- * answer, recognized by its link to the org billing page.
+ * Exactly one branching-tool call got the server's non-error "branching isn't
+ * available" answer, recognized by its link to the org billing page.
  */
-export function checkReturnedUnavailable(
-  toolCalls: readonly ToolCallRecord[],
-  toolName: string
+export function checkOneUnavailableResult(
+  toolCalls: readonly ToolCallRecord[]
 ): CheckResult {
-  const answered = toolCalls.some(
+  const answered = toolCalls.filter(
     (call) =>
       call.tool.kind === 'mcp' &&
-      call.tool.toolName === toolName &&
+      BRANCHING_TOOLS.includes(call.tool.toolName) &&
       !isToolError(call) &&
       /\/org\/[^/"\s]+\/billing/.test(JSON.stringify(call.result))
   );
   return {
-    name: `${toolName} returned the branching-unavailable result`,
-    passed: answered,
+    name: 'exactly one branching-tool call returned the branching-unavailable result',
+    passed: answered.length === 1,
+    notes: `from: ${answered.map((call) => call.tool.toolName).join(', ') || 'none'}`,
   };
 }

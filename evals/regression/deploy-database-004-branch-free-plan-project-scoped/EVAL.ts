@@ -5,16 +5,16 @@ import {
 } from '../../lib/mcp-tool-checks.js';
 import {
   checkExplainedBranchingUnavailable,
-  checkReturnedUnavailable,
+  checkOneUnavailableResult,
 } from '../lib/branching.js';
 
-// Org without branching, project-scoped MCP: one create_branch call gets the
+// Org without branching, project-scoped MCP: one branching-tool call gets the
 // server's non-error "branching isn't available" result, which the agent
 // relays to the user. See README.md.
 const scorer: ToolScorer = async (ctx) => {
   const checks = [
-    checkMcpCallCount(ctx.toolCalls, 'create_branch', { min: 1, max: 1 }),
-    checkReturnedUnavailable(ctx.toolCalls, 'create_branch'),
+    checkOneUnavailableResult(ctx.toolCalls),
+    checkMcpCallCount(ctx.toolCalls, 'confirm_cost', { max: 0 }),
     checkNoMcpToolErrors(ctx.toolCalls),
     await checkExplainedBranchingUnavailable(ctx),
   ];

@@ -4,15 +4,16 @@
 (`projectScoped: true`, i.e. `--project-ref`), as with a project-scoped MCP URL
 ([Slack thread](https://supabase.slack.com/archives/C051L8U2EJF/p1791383434405579)).
 Account tools (`get_organization`, `get_cost`, `confirm_cost`) aren't available
-in this mode, so `create_branch` is the only way to find out. See 002's README
-for the expected server behavior.
+in this mode. See 002's README for the expected server behavior.
 
 **Setup.** `remote/organization.json` puts the org on the free plan, so
 platform-lite's `/branching` endpoint reports `available: false`.
 
-**Checks.** Exactly one `create_branch` call, which returns the non-error
-"branching isn't available" result (recognized by its billing link), and no
-Supabase MCP tool errors. The same judge as 002 requires the reply to say the
+**Checks.** Exactly one branching-tool call (e.g. `list_branches` or
+`create_branch`) returns the non-error "branching isn't available" result
+(recognized by its billing link), no `confirm_cost`, and no Supabase MCP tool
+errors. `create_branch` isn't required. The same judge as 002 requires the
+reply to say the
 organization's current plan doesn't include branching. Mentioning the upgrade
 is fine but not required.
 

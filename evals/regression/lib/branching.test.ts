@@ -3,7 +3,7 @@ import type { ToolCallRecord } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
 import {
   checkCostFlowBeforeFirstBranch,
-  checkReturnedUnavailable,
+  checkOneUnavailableResult,
 } from './branching.js';
 
 const call = (
@@ -58,7 +58,7 @@ describe('checkCostFlowBeforeFirstBranch', () => {
   });
 });
 
-describe('checkReturnedUnavailable', () => {
+describe('checkOneUnavailableResult', () => {
   const unavailable = {
     content: [
       {
@@ -68,21 +68,28 @@ describe('checkReturnedUnavailable', () => {
     ],
   };
 
-  it('passes on the non-error unavailable result', () => {
+  it('passes on one non-error unavailable result from any branching tool', () => {
     expect(
-      checkReturnedUnavailable(
-        [call('create_branch', { result: unavailable })],
-        'create_branch'
-      ).passed
+      checkOneUnavailableResult([
+        call('list_branches', { result: unavailable }),
+      ]).passed
     ).toBe(true);
+  });
+
+  it('fails when the agent keeps calling after the first answer', () => {
+    expect(
+      checkOneUnavailableResult([
+        call('list_branches', { result: unavailable }),
+        call('create_branch', { result: unavailable }),
+      ]).passed
+    ).toBe(false);
   });
 
   it('fails when the same answer comes back as an error', () => {
     expect(
-      checkReturnedUnavailable(
-        [call('create_branch', { result: { ...unavailable, isError: true } })],
-        'create_branch'
-      ).passed
+      checkOneUnavailableResult([
+        call('create_branch', { result: { ...unavailable, isError: true } }),
+      ]).passed
     ).toBe(false);
   });
 });

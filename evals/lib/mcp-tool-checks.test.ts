@@ -93,12 +93,4 @@ describe('checkMcpCallCount', () => {
     ).toBe(true);
     expect(checkMcpCallCount(calls, 'get_cost', { min: 1 }).passed).toBe(false);
   });
-
-  it('counts several tools together', () => {
-    const attempts = [call('get_cost'), call('create_branch')];
-    expect(
-      checkMcpCallCount(attempts, ['get_cost', 'create_branch'], { max: 1 })
-        .passed
-    ).toBe(false);
-  });
 });
