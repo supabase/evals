@@ -47708,7 +47708,7 @@
       {
         "name": "signUp creates the account and returns its user id",
         "passed": true,
-        "notes": "db user 796d3dc2-1ab5-4d51-b260-3a58785ee311, signUp returned {\"userId\":\"796d3dc2-1ab5-4d51-b260-3a58785ee311\"}"
+        "notes": "db user 4e5f5571-72e0-4001-b29b-442bac96d135, signUp returned {\"userId\":\"4e5f5571-72e0-4001-b29b-442bac96d135\"}"
       },
       {
         "name": "signup metadata reaches the profile (display name)",
@@ -47723,7 +47723,7 @@
       {
         "name": "signIn with the right password returns the user id",
         "passed": true,
-        "notes": "{\"userId\":\"796d3dc2-1ab5-4d51-b260-3a58785ee311\"}"
+        "notes": "{\"userId\":\"4e5f5571-72e0-4001-b29b-442bac96d135\"}"
       },
       {
         "name": "getMyProfile returns the signed-in user's profile",
@@ -47747,120 +47747,110 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase-postgres-best-practices"
+        "supabase"
       ]
     },
     "docs": {
       "calls": [
         {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc \"curl -fsSL --max-time 15 https://supabase.com/changelog.md | head -c 18000; printf '\\\\n--- environment presence ---\\\\n'; env | rg '\"'^SUPABASE_(URL|PUBLISHABLE_KEY)='\"' | sed -E 's/=.*/=<set>/' ; printf '\\\\n--- package manager ---\\\\n'; node --version; npm --version; command -v supabase || :; command -v docker || :\"",
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 48
-        },
-        {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"supabase-js auth signUp options data signInWithPassword getUser profiles select single createClient\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"supabase-js auth signUp email password options data display_name signInWithPassword getUser profile table user id select single\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-saml-sso",
-              "title": "Configure SAML SSO"
-            },
             {
               "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/auth0",
               "title": "Migrate from Auth0 to Supabase Auth"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/social-login/auth-google",
-              "title": "Sign in with Google"
+              "url": "https://supabase.com/docs/guides/auth",
+              "title": "Auth"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/social-login/auth-linkedin",
-              "title": "Sign in with LinkedIn"
+              "url": "https://supabase.com/docs/guides/auth/passwords",
+              "title": "Password-based Auth"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/social-login/auth-figma",
-              "title": "Sign in with Figma"
+              "url": "https://supabase.com/docs/guides/auth/enterprise-sso",
+              "title": "Enterprise Single Sign-On"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/customizing-emails-by-language-KZ_38Q",
+              "title": "Customizing Emails by Language"
             }
           ],
-          "resultChars": 128059
+          "resultChars": 67757
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | head -100; printf '\\\\n--- cli ---\\\\n'; command -v supabase && supabase --version || true; printf '\\\\n--- skill checklist ---\\\\n'; sed -n '32,115p' .agents/skills/supabase/SKILL.md\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 7161
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"command -v supabase || true; command -v npm; node --version; env | cut -d= -f1 | rg 'SUPABASE|DATABASE|NODE' || true; ls -la app; ls -la supabase; curl -fsSL https://supabase.com/changelog.md | rg -i -n -C 1 'breaking change.*(auth|supabase-js)|auth.*breaking change' | head -70\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 1746
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"auth-signup javascript\", limit: 3) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"auth-signup sign up with additional user metadata javascript options data\", limit: 2) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/customizing-emails-by-language-KZ_38Q",
+              "title": "Customizing Emails by Language"
+            },
             {
               "url": "https://supabase.com/docs/reference/javascript/auth-signup"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/dart/auth-signup"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-signinanonymously"
             }
           ],
-          "resultChars": 3589
+          "resultChars": 4021
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"auth-signinwithpassword javascript\", limit: 2) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-signinwithpassword"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/javascript/auth-passkey-verifyauthentication"
-            }
-          ],
-          "resultChars": 1544
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"auth-getuser javascript\", limit: 2) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"auth-getuser javascript getUser authenticated profile select single supabase\", limit: 2) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/docs/reference/javascript/auth-getuser"
             },
             {
-              "url": "https://supabase.com/docs/reference/javascript/auth-admin-getuserbyid"
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nuxt-3",
+              "title": "Build a User Management App with Nuxt 3"
             }
           ],
-          "resultChars": 1092
-        },
-        {
-          "source": "web_search",
-          "query": "site:supabase.com/docs/reference/javascript/auth-signup options data signUp",
-          "pages": []
+          "resultChars": 19519
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-sol",
-        "inputTokens": 385932,
-        "cacheReadInputTokens": 337321,
-        "cacheWriteInputTokens": 44566,
-        "outputTokens": 3819
+        "inputTokens": 289591,
+        "cacheReadInputTokens": 245687,
+        "cacheWriteInputTokens": 43871,
+        "outputTokens": 3580
       }
     ],
-    "stepCount": 15,
-    "toolCallCount": 15,
-    "agentRunDurationMs": 81335,
+    "stepCount": 11,
+    "toolCallCount": 12,
+    "agentRunDurationMs": 67705,
     "sandboxUsage": {
-      "activeCpuDurationMs": 280533,
-      "duration": 238640,
+      "activeCpuDurationMs": 273754,
+      "duration": 223097,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 1654230237,
-        "egress": 7718010
+        "ingress": 1653894796,
+        "egress": 7472889
       }
     },
     "prompt": "Our app in `app/` needs accounts. Wire up `app/src/auth.mjs` — the stubs in\nthere describe what each function should do. People sign up with an email,\npassword, and display name, sign back in later, and the app greets them with\ntheir profile.\n\nThe Supabase project for this app is in `supabase/` and already running\nlocally. When you're done, the functions should work for real against it.",
