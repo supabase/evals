@@ -278,6 +278,54 @@ describe('logTranscript', () => {
     });
   });
 
+  it('starts LLM spans during a backgrounded command at the previous edge', () => {
+    const root: RecordedSpan = { children: [] };
+    const message = (requestId: string, s: number) => ({
+      type: 'message' as const,
+      role: 'assistant' as const,
+      content: requestId,
+      ts: (100 + s) * 1000,
+      requestId,
+    });
+    logTranscript(recorder(root), {
+      prompt: 'go',
+      agentReport: '',
+      checks: [],
+      judgeCalls: [],
+      passed: true,
+      modelId: 'm',
+      startTime: 100,
+      toolLabels: [],
+      transcript: [
+        {
+          type: 'tool_call',
+          name: 'Bash',
+          input: {},
+          id: 't1',
+          ts: 104_000,
+          resultTs: 120_000,
+          requestId: 'r1',
+        },
+        message('r2', 8),
+        message('r3', 12),
+        message('r4', 25),
+      ],
+    });
+    expect(
+      root.children[0]?.children.map(({ name, start, end }) => [
+        name,
+        start,
+        end,
+      ])
+    ).toEqual([
+      ['m', 100, 104],
+      ['Bash', 104, 120],
+      ['m', 104, 108],
+      ['m', 108, 112],
+      ['m', 120, 125],
+    ]);
+  });
+
   it('ends setup at a leading non-assistant message and starts task there', () => {
     const root: RecordedSpan = { children: [] };
     logTranscript(recorder(root), {
