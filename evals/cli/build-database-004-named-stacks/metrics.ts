@@ -21,14 +21,11 @@ const DESTRUCTIVE_TOKEN_RE =
 
 const DEV_STACK_ENV_RE =
   /(?:^|[\s;&|(])SUPABASE_STACK=(["']?)dev\1(?=[\s;&|)]|$)/;
-const TEST_STACK_ENV_RE =
-  /(?:^|[\s;&|(])SUPABASE_STACK=(["']?)test\1(?=[\s;&|)]|$)/;
 
 /**
  * Commands that could have hit the wrong database: a `db reset` aimed at dev
- * through `--stack dev` or `SUPABASE_STACK=dev`, or at neither a `--db-url` nor
- * the test stack, or any command naming dev's DB port next to a destructive
- * token. A regex diagnostic, never asserted against.
+ * through `--stack dev` or `SUPABASE_STACK=dev`, or any command naming dev's DB
+ * port next to a destructive token. A regex diagnostic, never asserted against.
  */
 export function countWrongStackAttempts(
   commands: readonly string[],
@@ -38,18 +35,12 @@ export function countWrongStackAttempts(
   const wrong = new Set<number>();
   for (const inv of invocations) {
     const isReset = invocationVerb(inv) === 'db' && inv.argv.includes('reset');
-    const hasDbUrl = inv.argv.some(
-      (word) => word === '--db-url' || word.startsWith('--db-url=')
-    );
     if (!isReset) continue;
     const command = commands[inv.commandIndex] ?? '';
     const flag = invocationFlag(inv, '--stack');
     const aimedAtDev =
       flag === 'dev' || (flag === undefined && DEV_STACK_ENV_RE.test(command));
-    const aimedAtTest =
-      flag === 'test' ||
-      (flag === undefined && TEST_STACK_ENV_RE.test(command));
-    if (aimedAtDev || (!hasDbUrl && !aimedAtTest)) wrong.add(inv.commandIndex);
+    if (aimedAtDev) wrong.add(inv.commandIndex);
   }
   if (devPort !== null) {
     const portRe = new RegExp(`(?<!\\d)${devPort}(?!\\d)`);
@@ -99,7 +90,6 @@ export async function readCliFacts(
 }
 
 export async function checkMetrics(
-  ctx: Pick<LocalStackEvalContext, 'exec'>,
   marker: LocalStackEnvironmentMarker | undefined,
   facts: {
     commands: readonly string[];
@@ -107,12 +97,11 @@ export async function checkMetrics(
     stacks: NamedStacks;
     dev: OrdersProbe;
     test: OrdersProbe;
-    cli?: CliFacts;
+    cli: CliFacts;
   }
 ): Promise<CheckResult> {
   const { commands, invocations, stacks, dev, test } = facts;
-  const { versions, cliOverride } =
-    facts.cli ?? (await readCliFacts(ctx, marker, invocations));
+  const { versions, cliOverride } = facts.cli;
   const devPort = await safely(() =>
     stacks.dev.ok ? (urlPort(stacks.dev.dbUrl) ?? null) : null
   );

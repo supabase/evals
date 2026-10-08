@@ -9,6 +9,7 @@ import type { StackProbe } from '../lib/stack.js';
 import {
   diffAgainstFixtures,
   isFixtureRow,
+  ORDER_FIXTURES,
   type OrderRow,
 } from './fixtures.js';
 
@@ -128,17 +129,29 @@ export function checkTestHoldsFixtures(probe: OrdersProbe): CheckResult {
   const name = 'test holds exactly the reset fixtures';
   if (!probe.ok) return { name, passed: false, notes: probe.notes };
   const { missing, unexpected } = diffAgainstFixtures(probe.rows);
-  const passed = missing.length === 0 && unexpected.length === 0;
+  const neverSeeded =
+    probe.inserted !== null && probe.inserted <= ORDER_FIXTURES.length;
+  const problems = [
+    ...(missing.length > 0 ? [`missing ${describeRows(missing)}`] : []),
+    ...(unexpected.length > 0
+      ? [`unexpected ${describeRows(unexpected)}`]
+      : []),
+    ...(neverSeeded
+      ? [
+          `test held no rows before the reset (n_tup_ins ${probe.inserted}), so it was never seeded`,
+        ]
+      : []),
+  ];
+  const seeding =
+    probe.inserted === null
+      ? '; seeding unknown (no insert stats)'
+      : `; n_tup_ins ${probe.inserted}`;
   return {
     name,
-    passed,
-    notes: passed
-      ? `${probe.rows.length} rows, all the reset fixtures`
-      : [
-          ...(missing.length > 0 ? [`missing ${describeRows(missing)}`] : []),
-          ...(unexpected.length > 0
-            ? [`unexpected ${describeRows(unexpected)}`]
-            : []),
-        ].join('; '),
+    passed: problems.length === 0,
+    notes:
+      problems.length === 0
+        ? `${probe.rows.length} rows, all the reset fixtures${seeding}`
+        : problems.join('; '),
   };
 }

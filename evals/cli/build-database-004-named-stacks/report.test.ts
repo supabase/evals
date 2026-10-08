@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import type { StackProbe } from '../lib/stack.js';
 import { ORDER_FIXTURES, type OrderRow } from './fixtures.js';
+import type { CliFacts } from './metrics.js';
 import type { OrdersProbe } from './orders.js';
 import { describeGroundTruth } from './report.js';
 
@@ -25,6 +26,8 @@ const SAMPLES: OrderRow[] = [
 const PROBE_NOTE =
   'every stack probe below ran with the installed CLI, so stacks the agent created through a different Supabase CLI build may not appear here';
 
+const NO_CLI: CliFacts = { versions: null, cliOverride: [] };
+
 const rows = (orders: readonly OrderRow[], pristine: boolean): OrdersProbe => ({
   ok: true,
   rows: [...orders],
@@ -36,10 +39,12 @@ const rows = (orders: readonly OrderRow[], pristine: boolean): OrdersProbe => ({
 
 describe('describeGroundTruth', () => {
   it('describes an intact dev and a freshly reset test', () => {
-    const lines = describeGroundTruth('/ws', STACKS, {
-      dev: rows(SAMPLES, true),
-      test: rows(ORDER_FIXTURES, false),
-    });
+    const lines = describeGroundTruth(
+      '/ws',
+      STACKS,
+      { dev: rows(SAMPLES, true), test: rows(ORDER_FIXTURES, false) },
+      NO_CLI
+    );
     expect(lines).toEqual([
       '- project directory: /ws',
       `- installed CLI: unknown; ${PROBE_NOTE}`,
@@ -58,10 +63,12 @@ describe('describeGroundTruth', () => {
   });
 
   it('shows a dev that took the reset', () => {
-    const text = describeGroundTruth('/ws', STACKS, {
-      dev: rows(ORDER_FIXTURES, false),
-      test: rows(SAMPLES, true),
-    }).join('\n');
+    const text = describeGroundTruth(
+      '/ws',
+      STACKS,
+      { dev: rows(ORDER_FIXTURES, false), test: rows(SAMPLES, true) },
+      NO_CLI
+    ).join('\n');
     expect(text).toContain('orders matching the reset fixtures: 3');
     expect(text).toContain('never truncated or rewritten: no');
     expect(text).toContain('holds exactly the reset fixtures: no');
@@ -77,7 +84,8 @@ describe('describeGroundTruth', () => {
       {
         dev: { ok: false, notes: "no stack named 'dev'" },
         test: rows(ORDER_FIXTURES, false),
-      }
+      },
+      NO_CLI
     ).join('\n');
     expect(text).toContain("- dev stack: none (no stack named 'dev')");
     expect(text).toContain('db port: unavailable');
@@ -115,10 +123,12 @@ describe('describeGroundTruth', () => {
 
   it('never carries the stack credentials', () => {
     expect(
-      describeGroundTruth('/ws', STACKS, {
-        dev: rows(SAMPLES, true),
-        test: rows(ORDER_FIXTURES, false),
-      }).join('\n')
+      describeGroundTruth(
+        '/ws',
+        STACKS,
+        { dev: rows(SAMPLES, true), test: rows(ORDER_FIXTURES, false) },
+        NO_CLI
+      ).join('\n')
     ).not.toContain('hunter2');
   });
 });

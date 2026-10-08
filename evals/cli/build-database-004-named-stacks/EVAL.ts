@@ -54,7 +54,7 @@ const scorer: LocalStackScorer = async (ctx) => {
       checkTestHoldsFixtures(orders.test),
       await checkNoDestructiveCommandHitDev(ctx, stacks, commands),
       await checkNoContainerRuntimeDetours(ctx, commands),
-      await checkMetrics(ctx, marker, {
+      await checkMetrics(marker, {
         commands,
         invocations,
         stacks,

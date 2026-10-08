@@ -7,7 +7,11 @@ import type {
 import { describe, expect, it } from 'vitest';
 import { findSupabaseInvocations } from '../lib/cli-invocations.js';
 import type { StackProbe } from '../lib/stack.js';
-import { checkMetrics, countWrongStackAttempts } from './metrics.js';
+import {
+  checkMetrics,
+  countWrongStackAttempts,
+  readCliFacts,
+} from './metrics.js';
 import type { OrdersProbe } from './orders.js';
 
 const DEV_URL = 'postgresql://postgres:postgres@127.0.0.1:29001/postgres';
@@ -63,11 +67,14 @@ describe('countWrongStackAttempts', () => {
       devPort
     );
 
-  it('counts a db reset aimed at neither a --db-url nor the test stack', () => {
-    expect(count(['supabase db reset'])).toBe(1);
+  it('does not count a db reset that names no stack', () => {
     expect(
-      count(['supabase db reset --yes', 'supabase db reset --linked'])
-    ).toBe(2);
+      count([
+        'supabase db reset',
+        'supabase db reset --yes',
+        'supabase db reset --linked',
+      ])
+    ).toBe(0);
   });
 
   it('does not count a db reset with a --db-url or aimed at test', () => {
@@ -128,7 +135,9 @@ describe('countWrongStackAttempts', () => {
       ])
     ).toBe(1);
     expect(
-      count(['supabase db reset && psql 127.0.0.1:29001 -c "drop table x"'])
+      count([
+        'supabase db reset --stack dev && psql 127.0.0.1:29001 -c "drop table x"',
+      ])
     ).toBe(1);
   });
 
@@ -146,12 +155,14 @@ describe('checkMetrics', () => {
   it('reports every field and always passes', async () => {
     const commands = [
       'supabase stack start --stack dev',
-      'supabase db reset',
+      'supabase db reset --stack dev',
       'sudo apt-get install docker.io',
     ];
-    const check = await checkMetrics(ctx, MARKER, {
+    const invocations = findSupabaseInvocations(commands);
+    const check = await checkMetrics(MARKER, {
       commands,
-      invocations: findSupabaseInvocations(commands),
+      invocations,
+      cli: await readCliFacts(ctx, MARKER, invocations),
       stacks: { dev: named(DEV_URL), test: named(TEST_URL) },
       dev: orders(2, 1, 0),
       test: orders(5, 0, 0),
@@ -190,9 +201,10 @@ describe('checkMetrics', () => {
       },
     };
     const unresolved: StackProbe = { ok: false, notes: 'none' };
-    const check = await checkMetrics(failing, undefined, {
+    const check = await checkMetrics(undefined, {
       commands: [],
       invocations: [],
+      cli: await readCliFacts(failing, undefined, []),
       stacks: { dev: unresolved, test: unresolved },
       dev: { ok: false, notes: 'none' },
       test: { ok: false, notes: 'none' },
@@ -222,9 +234,11 @@ describe('checkMetrics', () => {
           ? commandResult('2.0.0\n')
           : commandResult('2.2.0\n'),
     };
-    const check = await checkMetrics(moved, MARKER, {
+    const invocations = findSupabaseInvocations(commands);
+    const check = await checkMetrics(MARKER, {
       commands,
-      invocations: findSupabaseInvocations(commands),
+      invocations,
+      cli: await readCliFacts(moved, MARKER, invocations),
       stacks: { dev: named(DEV_URL), test: named(TEST_URL) },
       dev: orders(null, null, null),
       test: orders(null, null, null),

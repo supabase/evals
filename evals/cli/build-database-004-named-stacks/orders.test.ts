@@ -39,8 +39,20 @@ function output(
   });
 }
 
-function probe(rows: readonly OrderRow[], pristine = true): OrdersProbe {
-  const parsed = parseOrdersOutput(output(rows, { pristine }));
+function probe(
+  rows: readonly OrderRow[],
+  pristine = true,
+  inserted: number | null = ORDER_FIXTURES.length + 2
+): OrdersProbe {
+  const parsed = parseOrdersOutput(
+    output(rows, {
+      pristine,
+      stats:
+        inserted === null
+          ? null
+          : { n_tup_ins: inserted, n_tup_upd: 0, n_tup_del: 0 },
+    })
+  );
   if (!parsed.ok) throw new Error(parsed.notes);
   return parsed;
 }
@@ -235,6 +247,26 @@ describe('checkTestHoldsFixtures', () => {
       })
     );
     expect(checkTestHoldsFixtures(parsed).passed).toBe(true);
+  });
+
+  it('fails fixtures on a test that was never seeded before the reset', () => {
+    const result = checkTestHoldsFixtures(
+      probe(ORDER_FIXTURES, false, ORDER_FIXTURES.length)
+    );
+    expect(result.passed).toBe(false);
+    expect(result.notes).toContain('never seeded');
+  });
+
+  it('passes fixtures on a test seeded before the reset', () => {
+    expect(checkTestHoldsFixtures(probe(ORDER_FIXTURES, false, 5)).passed).toBe(
+      true
+    );
+  });
+
+  it('passes fixtures with unknown insert stats and says so', () => {
+    const result = checkTestHoldsFixtures(probe(ORDER_FIXTURES, false, null));
+    expect(result.passed).toBe(true);
+    expect(result.notes).toContain('unknown');
   });
 
   it('fails the fixtures beside a leftover sample order', () => {

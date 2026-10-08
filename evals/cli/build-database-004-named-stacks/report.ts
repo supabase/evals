@@ -45,7 +45,7 @@ export function describeGroundTruth(
   workspace: string,
   stacks: NamedStacks,
   orders: Record<StackName, OrdersProbe>,
-  cli: CliFacts = { versions: null, cliOverride: [] }
+  cli: CliFacts
 ): string[] {
   return [
     `- project directory: ${workspace}`,

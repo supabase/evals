@@ -6,6 +6,7 @@ import type {
 import { shellQuote, truncate } from '../lib/shell.js';
 import {
   candidateHomes,
+  effectiveRoot,
   maskUrlCredentials,
   probeStackReady,
   resolveStack,
@@ -34,11 +35,6 @@ async function realPath(ctx: ExecContext, path: string): Promise<string> {
 const DISCOVERY_ROOTS = ['/tmp'];
 const DISCOVERY_MAX_DEPTH = 8;
 const STATE_FILE_RE = /^(\/.+)\/stacks\/[^/]+\/state\.json$/;
-
-function homeRoot(home: InvocationEnv): string | undefined {
-  if (home.SUPABASE_HOME !== undefined) return home.SUPABASE_HOME;
-  return home.HOME === undefined ? undefined : `${home.HOME}/.supabase`;
-}
 
 /** CLI homes holding managed-stack state under the workspace or `/tmp`, found by their `stacks/<id>/state.json` files. */
 async function discoverHomeRoots(
@@ -93,7 +89,7 @@ async function readStackLists(
       { kind: 'project', dir: workspace, stackName },
       STACK_NAMES
     )) {
-      const root = homeRoot(home);
+      const root = effectiveRoot(home);
       if (root !== undefined) homes.set(root, home);
     }
   }
@@ -188,7 +184,7 @@ async function resolveNamedStack(
     } else if (probe.backend !== 'managed-named') {
       notes.push(`resolved to the ${probe.backend} stack, not the named one`);
     } else {
-      const relocatedHome = home && homeRoot(home);
+      const relocatedHome = home && effectiveRoot(home);
       return relocatedHome === undefined
         ? { ...probe, cliHome: defaultHome }
         : { ...probe, relocatedHome, cliHome: relocatedHome };
