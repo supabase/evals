@@ -53,7 +53,7 @@ const STACK_CONFIG_RETRY_MS = 2_000;
 export interface LocalStackRuntimeOptions {
   /**
    * Supabase CLI version baked into the sandbox image: an exact version
-   * (e.g. `2.109.1`) or a channel tag (`'stable'` | `'beta'`) resolved
+   * (e.g. `2.109.1`) or a channel tag (`'stable'` | `'beta'` | `'next'`) resolved
    * against npm's dist-tag and memoised per process. An eval's own
    * `cliVersion:` frontmatter pin always wins over this option.
    */
@@ -838,7 +838,8 @@ function isLocalStackEnvironmentMarker(
     typeof value.sessionStartedMs === 'number' &&
     (value.channel === undefined ||
       value.channel === 'stable' ||
-      value.channel === 'beta')
+      value.channel === 'beta' ||
+      value.channel === 'next')
   );
 }
 

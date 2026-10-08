@@ -145,7 +145,7 @@ An eval's optional `local/` directory is copied into the sandbox workspace befor
 
 Set `cliVersion: 2.109.1` in an eval's frontmatter when it requires a specific Supabase CLI release. This overrides an experiment's `localStackRuntime({ cliVersion })` setting; otherwise the runtime setting or repository-wide default applies.
 
-An experiment can instead pass `localStackRuntime({ cliVersion: 'stable' })` or `'beta'` to track npm's dist-tag for the `supabase` package rather than an exact version, resolved once at session start. An eval's own `cliVersion:` pin still wins over either form.
+An experiment can instead pass `localStackRuntime({ cliVersion: 'stable' })`, `'beta'` or `'next'` to track npm's dist-tag for the `supabase` package rather than an exact version, resolved once at session start. An eval's own `cliVersion:` pin still wins over either form.
 
 An experiment can pass `localStackRuntime({ docker: 'no-daemon' })` or `'absent'` to stage a sandbox where the Docker daemon is unreachable or the `docker` binary is missing entirely, instead of the default `'available'`. `needsDocker` defaults to `true`; set it `false` in an eval's frontmatter when the scenario can run, and is meaningful, without a Docker daemon (e.g. starting the stack is the agent's own job) — that's what lets a Docker-less experiment pick the eval up.
 

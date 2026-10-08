@@ -78,6 +78,7 @@ describe('agentEnvironment', () => {
     expect(env).toBe(`ANTHROPIC_API_KEY=${BROKERED_KEY_PLACEHOLDER}`);
     expect(env).not.toContain('SUPABASE_CLI_STABLE_VERSION');
     expect(env).not.toContain('SUPABASE_CLI_BETA_VERSION');
+    expect(env).not.toContain('SUPABASE_CLI_NEXT_VERSION');
   });
 
   it('prefers an explicit pin over the same-named process.env value', () => {
@@ -95,6 +96,7 @@ describe('agentEnvironment', () => {
     const pins = {
       SUPABASE_CLI_STABLE_VERSION: '2.117.0',
       SUPABASE_CLI_BETA_VERSION: '2.118.0-beta.5',
+      SUPABASE_CLI_NEXT_VERSION: '3.0.0-next.2',
     };
 
     const jobOneEnv = agentEnvironment(pins);
@@ -103,6 +105,7 @@ describe('agentEnvironment', () => {
     expect(jobOneEnv).toBe(jobTwoEnv);
     expect(jobOneEnv).toContain('SUPABASE_CLI_STABLE_VERSION=2.117.0');
     expect(jobOneEnv).toContain('SUPABASE_CLI_BETA_VERSION=2.118.0-beta.5');
+    expect(jobOneEnv).toContain('SUPABASE_CLI_NEXT_VERSION=3.0.0-next.2');
   });
 });
 
@@ -166,11 +169,12 @@ describe('brokeredNetworkPolicy', () => {
 describe('resolveChannelPins', () => {
   const STABLE_ENV = 'SUPABASE_CLI_STABLE_VERSION';
   const BETA_ENV = 'SUPABASE_CLI_BETA_VERSION';
+  const NEXT_ENV = 'SUPABASE_CLI_NEXT_VERSION';
   const BOTH_CHANNELS = new Set<CliChannel>(['stable', 'beta']);
   const originalValues = new Map<string, string | undefined>();
 
   beforeEach(() => {
-    for (const name of [STABLE_ENV, BETA_ENV]) {
+    for (const name of [STABLE_ENV, BETA_ENV, NEXT_ENV]) {
       originalValues.set(name, process.env[name]);
       delete process.env[name];
     }
@@ -214,6 +218,15 @@ describe('resolveChannelPins', () => {
     expect(pins).toEqual({ [STABLE_ENV]: '2.117.0' });
     expect(resolveCliVersion).toHaveBeenCalledTimes(1);
     expect(resolveCliVersion).not.toHaveBeenCalledWith('beta');
+  });
+
+  it('resolves the next channel into its own env pin', async () => {
+    vi.mocked(resolveCliVersion).mockResolvedValue('3.0.0-next.2');
+
+    const pins = await resolveChannelPins(new Set<CliChannel>(['next']));
+
+    expect(pins).toEqual({ [NEXT_ENV]: '3.0.0-next.2' });
+    expect(resolveCliVersion).toHaveBeenCalledWith('next');
   });
 
   it('does no network work for an empty channel set', async () => {

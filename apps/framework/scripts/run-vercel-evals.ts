@@ -67,10 +67,12 @@ export const BROKERED_KEY_PLACEHOLDER = 'injected-by-sandbox-firewall';
 export const FORWARDED_ENV_NAMES = [
   'SUPABASE_CLI_STABLE_VERSION',
   'SUPABASE_CLI_BETA_VERSION',
+  'SUPABASE_CLI_NEXT_VERSION',
 ];
 const CLI_CHANNEL_ENV: Record<CliChannel, string> = {
   stable: 'SUPABASE_CLI_STABLE_VERSION',
   beta: 'SUPABASE_CLI_BETA_VERSION',
+  next: 'SUPABASE_CLI_NEXT_VERSION',
 };
 /**
  * Slack for the non-agent work inside `pnpm eval` (supabase start, resets,
