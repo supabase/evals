@@ -36,7 +36,7 @@ const DISCOVERY_ROOTS = ['/tmp'];
 const DISCOVERY_MAX_DEPTH = 8;
 const STATE_FILE_RE = /^(\/.+)\/stacks\/[^/]+\/state\.json$/;
 
-/** CLI homes holding managed-stack state under the workspace or `/tmp`, found by their `stacks/<id>/state.json` files. */
+/** CLI homes holding managed-stack state under the workspace, `/tmp` or the user's home, found by their `stacks/<id>/state.json` files. */
 async function discoverHomeRoots(
   ctx: ExecContext,
   workspace: string
@@ -44,9 +44,10 @@ async function discoverHomeRoots(
   try {
     const roots = [workspace, ...DISCOVERY_ROOTS]
       .map((root) => shellQuote(root))
+      .concat('"$HOME"')
       .join(' ');
     const { stdout } = await ctx.exec(
-      `find ${roots} -maxdepth ${DISCOVERY_MAX_DEPTH} -type d \\( -name node_modules -o -name .git -o -path '*/stacks/*/*' \\) -prune -o -type f -path '*/stacks/*/state.json' -print 2>/dev/null`
+      `find ${roots} -maxdepth ${DISCOVERY_MAX_DEPTH} -type d \\( -name node_modules -o -name .git -o -name .cache -o -name .npm -o -path '*/stacks/*/*' \\) -prune -o -type f -path '*/stacks/*/state.json' -print 2>/dev/null`
     );
     return [
       ...new Set(

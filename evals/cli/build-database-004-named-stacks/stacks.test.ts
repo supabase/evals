@@ -288,6 +288,37 @@ describe('resolveNamedStacks home discovery', () => {
     expect(lists).toHaveLength(2);
   });
 
+  it('finds stacks under a home inside the user home that no invocation names', async () => {
+    const home = '/home/node/.supabase/orders-app';
+    const finds: string[] = [];
+    const ctx = fakeCtx({
+      list: [],
+      defaultHome: '/home/node/.supabase',
+      found: [stateFile(home), '/home/node/.supabase/stacks/def456/state.json'],
+      homes: { [home]: { list: LISTED, named: NAMED } },
+    });
+    const stacks = await resolveNamedStacks(
+      {
+        exec: async (command) => {
+          if (command.startsWith('find ')) finds.push(command);
+          return ctx.exec(command);
+        },
+      },
+      WS,
+      []
+    );
+    expect(stacks.dev).toMatchObject({
+      ok: true,
+      dbUrl: DEV_URL,
+      relocatedHome: home,
+    });
+    expect(stacks.test).toMatchObject({ ok: true, relocatedHome: home });
+    expect(finds).toHaveLength(1);
+    expect(finds[0]).toContain('"$HOME"');
+    expect(finds[0]).toContain('-name .cache');
+    expect(finds[0]).toContain('-name .npm');
+  });
+
   it('ignores a discovered home whose dev belongs to another project', async () => {
     const home = `${WS}/.supabase-home`;
     const ctx = fakeCtx({

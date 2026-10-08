@@ -217,14 +217,14 @@ Known limitations:
   doesn't count.
 - Relocated CLI homes are found two ways: from the `SUPABASE_HOME` or `HOME`
   an agent set on a start command, and from the filesystem, where the scorer
-  looks (depth-bounded, skipping `node_modules` and `.git`) under the workspace
-  and `/tmp` for `*/stacks/*/state.json` and treats each parent of `stacks` as
+  looks (depth-bounded, skipping `node_modules`, `.git`, `.cache` and `.npm`)
+  under the workspace, `/tmp` and the user's home directory (`$HOME`) for `*/stacks/*/state.json` and treats each parent of `stacks` as
   a CLI home. The second path covers homes relocated inside a script or
   `package.json` command, where no invocation shows the variable. `stack list`
   runs under the default home and each such home, and `dev`/`test` resolve from
   the first home listing that exact name for this workspace, reachable owners
   first. A broken `dev` left in the default home therefore doesn't hide a
-  working one elsewhere. A home outside the workspace and `/tmp` that no start
+  working one elsewhere. A home outside the workspace, `/tmp` and `$HOME` that no start
   command names isn't found.
 
 In the CI sandbox, Docker-runtime stacks only start when the CLI home is under
