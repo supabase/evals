@@ -9,7 +9,10 @@ import {
   listCliOverrides,
   type SupabaseInvocation,
 } from '../lib/cli-invocations.js';
-import { findCliDetourCommands } from '../lib/detours.js';
+import {
+  findCliDetourCommands,
+  unmaskedCommandSegments,
+} from '../lib/detours.js';
 import { readCliVersions, safely } from '../lib/metrics.js';
 import { urlPort, type StackProbe } from '../lib/stack.js';
 import { ORDER_FIXTURES } from './fixtures.js';
@@ -24,8 +27,9 @@ const DEV_STACK_ENV_RE =
 
 /**
  * Commands that could have hit the wrong database: a `db reset` aimed at dev
- * through `--stack dev` or `SUPABASE_STACK=dev`, or any command naming dev's DB
- * port next to a destructive token. A regex diagnostic, never asserted against.
+ * through `--stack dev` or `SUPABASE_STACK=dev`, or any command with a segment
+ * naming dev's DB port next to a destructive token. A regex diagnostic, never
+ * asserted against.
  */
 export function countWrongStackAttempts(
   commands: readonly string[],
@@ -45,9 +49,10 @@ export function countWrongStackAttempts(
   if (devPort !== null) {
     const portRe = new RegExp(`(?<!\\d)${devPort}(?!\\d)`);
     commands.forEach((command, index) => {
-      if (portRe.test(command) && DESTRUCTIVE_TOKEN_RE.test(command)) {
-        wrong.add(index);
-      }
+      const sameSegment = unmaskedCommandSegments(command).some(
+        (segment) => portRe.test(segment) && DESTRUCTIVE_TOKEN_RE.test(segment)
+      );
+      if (sameSegment) wrong.add(index);
     });
   }
   return wrong.size;

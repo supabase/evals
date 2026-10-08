@@ -117,6 +117,25 @@ describe('countWrongStackAttempts', () => {
     ).toBe(2);
   });
 
+  it('counts a destructive workload aimed at dev inside one segment', () => {
+    expect(
+      count([
+        "env -u TEST_DATABASE_URL DATABASE_URL='postgresql://postgres:postgres@127.0.0.1:29001/postgres' npm run db:reset-test >/tmp/reset-guard.out 2>&1; result=$?; cat /tmp/reset-guard.out; exit $result",
+      ])
+    ).toBe(1);
+  });
+
+  it('does not count a dev port and a destructive token in different segments', () => {
+    expect(
+      count([
+        `npm run db:reset-test && psql '${DEV_URL}' -v ON_ERROR_STOP=1 -c "select customer, item, quantity from public.orders order by customer;"`,
+        `dev_url='${DEV_URL}'\npsql "$dev_url" -c "insert into public.orders (customer, item, quantity) values ('x', 'y', 1)"\nnpm run db:reset-test`,
+        `case "$dev_url" in *127.0.0.1:29001/postgres) ;; *) echo 'Unexpected dev database endpoint; refusing writes' >&2; exit 1 ;; esac\nnpm run db:reset-test`,
+        'SUPABASE_EXPERIMENTAL_STACK=1 supabase stack status --stack test --json; echo dev is 127.0.0.1:29001; supabase db reset --stack test',
+      ])
+    ).toBe(0);
+  });
+
   it('does not count dev reads, the test port, or a longer port number', () => {
     expect(
       count([
