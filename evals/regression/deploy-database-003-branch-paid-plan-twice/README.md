@@ -19,5 +19,7 @@ runs one prompt per eval, so the prompt asks for both, one after the other.
 **Cost consent.** `get_cost` tells the agent to confirm the price with the user
 before going ahead. A single-turn harness can't answer that, so the prompt ends
 with "Whatever it costs is fine, no need to check with me." The line is the
-same in 002-004. A run that still stops to ask for approval now ignored the
-user's consent and counts as an agent mistake.
+same in 002-004. Some runs still stop after `get_cost` to confirm the price,
+because its description says to "always" confirm with the user. Read that
+failure shape (no branches, last message asks to approve the cost) as a harness
+limit, not an agent mistake or a server gap. The checks aren't relaxed for it.
