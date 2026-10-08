@@ -1,16 +1,17 @@
 # deploy-database-003: two dev branches on a paid plan
 
-The happy-path counterpart to `deploy-database-002`: once the agent knows the
-org is on a paid plan, branching should go through the cost flow and not
-re-check the plan for a second branch
+The happy-path counterpart to `deploy-database-002`: when the org can branch,
+the availability check stays out of the way and both branches go through the
+cost flow
 ([Slack thread](https://supabase.slack.com/archives/C051L8U2EJF/p1791383434405579)).
 
-**Setup.** `remote/organization.json` puts the org on the Pro plan. The MCP
-server runs account-scoped with the `branching` feature.
+**Setup.** `remote/organization.json` puts the org on the Pro plan, so
+platform-lite's `/branching` endpoint reports `available: true`. The MCP server
+runs account-scoped with the `branching` feature.
 
 **Checks.** The first branch is created via `get_cost` -> `confirm_cost` ->
-`create_branch`, two branches exist at the end, `get_organization` is called at
-most once (calling it first is fine), and there are no tool errors.
+`create_branch`, two branches exist at the end, and there are no Supabase MCP
+tool errors.
 
 **Legacy cost flow.** The `get_cost` -> `confirm_cost` -> `create_branch` order
 is what the server expects from clients on MCP protocol revisions before

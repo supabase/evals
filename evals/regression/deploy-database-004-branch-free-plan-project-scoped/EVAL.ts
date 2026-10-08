@@ -3,15 +3,18 @@ import {
   checkMcpCallCount,
   checkNoMcpToolErrors,
 } from '../../lib/mcp-tool-checks.js';
-import { checkOfferedUpgrade } from '../lib/branching.js';
+import {
+  checkOfferedUpgrade,
+  checkReturnedUnavailable,
+} from '../lib/branching.js';
 
-// Free-plan org, project-scoped MCP: no account tools, so the agent can't see
-// the plan. It should try create_branch once, get the server's non-error
-// "requires a paid plan" result, and relay it. See README.md.
+// Org without branching, project-scoped MCP: one create_branch call gets the
+// server's non-error "branching isn't available" result, which the agent
+// relays with the upgrade offer. See README.md.
 const scorer: ToolScorer = async (ctx) => {
   const checks = [
     checkMcpCallCount(ctx.toolCalls, 'create_branch', { min: 1, max: 1 }),
-    checkMcpCallCount(ctx.toolCalls, 'confirm_cost', { max: 0 }),
+    checkReturnedUnavailable(ctx.toolCalls, 'create_branch'),
     checkNoMcpToolErrors(ctx.toolCalls),
     await checkOfferedUpgrade(ctx),
   ];

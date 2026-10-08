@@ -61,3 +61,24 @@ export function checkCostFlowBeforeFirstBranch(
     notes: `MCP calls: ${mcp.map((call) => call.tool.toolName).join(', ') || 'none'}`,
   };
 }
+
+/**
+ * A `toolName` call got the server's non-error "branching isn't available"
+ * answer, recognized by its link to the org billing page.
+ */
+export function checkReturnedUnavailable(
+  toolCalls: readonly ToolCallRecord[],
+  toolName: string
+): CheckResult {
+  const answered = toolCalls.some(
+    (call) =>
+      call.tool.kind === 'mcp' &&
+      call.tool.toolName === toolName &&
+      !isToolError(call) &&
+      /\/org\/[^/"\s]+\/billing/.test(JSON.stringify(call.result))
+  );
+  return {
+    name: `${toolName} returned the branching-unavailable result`,
+    passed: answered,
+  };
+}

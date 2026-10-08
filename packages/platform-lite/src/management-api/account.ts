@@ -1,6 +1,6 @@
 import { ProjectInstance } from '../project/ProjectInstance.js';
 import type { ProjectStore } from '../project-store.js';
-import { branchingEntitlements, type Organization } from '../organization.js';
+import type { Organization } from '../organization.js';
 import {
   createManagementApiRoutes,
   type ManagementApiRoutes,
@@ -24,14 +24,6 @@ export function createAccountRoutes(
       return c.json({ message: 'Organization not found' }, 404);
     }
     return c.json(org);
-  });
-
-  routes.get('/v1/organizations/:slug/entitlements', (c) => {
-    const { slug } = c.req.param();
-    if (slug !== org.slug) {
-      return c.json({ message: 'Organization not found' }, 404);
-    }
-    return c.json(branchingEntitlements(org));
   });
 
   // Branch databases are projects internally but aren't listed as projects.

@@ -36,38 +36,10 @@ export function createOrganization(seed: OrganizationSeed = {}): Organization {
   };
 }
 
+/**
+ * Whether the org can create branches. The platform also allows allowlisted
+ * free orgs and free orgs' K8s projects; platform-lite only models the plan.
+ */
 export function hasBranching(org: Organization): boolean {
   return org.plan !== 'free';
-}
-
-/**
- * Minimal emulation of `GET /v1/organizations/{slug}/entitlements`: only the
- * branching features, gated on plan. The real endpoint lists every feature
- * with plan- and override-specific limits; platform-lite doesn't model those.
- */
-export function branchingEntitlements(
-  org: Organization
-): components['schemas']['V1ListEntitlementsResponse'] {
-  const hasAccess = hasBranching(org);
-  return {
-    entitlements: [
-      {
-        feature: { key: 'branching_limit', type: 'numeric' },
-        hasAccess,
-        type: 'numeric',
-        config: {
-          enabled: hasAccess,
-          value: 0,
-          unlimited: hasAccess,
-          unit: 'branches',
-        },
-      },
-      {
-        feature: { key: 'branching_persistent', type: 'boolean' },
-        hasAccess,
-        type: 'boolean',
-        config: { enabled: hasAccess },
-      },
-    ],
-  };
 }

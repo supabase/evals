@@ -4,24 +4,24 @@
 (`projectScoped: true`, i.e. `--project-ref`), as with a project-scoped MCP URL
 ([Slack thread](https://supabase.slack.com/archives/C051L8U2EJF/p1791383434405579)).
 Account tools (`get_organization`, `get_cost`, `confirm_cost`) aren't available
-in this mode, so the agent can't see the plan up front.
+in this mode, so `create_branch` is the only way to find out. See 002's README
+for the expected server behavior.
 
-**Setup.** `remote/organization.json` puts the org on the free plan.
+**Setup.** `remote/organization.json` puts the org on the free plan, so
+platform-lite's `/branching` endpoint reports `available: false`.
 
-**Checks.** Exactly one `create_branch` call, no `confirm_cost`, no tool errors,
-and the agent tells the user branching isn't available, asks whether they want
-to upgrade, and links the org's billing page (judge, shared with 002). The agent
-can't see the plan in this mode, so it has to try once to find out; a reply
-that only guesses at the plan doesn't count. The server is expected to answer
-that `create_branch` with a non-error "requires Pro, upgrade here" result,
-which is why zero tool errors is achievable.
+**Checks.** Exactly one `create_branch` call, which returns the non-error
+"branching isn't available" result (recognized by its billing link), and no
+Supabase MCP tool errors. The same judge as 002 requires the reply to say
+branching isn't available, ask whether the user wants to upgrade, and link the
+org's billing page.
 
 **Cost consent.** The prompt ends with "Whatever it costs is fine, no need to
 check with me." It stands in for the approval turn a single-turn harness can't
 provide. The line is the same in 002-004, so only the seeded plan and the MCP
 scoping differ.
 
-**Expected to fail** until that server change ships and `MCP_SERVER_VERSION` is
-bumped. With the current server, project-scoped `create_branch` requires a
-`confirm_cost_id` that no available tool can produce, and on a free org the
+**Expected to fail** until the MCP server calls the `/branching` endpoint and
+`MCP_SERVER_VERSION` is bumped. The released server requires a `confirm_cost_id`
+in this mode that no available tool can produce, and on a free org the
 platform's 402 comes back as a tool error.

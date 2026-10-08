@@ -21,13 +21,19 @@ const createBranchBodySchema = z.object({
  * parent's migration history replayed onto it (no data), ready immediately;
  * a migration that fails to replay (e.g. it depends on seeded, unmigrated
  * schema) leaves the branch in MIGRATIONS_FAILED, as on the platform.
- * Free-plan orgs get the platform's 402.
+ * Free-plan orgs get the platform's 402, and `/branching` reports the same rule.
  */
 export function createBranchingRoutes(
   store: ProjectStore,
   org: Organization
 ): ManagementApiRoutes {
   const routes = createManagementApiRoutes();
+
+  routes.get('/v1/projects/:ref/branching', (c) => {
+    const { ref } = c.req.param();
+    if (!store.get(ref)) return c.json({ message: 'Project not found' }, 404);
+    return c.json({ available: hasBranching(org) });
+  });
 
   routes.get('/v1/projects/:ref/branches', (c) => {
     const { ref } = c.req.param();

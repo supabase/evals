@@ -1,11 +1,14 @@
 // Run: pnpm --filter @supabase-evals/framework test:evals-lib
 import type { ToolCallRecord } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
-import { checkCostFlowBeforeFirstBranch } from './branching.js';
+import {
+  checkCostFlowBeforeFirstBranch,
+  checkReturnedUnavailable,
+} from './branching.js';
 
 const call = (
   toolName: string,
-  outcome: Partial<Pick<ToolCallRecord, 'error'>> = {}
+  outcome: Partial<Pick<ToolCallRecord, 'result' | 'error'>> = {}
 ): ToolCallRecord => ({
   tool: { kind: 'mcp', server: 'supabase-mcp', toolName },
   body: {},
@@ -52,5 +55,34 @@ describe('checkCostFlowBeforeFirstBranch', () => {
         call('create_branch'),
       ])
     ).toBe(true);
+  });
+});
+
+describe('checkReturnedUnavailable', () => {
+  const unavailable = {
+    content: [
+      {
+        type: 'text',
+        text: "Branching isn't available. Upgrade at https://supabase.com/dashboard/org/acme/billing",
+      },
+    ],
+  };
+
+  it('passes on the non-error unavailable result', () => {
+    expect(
+      checkReturnedUnavailable(
+        [call('create_branch', { result: unavailable })],
+        'create_branch'
+      ).passed
+    ).toBe(true);
+  });
+
+  it('fails when the same answer comes back as an error', () => {
+    expect(
+      checkReturnedUnavailable(
+        [call('create_branch', { result: { ...unavailable, isError: true } })],
+        'create_branch'
+      ).passed
+    ).toBe(false);
   });
 });

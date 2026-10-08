@@ -58,27 +58,22 @@ describe('organization', () => {
     ['free', false],
     ['pro', true],
   ] as const)(
-    'gates branching entitlements on a %s plan',
-    async (plan, hasAccess) => {
+    'reports branching availability on a %s plan',
+    async (plan, available) => {
       const app = await appWithOrg({ plan });
-      const { status, data } = await request<{
-        entitlements: Array<{ feature: { key: string }; hasAccess: boolean }>;
-      }>(app, 'GET', '/v1/organizations/default-org/entitlements');
+      const { status, data } = await request<{ available: boolean }>(
+        app,
+        'GET',
+        `/v1/projects/${REF}/branching`
+      );
       expect(status).toBe(200);
-      expect(
-        data.entitlements.find((e) => e.feature.key === 'branching_limit')
-          ?.hasAccess
-      ).toBe(hasAccess);
+      expect(data).toEqual({ available });
     }
   );
 
-  it('404s entitlements for an unknown org', async () => {
+  it('404s branching availability for an unknown project', async () => {
     const app = await appWithOrg();
-    const { status } = await request(
-      app,
-      'GET',
-      '/v1/organizations/nope/entitlements'
-    );
+    const { status } = await request(app, 'GET', '/v1/projects/nope/branching');
     expect(status).toBe(404);
   });
 });

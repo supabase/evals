@@ -6,8 +6,8 @@ import {
 import { checkOfferedUpgrade } from '../lib/branching.js';
 
 // Org without branching, account-scoped MCP: one get_cost or create_branch
-// attempt gets the server's non-error "unavailable" answer, which the agent
-// relays with the upgrade offer. See README.md.
+// call gets the server's non-error "branching isn't available" result, which
+// the agent relays with the upgrade offer. See README.md.
 const scorer: ToolScorer = async (ctx) => {
   const checks = [
     checkMcpCallCount(ctx.toolCalls, ['get_cost', 'create_branch'], {
