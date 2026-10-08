@@ -12,9 +12,9 @@ platform-lite's `/branching` endpoint reports `available: false`.
 
 **Checks.** Exactly one `create_branch` call, which returns the non-error
 "branching isn't available" result (recognized by its billing link), and no
-Supabase MCP tool errors. The same judge as 002 requires the reply to say
-branching isn't available, ask whether the user wants to upgrade, and link the
-org's billing page.
+Supabase MCP tool errors. The same judge as 002 requires the reply to say the
+organization's current plan doesn't include branching. Mentioning the upgrade
+is fine but not required.
 
 **Cost consent.** The prompt ends with "Whatever it costs is fine, no need to
 check with me." It stands in for the approval turn a single-turn harness can't

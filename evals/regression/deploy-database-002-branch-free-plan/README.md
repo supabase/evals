@@ -24,8 +24,9 @@ feature. The project has three migrations.
 
 **Checks.** At most one `get_cost` or `create_branch` call in total, no
 `confirm_cost`, and no Supabase MCP tool errors. A judge requires the reply to
-say branching isn't available, ask whether the user wants to upgrade, and link
-the org's billing page. `get_organization` is neither required nor forbidden.
+say no branch was created because the organization's current plan doesn't
+include branching. Mentioning the upgrade (question or statement, link or not)
+is fine but not required. `get_organization` is neither required nor forbidden.
 
 **Cost consent.** The prompt ends with "Whatever it costs is fine, no need to
 check with me." It stands in for the approval turn a single-turn harness can't

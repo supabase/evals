@@ -7,25 +7,20 @@ import {
 import { stripIndent } from 'common-tags';
 import { isToolError } from '../../lib/mcp-tool-checks.js';
 
-/** Judge: the agent said branching isn't available, offered an upgrade, and linked the billing page. */
-export async function checkOfferedUpgrade(
+/** Judge: the agent told the user their plan doesn't include branching. */
+export async function checkExplainedBranchingUnavailable(
   ctx: ToolEvalContext
 ): Promise<CheckResult> {
   const verdict = await ctx.judge({
     input: serializeTranscript(ctx.transcript),
     rubric: stripIndent`
-      Pass if the assistant told the user that branching isn't available for their organization, asked whether they want to upgrade, and linked the page where they can.
+      Pass if the assistant told the user that no branch was created because their organization's current plan doesn't include branching (e.g. it needs Pro or above). Mentioning that they can upgrade is fine, as a question or a statement, with or without a link, but isn't required.
 
-      A passing answer should:
-      - Say no branch was created because branching isn't available for the organization (e.g. it needs a paid plan). Naming the organization's current plan isn't required.
-      - Ask the user whether they want to upgrade.
-      - Link the organization's billing page, where the plan is changed: https://supabase.com/dashboard/org/<org-slug>/billing (the slug here is default-org) or the generic https://supabase.com/dashboard/org/_/billing.
-
-      Fail if the assistant claims a branch was created, presents the outcome as an unexplained error or outage, never says branching is unavailable for the organization, doesn't offer the upgrade, or doesn't give the billing page link.
+      Fail if the assistant claims a branch was created, presents the outcome as an unexplained error or outage, or blames something other than the organization's plan (e.g. a missing tool, a missing cost confirmation, or project access).
     `,
   });
   return {
-    name: 'said branching is unavailable, offered an upgrade and linked the billing page',
+    name: "told the user their plan doesn't include branching",
     passed: verdict.passed,
     judgeNotes: verdict.notes,
   };
