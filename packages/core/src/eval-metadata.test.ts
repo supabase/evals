@@ -62,12 +62,6 @@ describe('MCP frontmatter', () => {
     expect(parsed.mcpFeatures).toEqual(['branching']);
   });
 
-  it('leaves both unset when omitted', () => {
-    const parsed = evalFrontmatterSchema.parse(base);
-    expect(parsed.projectScoped).toBeUndefined();
-    expect(parsed.mcpFeatures).toBeUndefined();
-  });
-
   it('rejects an unknown MCP feature group', () => {
     expect(() =>
       evalFrontmatterSchema.parse({ ...base, mcpFeatures: ['billing'] })

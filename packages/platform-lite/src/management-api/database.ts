@@ -46,7 +46,9 @@ export function createDatabaseRoutes(store: ProjectStore): ManagementApiRoutes {
     const { ref } = c.req.param();
     const project = store.get(ref);
     if (!project) return c.json({ message: 'Project not found' }, 404);
-    return c.json(project.migrations);
+    return c.json(
+      project.migrations.map(({ version, name }) => ({ version, name }))
+    );
   });
 
   routes.post('/v1/projects/:ref/database/migrations', async (c) => {
@@ -58,7 +60,7 @@ export function createDatabaseRoutes(store: ProjectStore): ManagementApiRoutes {
     const { name, query } = body;
 
     try {
-      return c.json(await project.applyMigration(name, query), 201);
+      return c.json(await project.applyMigration({ name, query }), 201);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return c.json({ message }, 400);

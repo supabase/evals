@@ -1,5 +1,4 @@
 import type { ToolScorer } from '@supabase-evals/core';
-import { listBranches } from '../lib/branching.js';
 import {
   checkCallCount,
   checkCostFlowBeforeFirstBranch,
@@ -9,7 +8,13 @@ import {
 // Pro-plan org asking for two branches in a row: the first goes through the
 // cost flow, and the plan, once known, isn't re-checked. See README.md.
 const scorer: ToolScorer = async (ctx) => {
-  const branches = await listBranches(ctx);
+  const { data, error } = await ctx.mgmt.GET('/v1/projects/{ref}/branches', {
+    params: { path: { ref: ctx.ref } },
+  });
+  if (!data)
+    throw new Error(`listing branches failed: ${JSON.stringify(error)}`);
+  // The production branch isn't one the agent created.
+  const branches = data.filter((branch) => !branch.is_default);
   const checks = [
     checkCostFlowBeforeFirstBranch(ctx.toolCalls),
     {

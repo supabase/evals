@@ -1,5 +1,10 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { z } from 'zod';
+import {
+  organizationSeedSchema,
+  type OrganizationSeed,
+} from './organization.js';
 import type {
   EdgeFunctionSeed,
   MigrationSeed,
@@ -123,6 +128,19 @@ export async function loadMigrationSeeds(
     });
   }
   return migrations;
+}
+
+/** Read and validate an `organization.json` seed (`{ name?, plan? }`). */
+export async function loadOrganizationSeed(
+  path: string
+): Promise<OrganizationSeed> {
+  const parsed = organizationSeedSchema.safeParse(
+    JSON.parse(await readFile(path, 'utf-8'))
+  );
+  if (!parsed.success) {
+    throw new Error(`${path}: ${z.prettifyError(parsed.error)}`);
+  }
+  return parsed.data;
 }
 
 async function loadFunctionFiles(

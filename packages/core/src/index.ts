@@ -34,7 +34,7 @@ import {
   createPlatform,
   loadFunctionSeeds,
   loadMigrationSeeds,
-  organizationSeedSchema,
+  loadOrganizationSeed,
   type ManagementApiClient,
   type PgServerHandle,
   type PlatformHandle,
@@ -1109,7 +1109,7 @@ export function platformLiteRuntime(options: {
 
 export function supabaseMcpServer(
   options: {
-    features?: string[];
+    features?: McpFeature[];
     version?: string;
   } = {}
 ): McpServerDefinition {
@@ -1475,7 +1475,7 @@ export async function bootPlatformBackend(opts: {
     : undefined;
 
   const organization = opts.organizationSeedJson
-    ? parseOrganizationSeed(opts.organizationSeedJson)
+    ? await loadOrganizationSeed(opts.organizationSeedJson)
     : undefined;
 
   const accessToken = opts.accessToken ?? ACCESS_TOKEN;
@@ -1544,16 +1544,6 @@ export async function bootPlatformBackend(opts: {
     await closePlatformResources(platform, server, pgServer);
     throw err;
   }
-}
-
-function parseOrganizationSeed(path: string) {
-  const parsed = organizationSeedSchema.safeParse(
-    JSON.parse(readFileSync(path, 'utf8'))
-  );
-  if (!parsed.success) {
-    throw new Error(`${path}: ${z.prettifyError(parsed.error)}`);
-  }
-  return parsed.data;
 }
 
 // Executor-backed API calls may require a separate resume step after the

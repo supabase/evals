@@ -1,9 +1,8 @@
 import { z } from 'zod';
 import type { components } from './management-api/types.js';
 
-type OrganizationPlan = NonNullable<
-  components['schemas']['V1OrganizationSlugResponse']['plan']
->;
+type OrganizationResponse = components['schemas']['V1OrganizationSlugResponse'];
+type OrganizationPlan = NonNullable<OrganizationResponse['plan']>;
 
 export const organizationSeedSchema = z.object({
   name: z.string().min(1).optional(),
@@ -12,16 +11,12 @@ export const organizationSeedSchema = z.object({
 
 export type OrganizationSeed = z.infer<typeof organizationSeedSchema>;
 
-export type Organization = {
-  id: string;
+export type Organization = OrganizationResponse & {
   slug: string;
-  name: string;
   plan: OrganizationPlan;
-  allowed_release_channels: Array<'ga'>;
-  opt_in_tags: never[];
 };
 
-export const DEFAULT_ORG_SLUG = 'default-org';
+const DEFAULT_ORG_SLUG = 'default-org';
 
 /**
  * The 402 body the platform returns when a free-plan org tries to create a

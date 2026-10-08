@@ -10,6 +10,7 @@ import {
   type LocalStackRuntime,
   type LocalStackScoringContext,
   type LocalStackStatus,
+  type McpFeature,
   type McpServerConfig,
 } from '@supabase-evals/core';
 import { isRecord } from '@supabase-evals/core/json';
@@ -64,11 +65,11 @@ export interface LocalStackRuntimeOptions {
    * is pointed at the mocked hosted platform (platform-lite), so its tools act
    * on the same project the agent's CLI is linked to. Restrict this list to
    * limit the tools available. Defaults to the groups platform-lite implements
-   * (`storage`/`branching` are omitted — platform-lite has no such endpoints).
+   * (`storage` is omitted — platform-lite has no storage endpoints).
    * For evals with no hosted project, the agent still gets a docs-only server
    * (`search_docs`), since the other groups need a platform to talk to.
    */
-  mcpFeatures?: string[];
+  mcpFeatures?: McpFeature[];
   /**
    * Explicit MCP server map, keyed by name. When set it overrides the default
    * Supabase MCP wiring entirely. These run host-side and do not connect to the
@@ -123,7 +124,7 @@ const UNREACHABLE_DOCKER_HOST = 'tcp://127.0.0.1:1';
  * genuinely want the agent to drive the platform through MCP; the
  * platform-dependent groups then require a hosted project to point at.
  */
-const DEFAULT_MCP_FEATURES = ['docs'];
+const DEFAULT_MCP_FEATURES: McpFeature[] = ['docs'];
 
 export function localStackRuntime(
   options: LocalStackRuntimeOptions = {}

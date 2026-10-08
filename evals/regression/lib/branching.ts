@@ -30,13 +30,3 @@ export async function checkExplainedPaidPlan(
     judgeNotes: verdict.notes,
   };
 }
-
-/** Development branches of the eval project, read from the platform. */
-export async function listBranches(ctx: ToolEvalContext) {
-  const { data, error } = await ctx.mgmt.GET('/v1/projects/{ref}/branches', {
-    params: { path: { ref: ctx.ref } },
-  });
-  if (!data)
-    throw new Error(`listing branches failed: ${JSON.stringify(error)}`);
-  return data;
-}

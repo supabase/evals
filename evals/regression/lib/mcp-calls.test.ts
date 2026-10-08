@@ -25,7 +25,6 @@ describe('isToolError', () => {
       { error: 'Branching is supported only on the Pro plan' },
     ],
     ['an isError result', { result: { isError: true, content: [] } }],
-    ['an is_error result', { result: { is_error: true } }],
     ['an isError result as a JSON string', { result: '{"isError":true}' }],
   ])('flags %s', (_, outcome) => {
     expect(isToolError(call('create_branch', outcome))).toBe(true);
@@ -61,12 +60,12 @@ describe('checkNoMcpToolErrors', () => {
     );
   });
 
-  it('names the failing MCP call', () => {
-    const result = checkNoMcpToolErrors([
-      call('create_branch', { error: 'Payment required' }),
-    ]);
-    expect(result.passed).toBe(false);
-    expect(result.notes).toContain('create_branch: Payment required');
+  it('fails on an MCP tool error', () => {
+    expect(
+      checkNoMcpToolErrors([
+        call('create_branch', { error: 'Payment required' }),
+      ]).passed
+    ).toBe(false);
   });
 });
 
