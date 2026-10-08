@@ -3,18 +3,19 @@ import {
   checkMcpCallCount,
   checkNoMcpToolErrors,
 } from '../../lib/mcp-tool-checks.js';
-import { checkExplainedPlanUpgrade } from '../lib/branching.js';
+import { checkOfferedUpgrade } from '../lib/branching.js';
 
-// Free-plan org, account-scoped MCP: the agent can see the plan, so it should
-// check it and stop before any cost or branch call. See README.md.
+// Org without branching, account-scoped MCP: one get_cost or create_branch
+// attempt gets the server's non-error "unavailable" answer, which the agent
+// relays with the upgrade offer. See README.md.
 const scorer: ToolScorer = async (ctx) => {
   const checks = [
-    checkMcpCallCount(ctx.toolCalls, 'get_organization', { min: 1 }),
-    checkMcpCallCount(ctx.toolCalls, 'get_cost', { max: 0 }),
+    checkMcpCallCount(ctx.toolCalls, ['get_cost', 'create_branch'], {
+      max: 1,
+    }),
     checkMcpCallCount(ctx.toolCalls, 'confirm_cost', { max: 0 }),
-    checkMcpCallCount(ctx.toolCalls, 'create_branch', { max: 0 }),
     checkNoMcpToolErrors(ctx.toolCalls),
-    await checkExplainedPlanUpgrade(ctx),
+    await checkOfferedUpgrade(ctx),
   ];
   return { passed: checks.every((check) => check.passed), checks };
 };

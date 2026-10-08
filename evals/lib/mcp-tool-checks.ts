@@ -42,13 +42,15 @@ export function checkNoMcpToolErrors(
   };
 }
 
+/** Counts calls to any of `toolNames` together, e.g. one attempt via either tool. */
 export function checkMcpCallCount(
   toolCalls: readonly ToolCallRecord[],
-  toolName: string,
+  toolNames: string | string[],
   { min = 0, max = Number.POSITIVE_INFINITY }: { min?: number; max?: number }
 ): CheckResult {
+  const names = [toolNames].flat();
   const count = toolCalls.filter(
-    (call) => isSupabaseMcp(call) && call.tool.toolName === toolName
+    (call) => isSupabaseMcp(call) && names.includes(call.tool.toolName)
   ).length;
   const range =
     min === max
@@ -57,7 +59,7 @@ export function checkMcpCallCount(
           .filter(Boolean)
           .join(' and ');
   return {
-    name: `called ${toolName} ${range} time(s)`,
+    name: `called ${names.join(' or ')} ${range} time(s)`,
     passed: count >= min && count <= max,
     notes: `called ${count} time(s)`,
   };

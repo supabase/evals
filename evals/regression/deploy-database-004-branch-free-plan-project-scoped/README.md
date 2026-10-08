@@ -9,8 +9,8 @@ in this mode, so the agent can't see the plan up front.
 **Setup.** `remote/organization.json` puts the org on the free plan.
 
 **Checks.** Exactly one `create_branch` call, no `confirm_cost`, no tool errors,
-and the agent tells the user branching needs a paid plan and links the org's
-billing page to upgrade (judge). The agent
+and the agent tells the user branching isn't available, asks whether they want
+to upgrade, and links the org's billing page (judge, shared with 002). The agent
 can't see the plan in this mode, so it has to try once to find out; a reply
 that only guesses at the plan doesn't count. The server is expected to answer
 that `create_branch` with a non-error "requires Pro, upgrade here" result,

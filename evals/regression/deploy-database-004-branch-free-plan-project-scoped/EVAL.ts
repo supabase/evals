@@ -3,7 +3,7 @@ import {
   checkMcpCallCount,
   checkNoMcpToolErrors,
 } from '../../lib/mcp-tool-checks.js';
-import { checkExplainedPlanUpgrade } from '../lib/branching.js';
+import { checkOfferedUpgrade } from '../lib/branching.js';
 
 // Free-plan org, project-scoped MCP: no account tools, so the agent can't see
 // the plan. It should try create_branch once, get the server's non-error
@@ -13,7 +13,7 @@ const scorer: ToolScorer = async (ctx) => {
     checkMcpCallCount(ctx.toolCalls, 'create_branch', { min: 1, max: 1 }),
     checkMcpCallCount(ctx.toolCalls, 'confirm_cost', { max: 0 }),
     checkNoMcpToolErrors(ctx.toolCalls),
-    await checkExplainedPlanUpgrade(ctx),
+    await checkOfferedUpgrade(ctx),
   ];
   return { passed: checks.every((check) => check.passed), checks };
 };
