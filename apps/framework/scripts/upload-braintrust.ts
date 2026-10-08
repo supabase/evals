@@ -424,7 +424,7 @@ export interface SpanSink {
  * https://github.com/braintrustdata/braintrust-coding-agent-plugins/blob/c0346dcdb16ae9f136b3abf83efb6458191f9300/bt-daemon/src/translate/claude.rs#L1173-L1300
  * https://github.com/braintrustdata/braintrust-spec/blob/b068e39112e081e45b6070e035877f1e2e83f9b7/skills/instrumentation-spec/references/features/eval-spans.md#trace-shape
  *
- * An LLM span starts where the previous span ended, since the agent only
+ * An LLM span starts where the latest earlier span ended, since the agent only
  * writes a request's timestamps once its blocks finish generating. Braintrust's
  * Claude Code translator starts it at the first block instead, which leaves the
  * generation time as a gap. Their Codex translator does what we do.
