@@ -70,22 +70,30 @@ const BRANCHING_TOOLS = [
 ];
 
 /**
- * Exactly one branching-tool call got the server's non-error "branching isn't
- * available" answer, recognized by its link to the org billing page.
+ * A branching-tool call got the server's non-error "branching isn't available"
+ * answer (recognized by its link to the org billing page), and no branching
+ * call started after that answer came back. Calls sent in parallel with the
+ * first one count as the same attempt.
  */
-export function checkOneUnavailableResult(
+export function checkStoppedAfterUnavailable(
   toolCalls: readonly ToolCallRecord[]
 ): CheckResult {
-  const answered = toolCalls.filter(
+  const branching = toolCalls.filter(
     (call) =>
-      call.tool.kind === 'mcp' &&
-      BRANCHING_TOOLS.includes(call.tool.toolName) &&
+      call.tool.kind === 'mcp' && BRANCHING_TOOLS.includes(call.tool.toolName)
+  );
+  const answered = branching.filter(
+    (call) =>
       !isToolError(call) &&
       /\/org\/[^/"\s]+\/billing/.test(JSON.stringify(call.result))
   );
+  const firstAnswerAt = Math.min(
+    ...answered.map((call) => call.resultTs ?? call.ts)
+  );
+  const retries = branching.filter((call) => call.ts > firstAnswerAt);
   return {
-    name: 'exactly one branching-tool call returned the branching-unavailable result',
-    passed: answered.length === 1,
-    notes: `from: ${answered.map((call) => call.tool.toolName).join(', ') || 'none'}`,
+    name: 'got the branching-unavailable result and stopped calling branching tools',
+    passed: answered.length > 0 && retries.length === 0,
+    notes: `unavailable from: ${answered.map((call) => call.tool.toolName).join(', ') || 'none'}; called after: ${retries.map((call) => call.tool.toolName).join(', ') || 'none'}`,
   };
 }

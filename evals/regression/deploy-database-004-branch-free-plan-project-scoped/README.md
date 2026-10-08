@@ -9,10 +9,11 @@ in this mode. See 002's README for the expected server behavior.
 **Setup.** `remote/organization.json` puts the org on the free plan, so
 platform-lite's `/branching` endpoint reports `available: false`.
 
-**Checks.** Exactly one branching-tool call (e.g. `list_branches` or
+**Checks.** At least one branching-tool call (e.g. `list_branches` or
 `create_branch`) returns the non-error "branching isn't available" result
-(recognized by its billing link), no `confirm_cost`, and no Supabase MCP tool
-errors. `create_branch` isn't required. The same judge as 002 requires the
+(recognized by its billing link), no branching-tool call starts after that
+first result (as in 002), no `confirm_cost`, and no Supabase MCP tool errors.
+`create_branch` isn't required. The same judge as 002 requires the
 reply to say the
 organization's current plan doesn't include branching. Mentioning the upgrade
 is fine but not required.

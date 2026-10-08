@@ -5,7 +5,7 @@ import {
 } from '../../lib/mcp-tool-checks.js';
 import {
   checkExplainedBranchingUnavailable,
-  checkOneUnavailableResult,
+  checkStoppedAfterUnavailable,
 } from '../lib/branching.js';
 
 // Org without branching, account-scoped MCP: one branching-tool call gets the
@@ -13,7 +13,7 @@ import {
 // relays to the user. See README.md.
 const scorer: ToolScorer = async (ctx) => {
   const checks = [
-    checkOneUnavailableResult(ctx.toolCalls),
+    checkStoppedAfterUnavailable(ctx.toolCalls),
     checkMcpCallCount(ctx.toolCalls, 'confirm_cost', { max: 0 }),
     checkNoMcpToolErrors(ctx.toolCalls),
     await checkExplainedBranchingUnavailable(ctx),

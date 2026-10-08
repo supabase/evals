@@ -24,8 +24,10 @@ platform-lite's `/branching` endpoint reports `available: false` (it only
 models the plan). The MCP server runs account-scoped with the `branching`
 feature. The project has three migrations.
 
-**Checks.** Exactly one branching-tool call returns that non-error result
-(recognized by its billing link), no `confirm_cost`, and no Supabase MCP tool
+**Checks.** At least one branching-tool call returns that non-error result
+(recognized by its billing link), and no branching-tool call starts after the
+first such result came back. Parallel first calls count as one attempt; trying
+again after being told fails. Also no `confirm_cost`, and no Supabase MCP tool
 errors. A judge requires the reply to
 say no branch was created because the organization's current plan doesn't
 include branching. Mentioning the upgrade (question or statement, link or not)

@@ -3,12 +3,14 @@ import type { ToolCallRecord } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
 import {
   checkCostFlowBeforeFirstBranch,
-  checkOneUnavailableResult,
+  checkStoppedAfterUnavailable,
 } from './branching.js';
 
 const call = (
   toolName: string,
-  outcome: Partial<Pick<ToolCallRecord, 'result' | 'error'>> = {}
+  outcome: Partial<
+    Pick<ToolCallRecord, 'result' | 'error' | 'ts' | 'resultTs'>
+  > = {}
 ): ToolCallRecord => ({
   tool: { kind: 'mcp', server: 'supabase-mcp', toolName },
   body: {},
@@ -58,8 +60,8 @@ describe('checkCostFlowBeforeFirstBranch', () => {
   });
 });
 
-describe('checkOneUnavailableResult', () => {
-  const unavailable = {
+describe('checkStoppedAfterUnavailable', () => {
+  const result = {
     content: [
       {
         type: 'text',
@@ -68,28 +70,35 @@ describe('checkOneUnavailableResult', () => {
     ],
   };
 
-  it('passes on one non-error unavailable result from any branching tool', () => {
+  it('passes on parallel first calls that both get the answer', () => {
     expect(
-      checkOneUnavailableResult([
-        call('list_branches', { result: unavailable }),
+      checkStoppedAfterUnavailable([
+        call('list_branches', { result, ts: 100, resultTs: 130 }),
+        call('get_cost', { result, ts: 101, resultTs: 129 }),
       ]).passed
     ).toBe(true);
   });
 
-  it('fails when the agent keeps calling after the first answer', () => {
+  it('fails when the agent tries again after the answer', () => {
     expect(
-      checkOneUnavailableResult([
-        call('list_branches', { result: unavailable }),
-        call('create_branch', { result: unavailable }),
+      checkStoppedAfterUnavailable([
+        call('list_branches', { result, ts: 100, resultTs: 130 }),
+        call('create_branch', { result, ts: 500, resultTs: 530 }),
       ]).passed
     ).toBe(false);
   });
 
   it('fails when the same answer comes back as an error', () => {
     expect(
-      checkOneUnavailableResult([
-        call('create_branch', { result: { ...unavailable, isError: true } }),
+      checkStoppedAfterUnavailable([
+        call('create_branch', { result: { ...result, isError: true } }),
       ]).passed
     ).toBe(false);
+  });
+
+  it('fails without any unavailable answer', () => {
+    expect(checkStoppedAfterUnavailable([call('list_projects')]).passed).toBe(
+      false
+    );
   });
 });
