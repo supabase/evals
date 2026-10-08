@@ -47708,7 +47708,7 @@
       {
         "name": "signUp creates the account and returns its user id",
         "passed": true,
-        "notes": "db user b05c3ef6-c3ea-4f3a-baad-580492813a3a, signUp returned {\"userId\":\"b05c3ef6-c3ea-4f3a-baad-580492813a3a\"}"
+        "notes": "db user 5cef4d55-57e8-4b16-80a7-bfacb6f48fe3, signUp returned {\"userId\":\"5cef4d55-57e8-4b16-80a7-bfacb6f48fe3\"}"
       },
       {
         "name": "signup metadata reaches the profile (display name)",
@@ -47723,7 +47723,7 @@
       {
         "name": "signIn with the right password returns the user id",
         "passed": true,
-        "notes": "{\"userId\":\"b05c3ef6-c3ea-4f3a-baad-580492813a3a\"}"
+        "notes": "{\"userId\":\"5cef4d55-57e8-4b16-80a7-bfacb6f48fe3\"}"
       },
       {
         "name": "getMyProfile returns the signed-in user's profile",
@@ -47747,113 +47747,148 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase",
-        "supabase-postgres-best-practices"
+        "supabase"
       ]
     },
     "docs": {
       "calls": [
         {
           "source": "shell_fetch",
-          "query": "/bin/bash -lc \"curl -fsSL --max-time 20 https://supabase.com/changelog.md | head -90; printf '\\\\n---POSTGRES SKILL---\\\\n'; cat .agents/skills/supabase-postgres-best-practices/SKILL.md\"",
+          "query": "/bin/bash -lc \"sed -n '1,125p' .agents/skills/supabase/SKILL.md; printf '\\\\n-- files --\\\\n'; cat app/src/auth.mjs app/package.json supabase/config.toml supabase/migrations/0000_profiles_schema.sql; printf '\\\\n-- tree --\\\\n'; ls -la; find app supabase -name AGENTS.md -print; printf '\\\\n-- changelog flags --\\\\n'; curl -fsSL https://supabase.com/changelog.md | rg -in 'breaking-change|auth|signup|sign.?in' | head -65\"",
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 7881
+          "resultChars": 29324
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"printf '%s\\\\n' '-- auth --'; cat app/src/auth.mjs; printf '%s\\\\n' '-- package --'; cat app/package.json; printf '%s\\\\n' '-- migration --'; cat supabase/migrations/0000_profiles_schema.sql; printf '%s\\\\n' '-- config relevant --'; rg -n 'auth|email|port|seed' supabase/config.toml; printf '%s\\\\n' '-- dirs --'; ls -la app app/src supabase; printf '%s\\\\n' '-- agent files --'; find . -name AGENTS.md -print; printf '%s\\\\n' '-- changelog recent breaking --'; curl -fsSL https://supabase.com/changelog.md | rg -i -B2 -A3 'Breaking Change.*Auth|Breaking Change.*Database' | head -90\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 10757
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"supabase javascript signUp signInWithPassword auth getUser profiles select client publishable key\", limit: 6) { nodes { title href content } } }",
+          "query": "query { searchDocs(query:\"javascript supabase auth signUp options data display_name signInWithPassword getUser profiles select createClient publishable key\", limit:6) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
-              "title": "Migrating to publishable and secret API keys"
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/auth0",
+              "title": "Migrate from Auth0 to Supabase Auth"
             },
             {
-              "url": "https://supabase.com/docs/guides/getting-started/api-keys",
-              "title": "API keys"
+              "url": "https://supabase.com/docs/reference/javascript/auth-signup"
             },
             {
               "url": "https://supabase.com/docs/guides/auth/passkeys",
               "title": "Passkey authentication"
             },
             {
-              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-passkeys",
-              "title": "Configure Passkey Authentication"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/auth0",
-              "title": "Migrate from Auth0 to Supabase Auth"
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-saml-sso",
+              "title": "Configure SAML SSO"
             },
             {
               "url": "https://supabase.com/docs/guides/auth/social-login/auth-azure",
               "title": "Sign in with Azure (Microsoft)"
-            }
-          ],
-          "resultChars": 83720
-        },
-        {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc \"ls -la; command -v supabase || true; command -v npm; command -v node; ls -la node_modules app/node_modules 2>/dev/null || true; ls -la .agents; rg --files -g '\"'!*.md'\"' | head -80; curl -s -o /dev/null -w 'api status: %{http_code}\\\\n' --max-time 3 http://127.0.0.1:54321/auth/v1/health; printf '\\\\nchangelog auth breaking matches:\\\\n'; curl -fsSL --max-time 20 https://supabase.com/changelog.md | rg -i 'breaking change|supabase-js|auth' | head -35\"",
-          "pages": [
+            },
             {
-              "url": "https://supabase.com/changelog.md"
+              "url": "https://supabase.com/docs/guides/auth/social-login/auth-google",
+              "title": "Sign in with Google"
             }
           ],
-          "resultChars": 7002
+          "resultChars": 128037
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"javascript auth signUp email password options data display_name\", limit: 2) { nodes { title href content } } }",
+          "query": "query { searchDocs(query:\"signUp JavaScript auth signUp options data email password\",limit:2){nodes{title href content}} }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/reference/javascript/auth-signup"
+              "url": "https://supabase.com/docs/guides/auth/passwords",
+              "title": "Password-based Auth"
             },
             {
-              "url": "https://supabase.com/docs/reference/javascript/auth-signinwithpassword"
+              "url": "https://supabase.com/docs/reference/javascript/auth-signup"
             }
           ],
-          "resultChars": 2899
+          "resultChars": 48731
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"javascript auth signInWithPassword getUser current user select profiles single\", limit: 2) { nodes { title href content } } }",
+          "query": "query { searchDocs(query:\"JavaScript getUser signInWithPassword select single profiles\",limit:4){nodes{title href content}} }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-signinwithpassword"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/swift/auth-signinwithpassword",
+              "title": "signInWithPassword()"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-signinwithoauth"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/dart/auth-signinwithpassword"
+            }
+          ],
+          "resultChars": 4367
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"printf '%s\\\\n' '-- local runtime --'; node -v; npm -v; command -v supabase || true; printf '%s\\\\n' '-- env presence --'; for var in SUPABASE_URL SUPABASE_PUBLISHABLE_KEY; do if [ -n \\\"\"'${!var}\" ]; then echo \"$var set\"; else echo \"$var missing\"; fi; done; printf '\"'%s\\\\n' '-- auth config --'; sed -n '60,96p' supabase/config.toml; printf '%s\\\\n' '-- local service --'; curl -sS -o /dev/null -w '%{http_code}\\\\n' http://127.0.0.1:54321/auth/v1/health || true; printf '%s\\\\n' '-- relevant changelog --'; curl -fsSL https://supabase.com/changelog/45329-breaking-change-tables-not-exposed-to-data-and-graphql-api-automatically | head -c 250 >/dev/null; echo fetched\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog/45329-breaking-change-tables-not-exposed-to-data-and-graphql-api-automatically"
+            }
+          ],
+          "resultChars": 57
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query:\"JavaScript auth getUser() current authenticated user\",limit:2){nodes{title href content}} }",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/docs/reference/javascript/auth-getuser"
             },
             {
-              "url": "https://supabase.com/docs/reference/javascript/auth-signinwithpassword"
+              "url": "https://supabase.com/docs/reference/dart/auth-currentuser"
             }
           ],
-          "resultChars": 1881
+          "resultChars": 1074
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/reference/javascript/auth-signup options data signUp metadata",
+          "pages": []
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-sol",
-        "inputTokens": 249500,
-        "cacheReadInputTokens": 207239,
-        "cacheWriteInputTokens": 42231,
-        "outputTokens": 2766
+        "inputTokens": 494977,
+        "cacheReadInputTokens": 443808,
+        "cacheWriteInputTokens": 46706,
+        "outputTokens": 5562
       }
     ],
-    "stepCount": 10,
-    "toolCallCount": 11,
-    "agentRunDurationMs": 48381,
+    "stepCount": 18,
+    "toolCallCount": 16,
+    "agentRunDurationMs": 91007,
     "sandboxUsage": {
-      "activeCpuDurationMs": 294328,
-      "duration": 213160,
+      "activeCpuDurationMs": 258745,
+      "duration": 241780,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 1653853260,
-        "egress": 7306677
+        "ingress": 1657288530,
+        "egress": 9301006
       }
     },
     "prompt": "Our app in `app/` needs accounts. Wire up `app/src/auth.mjs` — the stubs in\nthere describe what each function should do. People sign up with an email,\npassword, and display name, sign back in later, and the app greets them with\ntheir profile.\n\nThe Supabase project for this app is in `supabase/` and already running\nlocally. When you're done, the functions should work for real against it.",
