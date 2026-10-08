@@ -13,9 +13,9 @@
  *   {"type":"step_finish","part":{"type":"step-finish","reason":"stop","tokens":{…}}}
  *
  * A `tool_use` record is self-contained (input + output + status), so it yields
- * a paired tool_call + tool_result correlated by `part.callID`. Step records
- * carry token/finish info and produce no transcript event (the runner reads the
- * terminal `step_finish` reason for the stop reason).
+ * a paired tool_call + tool_result correlated by `part.callID`. A `step_finish`
+ * gives its step's events their usage, or an empty message when the step had
+ * no other parts. The runner reads the last one's reason for the stop reason.
  *
  * Adapted from `@supabase/agent-evals` (packages/agent-eval/src/parsers).
  */
@@ -23,6 +23,7 @@
 import { isRecord, parseJsonlRecords } from '../../json.js';
 import type {
   ParsedTranscript,
+  RequestUsage,
   ToolCall,
   TranscriptEvent,
 } from '../../transcript/types.js';
@@ -104,14 +105,39 @@ const OPENCODE_TOOLS: AgentToolMap = {
 
 /**
  * opencode tool args → normalized fields. `bash` carries the command in
- * `command`; file tools the path in `filePath` (or `path`); `webfetch` the URL
- * in `url`. The shared extractor reads whichever keys this map names.
+ * `command` (and an optional `workdir`); file tools the path in `filePath` (or
+ * `path`); `webfetch` the URL in `url`. The shared extractor reads whichever
+ * keys this map names.
  */
 const OPENCODE_ARG_FIELDS: ArgFieldMap = {
   path: ['filePath', 'file_path', 'path'],
   command: ['command'],
   url: ['url'],
+  cwd: ['workdir'],
 };
+
+/**
+ * A `step_finish` record's tokens as `ModelUsage` fields. opencode keeps cache
+ * out of `input` and reasoning out of `output`.
+ * https://github.com/anomalyco/opencode/blob/dev/packages/opencode/src/acp/usage.ts
+ */
+export function stepUsage(
+  record: Record<string, unknown>
+): RequestUsage | undefined {
+  if (record.type !== 'step_finish' || !isRecord(record.part)) return undefined;
+  const tokens = record.part.tokens;
+  if (!isRecord(tokens)) return undefined;
+  const cache = isRecord(tokens.cache) ? tokens.cache : undefined;
+  const cacheRead = Number(cache?.read) || 0;
+  const cacheWrite = Number(cache?.write) || 0;
+  return {
+    inputTokens: (Number(tokens.input) || 0) + cacheRead + cacheWrite,
+    cacheReadInputTokens: cacheRead,
+    cacheWriteInputTokens: cacheWrite,
+    outputTokens:
+      (Number(tokens.output) || 0) + (Number(tokens.reasoning) || 0),
+  };
+}
 
 /** Epoch-ms (or pass-through ISO) → ISO string. */
 function toISO(value: unknown): string | undefined {
@@ -153,6 +179,7 @@ function partToEvents(
         ? [
             {
               timestamp,
+              requestId: str(part.messageID),
               type: 'message',
               role: 'assistant',
               content: text,
@@ -172,6 +199,8 @@ function partToEvents(
       const args = isRecord(state.input) ? state.input : {};
       const status = str(state.status);
       const metadata = isRecord(state.metadata) ? state.metadata : undefined;
+      // The record lands when the call settles, so its own time is the end.
+      const time = isRecord(state.time) ? state.time : undefined;
       // The builtin tool set is fully enumerated in OPENCODE_TOOLS, so any
       // unmapped name is an MCP/custom tool (`<server>_<tool>`). Builtins are
       // `other`; unmapped names are attributed to a configured MCP server by
@@ -194,16 +223,23 @@ function partToEvents(
       if (normalized.path) tool.path = normalized.path;
       if (normalized.command) tool.command = normalized.command;
       if (normalized.url) tool.url = normalized.url;
+      if (normalized.cwd) tool.cwd = normalized.cwd;
       const loadedSkills = loadedSkillsFromOpencodeCall(tool);
       if (loadedSkills.length > 0) tool.loadedSkills = loadedSkills;
 
       const events: TranscriptEvent[] = [
-        { timestamp, type: 'tool_call', tool, raw },
+        {
+          timestamp: toISO(time?.start) ?? timestamp,
+          requestId: str(part.messageID),
+          type: 'tool_call',
+          tool,
+          raw,
+        },
       ];
       // The result is in the same record; emit it only once the call completed.
       if (status && status !== 'running' && status !== 'pending') {
         events.push({
-          timestamp,
+          timestamp: toISO(time?.end) ?? timestamp,
           type: 'tool_result',
           tool: {
             name,
@@ -275,12 +311,33 @@ export const opencodeParser: AgentTranscriptParser = {
     const { records, errors } = parseJsonlRecords(raw);
     const mcpServerNames = ctx?.mcpServerNames ?? [];
     const events: TranscriptEvent[] = [];
+    const usageByMessage = new Map<string, RequestUsage>();
     for (const record of records) {
+      const part = isRecord(record.part) ? record.part : undefined;
+      const messageId = str(part?.messageID);
+      const usage = stepUsage(record);
+      if (messageId && usage) {
+        usageByMessage.set(messageId, usage);
+        // A step that emitted no text or tool part still gets an LLM span.
+        if (!events.some((e) => e.requestId === messageId)) {
+          events.push({
+            timestamp: toISO(record.timestamp),
+            requestId: messageId,
+            type: 'message',
+            role: 'assistant',
+            content: '',
+          });
+        }
+      }
       try {
         events.push(...recordToEvents(record, mcpServerNames));
       } catch (e) {
         errors.push(e instanceof Error ? e.message : String(e));
       }
+    }
+    for (const event of events) {
+      const usage = event.requestId && usageByMessage.get(event.requestId);
+      if (usage) event.usage = usage;
     }
     return { events, errors };
   },

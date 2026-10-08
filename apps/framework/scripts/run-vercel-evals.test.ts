@@ -15,6 +15,9 @@ import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   agentEnvironment,
+  BROKERED_KEY_PLACEHOLDER,
+  BROKERED_KEYS,
+  brokeredNetworkPolicy,
   cleanupSandbox,
   downloadResults,
   finalizeResult,
@@ -33,11 +36,13 @@ import {
 
 vi.mock('@supabase-evals/sandbox', () => ({ resolveCliVersion: vi.fn() }));
 
+const BROKERED_NAMES = BROKERED_KEYS.map(({ name }) => name);
+
 describe('agentEnvironment', () => {
   const originalValues = new Map<string, string | undefined>();
 
   beforeEach(() => {
-    for (const name of FORWARDED_ENV_NAMES) {
+    for (const name of [...BROKERED_NAMES, ...FORWARDED_ENV_NAMES]) {
       originalValues.set(name, process.env[name]);
       delete process.env[name];
     }
@@ -50,12 +55,17 @@ describe('agentEnvironment', () => {
     }
   });
 
-  it('forwards every configured name when set', () => {
-    for (const name of FORWARDED_ENV_NAMES) {
+  it('writes key placeholders and forwards CLI pins', () => {
+    for (const name of [...BROKERED_NAMES, ...FORWARDED_ENV_NAMES]) {
       process.env[name] = `${name}-value`;
     }
 
-    const lines = agentEnvironment().split('\n');
+    const env = agentEnvironment();
+    const lines = env.split('\n');
+    for (const name of BROKERED_NAMES) {
+      expect(lines).toContain(`${name}=${BROKERED_KEY_PLACEHOLDER}`);
+      expect(env).not.toContain(`${name}-value`);
+    }
     for (const name of FORWARDED_ENV_NAMES) {
       expect(lines).toContain(`${name}=${name}-value`);
     }
@@ -65,7 +75,7 @@ describe('agentEnvironment', () => {
     process.env.ANTHROPIC_API_KEY = 'anthropic-value';
 
     const env = agentEnvironment();
-    expect(env).toBe('ANTHROPIC_API_KEY=anthropic-value');
+    expect(env).toBe(`ANTHROPIC_API_KEY=${BROKERED_KEY_PLACEHOLDER}`);
     expect(env).not.toContain('SUPABASE_CLI_STABLE_VERSION');
     expect(env).not.toContain('SUPABASE_CLI_BETA_VERSION');
   });
@@ -93,6 +103,63 @@ describe('agentEnvironment', () => {
     expect(jobOneEnv).toBe(jobTwoEnv);
     expect(jobOneEnv).toContain('SUPABASE_CLI_STABLE_VERSION=2.117.0');
     expect(jobOneEnv).toContain('SUPABASE_CLI_BETA_VERSION=2.118.0-beta.5');
+  });
+});
+
+describe('FORWARDED_ENV_NAMES', () => {
+  // Extra guard against forwarding a raw provider key. Not a complete check.
+  it('forwards no API keys', () => {
+    expect(
+      FORWARDED_ENV_NAMES.filter((name) => name.endsWith('_API_KEY'))
+    ).toEqual([]);
+  });
+});
+
+describe('brokeredNetworkPolicy', () => {
+  const originalValues = new Map<string, string | undefined>();
+
+  beforeEach(() => {
+    for (const name of BROKERED_NAMES) {
+      originalValues.set(name, process.env[name]);
+      delete process.env[name];
+    }
+  });
+
+  afterEach(() => {
+    for (const [name, value] of originalValues) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  });
+
+  it('injects configured keys, pins Host, and allows other traffic', () => {
+    process.env.ANTHROPIC_API_KEY = 'sk-ant';
+    process.env.OPENAI_API_KEY = 'sk-openai';
+
+    expect(brokeredNetworkPolicy()).toEqual({
+      allow: {
+        '*': [],
+        'api.anthropic.com': [
+          {
+            transform: [
+              { headers: { host: 'api.anthropic.com', 'x-api-key': 'sk-ant' } },
+            ],
+          },
+        ],
+        'api.openai.com': [
+          {
+            transform: [
+              {
+                headers: {
+                  host: 'api.openai.com',
+                  authorization: 'Bearer sk-openai',
+                },
+              },
+            ],
+          },
+        ],
+      },
+    });
   });
 });
 
@@ -402,6 +469,7 @@ describe('Vercel eval controller', () => {
       );
       expect(readdirSync(runDirectory).sort()).toEqual([
         'result.json.partial',
+        'session-archive.tar.gz',
         'workspace.tgz',
       ]);
       expect(
@@ -412,6 +480,7 @@ describe('Vercel eval controller', () => {
       finalizeResult(pendingResult, sandboxUsage);
       expect(readdirSync(runDirectory).sort()).toEqual([
         'result.json',
+        'session-archive.tar.gz',
         'workspace.tgz',
       ]);
       expect(
@@ -449,7 +518,7 @@ describe('Vercel eval controller', () => {
   });
 
   it('returns stopped sandbox usage', async () => {
-    const stopped = {
+    const usage = {
       activeCpuDurationMs: 12_345,
       duration: 23_456,
       memory: 8_192,
@@ -460,27 +529,50 @@ describe('Vercel eval controller', () => {
       cleanupSandbox(
         {
           name: 'sandbox-1',
-          stop: async () => stopped,
+          stop: async () => ({ status: 'stopped', ...usage }),
           delete: async () => undefined,
         },
         '[experiment-1 x eval-1 run 1]'
       )
-    ).resolves.toEqual(stopped);
+    ).resolves.toEqual(usage);
+  });
+
+  it('polls stop until the session is stopped', async () => {
+    const stop = vi
+      .fn()
+      .mockResolvedValueOnce({ status: 'stopping', memory: 8_192 })
+      .mockResolvedValueOnce({ status: 'stopped', memory: 8_192, duration: 1 });
+
+    await expect(
+      cleanupSandbox(
+        { name: 'sandbox-1', stop, delete: async () => undefined },
+        '[experiment-1 x eval-1 run 1]'
+      )
+    ).resolves.toMatchObject({ duration: 1 });
+    expect(stop).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not poll a failed session', async () => {
+    const stop = vi.fn().mockResolvedValue({ status: 'failed', memory: 8_192 });
+
+    await cleanupSandbox(
+      { name: 'sandbox-1', stop, delete: async () => undefined },
+      '[experiment-1 x eval-1 run 1]'
+    );
+    expect(stop).toHaveBeenCalledTimes(1);
   });
 
   it('accepts stopped usage without optional SDK metrics', async () => {
-    const stopped = { memory: 8_192 };
-
     await expect(
       cleanupSandbox(
         {
           name: 'sandbox-1',
-          stop: async () => stopped,
+          stop: async () => ({ status: 'stopped', memory: 8_192 }),
           delete: async () => undefined,
         },
         '[experiment-1 x eval-1 run 1]'
       )
-    ).resolves.toEqual(stopped);
+    ).resolves.toEqual({ memory: 8_192 });
   });
 
   it('returns no usage when the sandbox cannot stop', async () => {

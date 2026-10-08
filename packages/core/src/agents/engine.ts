@@ -19,7 +19,9 @@
  * specific agent, so adding one never touches this file.
  */
 
-import type { AgentHarness, AgentRunResult } from '../index.js';
+import { rmSync } from 'node:fs';
+import { basename, dirname } from 'node:path';
+import type { AgentHarness, AgentRunResult, TranscriptPart } from '../index.js';
 import type { ModelProvider, ReasoningEffortLevel } from '../eval-metadata.js';
 import { adaptTranscript } from '../parsers/adapt.js';
 import type { AgentTranscriptParser } from '../parsers/types.js';
@@ -32,6 +34,9 @@ import {
   rewriteLoopback,
   writeSandboxFile,
 } from './shared.js';
+
+// Absolute because `copyToHost` can't expand `$HOME`.
+const SESSION_ARCHIVE_STAGING_DIR = '/tmp/eval-session-archive';
 
 function modelProviderForAgent(id: AgentRunner['id']): ModelProvider {
   switch (id) {
@@ -105,7 +110,7 @@ export function createCliAgent<M extends string = string>(
       await writeSandboxFile(sandbox, USER_PROMPT_PATH, args.userPrompt);
 
       const start = Date.now();
-      const { command, raw, stepCount } = await runner.exec({
+      const { command, raw } = await runner.exec({
         sandbox,
         model: options.model,
         apiKey,
@@ -116,12 +121,32 @@ export function createCliAgent<M extends string = string>(
         reasoningEffort: options.reasoningEffort,
         timeoutSec: args.timeoutSec,
       });
-
       const { events } = raw
         ? parser.parseTranscript(raw, {
             mcpServerNames: Object.keys(args.mcpServers ?? {}),
           })
         : { events: [] };
+      const archiveSession = async () => {
+        const archivePath = args.sessionArchivePath;
+        if (!runner.sessionDir || !archivePath) return;
+        // Keeps a failed archive from leaving a --force rerun's old one behind.
+        rmSync(archivePath, { force: true });
+        const staged = `${SESSION_ARCHIVE_STAGING_DIR}/${basename(archivePath)}`;
+        const tar = await sandbox.exec(
+          `mkdir -p ${SESSION_ARCHIVE_STAGING_DIR} && tar -czf ${staged} --exclude=auth.json -C ${runner.sessionDir} .`
+        );
+        if (tar.ok) {
+          await sandbox.copyToHost(
+            SESSION_ARCHIVE_STAGING_DIR,
+            dirname(archivePath)
+          );
+        }
+      };
+      // Both only read the session files, so neither waits on the other.
+      const [enriched] = await Promise.all([
+        runner.enrichEvents?.(sandbox, events),
+        archiveSession(),
+      ]);
       const adapted = adaptTranscript(events);
 
       // Surface run failures that would otherwise be invisible in results
@@ -146,11 +171,32 @@ export function createCliAgent<M extends string = string>(
         stoppedReason:
           runner.deriveStopReason?.(raw, command) ?? processStopReason(command),
         usage: runner.extractUsage?.(raw, options.model),
-        stepCount: stepCount ?? runner.extractStepCount?.(raw),
-        durationMs: Date.now() - start,
+        stepCount:
+          (enriched ? enriched.stepCount : undefined) ??
+          runner.extractStepCount?.(raw),
+        // 0 when the task's time is unknown or it never ran.
+        durationMs: taskDurationMs(adapted.transcript, enriched?.promptAt) ?? 0,
+        startedAt: start,
+        promptAt: enriched ? enriched.promptAt : undefined,
       };
     },
   };
+}
+
+/**
+ * Time from the prompt to the last transcript event, the same window as the
+ * `task` span. Both ends come from the sandbox clock.
+ */
+export function taskDurationMs(
+  transcript: TranscriptPart[],
+  promptAt: number | undefined
+): number | undefined {
+  const times = transcript.flatMap((part) => [
+    part.ts ?? 0,
+    part.type === 'tool_call' ? (part.resultTs ?? 0) : 0,
+  ]);
+  const lastAt = Math.max(0, ...times);
+  return promptAt && lastAt > promptAt ? lastAt - promptAt : undefined;
 }
 
 function requireApiKey(runner: AgentRunner): string {

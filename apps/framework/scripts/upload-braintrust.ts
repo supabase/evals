@@ -1,0 +1,804 @@
+#!/usr/bin/env tsx
+/**
+ * Uploads scored runs with one Braintrust experiment per local experiment and
+ * one row per run. Agent messages and tool calls become child spans.
+ */
+import { execFileSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
+import { appendFile, stat } from 'node:fs/promises';
+import { basename, dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { z } from 'zod';
+import {
+  judgeCallSchema,
+  modelUsageSchema,
+  type AgentUsage,
+  type JudgeCall,
+} from '@supabase-evals/core/eval-metadata';
+import {
+  normalizeExperimentName,
+  readFlag,
+  readRepeatedFlag,
+  readSuiteFilters,
+} from '../lib/cli-args.js';
+import {
+  collectResultFiles,
+  loadExperimentMetadata,
+  readPrompt,
+  ROOT,
+  type ExperimentMetadata,
+  type PromptData,
+} from '../lib/result-files.js';
+import type { Span } from 'braintrust';
+
+const rawArgs = process.argv.slice(2);
+const EXPERIMENT_FILTERS = readRepeatedFlag(rawArgs, 'experiment').map(
+  normalizeExperimentName
+);
+const EVAL_FILTERS = readRepeatedFlag(rawArgs, 'eval');
+const SUITE_FILTERS = readSuiteFilters(rawArgs);
+const DRY = rawArgs.includes('--dry');
+// `eval:upload` passes this cutoff to select files written by its run.
+const SINCE = Number(readFlag(rawArgs, 'since') ?? 0);
+
+const requestUsageSchema = modelUsageSchema.omit({ model: true });
+const transcriptPartSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('message'),
+    role: z.enum(['system', 'user', 'assistant']),
+    content: z.string(),
+    ts: z.number().optional(),
+    requestId: z.string().optional(),
+    usage: requestUsageSchema.optional(),
+  }),
+  z.object({
+    type: z.literal('tool_call'),
+    name: z.string(),
+    input: z.record(z.string(), z.unknown()).default({}),
+    output: z.unknown().optional(),
+    error: z.string().optional(),
+    ts: z.number().optional(),
+    resultTs: z.number().optional(),
+    id: z.string().optional(),
+    cwd: z.string().optional(),
+    requestId: z.string().optional(),
+    usage: requestUsageSchema.optional(),
+  }),
+]);
+export const transcriptSchema = z.array(transcriptPartSchema).catch([]);
+const judgeCallsSchema = z.array(judgeCallSchema).catch([]);
+type TranscriptPart = z.infer<typeof transcriptPartSchema>;
+
+interface PendingRow {
+  evalId: string;
+  prompt: string;
+  agentReport: string;
+  passed: boolean;
+  checks: unknown;
+  judgeCalls: JudgeCall[];
+  modelId?: string;
+  modelProvider?: string;
+  transcript: TranscriptPart[];
+  toolLabels: (string | undefined)[];
+  metadata: Record<string, unknown>;
+  tags: string[];
+  metrics: Record<string, number>;
+  /** The run's `session-archive.tar.gz`, when the harness wrote one. */
+  sessionArchivePath?: string;
+  /** Unix seconds. */
+  startTime?: number;
+  endTime?: number;
+  /** When the CLI recorded the prompt; absent on older results. */
+  promptTime?: number;
+  /** When `agent.run()` returned and scoring began; absent on older results. */
+  agentEndTime?: number;
+  scoringEndTime?: number;
+}
+
+function git(...args: string[]): string | undefined {
+  try {
+    return execFileSync('git', args, {
+      cwd: ROOT,
+      encoding: 'utf8',
+      // Most commits have no exact tag, so suppress the expected error.
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    return undefined;
+  }
+}
+
+// A detached Actions checkout reports `HEAD`, so prefer its branch variables.
+// https://docs.github.com/en/actions/reference/workflows-and-actions/variables
+function branchName(): string | undefined {
+  return (
+    process.env.GITHUB_HEAD_REF ||
+    process.env.GITHUB_REF_NAME ||
+    git('rev-parse', '--abbrev-ref', 'HEAD')
+  );
+}
+
+function repoInfo() {
+  const commit = git('rev-parse', 'HEAD');
+  if (!commit) {
+    return undefined;
+  }
+  return {
+    commit,
+    branch: branchName(),
+    tag: git('describe', '--tags', '--exact-match') ?? null,
+    dirty: (git('status', '--porcelain') ?? '') !== '',
+    author_name: git('log', '-1', '--format=%an'),
+    author_email: git('log', '-1', '--format=%ae'),
+    commit_message: git('log', '-1', '--format=%s'),
+    commit_time: git('log', '-1', '--format=%cI'),
+  };
+}
+
+/**
+ * Source and Updated are hidden in some views, so we include them in the
+ * experiment name for convenience.
+ */
+export function experimentName(
+  experiment: string,
+  commit: string | undefined,
+  stamp: string
+) {
+  const sha = commit ? `@${commit.slice(0, 7)}` : '';
+  return `${experiment}${sha}-${stamp}`;
+}
+
+// 20260923T1339Z. UTC so runs from different zones sort against each other.
+export function utcStamp(date: Date) {
+  return `${date.toISOString().replace(/[:-]/g, '').slice(0, 13)}Z`;
+}
+
+// The app double-encodes filter text, so `text` is encoded here and again
+// with the whole param.
+export function runViewUrl(experimentUrl: string, runId: string) {
+  const base = experimentUrl.slice(0, experimentUrl.lastIndexOf('/'));
+  const search = JSON.stringify({
+    filter: [
+      {
+        text: encodeURIComponent(`metadata.run_id = "${runId}"`),
+        label: encodeURIComponent(`metadata.run_id equals ${runId}`),
+        originType: 'form',
+      },
+    ],
+  });
+  return `${base}?search=${encodeURIComponent(search)}`;
+}
+
+/**
+ * `inputTokens` already includes cache buckets, matching Braintrust's
+ * `prompt_tokens` convention.
+ * https://www.braintrust.dev/docs/instrument/advanced-tracing
+ */
+export function tokenMetrics(
+  usage: AgentUsage | undefined
+): Record<string, number> {
+  if (!usage?.length) {
+    return {};
+  }
+  let prompt = 0;
+  let cached = 0;
+  let cacheCreate = 0;
+  let completion = 0;
+  for (const u of usage) {
+    prompt += u.inputTokens ?? 0;
+    cached += u.cacheReadInputTokens ?? 0;
+    cacheCreate += u.cacheWriteInputTokens ?? 0;
+    completion += u.outputTokens ?? 0;
+  }
+  const metrics: Record<string, number> = {
+    prompt_tokens: prompt,
+    completion_tokens: completion,
+    tokens: prompt + completion,
+  };
+  if (cached) {
+    metrics.prompt_cached_tokens = cached;
+  }
+  if (cacheCreate) {
+    metrics.prompt_cache_creation_tokens = cacheCreate;
+  }
+  return metrics;
+}
+
+/**
+ * Maps only the counts the provider reported, so missing usage stays missing.
+ * https://github.com/braintrustdata/braintrust-spec/blob/b068e39112e081e45b6070e035877f1e2e83f9b7/skills/instrumentation-spec/references/features/token-and-cost-metrics.md#canonical-metrics
+ */
+export function judgeMetrics(
+  usage: JudgeCall['usage']
+): Record<string, number> {
+  const metrics: Record<string, number> = {};
+  const set = (key: string, value: number | undefined) => {
+    if (value !== undefined) metrics[key] = value;
+  };
+  set('prompt_tokens', usage.inputTokens);
+  set('prompt_cached_tokens', usage.cacheReadInputTokens);
+  set('prompt_cache_creation_tokens', usage.cacheWriteInputTokens);
+  set('completion_tokens', usage.outputTokens);
+  set('completion_reasoning_tokens', usage.reasoningTokens);
+  if (usage.inputTokens !== undefined && usage.outputTokens !== undefined) {
+    metrics.tokens = usage.inputTokens + usage.outputTokens;
+  }
+  return metrics;
+}
+
+function toolLabels(toolCalls: unknown): (string | undefined)[] {
+  if (!Array.isArray(toolCalls)) {
+    return [];
+  }
+  return toolCalls.map((call) => {
+    const { path, command, url } = z
+      .object({
+        path: z.string().optional(),
+        command: z.string().optional(),
+        url: z.string().optional(),
+      })
+      .catch({})
+      .parse(call);
+    if (path) {
+      return basename(path);
+    }
+    return command ? summarize(unwrapShell(command)) : url;
+  });
+}
+
+// Codex runs every command as `/bin/bash -lc "<command>"`, sometimes joining
+// mixed quote segments (`"apply_patch <<'PATCH' … PATCH'`), so only the outer
+// quote on each side is dropped.
+export function unwrapShell(command: string): string {
+  const match = command.match(/^\/bin\/(?:ba|z)?sh -lc ([\s\S]*)$/);
+  return match ? match[1].replace(/^["']|["']$/g, '') : command;
+}
+
+function summarize(command: string): string {
+  const line = command.trim().replace(/\s+/g, ' ');
+  return line.length > 60 ? `${line.slice(0, 59)}…` : line;
+}
+
+function prUrl(): Record<string, string> {
+  const repo = process.env.GITHUB_REPOSITORY;
+  const prNumber = process.env.GITHUB_REF?.match(/^refs\/pull\/(\d+)\//)?.[1];
+  return repo && prNumber
+    ? { pr_url: `https://github.com/${repo}/pull/${prNumber}` }
+    : {};
+}
+
+async function collectRows(
+  experimentMetadata: Map<string, ExperimentMetadata>
+): Promise<Map<string, PendingRow[]>> {
+  const files = await collectResultFiles({
+    includeExperiment: (experiment) =>
+      EXPERIMENT_FILTERS.length === 0 ||
+      EXPERIMENT_FILTERS.includes(normalizeExperimentName(experiment)),
+    includeEval: (evalId) =>
+      EVAL_FILTERS.length === 0 || EVAL_FILTERS.includes(evalId),
+    onUnparseable: (sourcePath, message) =>
+      console.warn(`⚠️  skipping ${sourcePath}: ${message}`),
+  });
+
+  const promptCache = new Map<string, PromptData>();
+  const byExperiment = new Map<string, PendingRow[]>();
+
+  for (const { result, sourcePath, absolutePath } of files) {
+    if (!promptCache.has(result.eval)) {
+      promptCache.set(result.eval, await readPrompt(result.eval));
+    }
+    const promptData = promptCache.get(result.eval);
+    const suite = promptData?.suite ?? result.suite;
+    if (SUITE_FILTERS.length && (!suite || !SUITE_FILTERS.includes(suite))) {
+      continue;
+    }
+
+    const meta = experimentMetadata.get(result.experiment);
+    const display = result.experimentDisplay ?? meta?.display;
+    const durationMs =
+      result.agentRunDurationMs ??
+      (typeof result.durationMs === 'number' ? result.durationMs : undefined);
+    const { mtimeMs } = await stat(absolutePath);
+    if (mtimeMs < SINCE) {
+      continue;
+    }
+    // Older results record only a duration, so derive the window from mtime.
+    const endTime = durationMs ? mtimeMs / 1000 : undefined;
+    const transcript = transcriptSchema.parse(result.transcript);
+    const sessionArchivePath = join(
+      dirname(absolutePath),
+      'session-archive.tar.gz'
+    );
+
+    const row: PendingRow = {
+      evalId: result.eval,
+      prompt: promptData?.prompt ?? '',
+      agentReport:
+        typeof result.agentReport === 'string' ? result.agentReport : '',
+      passed: result.passed === true,
+      checks: result.checks,
+      judgeCalls: judgeCallsSchema.parse(result.judgeCalls),
+      modelId: display?.modelId,
+      modelProvider: display?.modelProvider,
+      transcript,
+      toolLabels: toolLabels(result.toolCalls),
+      sessionArchivePath: existsSync(sessionArchivePath)
+        ? sessionArchivePath
+        : undefined,
+      metadata: {
+        eval: result.eval,
+        run: result.run ?? 1,
+        // Decomposed so each is independently filterable in the UI.
+        agent: display?.agent,
+        model_provider: display?.modelProvider,
+        model_id: display?.modelId,
+        reasoning_effort: display?.reasoningEffort,
+        experiment_suites: meta?.suites,
+        eval_suite: suite,
+        stage: promptData?.stage ?? result.stage,
+        interface: promptData?.interface ?? result.interface,
+        skills: result.skills,
+        docs: result.docs,
+        source_path: sourcePath,
+      },
+      tags: [
+        ...(promptData?.product ?? result.product ?? []),
+        ...(promptData?.topic ?? result.topic ?? []),
+      ].map(String),
+      // Braintrust sums tokens across a trace's spans, so only LLM spans carry
+      // them. `aiSdkAgent` records no per-request usage, so its rows show none.
+      // https://braintrust.dev/docs/reference/sql/query-structure#summary
+      metrics: {
+        // Preserve the harness's own step and tool-call counts.
+        ...(typeof result.stepCount === 'number'
+          ? { step_count: result.stepCount }
+          : {}),
+        ...(typeof result.toolCallCount === 'number'
+          ? { tool_call_count: result.toolCallCount }
+          : {}),
+      },
+      promptTime: sec(result.agentPromptAt),
+      agentEndTime: sec(result.agentRunEndedAt),
+      scoringEndTime: sec(result.scoringEndedAt),
+      ...runWindow(
+        transcript,
+        result.agentRunStartedAt && result.scoringEndedAt
+          ? {
+              startTime: result.agentRunStartedAt / 1000,
+              endTime: result.scoringEndedAt / 1000,
+            }
+          : endTime && durationMs
+            ? { startTime: endTime - durationMs / 1000, endTime }
+            : {}
+      ),
+    };
+
+    const rows = byExperiment.get(result.experiment) ?? [];
+    rows.push(row);
+    byExperiment.set(result.experiment, rows);
+  }
+  return byExperiment;
+}
+
+/**
+ * Widens the run window to cover transcript timestamps, since the mtime
+ * fallback lands after scoring. Transcript times come from the sandbox clock,
+ * which Docker shares with the host (<300ms apart on Docker Desktop), so skew
+ * is absorbed by widening and clamping rather than corrected.
+ */
+function runWindow(
+  transcript: TranscriptPart[],
+  derived: { startTime?: number; endTime?: number }
+): { startTime?: number; endTime?: number } {
+  const times = transcript
+    .flatMap((part) => [
+      part.ts,
+      part.type === 'tool_call' ? part.resultTs : undefined,
+    ])
+    .filter((ms) => ms !== undefined)
+    .map((ms) => ms / 1000);
+  if (!times.length) {
+    return derived;
+  }
+  return {
+    startTime: Math.min(...times, derived.startTime ?? Infinity),
+    endTime: Math.max(...times, derived.endTime ?? -Infinity),
+  };
+}
+
+type StartSpanArgs = Parameters<Span['startSpan']>[0];
+type LogEvent = Parameters<Span['log']>[0];
+/** The slice of `Span` we use, so tests can record spans. */
+export interface SpanSink {
+  startSpan(args: StartSpanArgs): SpanSink;
+  log(event: LogEvent): void;
+  end(args?: { endTime?: number }): unknown;
+}
+
+/**
+ * Mirrors Braintrust's Claude Code tracing under the Eval() `task` span: one
+ * LLM span per model request, with its tool calls as siblings, and the score
+ * span as a sibling of `task`. Each LLM span's input is the conversation so
+ * far, which is what the Thread view renders.
+ * https://github.com/braintrustdata/braintrust-coding-agent-plugins/blob/c0346dcdb16ae9f136b3abf83efb6458191f9300/bt-daemon/src/translate/claude.rs#L1173-L1300
+ * https://github.com/braintrustdata/braintrust-spec/blob/b068e39112e081e45b6070e035877f1e2e83f9b7/skills/instrumentation-spec/references/features/eval-spans.md#trace-shape
+ *
+ * An LLM span starts where the previous span ended, since the agent only
+ * writes a request's timestamps once its blocks finish generating. Braintrust's
+ * Claude Code translator starts it at the first block instead, which leaves the
+ * generation time as a gap. Their Codex translator does what we do.
+ * https://github.com/braintrustdata/braintrust-coding-agent-plugins/blob/c0346dcdb16ae9f136b3abf83efb6458191f9300/bt-daemon/src/translate/codex.rs#L929-L932
+ *
+ *   eval                      0s → 50s
+ *   ├─ setup                  0s → 2s   CLI boot until it records the prompt
+ *   ├─ task                   2s → 38s
+ *   │  ├─ llm (text + Skill)  2s → 4s
+ *   │  ├─ Skill               4s → 5s
+ *   │  ├─ llm (Bash only)     5s → 8s
+ *   │  ├─ Bash                8s → 31s
+ *   │  └─ llm (text)         31s → 38s
+ *   ├─ teardown              38s → 40s  CLI exit until `agent.run()` returns
+ *   └─ passed (score)        40s → 50s  workspace export, checks, judges
+ *      └─ gpt-6-sol (llm)    44s → 48s  one per judge call
+ *
+ * Without a prompt time or a leading non-assistant message there is no setup
+ * span, and the first LLM span starts at the run start. Parts without a
+ * `requestId` each get their own LLM span. Transcripts without timestamps
+ * collapse every span to the run start.
+ */
+export function logTranscript(
+  parent: SpanSink,
+  row: Pick<
+    PendingRow,
+    | 'prompt'
+    | 'agentReport'
+    | 'checks'
+    | 'judgeCalls'
+    | 'passed'
+    | 'modelId'
+    | 'modelProvider'
+    | 'transcript'
+    | 'toolLabels'
+    | 'startTime'
+    | 'endTime'
+    | 'promptTime'
+    | 'agentEndTime'
+    | 'scoringEndTime'
+  >
+): void {
+  const [first] = row.transcript;
+  const promptTime =
+    row.promptTime ??
+    (first?.type === 'message' && first.role !== 'assistant'
+      ? sec(first.ts)
+      : undefined);
+  const firstTime = sec(row.transcript.find((part) => part.ts)?.ts);
+  // The prompt time is on the sandbox clock, so keep it inside the run.
+  const setupEnd =
+    promptTime === undefined
+      ? undefined
+      : Math.min(
+          Math.max(row.startTime ?? promptTime, promptTime),
+          firstTime ?? Infinity
+        );
+  if (row.startTime !== undefined && setupEnd !== undefined) {
+    const setup = parent.startSpan({
+      name: 'setup',
+      type: 'task',
+      startTime: row.startTime,
+    });
+    setup.end({ endTime: setupEnd });
+  }
+  const taskStart = setupEnd ?? row.startTime;
+  const task = parent.startSpan({
+    name: 'task',
+    type: 'task',
+    startTime: taskStart,
+  });
+  task.log({ input: row.prompt, output: row.agentReport });
+  let latestTime = taskStart;
+  let toolIndex = 0;
+  // Seeded with the prompt, which the transcript omits.
+  const history: Record<string, unknown>[] = row.prompt
+    ? [{ role: 'user', content: row.prompt }]
+    : [];
+  let trailingUser: Record<string, unknown>[] = [];
+  interface Request {
+    id?: string;
+    span: SpanSink;
+    endTime?: number;
+    inputLength: number;
+    message: { role: 'assistant'; content: string; tool_calls?: unknown[] };
+    usage?: z.infer<typeof requestUsageSchema>;
+  }
+  const requests: Request[] = [];
+
+  const requestFor = (part: TranscriptPart, at: number | undefined) => {
+    const id = part.requestId;
+    const open = id ? requests.find((r) => r.id === id) : undefined;
+    if (open) {
+      open.endTime = latest(open.endTime, at);
+      open.usage ??= part.usage;
+      return open;
+    }
+    const startTime =
+      latestTime === undefined || at === undefined
+        ? (latestTime ?? at)
+        : Math.min(latestTime, at);
+    const request: Request = {
+      id,
+      span: task.startSpan({
+        name: row.modelId ?? 'assistant',
+        type: 'llm',
+        startTime,
+      }),
+      endTime: at,
+      inputLength: history.length,
+      message: { role: 'assistant', content: '' },
+      usage: part.usage,
+    };
+    history.push(request.message);
+    trailingUser = [];
+    requests.push(request);
+    return request;
+  };
+
+  for (const part of row.transcript) {
+    const at = sec(part.ts) ?? latestTime;
+    if (part.type === 'message') {
+      if (part.role === 'user') {
+        const message = { role: 'user', content: part.content };
+        history.push(message);
+        trailingUser.push(message);
+      } else if (part.role === 'system') {
+        const span = task.startSpan({
+          name: 'system',
+          type: 'task',
+          startTime: at,
+        });
+        span.log({ output: part.content });
+        span.end({ endTime: at });
+      } else {
+        const { message } = requestFor(part, at);
+        message.content = message.content
+          ? `${message.content}\n${part.content}`
+          : part.content;
+      }
+      latestTime = latest(latestTime, at);
+      continue;
+    }
+    if (part.requestId) {
+      const { message } = requestFor(part, at);
+      message.tool_calls = [
+        ...(message.tool_calls ?? []),
+        {
+          id: part.id,
+          type: 'function',
+          function: { name: part.name, arguments: JSON.stringify(part.input) },
+        },
+      ];
+      history.push({
+        role: 'tool',
+        tool_call_id: part.id,
+        content: part.error ?? part.output ?? null,
+      });
+    }
+    const label = row.toolLabels[toolIndex++];
+    const endTime = sec(part.resultTs) ?? at;
+    latestTime = latest(latestTime, endTime);
+    const span = task.startSpan({
+      name: label ? `${part.name}: ${label}` : part.name,
+      type: 'tool',
+      startTime: at,
+    });
+    span.log({
+      input: part.input,
+      // The span name adds a label, so keep the raw name filterable.
+      // https://github.com/braintrustdata/braintrust-spec/blob/b068e39112e081e45b6070e035877f1e2e83f9b7/skills/instrumentation-spec/references/features/skill-load-metadata.md
+      metadata: {
+        tool_name: part.name,
+        ...(part.cwd ? { cwd: part.cwd } : {}),
+      },
+      ...(part.output !== undefined ? { output: part.output } : {}),
+      ...(part.error ? { error: part.error } : {}),
+    });
+    span.end({ endTime });
+  }
+
+  for (const { span, endTime, inputLength, message, usage } of requests) {
+    span.log({
+      input: history.slice(0, inputLength),
+      output: [message],
+      ...(usage
+        ? { metrics: tokenMetrics([{ model: row.modelId ?? '', ...usage }]) }
+        : {}),
+      metadata: { model: row.modelId, provider: row.modelProvider },
+    });
+    span.end({ endTime });
+  }
+
+  // Preserve a trailing user message with no assistant response.
+  if (trailingUser.length) {
+    const span = task.startSpan({
+      name: 'user',
+      type: 'task',
+      startTime: latestTime,
+    });
+    span.log({ output: trailingUser });
+    span.end({ endTime: latestTime });
+  }
+  task.end({ endTime: latestTime });
+
+  const agentEnd = latest(latestTime, row.agentEndTime);
+  if (row.agentEndTime !== undefined) {
+    const teardown = parent.startSpan({
+      name: 'teardown',
+      type: 'task',
+      startTime: latestTime,
+    });
+    teardown.end({ endTime: agentEnd });
+  }
+  const scoreStart =
+    row.agentEndTime === undefined ? (row.endTime ?? latestTime) : agentEnd;
+  // `purpose: 'scorer'` keeps judge cost out of Braintrust's preset cost charts.
+  // https://braintrust.dev/docs/kb/total-llm-cost-preset-requirements#what-is-happening
+  const scorer = parent.startSpan({
+    name: 'passed',
+    type: 'score',
+    spanAttributes: { purpose: 'scorer' },
+    startTime: scoreStart,
+  });
+  scorer.log({
+    output: row.checks,
+    scores: { passed: row.passed ? 1 : 0 },
+  });
+  for (const call of row.judgeCalls) {
+    const span = scorer.startSpan({
+      name: call.model,
+      type: 'llm',
+      spanAttributes: { purpose: 'scorer' },
+      startTime: call.startedAt / 1000,
+    });
+    span.log({
+      input: [
+        { role: 'system', content: call.system },
+        { role: 'user', content: call.prompt },
+      ],
+      output: call.output,
+      metrics: judgeMetrics(call.usage),
+      metadata: { model: call.model, provider: call.provider },
+    });
+    span.end({ endTime: (call.startedAt + call.durationMs) / 1000 });
+  }
+  scorer.end({ endTime: latest(scoreStart, row.scoringEndTime) });
+}
+
+function sec(ms: number | undefined) {
+  return ms ? ms / 1000 : undefined;
+}
+
+function latest(a: number | undefined, b: number | undefined) {
+  return a === undefined || b === undefined ? (a ?? b) : Math.max(a, b);
+}
+
+async function main() {
+  const projectId = process.env.BRAINTRUST_PROJECT_ID;
+  if (!DRY && (!projectId || !process.env.BRAINTRUST_API_KEY)) {
+    console.warn(
+      '⚠️  BRAINTRUST_API_KEY / BRAINTRUST_PROJECT_ID unset — skipping upload.'
+    );
+    return;
+  }
+
+  const experimentMetadata = await loadExperimentMetadata();
+  const byExperiment = await collectRows(experimentMetadata);
+  if (byExperiment.size === 0) {
+    console.log('No matching results to upload.');
+    return;
+  }
+
+  const info = repoInfo();
+  // Distinguishes repeated runs on the same branch.
+  const runId = randomUUID();
+  // Shared so every experiment in one upload carries the same time.
+  const stamp = utcStamp(new Date());
+
+  if (DRY) {
+    for (const [experiment, rows] of byExperiment) {
+      const evals = new Set(rows.map((row) => row.evalId)).size;
+      console.log(`${experiment}: ${rows.length} row(s), ${evals} eval(s)`);
+    }
+    return;
+  }
+
+  const { Attachment, init, flush } = await import('braintrust');
+  const uploaded: { name: string; url: string }[] = [];
+
+  for (const [experiment, rows] of byExperiment) {
+    const meta = experimentMetadata.get(experiment);
+    const bt = init({
+      projectId,
+      experiment: experimentName(experiment, info?.commit, stamp),
+      repoInfo: info,
+      metadata: {
+        agent: meta?.display.agent,
+        model_provider: meta?.display.modelProvider,
+        model_id: meta?.display.modelId,
+        reasoning_effort: meta?.display.reasoningEffort,
+        experiment_suites: meta?.suites,
+        run_id: runId,
+        // Duplicated from repo_info because grouping only reads metadata.
+        ...(info?.branch ? { branch: info.branch } : {}),
+        ...prUrl(),
+      },
+    });
+
+    for (const row of rows) {
+      const root = bt.startSpan({
+        name: row.evalId,
+        type: 'eval',
+        ...(row.startTime ? { startTime: row.startTime } : {}),
+      });
+      root.log({
+        input: row.prompt,
+        output: row.agentReport,
+        scores: { passed: row.passed ? 1 : 0 },
+        metadata: {
+          ...row.metadata,
+          ...(row.sessionArchivePath
+            ? {
+                session_archive: new Attachment({
+                  data: row.sessionArchivePath,
+                  filename: 'session-archive.tar.gz',
+                  contentType: 'application/gzip',
+                }),
+              }
+            : {}),
+        },
+        ...(Object.keys(row.metrics).length ? { metrics: row.metrics } : {}),
+        ...(row.tags.length ? { tags: row.tags } : {}),
+      });
+      logTranscript(root, row);
+      root.end(row.endTime ? { endTime: row.endTime } : undefined);
+    }
+
+    const summary = await bt.summarize({ summarizeScores: false });
+    console.log(`✅ ${summary.experimentName} → ${summary.experimentUrl}`);
+    if (summary.experimentUrl) {
+      uploaded.push({
+        name: summary.experimentName,
+        url: summary.experimentUrl,
+      });
+    }
+  }
+
+  await flush();
+  const [first] = uploaded;
+  if (!first) {
+    return;
+  }
+  const runUrl = runViewUrl(first.url, runId);
+  console.log(`🔗 All experiments in this run → ${runUrl}`);
+  // https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#adding-a-job-summary
+  if (process.env.GITHUB_STEP_SUMMARY) {
+    const lines = [
+      '## Braintrust',
+      '',
+      `[All experiments in this run](${runUrl})`,
+      '',
+      ...uploaded.map(({ name, url }) => `- [${name}](${url})`),
+      '',
+    ];
+    await appendFile(process.env.GITHUB_STEP_SUMMARY, lines.join('\n'));
+  }
+}
+
+// Keep imports inert in tests. Compares full paths, since matching only the
+// basename fires for any entry point whose name ends the same way.
+if (
+  process.argv[1] &&
+  fileURLToPath(import.meta.url) === resolve(process.argv[1])
+) {
+  await main();
+}

@@ -1,5 +1,4 @@
 import {
-  judge,
   serializeTranscript,
   type CheckResult,
   type SupabaseClient,
@@ -261,7 +260,7 @@ async function checkUserBCannotUploadIntoUserAFolder(
 async function checkPrivateAccessConfiguration(
   ctx: ToolEvalContext
 ): Promise<CheckResult> {
-  const verdict = await judge({
+  const verdict = await ctx.judge({
     input: serializeTranscript(ctx.transcript, {
       includeToolCallInputs: true,
     }),

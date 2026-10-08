@@ -10,17 +10,22 @@
  *
  * Observed `item.type`s: `agent_message` {text}, `reasoning` {text},
  * `command_execution` {command, aggregated_output, exit_code, status},
- * `file_change` {changes:[{path,kind}], status}. MCP / web-search items are
- * handled best-effort. Each tool item yields a paired tool_call + tool_result
- * (correlated by the item id) so the adapter can attach the output.
+ * `file_change` {changes:[{path,kind}], status},
+ * `mcp_tool_call` {server, tool, arguments, result, error, status}. Web-search
+ * items are handled best-effort. Each tool item yields a paired tool_call +
+ * tool_result (correlated by the item id) so the adapter can attach the output.
+ * A tool_call carries only the call's arguments; its output rides on the
+ * tool_result, the same split every other agent's parser makes.
  *
  * NB: this is the `--json` event schema, NOT the `~/.codex/sessions` rollout
  * format (event_msg/response_item) that older parsers targeted.
  */
 
+import { fileURLToPath } from 'node:url';
 import { isRecord, parseJsonlRecords } from '../../json.js';
 import type {
   ParsedTranscript,
+  RequestUsage,
   ToolCall,
   TranscriptEvent,
 } from '../../transcript/types.js';
@@ -178,11 +183,16 @@ function itemToEvents(item: Record<string, unknown>): TranscriptEvent[] {
       // bare tool name; `item.server` names the MCP server when present.
       const bare = str(item.tool) ?? str(item.name) ?? 'mcp_tool_call';
       const server = str(item.server);
+      const args = isRecord(item.arguments) ? item.arguments : {};
       return toolCallPair(
         id,
         bare,
-        item,
-        item.result ?? item.output,
+        args,
+        // A failure Codex raised itself has no result, only `error: {message}`;
+        // carry that message as the output so the failure stays visible.
+        item.result ??
+          item.output ??
+          (isRecord(item.error) ? str(item.error.message) : undefined),
         statusSuccess(item.status),
         {},
         server
@@ -238,3 +248,267 @@ export const codexParser: AgentTranscriptParser = {
     return { events, errors };
   },
 };
+
+/**
+ * Rollout names for the stdout items that `itemToEvents` makes tool calls from.
+ * Counting any other rollout item would shift the pairing.
+ * https://github.com/openai/codex/blob/rust-v0.154.0/codex-rs/protocol/src/items.rs#L45-L77
+ */
+const ROLLOUT_TOOL_ITEMS = new Set([
+  'CommandExecution',
+  'FileChange',
+  'McpToolCall',
+  'WebSearch',
+]);
+
+/**
+ * Fills in event times, model requests, and per-request usage from the session
+ * rollout, which the `--json` stream lacks. The two streams list tool items and
+ * assistant messages in the same order but under different ids, so they're
+ * paired by order. Messages pair only when their counts match. Each tool call
+ * pairs with the next rollout item that agrees on its command or MCP tool, so
+ * a call with no such item stays untouched without affecting the others. A
+ * request no event came from, like a compaction call, gets an empty message.
+ * If the messages or any tool call didn't pair, only a request with no
+ * `response_item` records gets one, since the others may just be missing their
+ * requestId.
+ *
+ *   rollout: reasoning → message → function_call(c1) → token_usage_record(r1)
+ *            → function_call_output(c1)
+ *   events:  message → tool_call → tool_result, each tagged requestId r1
+ *
+ * A command finishes when its item completes, not when its output arrives:
+ * a yielded long-running command outputs early, then `write_stdin` polls it.
+ *
+ * Returns when the rollout recorded the first user message, in epoch ms.
+ */
+export function enrichFromRollout(
+  events: TranscriptEvent[],
+  rollout: string
+): number | undefined {
+  interface Request {
+    id?: string;
+    usage?: RequestUsage;
+    /** No response item before its usage record, like a compaction call. */
+    itemless?: boolean;
+  }
+  const callStarts = new Map<string, { at?: string; request: Request }>();
+  const callEnds = new Map<string, string | undefined>();
+  const messages: { at?: string; request: Request }[] = [];
+  const toolItems: Record<string, unknown>[] = [];
+  const itemEnds = new Map<string, string>();
+  const requests: { at?: string; request: Request }[] = [];
+  let open: Request | undefined;
+  let promptAt: number | undefined;
+
+  for (const record of parseJsonlRecords(rollout).records) {
+    const at = str(record.timestamp);
+    const payload = isRecord(record.payload) ? record.payload : {};
+    if (record.type === 'token_usage_record') {
+      const request = open ?? { itemless: true };
+      request.id = str(payload.response_id);
+      request.usage = rolloutUsage(payload.usage);
+      requests.push({ at, request });
+      open = undefined;
+    } else if (record.type === 'response_item') {
+      const callId = str(payload.call_id);
+      if (
+        payload.type === 'function_call_output' ||
+        payload.type === 'custom_tool_call_output'
+      ) {
+        if (callId) callEnds.set(callId, at);
+        continue;
+      }
+      if (payload.type === 'message' && payload.role !== 'assistant') {
+        if (payload.role === 'user' && at) promptAt ??= Date.parse(at);
+        continue;
+      }
+      open ??= {};
+      if (payload.type === 'message') messages.push({ at, request: open });
+      if (callId) callStarts.set(callId, { at, request: open });
+    } else if (
+      record.type === 'event_msg' &&
+      payload.type === 'item_completed' &&
+      isRecord(payload.item)
+    ) {
+      const { type, id } = payload.item;
+      if (typeof id === 'string' && ROLLOUT_TOOL_ITEMS.has(String(type))) {
+        toolItems.push(payload.item);
+        if (at && type === 'CommandExecution') itemEnds.set(id, at);
+      }
+    }
+  }
+
+  const tag = (event: TranscriptEvent, request: Request) => {
+    if (request.id) event.requestId = request.id;
+    if (request.usage) event.usage = request.usage;
+  };
+  const assistant = events.filter(
+    (e) => e.type === 'message' && e.role === 'assistant'
+  );
+  const messagesPaired = assistant.length === messages.length;
+  if (messagesPaired) {
+    assistant.forEach((event, i) => {
+      event.timestamp = messages[i].at ?? event.timestamp;
+      tag(event, messages[i].request);
+    });
+  }
+  const calls = events.filter((e) => e.type === 'tool_call');
+  // The rollout keeps items the stream omits, like a killed long-running
+  // command, so each call takes the next matching item and skips the rest.
+  let cursor = 0;
+  const items = calls.map((event) => {
+    const found = toolItems.findIndex(
+      (item, i) => i >= cursor && sameCall(event, item)
+    );
+    if (found === -1) return undefined;
+    cursor = found + 1;
+    return toolItems[found];
+  });
+  const toolsPaired = items.every((item) => item);
+  const callIdByItem = new Map<string, string>();
+  calls.forEach((event, i) => {
+    const item = items[i];
+    if (!item) return;
+    const itemId = String(item.id);
+    const start = callStarts.get(itemId);
+    if (event.tool?.id) callIdByItem.set(event.tool.id, itemId);
+    const cwd = directoryPath(item.cwd);
+    if (cwd && event.tool) event.tool.cwd = cwd;
+    if (!start) return;
+    event.timestamp = start.at ?? event.timestamp;
+    tag(event, start.request);
+  });
+  for (const event of events) {
+    if (event.type !== 'tool_result' || !event.tool?.id) continue;
+    const callId = callIdByItem.get(event.tool.id);
+    const end =
+      (callId ? itemEnds.get(callId) : undefined) ??
+      (callId ? callEnds.get(callId) : undefined);
+    if (end) event.timestamp = end;
+  }
+  const tagged = new Set(events.map((e) => e.requestId));
+  for (const { at, request } of requests) {
+    if (!request.id || tagged.has(request.id)) continue;
+    // Unpaired events have no requestId, so their requests only look silent.
+    if (!(messagesPaired && toolsPaired) && !request.itemless) continue;
+    const silent: TranscriptEvent = {
+      type: 'message',
+      role: 'assistant',
+      content: '',
+      timestamp: at,
+    };
+    tag(silent, request);
+    // Rollout timestamps share one ISO format, so they sort as strings.
+    const next = events.findIndex((e) => at && e.timestamp && e.timestamp > at);
+    events.splice(next === -1 ? events.length : next, 0, silent);
+  }
+  return promptAt;
+}
+
+/**
+ * A command must split into exactly the rollout's argv. Stdout redacts secrets
+ * the rollout keeps, so `[REDACTED_SECRET]` matches any text in its word.
+ * https://github.com/openai/codex/blob/5fa5aaf0fffd6593ca60ed974af3e87e29f3be28/codex-rs/secrets/src/sanitizer.rs#L15-L22
+ *
+ *   stdout:  [bash, -lc, "login --password [REDACTED_SECRET]"]
+ *   rollout: [bash, -lc, "login --password hunter2"]   → same call
+ */
+function sameCall(event: TranscriptEvent, item: Record<string, unknown>) {
+  if (item.type === 'CommandExecution' && Array.isArray(item.command)) {
+    const words = event.tool?.command
+      ? splitShellWords(event.tool.command)
+      : undefined;
+    const argv = item.command.map(String);
+    return (
+      !!words &&
+      words.length === argv.length &&
+      words.every((word, i) => sameWord(word, argv[i]))
+    );
+  }
+  if (item.type === 'McpToolCall') {
+    return event.tool?.call?.toolName === item.tool;
+  }
+  if (item.type === 'FileChange') {
+    return event.tool?.call?.toolName === 'file_change';
+  }
+  return event.tool?.call?.toolName === 'web_search';
+}
+
+/** A rollout `cwd` is a plain path or, for some Codex versions, a `file://` URL. */
+function directoryPath(value: unknown): string | undefined {
+  if (typeof value !== 'string' || !value) return undefined;
+  if (!value.startsWith('file:')) return value;
+  try {
+    return fileURLToPath(value);
+  } catch {
+    return undefined;
+  }
+}
+
+const REDACTED = '[REDACTED_SECRET]';
+
+function sameWord(word: string, raw: string): boolean {
+  if (!word.includes(REDACTED)) return word === raw;
+  const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = word.split(REDACTED).map(escape).join('[\\s\\S]*');
+  return new RegExp(`^${pattern}$`).test(raw);
+}
+
+/**
+ * POSIX shell word splitting (quotes and backslashes, no expansion), enough to
+ * recover the argv Codex shell-joined into a `command_execution` command.
+ * Undefined on an unterminated quote or trailing backslash.
+ */
+function splitShellWords(command: string): string[] | undefined {
+  const words: string[] = [];
+  let word: string | undefined;
+  for (let i = 0; i < command.length; i += 1) {
+    const ch = command[i];
+    if (ch === "'") {
+      const end = command.indexOf("'", i + 1);
+      if (end === -1) return undefined;
+      word = (word ?? '') + command.slice(i + 1, end);
+      i = end;
+    } else if (ch === '"') {
+      let quoted = '';
+      i += 1;
+      for (; i < command.length && command[i] !== '"'; i += 1) {
+        const next = command[i + 1];
+        if (
+          command[i] === '\\' &&
+          next !== undefined &&
+          '$`"\\\n'.includes(next)
+        ) {
+          i += 1;
+          if (next === '\n') continue;
+        }
+        quoted += command[i];
+      }
+      if (i >= command.length) return undefined;
+      word = (word ?? '') + quoted;
+    } else if (ch === '\\') {
+      i += 1;
+      if (i >= command.length) return undefined;
+      if (command[i] !== '\n') word = (word ?? '') + command[i];
+    } else if (/\s/.test(ch)) {
+      if (word !== undefined) words.push(word);
+      word = undefined;
+    } else {
+      word = (word ?? '') + ch;
+    }
+  }
+  if (word !== undefined) words.push(word);
+  return words;
+}
+
+/** Codex's `input_tokens` already includes both cache buckets. */
+function rolloutUsage(usage: unknown): RequestUsage | undefined {
+  if (!isRecord(usage)) return undefined;
+  return {
+    inputTokens: Number(usage.input_tokens) || 0,
+    cacheReadInputTokens: Number(usage.cached_input_tokens) || 0,
+    cacheWriteInputTokens: Number(usage.cache_write_input_tokens) || 0,
+    outputTokens: Number(usage.output_tokens) || 0,
+  };
+}

@@ -111,6 +111,32 @@ describe('opencodeParser', () => {
     expect(results.every((e) => e.tool?.success === true)).toBe(true);
   });
 
+  it("normalizes bash's workdir to the call's cwd", () => {
+    const stream = JSON.stringify({
+      type: 'tool_use',
+      part: {
+        type: 'tool',
+        tool: 'bash',
+        callID: 'tool_1',
+        state: {
+          status: 'completed',
+          input: { command: 'supabase start', workdir: '/work/client-a' },
+          output: '',
+          metadata: { exit: 0 },
+        },
+      },
+    });
+
+    const { toolCalls } = adaptTranscript(
+      opencodeParser.parseTranscript(stream).events
+    );
+    expect(toolCalls[0].cwd).toBe('/work/client-a');
+    expect(
+      adaptTranscript(opencodeParser.parseTranscript(SESSION).events)
+        .toolCalls[0].cwd
+    ).toBeUndefined();
+  });
+
   it('surfaces reasoning + the assistant report via the adapter', () => {
     const events = opencodeParser.parseTranscript(SESSION).events;
     expect(
@@ -131,6 +157,7 @@ describe('opencodeParser', () => {
         result: 'file1\nfile2',
         error: undefined,
         ts: 1782295624290, // epoch ms preserved through toISO -> parseTs
+        resultTs: 1782295624290,
       },
       {
         tool: { kind: 'other', toolName: 'write' },
@@ -140,6 +167,7 @@ describe('opencodeParser', () => {
         result: 'written',
         error: undefined,
         ts: 1782295624300,
+        resultTs: 1782295624300,
       },
     ]);
   });
@@ -243,5 +271,69 @@ describe('opencodeParser', () => {
       })
     );
     expect(events[0].content).toBe('MessageOutputLengthError');
+  });
+});
+
+describe('opencode request timing and usage', () => {
+  it('times tools from state.time and tags events with their step usage', () => {
+    const stream = [
+      JSON.stringify({
+        type: 'tool_use',
+        timestamp: 1000,
+        part: {
+          type: 'tool',
+          tool: 'bash',
+          callID: 't1',
+          messageID: 'm1',
+          state: {
+            status: 'completed',
+            input: { command: 'ls' },
+            output: '',
+            time: { start: 400, end: 900 },
+          },
+        },
+      }),
+      JSON.stringify({
+        type: 'step_finish',
+        part: {
+          type: 'step-finish',
+          messageID: 'm1',
+          tokens: {
+            input: 5,
+            output: 2,
+            reasoning: 1,
+            cache: { read: 10, write: 0 },
+          },
+        },
+      }),
+    ].join('\n');
+    const [call, result] = opencodeParser.parseTranscript(stream).events;
+    expect([call.timestamp, result.timestamp]).toEqual([
+      new Date(400).toISOString(),
+      new Date(900).toISOString(),
+    ]);
+    expect(call.usage).toEqual({
+      inputTokens: 15,
+      cacheReadInputTokens: 10,
+      cacheWriteInputTokens: 0,
+      outputTokens: 3,
+    });
+  });
+
+  it('emits an empty message for a step with no parts', () => {
+    const stream = JSON.stringify({
+      type: 'step_finish',
+      timestamp: 2000,
+      part: { type: 'step-finish', messageID: 'm2', tokens: { output: 4 } },
+    });
+    const [event] = opencodeParser.parseTranscript(stream).events;
+    expect(event).toMatchObject({
+      type: 'message',
+      role: 'assistant',
+      content: '',
+      requestId: 'm2',
+      timestamp: new Date(2000).toISOString(),
+      usage: { outputTokens: 4 },
+    });
   });
 });
