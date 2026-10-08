@@ -76,6 +76,24 @@ describe('organization', () => {
     const { status } = await request(app, 'GET', '/v1/projects/nope/branching');
     expect(status).toBe(404);
   });
+
+  // The MCP server checks branch-id tools against the branch's own ref.
+  it("reports branching availability for a branch's own ref", async () => {
+    const app = await appWithOrg({ plan: 'pro' });
+    const { data: branch } = await request<Branch>(
+      app,
+      'POST',
+      `/v1/projects/${REF}/branches`,
+      { branch_name: 'develop' }
+    );
+    const { status, data } = await request<{ available: boolean }>(
+      app,
+      'GET',
+      `/v1/projects/${branch.project_ref}/branching`
+    );
+    expect(status).toBe(200);
+    expect(data).toEqual({ available: true });
+  });
 });
 
 describe('branches', () => {
