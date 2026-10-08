@@ -268,6 +268,15 @@ function prUrl(): Record<string, string> {
     : {};
 }
 
+export function ciRunUrl() {
+  const { GITHUB_SERVER_URL, GITHUB_REPOSITORY, GITHUB_RUN_ID } = process.env;
+  return GITHUB_SERVER_URL && GITHUB_REPOSITORY && GITHUB_RUN_ID
+    ? {
+        ci_run_url: `${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}`,
+      }
+    : {};
+}
+
 async function collectRows(
   experimentMetadata: Map<string, ExperimentMetadata>
 ): Promise<Map<string, PendingRow[]>> {
@@ -731,6 +740,7 @@ async function main() {
         // Duplicated from repo_info because grouping only reads metadata.
         ...(info?.branch ? { branch: info.branch } : {}),
         ...prUrl(),
+        ...ciRunUrl(),
       },
     });
 
@@ -782,9 +792,11 @@ async function main() {
   console.log(`🔗 All experiments in this run → ${runUrl}`);
   // https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#adding-a-job-summary
   if (process.env.GITHUB_STEP_SUMMARY) {
+    const { pr_url } = prUrl();
     const lines = [
       '## Braintrust',
       '',
+      ...(pr_url ? [`[Pull request](${pr_url})`, ''] : []),
       `[All experiments in this run](${runUrl})`,
       '',
       ...uploaded.map(({ name, url }) => `- [${name}](${url})`),

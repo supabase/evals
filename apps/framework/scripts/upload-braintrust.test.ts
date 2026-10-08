@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  ciRunUrl,
   experimentName,
   judgeMetrics,
   logTranscript,
@@ -77,6 +78,21 @@ describe('utcStamp', () => {
     expect(utcStamp(new Date('2026-09-23T13:39:07.123Z'))).toBe(
       '20260923T1339Z'
     );
+  });
+});
+
+describe('ciRunUrl', () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('links the GitHub Actions run, and is empty outside CI', () => {
+    vi.stubEnv('GITHUB_SERVER_URL', 'https://github.com');
+    vi.stubEnv('GITHUB_REPOSITORY', 'supabase/evals');
+    vi.stubEnv('GITHUB_RUN_ID', '123');
+    expect(ciRunUrl()).toEqual({
+      ci_run_url: 'https://github.com/supabase/evals/actions/runs/123',
+    });
+    vi.stubEnv('GITHUB_RUN_ID', '');
+    expect(ciRunUrl()).toEqual({});
   });
 });
 
