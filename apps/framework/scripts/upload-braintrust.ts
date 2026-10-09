@@ -803,8 +803,7 @@ async function main() {
   console.log(`🔗 All experiments in this run → ${runUrl}`);
   // https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#adding-a-job-summary
   if (process.env.GITHUB_STEP_SUMMARY) {
-    // PR events know their PR from the ref. Dispatched runs get theirs from
-    // the "Find the PRs for this branch" step.
+    // Manual runs get PR_URLS from eval-refresh.yml's branch lookup.
     const { pr_url } = prUrl();
     const prUrls = pr_url
       ? [pr_url]

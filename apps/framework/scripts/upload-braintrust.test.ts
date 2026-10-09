@@ -83,7 +83,7 @@ describe('utcStamp', () => {
 });
 
 describe('relatedPrLines', () => {
-  it('lists each PR, or says none', () => {
+  it('lists related PRs or none', () => {
     expect(
       relatedPrLines([
         'https://github.com/supabase/evals/pull/386',
@@ -103,7 +103,7 @@ describe('relatedPrLines', () => {
 describe('ciRunUrl', () => {
   afterEach(() => vi.unstubAllEnvs());
 
-  it('links the GitHub Actions run, and is empty outside CI', () => {
+  it('links the CI run when a run ID is present', () => {
     vi.stubEnv('GITHUB_SERVER_URL', 'https://github.com');
     vi.stubEnv('GITHUB_REPOSITORY', 'supabase/evals');
     vi.stubEnv('GITHUB_RUN_ID', '123');
