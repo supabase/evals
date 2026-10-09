@@ -161,7 +161,7 @@ function homeLabel(home: InvocationEnv): string {
 }
 
 /** The directory the CLI keeps its managed stack registry under for `home`. */
-function effectiveRoot(home: InvocationEnv): string | undefined {
+export function effectiveRoot(home: InvocationEnv): string | undefined {
   if (home.SUPABASE_HOME !== undefined) return home.SUPABASE_HOME;
   return home.HOME === undefined ? undefined : `${home.HOME}/.supabase`;
 }
