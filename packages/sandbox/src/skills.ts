@@ -11,7 +11,7 @@
  * into every project scope the CLI harnesses discover natively:
  *
  *   - `.claude/skills/`  — Claude Code's project scope.
- *   - `.agents/skills/`  — Codex's and OpenCode's project scope.
+ *   - `.agents/skills/`  — Codex's, OpenCode's, and Muse Code's project scope.
  *   - `.grok/skills/`    — Grok Build's project scope.
  *
  * Each CLI then discovers, advertises and loads the skills itself, in its own
@@ -31,41 +31,70 @@ export const SKILLS_CLI_VERSION = '1.7.0';
 
 /** Claude Code's project scope. */
 const CLAUDE_CODE_SKILLS_DIR = '.claude/skills';
-/** Codex's and OpenCode's shared project scope. */
+/** Codex's, OpenCode's, and Muse Code's shared project scope. */
 const AGENTS_SKILLS_DIR = '.agents/skills';
 /** Grok Build's project scope. */
 const GROK_SKILLS_DIR = '.grok/skills';
 
 /**
  * The workspace-relative project scope each harness discovers skills in, or
- * `null` for one that has none. Everything below is derived from this map, and
- * the `Record<AgentHarnessId, …>` makes it exhaustive: adding a harness to
- * `agentHarnessIdSchema` fails this file to compile until its scope is
- * declared, rather than silently running that harness's evals skill-less.
+ * `null` for one that has none. The `Record<AgentHarnessId, …>` makes it
+ * exhaustive: adding a harness to `agentHarnessIdSchema` fails this file to
+ * compile until its scope is declared, rather than silently running that
+ * harness's evals skill-less.
  *
  * `ai-sdk` is `null` — it runs in-process with no filesystem scope of its own,
  * and is served by `buildSkillsPrompt`'s listing instead.
  */
-const SKILLS_PATH_BY_AGENT: Record<AgentHarnessId, string | null> = {
+const SKILLS_DIR_BY_AGENT: Record<AgentHarnessId, string | null> = {
   'ai-sdk': null,
   'claude-code': CLAUDE_CODE_SKILLS_DIR,
   codex: AGENTS_SKILLS_DIR,
   grok: GROK_SKILLS_DIR,
+  // Muse also reads .claude/skills, but .agents/skills wins when both define
+  // a skill, so this is the scope that counts.
+  muse: AGENTS_SKILLS_DIR,
   opencode: AGENTS_SKILLS_DIR,
 };
 
-const installAgents: AgentHarnessId[] = [];
+/**
+ * `skills add --agent` ids, and the project scope the skills CLI writes for
+ * each (https://github.com/vercel-labs/skills#supported-agents). Kept apart
+ * from `SKILLS_DIR_BY_AGENT` because the CLI's agent vocabulary is not ours: a
+ * harness the CLI has no id for reads a directory another id fills, and naming
+ * an unknown id makes the CLI reject the install for every harness.
+ */
+const SKILLS_CLI_AGENT_DIRS = {
+  'claude-code': CLAUDE_CODE_SKILLS_DIR,
+  codex: AGENTS_SKILLS_DIR,
+  grok: GROK_SKILLS_DIR,
+  opencode: AGENTS_SKILLS_DIR,
+} as const satisfies Record<string, string>;
+
+type SkillsCliAgentId = keyof typeof SKILLS_CLI_AGENT_DIRS;
+
 const installDirs: string[] = [];
 for (const id of agentHarnessIdSchema.options) {
-  const dir = SKILLS_PATH_BY_AGENT[id];
-  if (dir === null) continue;
-  installAgents.push(id);
-  if (!installDirs.includes(dir)) installDirs.push(dir);
+  const dir = SKILLS_DIR_BY_AGENT[id];
+  if (dir !== null && !installDirs.includes(dir)) installDirs.push(dir);
+}
+const installAgents = (
+  Object.keys(SKILLS_CLI_AGENT_DIRS) as SkillsCliAgentId[]
+).filter((id) => installDirs.includes(SKILLS_CLI_AGENT_DIRS[id]));
+// A scope no skills CLI id writes would leave its harness skill-less until the
+// post-install check, so refuse at load time instead.
+for (const dir of installDirs) {
+  if (!installAgents.some((id) => SKILLS_CLI_AGENT_DIRS[id] === dir)) {
+    throw new Error(
+      `No skills CLI agent id writes ${dir}; add one to SKILLS_CLI_AGENT_DIRS.`
+    );
+  }
 }
 
 /**
- * `skills add --agent` ids we install for — every harness with a project scope.
- * Installed unconditionally rather than only for the experiment's own harness:
+ * `skills add --agent` ids we install for — every id that writes a scope some
+ * harness reads. Installed unconditionally rather than only for the
+ * experiment's own harness:
  * the ids collapse to a handful of directories, an unused one costs a directory
  * copy of a few kilobytes, and keeping one code path means no agent id has to
  * be threaded through `createAgentEnvironment` for correctness.
@@ -78,11 +107,11 @@ for (const id of agentHarnessIdSchema.options) {
  * Detection depends on the surrounding environment, so naming the agents is
  * what makes the install predictable.
  */
-export const SKILLS_INSTALL_AGENTS: readonly AgentHarnessId[] = installAgents;
+export const SKILLS_INSTALL_AGENTS: readonly SkillsCliAgentId[] = installAgents;
 
 /**
- * Every workspace-relative directory `SKILLS_INSTALL_AGENTS` populates, deduped
- * (`codex` and `opencode` share `.agents/skills`). Verified after install.
+ * Every workspace-relative directory a harness discovers skills in, deduped
+ * (`codex`, `muse`, and `opencode` share `.agents/skills`). Verified after install.
  */
 export const SKILLS_INSTALL_DIRS: readonly string[] = installDirs;
 

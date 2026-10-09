@@ -117,7 +117,13 @@ describe('buildSkillsPrompt', () => {
     // Each CLI walks its own project scope and advertises the skills itself.
     // Our listing would duplicate that and name `files_read`, an ai-sdk-only
     // tool.
-    for (const agent of ['claude-code', 'codex', 'grok', 'opencode'] as const) {
+    for (const agent of [
+      'claude-code',
+      'codex',
+      'grok',
+      'muse',
+      'opencode',
+    ] as const) {
       expect(buildSkillsPrompt(agent, entries)).toBe('');
       expect(buildSkillsPrompt(agent, [])).toBe('');
     }
@@ -137,6 +143,13 @@ describe('buildSkillsAddCommand', () => {
       command.indexOf('--agent')
     );
     expect(command).toMatch(/--agent (?:[a-z-]+ )+--skill/);
+  });
+
+  it('never names a harness the skills CLI has no id for', () => {
+    // Muse Code reads .agents/skills, which the codex and opencode ids write.
+    // Naming `muse` would make the CLI reject the install for every harness.
+    expect(buildSkillsAddCommand()).not.toContain('muse');
+    expect(SKILLS_INSTALL_DIRS).toContain('.agents/skills');
   });
 
   it('names the agents explicitly rather than letting the CLI guess', () => {
@@ -242,7 +255,13 @@ describe('buildToolSurfaceAddendum', () => {
   it('is empty for every CLI agent, which never sees these tools', () => {
     // createCliAgent ignores `args.tools`; a CLI agent works the workspace with
     // its own built-in tools, so naming ours would describe tools it lacks.
-    for (const agent of ['claude-code', 'codex', 'grok', 'opencode'] as const) {
+    for (const agent of [
+      'claude-code',
+      'codex',
+      'grok',
+      'muse',
+      'opencode',
+    ] as const) {
       expect(buildToolSurfaceAddendum(agent)).toBe('');
       expect(buildToolSurfaceAddendum(agent, { skipCliInstall: true })).toBe(
         ''

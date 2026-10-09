@@ -163,7 +163,9 @@ Skills come from [`supabase/agent-skills`](https://github.com/supabase/agent-ski
 
 To use a skill in an experiment, reference its directory name in the experiment's `skills` array.
 
-Skills are installed into the sandbox workspace with [Vercel's `skills` CLI](https://github.com/vercel-labs/skills) under each harness's native skills folder (`.claude/skills/` for Claude Code, `.agents/skills/` for Codex and OpenCode). The `ai-sdk` harness exposes a `load_skill` tool to support skill loading.
+Skills are installed into the sandbox workspace with [Vercel's `skills` CLI](https://github.com/vercel-labs/skills) under each harness's native skills folder (`.claude/skills/` for Claude Code, `.agents/skills/` for Codex, OpenCode, and Muse Code, `.grok/skills/` for Grok Build). The `skills` CLI has no Muse Code agent id, so Muse Code reads the `.agents/skills/` copy installed for Codex and OpenCode. The `ai-sdk` harness exposes a `load_skill` tool to support skill loading.
+
+A `-no-skills` experiment installs none of these, but each CLI harness keeps the skills it ships with (Muse Code, for example, ships about 20 built-in skills).
 
 ## Framework Checks
 

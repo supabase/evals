@@ -14,12 +14,14 @@ import type { AgentTranscriptParser } from '../parsers/types.js';
 import { claudeCodeDefinition } from './claude-code/index.js';
 import { codexDefinition } from './codex/index.js';
 import { grokDefinition } from './grok/index.js';
+import { museDefinition } from './muse/index.js';
 import { opencodeDefinition } from './opencode/index.js';
 
 const AGENTS: AgentDefinition[] = [
   claudeCodeDefinition,
   codexDefinition,
   grokDefinition,
+  museDefinition,
   opencodeDefinition,
 ];
 
