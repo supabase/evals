@@ -333,8 +333,8 @@ export interface LocalStackStatus {
  */
 export interface LocalStackEnvironmentMarker {
   runtime: 'local-stack';
-  /** The channel (`stable`/`beta`/`next`) the session's CLI version resolved from, when the runtime named one. */
-  channel?: 'stable' | 'beta' | 'next';
+  /** The version spec (dist-tag or range) the CLI version resolved from; named `channel` for results compatibility. */
+  channel?: string;
   cliVersion: string;
   docker: 'available' | 'no-daemon' | 'absent';
   sessionStartedMs: number;
@@ -635,8 +635,8 @@ export type LocalStackSession = {
 export type LocalStackRuntime = {
   id: string;
   startSession(args: LocalStackSessionArgs): Promise<LocalStackSession>;
-  /** Channel (e.g. `beta`) this runtime resolves its CLI version against, unset when it's pinned to an exact version. */
-  cliChannel?: 'stable' | 'beta' | 'next';
+  /** Version spec (dist-tag such as `beta`, or a semver range) this runtime resolves its CLI version against, unset when it's pinned to an exact version. */
+  cliVersionSpec?: string;
 };
 
 export type ExperimentConfig = {
