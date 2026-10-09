@@ -4,6 +4,7 @@ import {
   experimentName,
   judgeMetrics,
   logTranscript,
+  relatedPrLines,
   runViewUrl,
   unwrapShell,
   type SpanSink,
@@ -78,6 +79,24 @@ describe('utcStamp', () => {
     expect(utcStamp(new Date('2026-09-23T13:39:07.123Z'))).toBe(
       '20260923T1339Z'
     );
+  });
+});
+
+describe('relatedPrLines', () => {
+  it('lists each PR, or says none', () => {
+    expect(
+      relatedPrLines([
+        'https://github.com/supabase/evals/pull/386',
+        'https://github.com/supabase/evals/pull/384',
+      ])
+    ).toEqual([
+      '**Related PRs:**',
+      '',
+      '- [#386](https://github.com/supabase/evals/pull/386)',
+      '- [#384](https://github.com/supabase/evals/pull/384)',
+      '',
+    ]);
+    expect(relatedPrLines([])).toEqual(['**Related PRs:** (none)', '']);
   });
 });
 

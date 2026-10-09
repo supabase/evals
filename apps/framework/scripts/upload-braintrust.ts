@@ -261,15 +261,22 @@ function summarize(command: string): string {
 }
 
 function prUrl(): Record<string, string> {
-  // Set by eval-refresh.yml for dispatched runs, which have no PR ref.
-  if (process.env.PR_URL) {
-    return { pr_url: process.env.PR_URL };
-  }
   const repo = process.env.GITHUB_REPOSITORY;
   const prNumber = process.env.GITHUB_REF?.match(/^refs\/pull\/(\d+)\//)?.[1];
   return repo && prNumber
     ? { pr_url: `https://github.com/${repo}/pull/${prNumber}` }
     : {};
+}
+
+export function relatedPrLines(urls: string[]) {
+  return urls.length
+    ? [
+        '**Related PRs:**',
+        '',
+        ...urls.map((url) => `- [#${url.split('/').pop()}](${url})`),
+        '',
+      ]
+    : ['**Related PRs:** (none)', ''];
 }
 
 export function ciRunUrl() {
@@ -796,11 +803,14 @@ async function main() {
   console.log(`🔗 All experiments in this run → ${runUrl}`);
   // https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#adding-a-job-summary
   if (process.env.GITHUB_STEP_SUMMARY) {
+    // PR events know their PR from the ref. Dispatched runs get theirs from
+    // the "Find the PRs for this branch" step.
     const { pr_url } = prUrl();
+    const prUrls = pr_url
+      ? [pr_url]
+      : (process.env.PR_URLS?.split(' ').filter(Boolean) ?? []);
     const lines = [
-      ...(pr_url
-        ? [`**Pull request:** [#${pr_url.split('/').pop()}](${pr_url})`, '']
-        : []),
+      ...relatedPrLines(prUrls),
       `**Braintrust experiments:** [(view all)](${runUrl})`,
       '',
       ...uploaded.map(({ name, url }) => `- [${name}](${url})`),
