@@ -43,6 +43,19 @@ describe('localStackRuntime id', () => {
   });
 });
 
+describe('localStackRuntime cliVersionSpec', () => {
+  it.each(['latest', 'beta', '^2.120.0'])('exposes %s', (cliVersion) => {
+    expect(localStackRuntime({ cliVersion }).cliVersionSpec).toBe(cliVersion);
+  });
+
+  it.each([undefined, '2.109.1', 'v2.109.1'])(
+    'is unset for %s',
+    (cliVersion) => {
+      expect(localStackRuntime({ cliVersion }).cliVersionSpec).toBeUndefined();
+    }
+  );
+});
+
 describe('buildSupabaseShimScript', () => {
   it('emits DOCKER_HOST, the -x start branch for excluded services, and a passthrough exec', () => {
     const excluded: SupabaseService[] = ['gotrue', 'kong'];
@@ -165,7 +178,7 @@ describe('buildLocalStackScoringContext environmentMarker', () => {
     });
   }
 
-  it.each(['beta', 'canary'])(
+  it.each(['beta', 'canary', '^2.120.0'])(
     'includes an optional channel %s when present',
     async (channel) => {
       const marker = {

@@ -49,9 +49,10 @@ const STACK_CONFIG_RETRY_MS = 2_000;
 export interface LocalStackRuntimeOptions {
   /**
    * Supabase CLI version baked into the sandbox image: an exact version
-   * (e.g. `2.109.1`) or any npm dist-tag of `supabase` (e.g. `'latest'`,
-   * `'beta'`, `'next'`), resolved once per process. An eval's own
-   * `cliVersion:` frontmatter pin always wins over this option.
+   * (e.g. `2.109.1`), an npm dist-tag of `supabase` (e.g. `'latest'`,
+   * `'beta'`, `'next'`) or a semver range (e.g. `'^2.120.0'`), resolved once
+   * per process. An eval's own `cliVersion:` frontmatter pin always wins over
+   * this option.
    */
   cliVersion?: string;
   /**
@@ -124,12 +125,13 @@ const DEFAULT_MCP_FEATURES = ['docs'];
 export function localStackRuntime(
   options: LocalStackRuntimeOptions = {}
 ): LocalStackRuntime {
+  const spec =
+    options.cliVersion !== undefined && !isExactCliVersion(options.cliVersion)
+      ? options.cliVersion
+      : undefined;
   return {
     id: buildRuntimeId(options),
-    cliDistTag:
-      options.cliVersion !== undefined && !isExactCliVersion(options.cliVersion)
-        ? options.cliVersion
-        : undefined,
+    cliVersionSpec: spec,
     async startSession({
       agent,
       cliVersion,
@@ -144,13 +146,8 @@ export function localStackRuntime(
       // Stamped before setup so it's comparable with the scorer's PID-1 fallback.
       const sessionStartedMs = Date.now();
       const docker = options.docker ?? 'available';
-      // Only an unpinned eval inherits a dist-tag; an eval's own pin always wins.
-      const channel =
-        cliVersion === undefined &&
-        options.cliVersion !== undefined &&
-        !isExactCliVersion(options.cliVersion)
-          ? options.cliVersion
-          : undefined;
+      // Only an unpinned eval inherits the spec; an eval's own pin always wins.
+      const channel = cliVersion === undefined ? spec : undefined;
       const version =
         cliVersion ??
         (await resolveCliVersionOption(options.cliVersion)) ??

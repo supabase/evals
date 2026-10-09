@@ -1,5 +1,5 @@
 import { APIError } from '@vercel/sandbox';
-import { resolveCliDistTag } from '@supabase-evals/sandbox';
+import { resolveCliVersionSpec } from '@supabase-evals/sandbox';
 import { execFileSync } from 'node:child_process';
 import {
   copyFileSync,
@@ -21,21 +21,24 @@ import {
   cleanupSandbox,
   downloadResults,
   finalizeResult,
-  distTagPinsEnv,
+  cliVersionPinsEnv,
   FORWARDED_ENV_NAMES,
   isRetryableSandboxCreateError,
   isTerminalSandboxCreateError,
   packWorkspaceScript,
   parsePairs,
-  requiredCliDistTags,
-  resolveDistTagPins,
+  requiredCliVersionSpecs,
+  resolveCliVersionPins,
+  runPairs,
   runBounded,
   tagValue,
   expandJobs,
   type EvalPair,
 } from './run-vercel-evals.js';
 
-vi.mock('@supabase-evals/sandbox', () => ({ resolveCliDistTag: vi.fn() }));
+vi.mock('@supabase-evals/sandbox', () => ({
+  resolveCliVersionSpec: vi.fn(),
+}));
 
 const BROKERED_NAMES = BROKERED_KEYS.map(({ name }) => name);
 
@@ -72,27 +75,27 @@ describe('agentEnvironment', () => {
     }
   });
 
-  it('omits the CLI dist-tag pins when unset', () => {
+  it('omits the CLI version pins when unset', () => {
     process.env.ANTHROPIC_API_KEY = 'anthropic-value';
 
     const env = agentEnvironment();
     expect(env).toBe(`ANTHROPIC_API_KEY=${BROKERED_KEY_PLACEHOLDER}`);
-    expect(env).not.toContain('SUPABASE_CLI_DIST_TAG_PINS');
+    expect(env).not.toContain('SUPABASE_CLI_VERSION_PINS');
   });
 
   it('prefers an explicit pin over the same-named process.env value', () => {
-    process.env.SUPABASE_CLI_DIST_TAG_PINS = '{"latest":"1.0.0"}';
+    process.env.SUPABASE_CLI_VERSION_PINS = '{"latest":"1.0.0"}';
 
     const env = agentEnvironment({
-      SUPABASE_CLI_DIST_TAG_PINS: '{"latest":"2.117.0"}',
+      SUPABASE_CLI_VERSION_PINS: '{"latest":"2.117.0"}',
     });
 
-    expect(env).toContain('SUPABASE_CLI_DIST_TAG_PINS={"latest":"2.117.0"}');
+    expect(env).toContain('SUPABASE_CLI_VERSION_PINS={"latest":"2.117.0"}');
     expect(env).not.toContain('1.0.0');
   });
 
   it('shares one pin value across multiple .env writes, simulating a two-job fan-out', () => {
-    const pins = distTagPinsEnv({
+    const pins = cliVersionPinsEnv({
       latest: '2.117.0',
       beta: '2.118.0-beta.5',
       next: '3.0.0-next.2',
@@ -103,20 +106,20 @@ describe('agentEnvironment', () => {
 
     expect(jobOneEnv).toBe(jobTwoEnv);
     expect(jobOneEnv).toBe(
-      'SUPABASE_CLI_DIST_TAG_PINS={"latest":"2.117.0","beta":"2.118.0-beta.5","next":"3.0.0-next.2"}'
+      'SUPABASE_CLI_VERSION_PINS={"latest":"2.117.0","beta":"2.118.0-beta.5","next":"3.0.0-next.2"}'
     );
   });
 });
 
-describe('distTagPinsEnv', () => {
+describe('cliVersionPinsEnv', () => {
   it('forwards a single JSON env var for the resolved pins', () => {
-    expect(distTagPinsEnv({ canary: '1.4.0-canary.7' })).toEqual({
-      SUPABASE_CLI_DIST_TAG_PINS: '{"canary":"1.4.0-canary.7"}',
+    expect(cliVersionPinsEnv({ canary: '1.4.0-canary.7' })).toEqual({
+      SUPABASE_CLI_VERSION_PINS: '{"canary":"1.4.0-canary.7"}',
     });
   });
 
-  it('forwards nothing when no dist-tag was resolved', () => {
-    expect(distTagPinsEnv({})).toEqual({});
+  it('forwards nothing when no spec was resolved', () => {
+    expect(cliVersionPinsEnv({})).toEqual({});
   });
 });
 
@@ -177,61 +180,69 @@ describe('brokeredNetworkPolicy', () => {
   });
 });
 
-describe('resolveDistTagPins', () => {
+describe('resolveCliVersionPins', () => {
   beforeEach(() => {
-    vi.mocked(resolveCliDistTag).mockReset();
+    vi.mocked(resolveCliVersionSpec).mockReset();
   });
 
-  it('resolves only the requested dist-tags into one pin map every job can share', async () => {
-    vi.mocked(resolveCliDistTag).mockImplementation(async (tag) =>
-      tag === 'latest' ? '2.117.0' : '2.118.0-beta.5'
+  it('resolves only the requested specs into one pin map every job can share', async () => {
+    vi.mocked(resolveCliVersionSpec).mockImplementation(async (spec) =>
+      spec === 'latest' ? '2.117.0' : '2.118.0-beta.5'
     );
 
-    const pins = await resolveDistTagPins(new Set(['latest', 'beta']));
+    const { pins, errors } = await resolveCliVersionPins(
+      new Set(['latest', 'beta'])
+    );
 
     expect(pins).toEqual({ latest: '2.117.0', beta: '2.118.0-beta.5' });
-    expect(resolveCliDistTag).toHaveBeenCalledTimes(2);
-    expect(resolveCliDistTag).toHaveBeenCalledWith('latest');
-    expect(resolveCliDistTag).toHaveBeenCalledWith('beta');
+    expect(errors.size).toBe(0);
+    expect(resolveCliVersionSpec).toHaveBeenCalledTimes(2);
+    expect(resolveCliVersionSpec).toHaveBeenCalledWith('latest');
+    expect(resolveCliVersionSpec).toHaveBeenCalledWith('beta');
 
     // Two fanned-out jobs writing their own .env from the same pins must get
     // the identical value the resolver was called once for.
-    const forwarded = distTagPinsEnv(pins);
+    const forwarded = cliVersionPinsEnv(pins);
     expect(agentEnvironment(forwarded)).toBe(agentEnvironment(forwarded));
     expect(agentEnvironment(forwarded)).toContain(
-      'SUPABASE_CLI_DIST_TAG_PINS={"latest":"2.117.0","beta":"2.118.0-beta.5"}'
+      'SUPABASE_CLI_VERSION_PINS={"latest":"2.117.0","beta":"2.118.0-beta.5"}'
     );
   });
 
-  it('resolves an arbitrary dist-tag without calling the resolver for others', async () => {
-    vi.mocked(resolveCliDistTag).mockResolvedValue('1.4.0-canary.7');
+  it('resolves a range spec', async () => {
+    vi.mocked(resolveCliVersionSpec).mockResolvedValue('2.121.0');
 
-    const pins = await resolveDistTagPins(new Set(['canary']));
+    const { pins } = await resolveCliVersionPins(new Set(['^2.120.0']));
 
-    expect(pins).toEqual({ canary: '1.4.0-canary.7' });
-    expect(resolveCliDistTag).toHaveBeenCalledTimes(1);
-    expect(resolveCliDistTag).toHaveBeenCalledWith('canary');
+    expect(pins).toEqual({ '^2.120.0': '2.121.0' });
+    expect(resolveCliVersionSpec).toHaveBeenCalledWith('^2.120.0');
   });
 
-  it('does no network work for an empty dist-tag set', async () => {
-    const pins = await resolveDistTagPins(new Set());
+  it('does no network work for an empty spec set', async () => {
+    const { pins, errors } = await resolveCliVersionPins(new Set());
 
     expect(pins).toEqual({});
-    expect(resolveCliDistTag).not.toHaveBeenCalled();
+    expect(errors.size).toBe(0);
+    expect(resolveCliVersionSpec).not.toHaveBeenCalled();
   });
 
-  it('propagates a resolution failure rather than swallowing it', async () => {
-    vi.mocked(resolveCliDistTag).mockRejectedValue(
-      new Error('npm unreachable')
+  it('reports a failing spec without dropping the ones that resolved', async () => {
+    const failure = new Error('npm unreachable');
+    vi.mocked(resolveCliVersionSpec).mockImplementation(async (spec) => {
+      if (spec === 'beta') throw failure;
+      return '2.117.0';
+    });
+
+    const { pins, errors } = await resolveCliVersionPins(
+      new Set(['latest', 'beta'])
     );
 
-    await expect(resolveDistTagPins(new Set(['latest']))).rejects.toThrow(
-      'npm unreachable'
-    );
+    expect(pins).toEqual({ latest: '2.117.0' });
+    expect([...errors]).toEqual([['beta', failure]]);
   });
 });
 
-describe('requiredCliDistTags', () => {
+describe('requiredCliVersionSpecs', () => {
   const pair = (overrides: Partial<EvalPair> = {}): EvalPair => ({
     eval_id: 'eval-1',
     experiment: 'experiment-1',
@@ -240,23 +251,24 @@ describe('requiredCliDistTags', () => {
     ...overrides,
   });
 
-  it('resolves only the dist-tag a latest-tagged experiment declares', async () => {
+  it('resolves only the spec a latest-tagged experiment declares', async () => {
     const loadExperimentConfig = vi.fn(async () => ({
-      localStack: { cliDistTag: 'latest' },
+      localStack: { cliVersionSpec: 'latest' },
     }));
+    const target = pair();
 
-    const distTags = await requiredCliDistTags([pair()], {
+    const specs = await requiredCliVersionSpecs([target], {
       loadEvalMetadata: () => ({ cliVersion: undefined }),
       loadExperimentConfig,
     });
 
-    expect(distTags).toEqual(new Set(['latest']));
+    expect([...specs]).toEqual([[target, 'latest']]);
   });
 
-  it('resolves nothing when no experiment in the pair set declares a dist-tag', async () => {
+  it('resolves nothing when no experiment in the pair set declares a spec', async () => {
     const loadExperimentConfig = vi.fn(async () => ({}));
 
-    const distTags = await requiredCliDistTags(
+    const specs = await requiredCliVersionSpecs(
       [pair(), pair({ eval_id: 'eval-2', experiment: 'experiment-2' })],
       {
         loadEvalMetadata: () => ({ cliVersion: undefined }),
@@ -264,29 +276,29 @@ describe('requiredCliDistTags', () => {
       }
     );
 
-    expect(distTags.size).toBe(0);
+    expect(specs.size).toBe(0);
   });
 
-  it("an eval's pinned cliVersion contributes no dist-tag, even when its experiment declares one", async () => {
+  it("an eval's pinned cliVersion contributes no spec, even when its experiment declares one", async () => {
     const loadExperimentConfig = vi.fn(async () => ({
-      localStack: { cliDistTag: 'beta' },
+      localStack: { cliVersionSpec: 'beta' },
     }));
 
-    const distTags = await requiredCliDistTags([pair()], {
+    const specs = await requiredCliVersionSpecs([pair()], {
       loadEvalMetadata: () => ({ cliVersion: '2.109.1' }),
       loadExperimentConfig,
     });
 
-    expect(distTags.size).toBe(0);
+    expect(specs.size).toBe(0);
     expect(loadExperimentConfig).not.toHaveBeenCalled();
   });
 
-  it('unions dist-tags across pairs without resolving an experiment config twice', async () => {
+  it('maps pairs sharing an experiment to one spec without loading its config twice', async () => {
     const loadExperimentConfig = vi.fn(async () => ({
-      localStack: { cliDistTag: 'beta' },
+      localStack: { cliVersionSpec: '^2.120.0' },
     }));
 
-    const distTags = await requiredCliDistTags(
+    const specs = await requiredCliVersionSpecs(
       [pair(), pair({ eval_id: 'eval-2' })],
       {
         loadEvalMetadata: () => ({ cliVersion: undefined }),
@@ -294,19 +306,127 @@ describe('requiredCliDistTags', () => {
       }
     );
 
-    expect(distTags).toEqual(new Set(['beta']));
+    expect([...new Set(specs.values())]).toEqual(['^2.120.0']);
+    expect(specs.size).toBe(2);
     expect(loadExperimentConfig).toHaveBeenCalledTimes(1);
   });
 
   it('throws naming an experiment that cannot be resolved to a config', async () => {
     await expect(
-      requiredCliDistTags([pair({ experiment: 'ghost' })], {
+      requiredCliVersionSpecs([pair({ experiment: 'ghost' })], {
         loadEvalMetadata: () => ({ cliVersion: undefined }),
         loadExperimentConfig: async () => {
           throw new Error('no experiment config found for "ghost"');
         },
       })
     ).rejects.toThrow('no experiment config found for "ghost"');
+  });
+});
+
+describe('runPairs', () => {
+  const pair = (experiment: string, evalId = 'eval-1'): EvalPair => ({
+    eval_id: evalId,
+    experiment,
+    experiment_suite: 'cli',
+    eval_suite: 'cli',
+  });
+  const options = (pairs: EvalPair[]) => ({
+    pairs,
+    revision: 'main',
+    repoUrl: 'https://example.com/repo.git',
+    outputDir: '/tmp/unused',
+    runs: 2,
+    timeoutSec: 60,
+    concurrency: 4,
+    vcpus: 2,
+  });
+  const specsByExperiment: Record<string, string> = {
+    'on-latest': 'latest',
+    'on-broken': 'broken-tag',
+  };
+
+  beforeEach(() => {
+    vi.mocked(resolveCliVersionSpec).mockReset();
+    vi.stubEnv('VERCEL_TOKEN', 'token');
+    vi.stubEnv('VERCEL_TEAM_ID', 'team');
+    vi.stubEnv('VERCEL_PROJECT_ID', 'project');
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  function deps(
+    cliVersions: Record<string, string | undefined> = {}
+  ): Parameters<typeof runPairs>[1] & {
+    runPairOnce: ReturnType<typeof vi.fn>;
+  } {
+    return {
+      runPairOnce: vi.fn(async () => {}),
+      loadEvalMetadata: (target) => ({
+        cliVersion: cliVersions[target.eval_id],
+      }),
+      loadExperimentConfig: async (experiment) => ({
+        localStack: { cliVersionSpec: specsByExperiment[experiment] },
+      }),
+    };
+  }
+
+  it('fails only the jobs whose spec could not resolve, and forwards only resolved pins', async () => {
+    vi.mocked(resolveCliVersionSpec).mockImplementation(async (spec) => {
+      if (spec === 'broken-tag') throw new Error('asset is missing');
+      return '2.117.0';
+    });
+    const runDeps = deps();
+
+    const outcome = runPairs(
+      options([pair('on-latest'), pair('on-broken')]),
+      runDeps
+    );
+
+    await expect(outcome).rejects.toThrow('2 Sandbox eval run(s) failed');
+    await outcome.catch((error: AggregateError) => {
+      expect(error.errors.map((cause) => cause.message)).toEqual([
+        '[on-broken x eval-1 run 1]: could not resolve Supabase CLI version "broken-tag": asset is missing',
+        '[on-broken x eval-1 run 2]: could not resolve Supabase CLI version "broken-tag": asset is missing',
+      ]);
+    });
+
+    const started = runDeps.runPairOnce.mock.calls.map(
+      ([jobOptions]) => `${jobOptions.pair.experiment}#${jobOptions.run}`
+    );
+    expect(started.sort()).toEqual(['on-latest#1', 'on-latest#2']);
+    for (const [jobOptions] of runDeps.runPairOnce.mock.calls) {
+      expect(jobOptions.pins).toEqual({
+        SUPABASE_CLI_VERSION_PINS: '{"latest":"2.117.0"}',
+      });
+    }
+    expect(console.error).toHaveBeenCalledWith(
+      expect.stringContaining('SANDBOX FAILED [on-broken x eval-1 run 1]')
+    );
+  });
+
+  it("runs a job whose eval pins cliVersion even when its experiment's spec failed", async () => {
+    vi.mocked(resolveCliVersionSpec).mockRejectedValue(new Error('npm down'));
+    const runDeps = deps({ 'pinned-eval': '2.109.1' });
+
+    await runPairs(options([pair('on-broken', 'pinned-eval')]), runDeps);
+
+    expect(runDeps.runPairOnce).toHaveBeenCalledTimes(2);
+    expect(resolveCliVersionSpec).not.toHaveBeenCalled();
+  });
+
+  it('runs every job when all specs resolve', async () => {
+    vi.mocked(resolveCliVersionSpec).mockResolvedValue('2.117.0');
+    const runDeps = deps();
+
+    await runPairs(options([pair('on-latest'), pair('on-broken')]), runDeps);
+
+    expect(runDeps.runPairOnce).toHaveBeenCalledTimes(4);
+    expect(resolveCliVersionSpec).toHaveBeenCalledTimes(2);
   });
 });
 

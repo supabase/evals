@@ -13,7 +13,7 @@ import {
   sandboxUsageSchema,
   type SandboxUsage,
 } from '@supabase-evals/core/eval-metadata';
-import { resolveCliDistTag } from '@supabase-evals/sandbox';
+import { resolveCliVersionSpec } from '@supabase-evals/sandbox';
 import { execFileSync } from 'node:child_process';
 import { readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
@@ -61,10 +61,10 @@ export const BROKERED_KEYS: {
 ];
 export const BROKERED_KEY_PLACEHOLDER = 'injected-by-sandbox-firewall';
 /**
- * Pins the CLI dist-tag versions resolved for this run across sandbox jobs.
+ * Pins the CLI versions resolved for this run across sandbox jobs.
  * Provider keys belong in `BROKERED_KEYS` so the sandbox never sees them.
  */
-export const FORWARDED_ENV_NAMES = ['SUPABASE_CLI_DIST_TAG_PINS'];
+export const FORWARDED_ENV_NAMES = ['SUPABASE_CLI_VERSION_PINS'];
 /**
  * Slack for the non-agent work inside `pnpm eval` (supabase start, resets,
  * scoring, export). Cold image pulls alone can take ~10 min.
@@ -115,52 +115,66 @@ interface PairOptions extends RunnerOptions {
   pins: Record<string, string>;
 }
 
-/**
- * Resolves each requested CLI dist-tag's pin once, so every sandbox job in a
- * fan-out runs against the same concrete version rather than each resolving
- * independently and risking a mid-run release landing between them. A tag
- * already pinned in SUPABASE_CLI_DIST_TAG_PINS is used verbatim by
- * resolveCliDistTag. An empty set does no network work.
- */
-export async function resolveDistTagPins(
-  distTags: ReadonlySet<string>
-): Promise<Record<string, string>> {
-  const resolved = await Promise.all(
-    [...distTags].map(
-      async (distTag) => [distTag, await resolveCliDistTag(distTag)] as const
-    )
-  );
-  return Object.fromEntries(resolved);
+export interface CliVersionResolution {
+  /** Spec to exact version, for the specs that resolved. */
+  pins: Record<string, string>;
+  /** Resolution failure per spec that did not. */
+  errors: Map<string, unknown>;
 }
 
-/** The `.env` pin forwarded to every sandbox job, or none when no dist-tag was resolved. */
-export function distTagPinsEnv(
+/**
+ * Resolves each requested CLI version spec once, so every sandbox job in a
+ * fan-out runs against the same concrete version rather than each resolving
+ * independently and risking a mid-run release landing between them. A spec
+ * already pinned in SUPABASE_CLI_VERSION_PINS is used verbatim by
+ * resolveCliVersionSpec. A spec that fails to resolve is reported without
+ * affecting the others. An empty set does no network work.
+ */
+export async function resolveCliVersionPins(
+  specs: ReadonlySet<string>
+): Promise<CliVersionResolution> {
+  const requested = [...specs];
+  const settled = await Promise.allSettled(
+    requested.map((spec) => resolveCliVersionSpec(spec))
+  );
+  const pins: [string, string][] = [];
+  const errors = new Map<string, unknown>();
+  settled.forEach((result, index) => {
+    const spec = requested[index];
+    if (result.status === 'fulfilled') pins.push([spec, result.value]);
+    else errors.set(spec, result.reason);
+  });
+  return { pins: Object.fromEntries(pins), errors };
+}
+
+/** The `.env` pin forwarded to every sandbox job, or none when no spec was resolved. */
+export function cliVersionPinsEnv(
   pins: Readonly<Record<string, string>>
 ): Record<string, string> {
   return Object.keys(pins).length > 0
-    ? { SUPABASE_CLI_DIST_TAG_PINS: JSON.stringify(pins) }
+    ? { SUPABASE_CLI_VERSION_PINS: JSON.stringify(pins) }
     : {};
 }
 
-export interface RequiredCliDistTagsDeps {
+export interface RequiredCliVersionSpecsDeps {
   loadEvalMetadata: (pair: EvalPair) => Pick<EvalMetadata, 'cliVersion'>;
   loadExperimentConfig: (
     experiment: string
-  ) => Promise<{ localStack?: { cliDistTag?: string } }>;
+  ) => Promise<{ localStack?: { cliVersionSpec?: string } }>;
 }
 
 /**
- * Maps a pair set to the CLI dist-tags at least one pair needs, so
- * resolveDistTagPins only resolves those. An eval's own `cliVersion`
- * frontmatter is an exact pin that wins over its experiment's dist-tag and
- * needs no resolution; a pair whose experiment has no `localStack.cliDistTag`
+ * Maps each pair that needs a CLI version resolved to its spec, so
+ * resolveCliVersionPins only resolves those. An eval's own `cliVersion`
+ * frontmatter is an exact pin that wins over its experiment's spec and needs
+ * no resolution; a pair whose experiment has no `localStack.cliVersionSpec`
  * needs none either.
  */
-export async function requiredCliDistTags(
+export async function requiredCliVersionSpecs(
   pairs: readonly EvalPair[],
-  { loadEvalMetadata, loadExperimentConfig }: RequiredCliDistTagsDeps
-): Promise<Set<string>> {
-  const distTags = new Set<string>();
+  { loadEvalMetadata, loadExperimentConfig }: RequiredCliVersionSpecsDeps
+): Promise<Map<EvalPair, string>> {
+  const specs = new Map<EvalPair, string>();
   const configs = new Map<string, ReturnType<typeof loadExperimentConfig>>();
 
   for (const pair of pairs) {
@@ -171,11 +185,11 @@ export async function requiredCliDistTags(
       config = loadExperimentConfig(pair.experiment);
       configs.set(pair.experiment, config);
     }
-    const distTag = (await config).localStack?.cliDistTag;
-    if (distTag) distTags.add(distTag);
+    const spec = (await config).localStack?.cliVersionSpec;
+    if (spec) specs.set(pair, spec);
   }
 
-  return distTags;
+  return specs;
 }
 
 /** Mirrors run-eval.ts's evals/<suite>/<id>/PROMPT.md convention. */
@@ -203,8 +217,8 @@ function experimentPathsByName(): Promise<Map<string, string>> {
 }
 
 /**
- * Throws rather than treating a config it can't find as needing no dist-tag,
- * which would silently resolve every dist-tag per-sandbox again.
+ * Throws rather than treating a config it can't find as needing no spec,
+ * which would silently resolve every spec per-sandbox again.
  */
 async function loadExperimentConfig(
   experiment: string
@@ -246,8 +260,18 @@ export async function runBounded<T, R>(
   return Promise.allSettled(items.map((item) => limit(run, item)));
 }
 
+export interface RunPairsDeps extends RequiredCliVersionSpecsDeps {
+  runPairOnce: (
+    options: PairOptions,
+    credentials: VercelCredentials
+  ) => Promise<void>;
+}
+
 /** Runs all pairs and reports failures only after independent work finishes. */
-async function runPairs(options: RunnerOptions): Promise<void> {
+export async function runPairs(
+  options: RunnerOptions,
+  deps: RunPairsDeps = { loadEvalMetadata, loadExperimentConfig, runPairOnce }
+): Promise<void> {
   const credentials = vercelCredentialsFromEnv();
   const jobs = expandJobs(options.pairs, options.runs);
   console.log(
@@ -255,29 +279,35 @@ async function runPairs(options: RunnerOptions): Promise<void> {
       `max ${options.concurrency} at a time`
   );
 
-  // Resolved once, for only the dist-tags this run's pairs actually need, so
+  // Resolved once, for only the specs this run's pairs actually need, so
   // every job below writes the same pin rather than each sandbox resolving
-  // its own dist-tag version independently.
-  const distTags = await requiredCliDistTags(options.pairs, {
-    loadEvalMetadata,
-    loadExperimentConfig,
-  });
-  const pins = distTagPinsEnv(await resolveDistTagPins(distTags));
+  // its own version independently.
+  const specsByPair = await requiredCliVersionSpecs(options.pairs, deps);
+  const { pins, errors: specErrors } = await resolveCliVersionPins(
+    new Set(specsByPair.values())
+  );
+  const forwardedPins = cliVersionPinsEnv(pins);
 
   const results = await runBounded(
     jobs,
     options.concurrency,
     async ({ pair, run }) => {
       try {
+        const spec = specsByPair.get(pair);
+        if (spec !== undefined && specErrors.has(spec)) {
+          throw new Error(
+            `could not resolve Supabase CLI version "${spec}": ${errorMessage(specErrors.get(spec))}`
+          );
+        }
         await pRetry(
           (attempt) =>
-            runPairOnce(
+            deps.runPairOnce(
               {
                 ...options,
                 pair,
                 run,
                 attempt,
-                pins,
+                pins: forwardedPins,
               },
               credentials
             ),
@@ -821,7 +851,7 @@ export function brokeredNetworkPolicy(): NetworkPolicy {
   return { allow };
 }
 
-/** Builds the sandbox `.env` from key placeholders and CLI dist-tag pins. An explicit pin wins over process.env. */
+/** Builds the sandbox `.env` from key placeholders and CLI version pins. An explicit pin wins over process.env. */
 export function agentEnvironment(pins: Record<string, string> = {}): string {
   const lines: string[] = [];
   for (const { name } of BROKERED_KEYS) {

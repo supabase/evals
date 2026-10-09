@@ -1,4 +1,4 @@
-export { resolveCliDistTag } from './cli-channel.js';
+export { resolveCliVersionSpec } from './cli-channel.js';
 export { DockerSandbox, dockerCli } from './docker-sandbox.js';
 export type {
   DockerSandboxOptions,
