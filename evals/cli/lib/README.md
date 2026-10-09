@@ -4,8 +4,8 @@ Helpers used by more than one eval under `evals/cli/`. This directory has no
 `PROMPT.md`, so eval discovery skips it — never add one, or a `local/` dir.
 
 What belongs here: pure and probe helpers (`shell.ts`, `stack.ts`,
-`projects.ts`, `markers.ts`, `metrics.ts`), shared judge policy text and
-input formatters (`detours.ts`, `report.ts`).
+`projects.ts`, `markers.ts`, `metrics.ts`, `migrations.ts`), shared judge
+policy text and input formatters (`detours.ts`, `report.ts`).
 
 What stays in each eval's `EVAL.ts`: check composition, every `ctx.judge()`
 call, its scenario-specific rubric text, and `export default`. Scenario-only
@@ -48,6 +48,11 @@ Invocation attribution (`cli-invocations.ts`) starts from a tool call's `cwd`
 only when the agent parser records one (Codex, OpenCode); a `cd` persisting
 across separate tool calls in a persistent shell (e.g. Claude Code) is not
 tracked.
+
+`migrations.ts` finds the migration file that creates a table (comments,
+string literals and dollar-quoted bodies masked, `create [unlogged] table`
+accepted) in a project directory, and checks its version is in the stack's
+`supabase_migrations.schema_migrations`.
 
 Tests live beside each module; run them with:
 
