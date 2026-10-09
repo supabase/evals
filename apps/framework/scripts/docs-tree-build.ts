@@ -1,7 +1,8 @@
 /**
  * Builds a proposed docs tree from a compact spec, and checks it against the
  * tree rules: every page in today's tree appears exactly once, and no node has
- * more than 7 children unless it is a long list of pages of one kind.
+ * more than 7 children unless it is a long list of pages of one kind, and the
+ * tree is no deeper than today's 5 levels.
  *
  * A spec node is either a page path, like `guides/platform/sso`, which keeps
  * today's label and route, or an object:
@@ -26,6 +27,7 @@ import {
   indexTree,
   loadTree,
   MAX_CHILDREN,
+  MAX_DEPTH,
   routePage,
   type TreeNode,
   treeStats,
@@ -129,6 +131,8 @@ for (const dup of stats.duplicatePages)
   errors.push(
     `${dup.page} appears ${dup.trails.length} times: ${dup.trails.join(' | ')}`
   );
+if (stats.maxDepth > MAX_DEPTH)
+  errors.push(`The tree is ${stats.maxDepth} levels deep, over ${MAX_DEPTH}`);
 if (!allowMissing)
   for (const page of missing) errors.push(`${page} is missing`);
 

@@ -38,6 +38,8 @@ export type DocsTree = {
 
 /** Tree rules for proposals. */
 export const MAX_CHILDREN = 7;
+/** Levels below the root, the top nav being the first. Today's tree has 5. */
+export const MAX_DEPTH = 5;
 
 const TREES_DIR = new URL('../trees/', import.meta.url);
 
@@ -159,7 +161,7 @@ export function treeStats(tree: DocsTree): TreeStats {
   };
 }
 
-/** Rule violations for a proposed tree: wide nodes and duplicate pages. */
+/** Rule violations for a proposed tree: wide nodes, duplicate pages, and depth. */
 export function ruleViolations(tree: DocsTree): string[] {
   const stats = treeStats(tree);
   return [
@@ -169,5 +171,8 @@ export function ruleViolations(tree: DocsTree): string[] {
     ...stats.duplicatePages.map(
       (dup) => `${dup.page} is linked ${dup.trails.length} times`
     ),
+    ...(stats.maxDepth > MAX_DEPTH
+      ? [`the tree is ${stats.maxDepth} levels deep, over ${MAX_DEPTH}`]
+      : []),
   ];
 }

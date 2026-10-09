@@ -278,6 +278,22 @@ describe('ruleViolations', () => {
     expect(ruleViolations(wide())).toEqual(['Social Login has 8 children']);
   });
 
+  it('flags a tree deeper than today', () => {
+    const nest = (depth: number): DocsTree['root'] =>
+      depth === 0
+        ? { label: 'Page', route: '/guides/deep/page' }
+        : { label: `Level ${depth}`, children: [nest(depth - 1)] };
+    const tree = (depth: number): DocsTree => ({
+      name: 'deep',
+      description: 'A chain of sections.',
+      root: { label: 'Docs', children: [nest(depth - 1)] },
+    });
+    expect(ruleViolations(tree(5))).toEqual([]);
+    expect(ruleViolations(tree(6))).toEqual([
+      'the tree is 6 levels deep, over 5',
+    ]);
+  });
+
   it('flags a second link to a page', () => {
     expect(ruleViolations(tree())).toEqual([
       'guides/getting-started/api-keys is linked 2 times',
