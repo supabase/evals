@@ -79,7 +79,8 @@ The docs team owns `evals/docs/` and its results. Docs evals run without skills 
 Common workflows:
 
 - **Add or change a docs eval.** Add the scenario under `evals/docs/<id>/` (see [Adding an eval](#adding-an-eval)), open a PR, and add the `run-evals-changed` label. Results for the changed evals are committed back to your branch and viewable in the Vercel preview.
-- **Refresh every docs eval.** Dispatch the [Refresh eval results](https://github.com/supabase/evals/actions/workflows/eval-refresh.yml) workflow on `main` with `suite: docs` and `experiment_suite: docs`. It opens a draft PR with the updated `docs-eval-results.json` for you to review and merge.
+- **Scheduled refresh.** Every docs eval runs every 4 weeks, on Mondays at 08:15 UTC starting November 9, 2026. Complete results merge automatically. Partial results stay open as a PR for review.
+- **Refresh every docs eval on demand.** Dispatch the [Refresh eval results](https://github.com/supabase/evals/actions/workflows/eval-refresh.yml) workflow on `main` with `suite: docs` and `experiment_suite: docs`. It opens a draft PR with the updated `docs-eval-results.json` for you to review and merge.
 - **Analyze results over time.** Every merge that changes `docs-eval-results.json` appends a snapshot to [`docs-results.jsonl`](https://supabase.github.io/evals/docs-results.jsonl) on GitHub Pages, alongside the [benchmark](https://supabase.github.io/evals/results.jsonl) and [regression](https://supabase.github.io/evals/regression-results.jsonl) histories.
 
 ## CLI evals

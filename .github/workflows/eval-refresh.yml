@@ -55,6 +55,9 @@ on:
         default: ""
   schedule:
     - cron: '15 6 * * *'
+    # Docs suite. Cron can't express "every 4 weeks", so this fires every Monday
+    # and Prepare inputs skips all but every fourth one.
+    - cron: '15 8 * * 1'
   pull_request:
     # Run whenever a PR carrying the run-evals label is opened, pushed to, or
     # receives the run-evals label. The job-level `if` gates on those cases.
@@ -104,6 +107,7 @@ jobs:
         run: |
           set -euo pipefail
 
+          skip="false"
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             experiments_override="${{ inputs.experiments }}"
             eval_id="${{ inputs.eval }}"
@@ -124,6 +128,23 @@ jobs:
               echo "::error::Set experiment_suite or experiments to choose which experiments to run."
               exit 1
             fi
+          elif [ "${{ github.event_name }}" = "schedule" ] && [ "${{ github.event.schedule }}" = "15 8 * * 1" ]; then
+            # Counting days from a fixed Monday keeps the 28-day cadence across year boundaries, unlike ISO week numbers.
+            days_since_anchor=$(( ($(date -u +%s) - $(date -u -d 2026-11-09 +%s)) / 86400 ))
+            if [ "$days_since_anchor" -lt 0 ] || [ $(( days_since_anchor % 28 )) -ne 0 ]; then
+              echo "Not a docs refresh week, skipping"
+              skip="true"
+            fi
+            experiments_override=""
+            eval_id=""
+            suite="docs"
+            experiment_suite="docs"
+            runs="3"
+            timeout_sec="720"
+            sandbox_concurrency="250"
+            cli_stable_version=""
+            cli_beta_version=""
+            cli_next_version=""
           elif [ "${{ github.event_name }}" = "schedule" ]; then
             experiments_override=""
             eval_id=""
@@ -180,6 +201,7 @@ jobs:
             echo "cli_stable_version=$cli_stable_version"
             echo "cli_beta_version=$cli_beta_version"
             echo "cli_next_version=$cli_next_version"
+            echo "skip=$skip"
           } >> "$GITHUB_OUTPUT"
 
       - name: Checkout
@@ -206,6 +228,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
+          if [ "${{ steps.inputs.outputs.skip }}" = "true" ]; then
+            echo "pairs=[]" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
 
           touch .env
           suite_json='${{ steps.inputs.outputs.suite }}'
@@ -589,9 +616,10 @@ jobs:
           token: ${{ steps.generate-token.outputs.token }}
           add-paths: apps/web/src/data/*eval-results.json
           # The action resets an existing branch, so reusing a name replaces the earlier run's results.
-          # Manual dispatches get a branch per run to keep them apart. Scheduled runs share one branch.
+          # Manual dispatches get a branch per run to keep them apart. Daily scheduled runs share one branch,
+          # and the docs schedule gets its own so it can't reset a daily results PR left open for review.
           # https://github.com/peter-evans/create-pull-request/blob/5f6978faf089d4d20b00c7766989d076bb2fc7f1/src/create-or-update-branch.ts#L297-L310
-          branch: chore/refresh-eval-results-${{ github.ref_name }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.event_name }}
+          branch: chore/refresh-eval-results-${{ github.ref_name }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.event.schedule == '15 8 * * 1' && 'docs-schedule' || github.event_name }}
           base: ${{ github.ref_name }}
           commit-message: "chore: refresh eval results"
           title: "chore: refresh eval results"
