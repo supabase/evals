@@ -149,6 +149,8 @@ An experiment can instead pass `localStackRuntime({ cliVersion: 'stable' })`, `'
 
 An experiment can pass `localStackRuntime({ docker: 'no-daemon' })` or `'absent'` to stage a sandbox where the Docker daemon is unreachable or the `docker` binary is missing entirely, instead of the default `'available'`. `needsDocker` defaults to `true`; set it `false` in an eval's frontmatter when the scenario can run, and is meaningful, without a Docker daemon (e.g. starting the stack is the agent's own job) — that's what lets a Docker-less experiment pick the eval up.
 
+An experiment can pass `localStackRuntime({ env: { SUPABASE_EXPERIMENTAL_STACK: '1' } })` to turn on feature-flagged CLI behaviour for every eval it runs. The eval itself stays flag-agnostic, so once the feature graduates you drop the entry and the eval's history carries on. Names the harness manages itself (`PATH`, `HOME`, `DOCKER_HOST`, hosted-link credentials and so on) are rejected.
+
 Scorers check what the agent produced, never what the harness provisioned: with `projectRunning: true` (the default) the running stack and the seeded `local/` workspace are setup, so score only the deltas the agent made on top; with `projectRunning: false` the agent creates that state itself, so depending on it is fair game.
 
 Test the sandbox plumbing without an agent run (Docker required, not part of `pnpm test`):

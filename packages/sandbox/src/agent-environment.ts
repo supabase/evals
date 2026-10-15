@@ -51,6 +51,8 @@ export interface AgentEnvironmentOptions {
    * able to launch.
    */
   mounts?: readonly SandboxMount[];
+  /** Container-level env vars set for every process in the sandbox. */
+  env?: Readonly<Record<string, string>>;
 }
 
 export interface AgentEnvironment {
@@ -78,6 +80,7 @@ export async function createAgentEnvironment(
     // via host.docker.internal — so bridge there.
     network: options.localStack ? 'host' : undefined,
     mounts: options.mounts,
+    env: options.env,
   });
   try {
     if (options.localStack) {

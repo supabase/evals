@@ -328,8 +328,8 @@ export interface LocalStackStatus {
 
 /**
  * Parsed contents of the environment marker a local-stack session writes,
- * recording its staged CLI version and Docker availability — for scorers to
- * report, never to gate pass/fail.
+ * recording its staged CLI version, Docker availability and the experiment's
+ * env — for scorers to report, never to gate pass/fail.
  */
 export interface LocalStackEnvironmentMarker {
   runtime: 'local-stack';
@@ -337,6 +337,8 @@ export interface LocalStackEnvironmentMarker {
   channel?: 'stable' | 'beta' | 'next';
   cliVersion: string;
   docker: 'available' | 'no-daemon' | 'absent';
+  /** The env vars the experiment set on the sandbox via `localStackRuntime({ env })`, when any. */
+  env?: Record<string, string>;
   sessionStartedMs: number;
 }
 
