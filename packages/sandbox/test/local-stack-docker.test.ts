@@ -43,6 +43,19 @@ describe('localStackRuntime id', () => {
   });
 });
 
+describe('localStackRuntime cliVersionSpec', () => {
+  it.each(['latest', 'beta', '^2.120.0'])('exposes %s', (cliVersion) => {
+    expect(localStackRuntime({ cliVersion }).cliVersionSpec).toBe(cliVersion);
+  });
+
+  it.each([undefined, '2.109.1', 'v2.109.1'])(
+    'is unset for %s',
+    (cliVersion) => {
+      expect(localStackRuntime({ cliVersion }).cliVersionSpec).toBeUndefined();
+    }
+  );
+});
+
 describe('buildSupabaseShimScript', () => {
   it('emits DOCKER_HOST, the -x start branch for excluded services, and a passthrough exec', () => {
     const excluded: SupabaseService[] = ['gotrue', 'kong'];
@@ -165,18 +178,21 @@ describe('buildLocalStackScoringContext environmentMarker', () => {
     });
   }
 
-  it('includes an optional channel when present', async () => {
-    const marker = {
-      runtime: 'local-stack',
-      channel: 'beta',
-      cliVersion: '2.109.1',
-      docker: 'available',
-      sessionStartedMs: 1_700_000_000_000,
-    };
-    const readRootFile = vi.fn().mockResolvedValue(JSON.stringify(marker));
-    const ctx = buildLocalStackScoringContext(fakeSandbox(readRootFile));
-    await expect(ctx.environmentMarker()).resolves.toEqual(marker);
-  });
+  it.each(['beta', 'canary', '^2.120.0'])(
+    'includes an optional channel %s when present',
+    async (channel) => {
+      const marker = {
+        runtime: 'local-stack',
+        channel,
+        cliVersion: '2.109.1',
+        docker: 'available',
+        sessionStartedMs: 1_700_000_000_000,
+      };
+      const readRootFile = vi.fn().mockResolvedValue(JSON.stringify(marker));
+      const ctx = buildLocalStackScoringContext(fakeSandbox(readRootFile));
+      await expect(ctx.environmentMarker()).resolves.toEqual(marker);
+    }
+  );
 
   it('reads the marker as root, not through exec or resolveSandboxPath', async () => {
     const readRootFile = vi.fn().mockResolvedValue(
