@@ -43,6 +43,49 @@ describe('localStackRuntime id', () => {
   });
 });
 
+describe('localStackRuntime env', () => {
+  it('accepts a feature flag', () => {
+    expect(() =>
+      localStackRuntime({ env: { SUPABASE_EXPERIMENTAL_STACK: '1' } })
+    ).not.toThrow();
+  });
+
+  it('does not change the runtime id', () => {
+    expect(
+      localStackRuntime({ env: { SUPABASE_EXPERIMENTAL_STACK: '1' } }).id
+    ).toBe('local-stack');
+  });
+
+  it.each([
+    'PATH',
+    'HOME',
+    'DOCKER_HOST',
+    'NPM_CONFIG_PREFIX',
+    'SUPABASE_ACCESS_TOKEN',
+    'PGSSLMODE',
+    'NODE_EXTRA_CA_CERTS',
+  ])('rejects the harness-managed name %s', (name) => {
+    expect(() => localStackRuntime({ env: { [name]: 'x' } })).toThrow(
+      new RegExp(`cannot set ${name}\\b`)
+    );
+  });
+
+  it('points DOCKER_HOST users at the docker option', () => {
+    expect(() => localStackRuntime({ env: { DOCKER_HOST: 'x' } })).toThrow(
+      /`docker` option/
+    );
+  });
+
+  it.each(['1BAD', 'A-B', 'HAS SPACE', ''])(
+    'rejects the invalid name %j',
+    (name) => {
+      expect(() => localStackRuntime({ env: { [name]: 'x' } })).toThrow(
+        `${JSON.stringify(name)} is not a valid environment variable name`
+      );
+    }
+  );
+});
+
 describe('buildSupabaseShimScript', () => {
   it('emits DOCKER_HOST, the -x start branch for excluded services, and a passthrough exec', () => {
     const excluded: SupabaseService[] = ['gotrue', 'kong'];

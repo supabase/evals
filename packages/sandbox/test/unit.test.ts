@@ -19,6 +19,7 @@ import {
 import {
   type DockerSandbox,
   assertAgentResolves,
+  envArgs,
   proxyCaArgs,
 } from '../src/docker-sandbox.js';
 import {
@@ -823,6 +824,24 @@ describe('proxyCaArgs', () => {
 
   it('adds nothing when CA vars are unset', () => {
     expect(proxyCaArgs({})).toEqual([]);
+  });
+});
+
+describe('envArgs', () => {
+  it('emits an --env pair per entry', () => {
+    expect(
+      envArgs({ SUPABASE_EXPERIMENTAL_STACK: '1', EVAL_FLAG: 'a=b c' })
+    ).toEqual([
+      '--env',
+      'SUPABASE_EXPERIMENTAL_STACK=1',
+      '--env',
+      'EVAL_FLAG=a=b c',
+    ]);
+  });
+
+  it('adds nothing when env is empty or omitted', () => {
+    expect(envArgs({})).toEqual([]);
+    expect(envArgs()).toEqual([]);
   });
 });
 

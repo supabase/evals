@@ -13,7 +13,11 @@ import {
   type McpServerConfig,
 } from '@supabase-evals/core';
 import { isRecord } from '@supabase-evals/core/json';
-import { assertAgentResolves, DockerSandbox } from './docker-sandbox.js';
+import {
+  assertAgentResolves,
+  DockerSandbox,
+  PROXY_CA_ENV_NAMES,
+} from './docker-sandbox.js';
 import { createAgentEnvironment } from './agent-environment.js';
 import {
   computeExcludedServices,
@@ -83,6 +87,13 @@ export interface LocalStackRuntimeOptions {
    * cannot pre-start a stack or link a hosted project without Docker.
    */
   docker?: DockerState;
+  /**
+   * Environment variables set for every process in the local-stack sandbox,
+   * including the harness's setup and login shells. Meant for feature flags
+   * such as `SUPABASE_EXPERIMENTAL_STACK`, not secrets: the agent can read
+   * them. Names the harness manages itself (e.g. `PATH`) are rejected.
+   */
+  env?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -125,9 +136,23 @@ const UNREACHABLE_DOCKER_HOST = 'tcp://127.0.0.1:1';
  */
 const DEFAULT_MCP_FEATURES = ['docs'];
 
+const HARNESS_MANAGED_ENV_NAMES = new Set([
+  'PATH',
+  'HOME',
+  'DOCKER_HOST',
+  'NPM_CONFIG_PREFIX',
+  'SUPABASE_ACCESS_TOKEN',
+  'SUPABASE_PROFILE',
+  'SUPABASE_PROJECT_ID',
+  'SUPABASE_DB_PASSWORD',
+  'PGSSLMODE',
+  ...PROXY_CA_ENV_NAMES,
+]);
+
 export function localStackRuntime(
   options: LocalStackRuntimeOptions = {}
 ): LocalStackRuntime {
+  assertValidEnv(options.env);
   return {
     id: buildRuntimeId(options),
     cliChannel:
@@ -166,6 +191,7 @@ export function localStackRuntime(
           localDir,
           skills,
           mounts,
+          env: options.env,
           localStack: {
             includeServices,
             projectRunning,
@@ -240,6 +266,7 @@ export function localStackRuntime(
         network: 'host',
         mounts,
         mountDockerSocket: false,
+        env: options.env,
       });
 
       try {
@@ -352,6 +379,25 @@ export function localStackRuntime(
       }
     },
   };
+}
+
+function assertValidEnv(env: LocalStackRuntimeOptions['env']): void {
+  for (const name of Object.keys(env ?? {})) {
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
+      throw new Error(
+        `localStackRuntime env name ${JSON.stringify(name)} is not a valid environment variable name; ` +
+          'use letters, digits and underscores, and do not start with a digit.'
+      );
+    }
+    if (HARNESS_MANAGED_ENV_NAMES.has(name)) {
+      throw new Error(
+        `localStackRuntime env cannot set ${name}: the harness manages it.` +
+          (name === 'DOCKER_HOST'
+            ? ' Control Docker availability with the `docker` option instead.'
+            : '')
+      );
+    }
+  }
 }
 
 // Log-line id (see run-eval.ts's PLAN line): default options read as
