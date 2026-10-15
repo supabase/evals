@@ -1482,6 +1482,101 @@ describe('experimentalStack', () => {
   });
 });
 
+describe('sandboxEnv', () => {
+  const STACK = { SUPABASE_EXPERIMENTAL_STACK: '1' };
+  const first = (
+    command: string,
+    sandboxEnv: Record<string, string>,
+    cwd?: string
+  ) => findSupabaseInvocations([{ command, cwd }], { sandboxEnv })[0];
+
+  it('sets experimentalStack on a plain invocation', () => {
+    expect(first('supabase start', STACK).experimentalStack).toBe(true);
+  });
+
+  it('applies to every command', () => {
+    expect(
+      findSupabaseInvocations(['supabase start', 'supabase stack list'], {
+        sandboxEnv: STACK,
+      }).map(({ experimentalStack }) => experimentalStack)
+    ).toEqual([true, true]);
+  });
+
+  it('leaves experimentalStack unset when the flag is falsy', () => {
+    expect(
+      first('supabase start', { SUPABASE_EXPERIMENTAL_STACK: '0' })
+        .experimentalStack
+    ).toBeUndefined();
+  });
+
+  it.each([
+    'SUPABASE_EXPERIMENTAL_STACK=0 supabase start',
+    'env SUPABASE_EXPERIMENTAL_STACK=0 supabase start',
+    'export SUPABASE_EXPERIMENTAL_STACK=0 && supabase start',
+    'env -u SUPABASE_EXPERIMENTAL_STACK supabase start',
+    'env -i supabase start',
+  ])('is overridden by %s', (command) => {
+    expect(first(command, STACK).experimentalStack).toBeUndefined();
+  });
+
+  it('does not carry an override into the next command', () => {
+    expect(
+      findSupabaseInvocations(
+        [
+          'export SUPABASE_EXPERIMENTAL_STACK=0 && supabase start',
+          'supabase start',
+        ],
+        { sandboxEnv: STACK }
+      ).map(({ experimentalStack }) => experimentalStack)
+    ).toEqual([undefined, true]);
+  });
+
+  it('restores the sandbox value when a subshell closes', () => {
+    expect(
+      findSupabaseInvocations(
+        [
+          '(export SUPABASE_EXPERIMENTAL_STACK=0; supabase start); supabase start',
+        ],
+        { sandboxEnv: STACK }
+      ).map(({ experimentalStack }) => experimentalStack)
+    ).toEqual([undefined, true]);
+  });
+
+  it('ignores names it does not track', () => {
+    expect(
+      first('supabase start', {
+        SUPABASE_ACCESS_TOKEN: 'token',
+        SUPABASE_PROFILE: 'staging',
+        EVAL_FLAG: '1',
+      })
+    ).toEqual({ commandIndex: 0, argv: ['supabase', 'start'] });
+  });
+
+  it('records SUPABASE_HOME resolved like an inline assignment', () => {
+    expect(
+      first('supabase start', { SUPABASE_HOME: '/sandbox/.home' }).env
+    ).toEqual({ SUPABASE_HOME: '/sandbox/.home' });
+    const fromSandbox = first(
+      'supabase start',
+      { SUPABASE_HOME: '.home' },
+      '/w'
+    );
+    const inline = findSupabaseInvocations([
+      { command: 'SUPABASE_HOME=.home supabase start', cwd: '/w' },
+    ])[0];
+    expect(fromSandbox.env).toEqual({ SUPABASE_HOME: '/w/.home' });
+    expect(fromSandbox.env).toEqual(inline.env);
+  });
+
+  it('lets an inline SUPABASE_HOME win', () => {
+    expect(
+      first('SUPABASE_HOME=/inline supabase start', {
+        SUPABASE_HOME: '/sandbox/.home',
+      }).env
+    ).toEqual({ SUPABASE_HOME: '/inline' });
+  });
+});
+
 describe('invocationFlag', () => {
   const flag = (command: string, name = '--runtime') =>
     invocationFlag(findSupabaseInvocations([command])[0], name);

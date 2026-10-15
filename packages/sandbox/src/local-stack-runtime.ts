@@ -235,7 +235,13 @@ export function localStackRuntime(
         try {
           await writeLocalStackMarkerViaExec(
             (command) => session.scoringContext.exec(command),
-            buildLocalStackMarker(docker, version, sessionStartedMs, channel)
+            buildLocalStackMarker(
+              docker,
+              version,
+              sessionStartedMs,
+              channel,
+              options.env
+            )
           );
         } catch (err) {
           console.warn(
@@ -342,7 +348,13 @@ export function localStackRuntime(
         await sandbox.writeRootFile(
           LOCAL_STACK_MARKER_PATH,
           JSON.stringify(
-            buildLocalStackMarker(docker, version, sessionStartedMs, channel)
+            buildLocalStackMarker(
+              docker,
+              version,
+              sessionStartedMs,
+              channel,
+              options.env
+            )
           ),
           '0444'
         );
@@ -411,17 +423,21 @@ function buildRuntimeId(options: LocalStackRuntimeOptions): string {
   return bits.length > 0 ? `local-stack-${bits.join('-')}` : 'local-stack';
 }
 
-function buildLocalStackMarker(
+export function buildLocalStackMarker(
   docker: DockerState,
   cliVersion: string,
   sessionStartedMs: number,
-  channel?: CliChannel
+  channel?: CliChannel,
+  env?: Readonly<Record<string, string>>
 ): LocalStackEnvironmentMarker {
   return {
     runtime: 'local-stack',
     channel,
     cliVersion,
     docker,
+    ...(env !== undefined && Object.keys(env).length > 0
+      ? { env: { ...env } }
+      : {}),
     sessionStartedMs,
   };
 }
@@ -885,7 +901,10 @@ function isLocalStackEnvironmentMarker(
     (value.channel === undefined ||
       value.channel === 'stable' ||
       value.channel === 'beta' ||
-      value.channel === 'next')
+      value.channel === 'next') &&
+    (value.env === undefined ||
+      (isRecord(value.env) &&
+        Object.values(value.env).every((entry) => typeof entry === 'string')))
   );
 }
 

@@ -40,7 +40,10 @@ status, since a call's error reflects its last command.
 `findSupabaseInvocations` also recognises `pnpm supabase`, `bun x supabase` and
 `yarn supabase`, drops the fd number of a redirect (`2>&1`), and sets
 `experimentalStack` when `SUPABASE_EXPERIMENTAL_STACK` is enabled in the
-invocation's prefix or an earlier `export` in the same command.
+invocation's prefix, an earlier `export` in the same command, or the
+`sandboxEnv` option. Scorers should pass
+`(await ctx.environmentMarker())?.env` as `sandboxEnv` so the experiment's env
+counts.
 `commandToolCalls` returns the tool calls behind `extractCommands`' entries, so
 an invocation's `commandIndex` maps back to its result.
 

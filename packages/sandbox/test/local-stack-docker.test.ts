@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   buildDockerDaemonShimScript,
+  buildLocalStackMarker,
   buildLocalStackScoringContext,
   buildSupabaseShimScript,
   localStackRuntime,
@@ -185,6 +186,25 @@ describe('resolveMcpServers', () => {
   });
 });
 
+describe('buildLocalStackMarker', () => {
+  it('includes the env when it has entries', () => {
+    const marker = buildLocalStackMarker('available', '2.109.1', 0, undefined, {
+      SUPABASE_EXPERIMENTAL_STACK: '1',
+    });
+    expect(marker.env).toEqual({ SUPABASE_EXPERIMENTAL_STACK: '1' });
+  });
+
+  it('omits the env when unset', () => {
+    const marker = buildLocalStackMarker('available', '2.109.1', 0);
+    expect(JSON.parse(JSON.stringify(marker))).not.toHaveProperty('env');
+  });
+
+  it('omits the env when empty', () => {
+    const marker = buildLocalStackMarker('absent', '2.109.1', 0, 'beta', {});
+    expect(JSON.parse(JSON.stringify(marker))).not.toHaveProperty('env');
+  });
+});
+
 describe('buildLocalStackScoringContext environmentMarker', () => {
   /** A DockerSandbox stub whose readRootFile returns/throws as configured. */
   function fakeSandbox(readRootFile: DockerSandbox['readRootFile']) {
@@ -219,6 +239,38 @@ describe('buildLocalStackScoringContext environmentMarker', () => {
     const readRootFile = vi.fn().mockResolvedValue(JSON.stringify(marker));
     const ctx = buildLocalStackScoringContext(fakeSandbox(readRootFile));
     await expect(ctx.environmentMarker()).resolves.toEqual(marker);
+  });
+
+  it('includes the experiment env when present', async () => {
+    const marker = {
+      runtime: 'local-stack',
+      cliVersion: '2.109.1',
+      docker: 'available',
+      env: { SUPABASE_EXPERIMENTAL_STACK: '1' },
+      sessionStartedMs: 1_700_000_000_000,
+    };
+    const readRootFile = vi.fn().mockResolvedValue(JSON.stringify(marker));
+    const ctx = buildLocalStackScoringContext(fakeSandbox(readRootFile));
+    await expect(ctx.environmentMarker()).resolves.toEqual(marker);
+  });
+
+  it.each([
+    ['a non-string value', { SUPABASE_EXPERIMENTAL_STACK: 1 }],
+    ['an array', ['SUPABASE_EXPERIMENTAL_STACK=1']],
+    ['a string', 'SUPABASE_EXPERIMENTAL_STACK=1'],
+    ['null', null],
+  ])('rejects an env that is %s', async (_label, env) => {
+    const readRootFile = vi.fn().mockResolvedValue(
+      JSON.stringify({
+        runtime: 'local-stack',
+        cliVersion: '2.109.1',
+        docker: 'available',
+        env,
+        sessionStartedMs: 0,
+      })
+    );
+    const ctx = buildLocalStackScoringContext(fakeSandbox(readRootFile));
+    await expect(ctx.environmentMarker()).resolves.toBeUndefined();
   });
 
   it('reads the marker as root, not through exec or resolveSandboxPath', async () => {

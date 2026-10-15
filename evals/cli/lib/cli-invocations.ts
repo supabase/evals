@@ -6,7 +6,7 @@ import {
   skipEnvOptions,
 } from './detours.js';
 
-/** The CLI state-home variables an invocation set in its own prefix, resolved to absolute paths. */
+/** The CLI state-home variables an invocation ran with (its own prefix or `sandboxEnv`), resolved to absolute paths. */
 export type InvocationEnv = {
   SUPABASE_HOME?: string;
   HOME?: string;
@@ -22,7 +22,7 @@ export type SupabaseInvocation = {
   cwd?: string;
   /** A `SUPABASE_WORKDIR=<dir>` assignment prefixing the invocation. */
   workdir?: string;
-  /** `SUPABASE_HOME`/`HOME`/`TMPDIR` assignments prefixing the invocation; values that could not be resolved to a path are dropped. */
+  /** `SUPABASE_HOME`/`HOME`/`TMPDIR` assignments prefixing the invocation, or from `sandboxEnv`; values that could not be resolved to a path are dropped. */
   env?: InvocationEnv;
   /** The runner spec (e.g. `npx --yes supabase@2.120.0`, `npm i -g supabase@2.120.0`) when the invocation ran an explicitly versioned `supabase` through a package runner or a global install earlier in the run. */
   runner?: string;
@@ -30,7 +30,7 @@ export type SupabaseInvocation = {
   globalInstall?: 'active' | 'removed';
   /** The tool call's completion time (epoch ms), present only when the agent parser records it. */
   at?: number;
-  /** Set when `SUPABASE_EXPERIMENTAL_STACK` was enabled (anything but empty, `0` or `false`) in the invocation's own prefix or by an earlier `export` in the same command. */
+  /** Set when `SUPABASE_EXPERIMENTAL_STACK` was enabled (anything but empty, `0` or `false`) in the invocation's own prefix, by an earlier `export` in the same command, or in `sandboxEnv`. */
   experimentalStack?: true;
 };
 
@@ -380,6 +380,19 @@ function isEnvName(name: string): name is EnvName {
   return (TRACKED_VARIABLES as readonly string[]).includes(name);
 }
 
+function sandboxShellState(
+  sandboxEnv: Readonly<Record<string, string>>
+): Pick<ShellState, 'vars' | 'exported'> {
+  const vars: RawEnv = {};
+  const exported = new Set<EnvName>();
+  for (const [name, value] of Object.entries(sandboxEnv)) {
+    if (!isEnvName(name)) continue;
+    vars[name] = value;
+    exported.add(name);
+  }
+  return { vars, exported };
+}
+
 function exportedEnv(state: ShellState): RawEnv {
   const env: RawEnv = {};
   for (const name of state.exported) {
@@ -461,11 +474,15 @@ export function isStartInvocation(inv: SupabaseInvocation): boolean {
  * until a global uninstall or the next global install (both close the span),
  * whatever the entry's `failed` status; whether the install still in effect
  * took effect is reconciled by `listCliOverrides`.
- * `--help`/`-h` invocations are skipped.
+ * `--help`/`-h` invocations are skipped. `sandboxEnv` is the environment the
+ * sandbox ran with: its tracked variables start each command exported, and the
+ * command's own prefixes and `export`s override them.
  */
 export function findSupabaseInvocations(
-  commands: readonly (string | CommandEntry)[]
+  commands: readonly (string | CommandEntry)[],
+  options: { sandboxEnv?: Readonly<Record<string, string>> } = {}
 ): SupabaseInvocation[] {
+  const sandboxState = sandboxShellState(options.sandboxEnv ?? {});
   const invocations: SupabaseInvocation[] = [];
   let globalRunner: string | undefined;
   let globalInvocations: SupabaseInvocation[] = [];
@@ -477,8 +494,7 @@ export function findSupabaseInvocations(
     const command = typeof entry === 'string' ? entry : entry.command;
     let state: ShellState = {
       cwd: typeof entry === 'string' ? undefined : entry.cwd,
-      vars: {},
-      exported: new Set(),
+      ...sandboxState,
     };
     const at = typeof entry === 'string' ? undefined : entry.at;
     const enclosing: ShellState[] = [];
