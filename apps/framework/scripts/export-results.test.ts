@@ -32,3 +32,36 @@ describe('toEvalResult cliVersion precedence', () => {
     expect(result.cliVersion).toBe('2.109.1');
   });
 });
+
+describe('toEvalResult sdk', () => {
+  // build-dataapi-001-relational-report-py declares `sdk: py` in its frontmatter.
+  const PY_EVAL_ID = 'build-dataapi-001-relational-report-py';
+
+  it('takes sdk from the frontmatter, over whatever the run recorded', async () => {
+    const result = toEvalResult(
+      rawEvalResultSchema.parse({
+        experiment: 'test-experiment',
+        eval: PY_EVAL_ID,
+        interface: 'cli',
+      }),
+      'test-experiment/run-1/result.json',
+      await readPrompt(PY_EVAL_ID),
+      undefined
+    );
+    expect(result.sdk).toBe('py');
+  });
+
+  it('leaves sdk undefined when neither the frontmatter nor the run has one', async () => {
+    const result = toEvalResult(
+      rawEvalResultSchema.parse({
+        experiment: 'test-experiment',
+        eval: PINNED_EVAL_ID,
+        interface: 'cli',
+      }),
+      'test-experiment/run-1/result.json',
+      await readPrompt(PINNED_EVAL_ID),
+      undefined
+    );
+    expect(result.sdk).toBeUndefined();
+  });
+});

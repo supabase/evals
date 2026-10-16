@@ -23,6 +23,7 @@ import {
   normalizeExperimentName,
   positiveInteger,
   readExperimentSuiteFilters,
+  readSdkFilters,
   readFlag,
   readRepeatedFlag,
   readSuiteFilters,
@@ -76,6 +77,7 @@ const EXPERIMENT_FILTERS = readRepeatedFlag(rawArgs, 'experiment').map(
 );
 const EVAL_FILTERS = readRepeatedFlag(rawArgs, 'eval');
 const SUITE_FILTERS = readSuiteFilters(rawArgs);
+const SDK_FILTERS = readSdkFilters(rawArgs);
 const EXPERIMENT_SUITE_FILTERS = readExperimentSuiteFilters(rawArgs);
 const SELECTED_EXPERIMENT_SUITE =
   EXPERIMENT_SUITE_FILTERS.length === 1
@@ -175,6 +177,7 @@ function discoverEvals(): EvalManifest[] {
         product: metadata.product,
         suite,
         topic: metadata.topic,
+        sdk: metadata.sdk,
         dir: evalDir,
         localDir: hasLocal ? localDir : undefined,
         promptPath,
@@ -709,15 +712,18 @@ async function main() {
     : EVAL_FILTERS.length > 0
       ? evals.filter((e) => EVAL_FILTERS.includes(e.id))
       : evals;
-  const suiteFiltered =
-    SUITE_FILTERS.length > 0
-      ? filtered.filter((e) => SUITE_FILTERS.includes(e.suite))
-      : filtered;
+  const suiteFiltered = filtered.filter(
+    (e) =>
+      (SUITE_FILTERS.length === 0 || SUITE_FILTERS.includes(e.suite)) &&
+      (SDK_FILTERS.length === 0 ||
+        (e.sdk !== undefined && SDK_FILTERS.includes(e.sdk)))
+  );
 
   if (suiteFiltered.length === 0) {
     const filter = [
       EVAL_FILTERS.length > 0 ? `eval=${EVAL_FILTERS.join(',')}` : undefined,
       SUITE_FILTERS.length > 0 ? `suite=${SUITE_FILTERS.join(',')}` : undefined,
+      SDK_FILTERS.length > 0 ? `sdk=${SDK_FILTERS.join(',')}` : undefined,
     ]
       .filter(Boolean)
       .join(' ');
