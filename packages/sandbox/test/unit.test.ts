@@ -44,6 +44,11 @@ describe('sandbox Dockerfile', () => {
     // Python toolchain for Python-SDK evals, in the node-owned bin dir on PATH.
     expect(dockerfile).toContain('python3');
     expect(dockerfile).toContain('UV_INSTALL_DIR=/home/node/.npm-global/bin');
+    // Flutter toolchain for Flutter-SDK evals, linked into the same bin dir.
+    expect(dockerfile).toContain('ARG FLUTTER_VERSION');
+    expect(dockerfile).toContain(
+      'ln -s /home/node/flutter/bin/flutter /home/node/.npm-global/bin/flutter'
+    );
     // The Supabase CLI is NOT baked in — it's a local-stack component installed
     // at setup time (installSupabaseCli), so tools-mode sandboxes genuinely lack
     // it. The base image is therefore shared across modes and CLI versions.
