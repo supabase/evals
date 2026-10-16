@@ -118,11 +118,15 @@ product:
 topic:
   - rls
   - security
+interface: cli
+sdk: js
 motivation: AI-123
 ---
 ```
 
 Allowed metadata values are defined in `packages/core/src/eval-metadata.ts`.
+
+`sdk` names the client SDK the scenario targets (`js`, `py`, `swift`, `flutter`, `kotlin`, `csharp`); omit it for scenarios that are not about an SDK. A port of an existing scenario to another SDK keeps the original id with a `-<sdk>` suffix (for example `build-dataapi-001-relational-report-py`) and sets `sdk` to that SDK, so the two show up side by side under the site's SDK axis and `pnpm eval -- --sdk py` picks out the port.
 
 ## Eval Modes
 

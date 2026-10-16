@@ -61,9 +61,9 @@ describe('sdk schema', () => {
     expect(evalFrontmatterSchema.parse({ ...base, sdk: ' JS ' }).sdk).toBe(
       'js'
     );
-    expect(evalFrontmatterSchema.parse({ ...base, sdk: 'JavaScript' }).sdk).toBe(
-      'js'
-    );
+    expect(
+      evalFrontmatterSchema.parse({ ...base, sdk: 'JavaScript' }).sdk
+    ).toBe('js');
     expect(evalFrontmatterSchema.parse({ ...base, sdk: 'Python' }).sdk).toBe(
       'py'
     );
@@ -73,9 +73,7 @@ describe('sdk schema', () => {
   });
 
   it('rejects an unknown sdk', () => {
-    expect(() =>
-      evalFrontmatterSchema.parse({ ...base, sdk: 'go' })
-    ).toThrow();
+    expect(() => evalFrontmatterSchema.parse({ ...base, sdk: 'go' })).toThrow();
   });
 
   it('round-trips through the result schema', () => {

@@ -3,7 +3,17 @@ import { parseEvalMarkdown } from './eval-markdown.js';
 
 describe('parseEvalMarkdown', () => {
   const frontmatter = (extra: string) =>
-    ['---', 'stage: build', 'product: database', 'topic: sdk', 'interface: cli', extra, '---', '', 'Do the thing.']
+    [
+      '---',
+      'stage: build',
+      'product: database',
+      'topic: sdk',
+      'interface: cli',
+      extra,
+      '---',
+      '',
+      'Do the thing.',
+    ]
       .filter(Boolean)
       .join('\n');
 
@@ -18,8 +28,8 @@ describe('parseEvalMarkdown', () => {
   });
 
   it('names the sdk field in the error for an unknown value', () => {
-    expect(() => parseEvalMarkdown(frontmatter('sdk: go'), 'x/PROMPT.md')).toThrow(
-      /x\/PROMPT\.md has invalid eval metadata: sdk:/
-    );
+    expect(() =>
+      parseEvalMarkdown(frontmatter('sdk: go'), 'x/PROMPT.md')
+    ).toThrow(/x\/PROMPT\.md has invalid eval metadata: sdk:/);
   });
 });
