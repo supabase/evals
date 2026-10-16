@@ -1431,6 +1431,267 @@
       "modelId": "claude-opus-5-5",
       "reasoningEffort": "high"
     },
+    "eval": "build-dataapi-001-relational-report-py",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read returned 0 rows"
+      },
+      {
+        "name": "implementation uses supabase-py",
+        "passed": true,
+        "notes": "imports found in: app/report.py"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": []
+    },
+    "usage": [
+      {
+        "model": "claude-opus-5-5",
+        "inputTokens": 105898,
+        "cacheReadInputTokens": 90366,
+        "cacheWriteInputTokens": 15522,
+        "outputTokens": 2799
+      }
+    ],
+    "stepCount": 5,
+    "toolCallCount": 4,
+    "agentRunDurationMs": 29500,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 393319,
+      "duration": 246885,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1630600096,
+        "egress": 14621669
+      }
+    },
+    "prompt": "We need the nightly sales report working. `app/report.py` has the spec in a\ncomment — it runs in our Python backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
+    "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report-py/PROMPT.md",
+    "run": 1,
+    "sourcePath": "claude-code-opus-5.5/build-dataapi-001-relational-report-py/run-1/result.json"
+  },
+  {
+    "experiment": "claude-code-opus-5.5",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-opus-5-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-dataapi-001-relational-report-py",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read returned 0 rows"
+      },
+      {
+        "name": "implementation uses supabase-py",
+        "passed": true,
+        "notes": "imports found in: app/report.py"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": []
+    },
+    "usage": [
+      {
+        "model": "claude-opus-5-5",
+        "inputTokens": 191303,
+        "cacheReadInputTokens": 171461,
+        "cacheWriteInputTokens": 19826,
+        "outputTokens": 3206
+      }
+    ],
+    "stepCount": 9,
+    "toolCallCount": 7,
+    "agentRunDurationMs": 48955,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 417209,
+      "duration": 282868,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1630376454,
+        "egress": 14719372
+      }
+    },
+    "prompt": "We need the nightly sales report working. `app/report.py` has the spec in a\ncomment — it runs in our Python backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
+    "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report-py/PROMPT.md",
+    "run": 2,
+    "sourcePath": "claude-code-opus-5.5/build-dataapi-001-relational-report-py/run-2/result.json"
+  },
+  {
+    "experiment": "claude-code-opus-5.5",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-opus-5-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-dataapi-001-relational-report-py",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read returned 0 rows"
+      },
+      {
+        "name": "implementation uses supabase-py",
+        "passed": true,
+        "notes": "imports found in: app/report.py"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": []
+    },
+    "usage": [
+      {
+        "model": "claude-opus-5-5",
+        "inputTokens": 129954,
+        "cacheReadInputTokens": 114495,
+        "cacheWriteInputTokens": 15447,
+        "outputTokens": 3032
+      }
+    ],
+    "stepCount": 6,
+    "toolCallCount": 5,
+    "agentRunDurationMs": 38952,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 235271,
+      "duration": 190227,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1636018603,
+        "egress": 19594936
+      }
+    },
+    "prompt": "We need the nightly sales report working. `app/report.py` has the spec in a\ncomment — it runs in our Python backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
+    "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report-py/PROMPT.md",
+    "run": 3,
+    "sourcePath": "claude-code-opus-5.5/build-dataapi-001-relational-report-py/run-3/result.json"
+  },
+  {
+    "experiment": "claude-code-opus-5.5",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-opus-5-5",
+      "reasoningEffort": "high"
+    },
     "eval": "build-dataapi-002-restock-alert-report",
     "stage": "build",
     "product": [
@@ -7842,6 +8103,252 @@
       "modelId": "claude-opus-5-5",
       "reasoningEffort": "high"
     },
+    "eval": "build-dataapi-001-relational-report-py",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read returned 0 rows"
+      },
+      {
+        "name": "implementation uses supabase-py",
+        "passed": true,
+        "notes": "imports found in: app/report.py"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": []
+    },
+    "usage": [
+      {
+        "model": "claude-opus-5-5",
+        "inputTokens": 131548,
+        "cacheReadInputTokens": 119476,
+        "cacheWriteInputTokens": 12058,
+        "outputTokens": 3174
+      }
+    ],
+    "stepCount": 7,
+    "toolCallCount": 6,
+    "agentRunDurationMs": 49599,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 313372,
+      "duration": 230249,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1635943535,
+        "egress": 17737438
+      }
+    },
+    "prompt": "We need the nightly sales report working. `app/report.py` has the spec in a\ncomment — it runs in our Python backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
+    "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report-py/PROMPT.md",
+    "run": 1,
+    "sourcePath": "claude-code-opus-5.5-no-skills/build-dataapi-001-relational-report-py/run-1/result.json"
+  },
+  {
+    "experiment": "claude-code-opus-5.5-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-opus-5-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-dataapi-001-relational-report-py",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read returned 0 rows"
+      },
+      {
+        "name": "implementation uses supabase-py",
+        "passed": true,
+        "notes": "imports found in: app/report.py"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": []
+    },
+    "usage": [
+      {
+        "model": "claude-opus-5-5",
+        "inputTokens": 108824,
+        "cacheReadInputTokens": 97683,
+        "cacheWriteInputTokens": 11129,
+        "outputTokens": 2707
+      }
+    ],
+    "stepCount": 6,
+    "toolCallCount": 5,
+    "agentRunDurationMs": 36991,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 338038,
+      "duration": 233062,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1630945943,
+        "egress": 14729467
+      }
+    },
+    "prompt": "We need the nightly sales report working. `app/report.py` has the spec in a\ncomment — it runs in our Python backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
+    "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report-py/PROMPT.md",
+    "run": 2,
+    "sourcePath": "claude-code-opus-5.5-no-skills/build-dataapi-001-relational-report-py/run-2/result.json"
+  },
+  {
+    "experiment": "claude-code-opus-5.5-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-opus-5-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-dataapi-001-relational-report-py",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read returned 0 rows"
+      },
+      {
+        "name": "implementation uses supabase-py",
+        "passed": true,
+        "notes": "imports found in: app/report.py"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": []
+    },
+    "usage": [
+      {
+        "model": "claude-opus-5-5",
+        "inputTokens": 129303,
+        "cacheReadInputTokens": 118317,
+        "cacheWriteInputTokens": 10972,
+        "outputTokens": 3051
+      }
+    ],
+    "stepCount": 7,
+    "toolCallCount": 6,
+    "agentRunDurationMs": 41501,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 253303,
+      "duration": 200342,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1635827494,
+        "egress": 17932030
+      }
+    },
+    "prompt": "We need the nightly sales report working. `app/report.py` has the spec in a\ncomment — it runs in our Python backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
+    "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report-py/PROMPT.md",
+    "run": 3,
+    "sourcePath": "claude-code-opus-5.5-no-skills/build-dataapi-001-relational-report-py/run-3/result.json"
+  },
+  {
+    "experiment": "claude-code-opus-5.5-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-opus-5-5",
+      "reasoningEffort": "high"
+    },
     "eval": "build-dataapi-002-restock-alert-report",
     "stage": "build",
     "product": [
@@ -13824,6 +14331,307 @@
     "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report/PROMPT.md",
     "run": 3,
     "sourcePath": "claude-code-sonnet-5/build-dataapi-001-relational-report/run-3/result.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-dataapi-001-relational-report-py",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read returned 0 rows"
+      },
+      {
+        "name": "implementation uses supabase-py",
+        "passed": true,
+        "notes": "imports found in: app/report.py"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": []
+    },
+    "docs": {
+      "calls": []
+    },
+    "usage": [
+      {
+        "model": "claude-sonnet-5",
+        "inputTokens": 377677,
+        "cacheReadInputTokens": 358174,
+        "cacheWriteInputTokens": 19481,
+        "outputTokens": 4288
+      }
+    ],
+    "stepCount": 13,
+    "toolCallCount": 12,
+    "agentRunDurationMs": 48733,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 252393,
+      "duration": 205967,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1635359566,
+        "egress": 18883427
+      }
+    },
+    "prompt": "We need the nightly sales report working. `app/report.py` has the spec in a\ncomment — it runs in our Python backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
+    "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report-py/PROMPT.md",
+    "run": 1,
+    "sourcePath": "claude-code-sonnet-5/build-dataapi-001-relational-report-py/run-1/result.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-dataapi-001-relational-report-py",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read returned 0 rows"
+      },
+      {
+        "name": "implementation uses supabase-py",
+        "passed": true,
+        "notes": "imports found in: app/report.py"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": []
+    },
+    "docs": {
+      "calls": []
+    },
+    "usage": [
+      {
+        "model": "claude-sonnet-5",
+        "inputTokens": 257364,
+        "cacheReadInputTokens": 240544,
+        "cacheWriteInputTokens": 16804,
+        "outputTokens": 3071
+      }
+    ],
+    "stepCount": 10,
+    "toolCallCount": 9,
+    "agentRunDurationMs": 32596,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 279957,
+      "duration": 200203,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1635590257,
+        "egress": 19054110
+      }
+    },
+    "prompt": "We need the nightly sales report working. `app/report.py` has the spec in a\ncomment — it runs in our Python backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
+    "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report-py/PROMPT.md",
+    "run": 2,
+    "sourcePath": "claude-code-sonnet-5/build-dataapi-001-relational-report-py/run-2/result.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-dataapi-001-relational-report-py",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read returned 0 rows"
+      },
+      {
+        "name": "implementation uses supabase-py",
+        "passed": true,
+        "notes": "imports found in: app/report.py"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"python client nested select foreign table embed\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/ai/engineering-for-scale",
+              "title": "Engineering for Scale"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/semantic-search",
+              "title": "Semantic search"
+            }
+          ],
+          "resultChars": 18745
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"supabase-py new API keys publishable secret key create_client\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/quickstarts/flask",
+              "title": "Use Supabase with Python"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-keys",
+              "title": "New API Keys and Asymmetric Authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/presence",
+              "title": "Presence"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/broadcast",
+              "title": "Broadcast"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/python/initializing"
+            }
+          ],
+          "resultChars": 74125
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "claude-sonnet-5",
+        "inputTokens": 639313,
+        "cacheReadInputTokens": 603293,
+        "cacheWriteInputTokens": 35990,
+        "outputTokens": 6121
+      }
+    ],
+    "stepCount": 19,
+    "toolCallCount": 17,
+    "agentRunDurationMs": 76264,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 259309,
+      "duration": 234870,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1634114102,
+        "egress": 18300498
+      }
+    },
+    "prompt": "We need the nightly sales report working. `app/report.py` has the spec in a\ncomment — it runs in our Python backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
+    "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report-py/PROMPT.md",
+    "run": 3,
+    "sourcePath": "claude-code-sonnet-5/build-dataapi-001-relational-report-py/run-3/result.json"
   },
   {
     "experiment": "claude-code-sonnet-5",
@@ -20304,6 +21112,252 @@
     "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report/PROMPT.md",
     "run": 3,
     "sourcePath": "claude-code-sonnet-5-no-skills/build-dataapi-001-relational-report/run-3/result.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-dataapi-001-relational-report-py",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read returned 0 rows"
+      },
+      {
+        "name": "implementation uses supabase-py",
+        "passed": true,
+        "notes": "imports found in: app/report.py"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": []
+    },
+    "usage": [
+      {
+        "model": "claude-sonnet-5",
+        "inputTokens": 288531,
+        "cacheReadInputTokens": 271318,
+        "cacheWriteInputTokens": 17195,
+        "outputTokens": 3356
+      }
+    ],
+    "stepCount": 11,
+    "toolCallCount": 10,
+    "agentRunDurationMs": 35852,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 260211,
+      "duration": 197743,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1634812739,
+        "egress": 18450981
+      }
+    },
+    "prompt": "We need the nightly sales report working. `app/report.py` has the spec in a\ncomment — it runs in our Python backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
+    "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report-py/PROMPT.md",
+    "run": 1,
+    "sourcePath": "claude-code-sonnet-5-no-skills/build-dataapi-001-relational-report-py/run-1/result.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-dataapi-001-relational-report-py",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read returned 0 rows"
+      },
+      {
+        "name": "implementation uses supabase-py",
+        "passed": true,
+        "notes": "imports found in: app/report.py"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": []
+    },
+    "usage": [
+      {
+        "model": "claude-sonnet-5",
+        "inputTokens": 294627,
+        "cacheReadInputTokens": 276207,
+        "cacheWriteInputTokens": 18402,
+        "outputTokens": 4334
+      }
+    ],
+    "stepCount": 12,
+    "toolCallCount": 11,
+    "agentRunDurationMs": 50643,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 457605,
+      "duration": 294212,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1630665577,
+        "egress": 15091089
+      }
+    },
+    "prompt": "We need the nightly sales report working. `app/report.py` has the spec in a\ncomment — it runs in our Python backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
+    "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report-py/PROMPT.md",
+    "run": 2,
+    "sourcePath": "claude-code-sonnet-5-no-skills/build-dataapi-001-relational-report-py/run-2/result.json"
+  },
+  {
+    "experiment": "claude-code-sonnet-5-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-sonnet-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-dataapi-001-relational-report-py",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read returned 0 rows"
+      },
+      {
+        "name": "implementation uses supabase-py",
+        "passed": true,
+        "notes": "imports found in: app/report.py"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": []
+    },
+    "usage": [
+      {
+        "model": "claude-sonnet-5",
+        "inputTokens": 326458,
+        "cacheReadInputTokens": 308363,
+        "cacheWriteInputTokens": 18075,
+        "outputTokens": 3957
+      }
+    ],
+    "stepCount": 12,
+    "toolCallCount": 11,
+    "agentRunDurationMs": 48713,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 237896,
+      "duration": 199826,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1635948075,
+        "egress": 18935214
+      }
+    },
+    "prompt": "We need the nightly sales report working. `app/report.py` has the spec in a\ncomment — it runs in our Python backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
+    "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report-py/PROMPT.md",
+    "run": 3,
+    "sourcePath": "claude-code-sonnet-5-no-skills/build-dataapi-001-relational-report-py/run-3/result.json"
   },
   {
     "experiment": "claude-code-sonnet-5-no-skills",
@@ -28628,6 +29682,448 @@
     "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-6-luna/build-dataapi-001-relational-report/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-dataapi-001-relational-report-py",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read returned 0 rows"
+      },
+      {
+        "name": "implementation uses supabase-py",
+        "passed": true,
+        "notes": "imports found in: app/report.py"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Python backend worker query local Supabase database Postgres connection pooling client libraries\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres/serverless-drivers",
+              "title": "Serverless drivers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres",
+              "title": "Connect to your database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/connect-to-postgres",
+              "title": "Integrating with Supabase Database (Postgres)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/accessing-postgres",
+              "title": "Accessing Postgres"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/using-sqlalchemy-with-supabase-FUqebT",
+              "title": "Using SQLAlchemy with Supabase"
+            }
+          ],
+          "resultChars": 44887
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11955
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"supabase python create_client table select execute response data\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/quickstarts/flask",
+              "title": "Use Supabase with Python"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/high-latency-with-supabase-client-z0pZzR",
+              "title": "High latency with supabase client"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/quickstart",
+              "title": "Build an API route in less than 2 minutes."
+            }
+          ],
+          "resultChars": 21724
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Python ClientLibraryFunctionReference range postgrest range order select Supabase Python\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/python/range",
+              "title": "range()"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/sql-to-api",
+              "title": "Converting SQL to JavaScript API"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/python/select",
+              "title": "Fetch data: select()"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/functions",
+              "title": "Database functions"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/python/rpc",
+              "title": "Postgres functions: rpc()"
+            }
+          ],
+          "resultChars": 24921
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 481244,
+        "cacheReadInputTokens": 425467,
+        "cacheWriteInputTokens": 55732,
+        "outputTokens": 6697
+      }
+    ],
+    "stepCount": 15,
+    "toolCallCount": 17,
+    "agentRunDurationMs": 89675,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 259100,
+      "duration": 246296,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1691495659,
+        "egress": 21851651
+      }
+    },
+    "prompt": "We need the nightly sales report working. `app/report.py` has the spec in a\ncomment — it runs in our Python backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
+    "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report-py/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna/build-dataapi-001-relational-report-py/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-dataapi-001-relational-report-py",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read returned 0 rows"
+      },
+      {
+        "name": "implementation uses supabase-py",
+        "passed": true,
+        "notes": "imports found in: app/report.py"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Python connect to Supabase Postgres database local CLI connection string\", limit: 4) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/ai/google-colab",
+              "title": "Google Colab"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/integrations/roboflow",
+              "title": "Roboflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/integrations/llamaindex",
+              "title": "Learn how to integrate Supabase with LlamaIndex, a data framework for your LLM applications."
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/examples/image-search-openai-clip",
+              "title": "Image Search with OpenAI CLIP"
+            }
+          ],
+          "resultChars": 24531
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 243878,
+        "cacheReadInputTokens": 199436,
+        "cacheWriteInputTokens": 43911,
+        "outputTokens": 7296
+      }
+    ],
+    "stepCount": 10,
+    "toolCallCount": 19,
+    "agentRunDurationMs": 112312,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 275326,
+      "duration": 274898,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1689041489,
+        "egress": 18816359
+      }
+    },
+    "prompt": "We need the nightly sales report working. `app/report.py` has the spec in a\ncomment — it runs in our Python backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
+    "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report-py/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna/build-dataapi-001-relational-report-py/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-dataapi-001-relational-report-py",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read returned 0 rows"
+      },
+      {
+        "name": "implementation uses supabase-py",
+        "passed": true,
+        "notes": "imports found in: app/report.py"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 1500'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 1537
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Python supabase-py create_client select query service role secret key\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/quickstarts/flask",
+              "title": "Use Supabase with Python"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/quickstarts/reflex",
+              "title": "Use Supabase with Reflex"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/examples/mixpeek-video-search",
+              "title": "Video Search with Mixpeek Multimodal Embeddings"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/social-login/auth-kakao",
+              "title": "Sign in with Kakao"
+            }
+          ],
+          "resultChars": 60192
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"supabase-py select table query range Python create_client\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/high-latency-with-supabase-client-z0pZzR",
+              "title": "High latency with supabase client"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/quickstarts/reflex",
+              "title": "Use Supabase with Reflex"
+            }
+          ],
+          "resultChars": 14130
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 314572,
+        "cacheReadInputTokens": 268223,
+        "cacheWriteInputTokens": 46313,
+        "outputTokens": 6950
+      }
+    ],
+    "stepCount": 12,
+    "toolCallCount": 15,
+    "agentRunDurationMs": 109326,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 261929,
+      "duration": 268448,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1690635502,
+        "egress": 9188555
+      }
+    },
+    "prompt": "We need the nightly sales report working. `app/report.py` has the spec in a\ncomment — it runs in our Python backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
+    "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report-py/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna/build-dataapi-001-relational-report-py/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna",
@@ -41277,6 +42773,327 @@
       "modelId": "gpt-6-luna",
       "reasoningEffort": "medium"
     },
+    "eval": "build-dataapi-001-relational-report-py",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": false,
+        "notes": "no JSON array in output — Traceback (most recent call last): File \"/tmp/sandbox-90541c56/app/report.py\", line 6, in <module> from supabase import create_client ModuleNotFoundError: No mo"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": false,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got []"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read returned 0 rows"
+      },
+      {
+        "name": "implementation uses supabase-py",
+        "passed": true,
+        "notes": "imports found in: app/report.py"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Python select rows range pagination Supabase client\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/high-latency-with-supabase-client-z0pZzR",
+              "title": "High latency with supabase client"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/analytics/examples/pyiceberg",
+              "title": "PyIceberg"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/python/range",
+              "title": "range()"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/integrations/roboflow",
+              "title": "Roboflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/postgres-changes",
+              "title": "Postgres Changes"
+            }
+          ],
+          "resultChars": 70742
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 218747,
+        "cacheReadInputTokens": 181181,
+        "cacheWriteInputTokens": 37533,
+        "outputTokens": 5684
+      }
+    ],
+    "stepCount": 11,
+    "toolCallCount": 10,
+    "agentRunDurationMs": 82940,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 363585,
+      "duration": 282803,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1685244237,
+        "egress": 4724031
+      }
+    },
+    "prompt": "We need the nightly sales report working. `app/report.py` has the spec in a\ncomment — it runs in our Python backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
+    "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report-py/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-no-skills/build-dataapi-001-relational-report-py/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-dataapi-001-relational-report-py",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read returned 0 rows"
+      },
+      {
+        "name": "implementation uses supabase-py",
+        "passed": true,
+        "notes": "imports found in: app/report.py"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Python connect to local Supabase database Postgres client query\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/connect-to-postgres",
+              "title": "Integrating with Supabase Database (Postgres)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/integrations/roboflow",
+              "title": "Roboflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/examples/image-search-openai-clip",
+              "title": "Image Search with OpenAI CLIP"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/google-colab",
+              "title": "Google Colab"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/high-latency-with-supabase-client-z0pZzR",
+              "title": "High latency with supabase client"
+            }
+          ],
+          "resultChars": 31318
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 289307,
+        "cacheReadInputTokens": 245353,
+        "cacheWriteInputTokens": 43915,
+        "outputTokens": 9776
+      }
+    ],
+    "stepCount": 13,
+    "toolCallCount": 14,
+    "agentRunDurationMs": 118473,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 257147,
+      "duration": 274528,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1691163422,
+        "egress": 19948856
+      }
+    },
+    "prompt": "We need the nightly sales report working. `app/report.py` has the spec in a\ncomment — it runs in our Python backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
+    "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report-py/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-no-skills/build-dataapi-001-relational-report-py/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-dataapi-001-relational-report-py",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read returned 0 rows"
+      },
+      {
+        "name": "implementation uses supabase-py",
+        "passed": true,
+        "notes": "imports found in: app/report.py"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Python client select related tables foreign key embedded resources table select\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/ai/engineering-for-scale",
+              "title": "Engineering for Scale"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/python/select",
+              "title": "Fetch data: select()"
+            }
+          ],
+          "resultChars": 7794
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 206942,
+        "cacheReadInputTokens": 172543,
+        "cacheWriteInputTokens": 34366,
+        "outputTokens": 5421
+      }
+    ],
+    "stepCount": 11,
+    "toolCallCount": 12,
+    "agentRunDurationMs": 86443,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 262572,
+      "duration": 252203,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1689245023,
+        "egress": 7868587
+      }
+    },
+    "prompt": "We need the nightly sales report working. `app/report.py` has the spec in a\ncomment — it runs in our Python backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
+    "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report-py/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-no-skills/build-dataapi-001-relational-report-py/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
     "eval": "build-dataapi-002-restock-alert-report",
     "stage": "build",
     "product": [
@@ -50192,6 +52009,580 @@
     "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-6-sol/build-dataapi-001-relational-report/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-sol",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-sol",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-dataapi-001-relational-report-py",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read returned 0 rows"
+      },
+      {
+        "name": "implementation uses supabase-py",
+        "passed": true,
+        "notes": "imports found in: app/report.py"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL --max-time 15 https://supabase.com/changelog.md | head -90; printf '\\\\n--- relevant rules ---\\\\n'; ls /tmp/sandbox-309cc358/.agents/skills/supabase-postgres-best-practices/references | head -70\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5433
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query:\"Python supabase client create_client service role key select range pagination nested join count\",limit:5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/javascript/oauth-admin-listclients"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/analytics/examples/pyiceberg",
+              "title": "PyIceberg"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/secure-data",
+              "title": "Securing your data"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/high-latency-with-supabase-client-z0pZzR",
+              "title": "High latency with supabase client"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/python/initializing"
+            }
+          ],
+          "resultChars": 15727
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query:\"Python range paginate query order ascending supabase select\",limit:3){ nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/python/order",
+              "title": "order()"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/sql-to-api",
+              "title": "Converting SQL to JavaScript API"
+            }
+          ],
+          "resultChars": 3330
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query:\"Python select a referenced table foreign key join inner embed from table supabase\",limit:3){ nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/ai/engineering-for-scale",
+              "title": "Engineering for Scale"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/joins-and-nesting",
+              "title": "Querying Joins and Nested tables"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/rag-with-permissions",
+              "title": "RAG with Permissions"
+            }
+          ],
+          "resultChars": 41584
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query:\"range() Python Supabase\",limit:2){nodes{title href content}} }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/python/range",
+              "title": "range()"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/vector/storing-vectors",
+              "title": "Storing Vectors"
+            }
+          ],
+          "resultChars": 18242
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/reference/python/range Supabase Python range select",
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query:\"Monitoring and Debugging Supabase debug client invalid URL Python local\",limit:2){nodes{title href content}} }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/observability",
+              "title": "Observability"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            }
+          ],
+          "resultChars": 15961
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-sol",
+        "inputTokens": 450923,
+        "cacheReadInputTokens": 392517,
+        "cacheWriteInputTokens": 54070,
+        "outputTokens": 5155
+      }
+    ],
+    "stepCount": 14,
+    "toolCallCount": 17,
+    "agentRunDurationMs": 95526,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 294919,
+      "duration": 266042,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1692037836,
+        "egress": 21516258
+      }
+    },
+    "prompt": "We need the nightly sales report working. `app/report.py` has the spec in a\ncomment — it runs in our Python backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
+    "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report-py/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-sol/build-dataapi-001-relational-report-py/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-sol",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-sol",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-dataapi-001-relational-report-py",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read returned 0 rows"
+      },
+      {
+        "name": "implementation uses supabase-py",
+        "passed": true,
+        "notes": "imports found in: app/report.py"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"python supabase create_client secret key select range pagination order execute\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/creating-routes",
+              "title": "Creating API Routes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/secure-data",
+              "title": "Securing your data"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/connect-to-postgres",
+              "title": "Integrating with Supabase Database (Postgres)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/sql-to-api",
+              "title": "Converting SQL to JavaScript API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/quickstart",
+              "title": "Build an API route in less than 2 minutes."
+            }
+          ],
+          "resultChars": 26906
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | rg -n -i 'breaking-change|python|api key|secret key|postgrest|pagination' | head -45; which uv; which supabase; env | cut -d= -f1 | rg 'SUPABASE|DATABASE|POSTGRES' | sort; ls -la app; sed -n '20,85p' .agents/skills/supabase/SKILL.md\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 14456
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"reference python range select paginating create_client supabase\", limit: 4) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/javascript/oauth-admin-listclients"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/creating-routes",
+              "title": "Creating API Routes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/connect-to-postgres",
+              "title": "Integrating with Supabase Database (Postgres)"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/python/initializing"
+            }
+          ],
+          "resultChars": 14462
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"site:supabase.com/docs/reference/python/range range() python\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/python/range",
+              "title": "range()"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/python/rangegte",
+              "title": "range_gte()"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/python/rangelt",
+              "title": "range_lt()"
+            }
+          ],
+          "resultChars": 1760
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog/45329-breaking-change-tables-not-exposed-to-data-and-graphql-api-automatically | rg -o '(<h1[\"'^>]*>.*?</h1>|<p[''^>]*>.*?</p>)'\"' | head -8 | cut -c1-600; command -v uv || :; command -v supabase || :; env | cut -d= -f1 | rg 'SUPABASE|DATABASE|POSTGRES' | sort; ls -la app; curl -s -o /dev/null -w 'local api: %{http_code}\\\\n' http://127.0.0.1:54321/rest/v1/\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog/45329-breaking-change-tables-not-exposed-to-data-and-graphql-api-automatically"
+            }
+          ],
+          "resultChars": 3276
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-sol",
+        "inputTokens": 446706,
+        "cacheReadInputTokens": 397624,
+        "cacheWriteInputTokens": 49034,
+        "outputTokens": 6164
+      }
+    ],
+    "stepCount": 16,
+    "toolCallCount": 14,
+    "agentRunDurationMs": 99102,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 261772,
+      "duration": 257534,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1691877024,
+        "egress": 20640999
+      }
+    },
+    "prompt": "We need the nightly sales report working. `app/report.py` has the spec in a\ncomment — it runs in our Python backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
+    "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report-py/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-sol/build-dataapi-001-relational-report-py/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-sol",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-sol",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-dataapi-001-relational-report-py",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read returned 0 rows"
+      },
+      {
+        "name": "implementation uses supabase-py",
+        "passed": true,
+        "notes": "imports found in: app/report.py"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL --max-time 15 https://supabase.com/changelog.md | head -c 12000; printf '\\\\n---TOOLS---\\\\n'; command -v supabase || true; command -v uv || true; command -v docker || true; ls -la supabase/.temp; printf '\\\\n---FILES---\\\\n'; rg --files -g 'AGENTS.md' -g '*test*' -g '.env*' -g 'README*' . || true\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 12193
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query:\"python supabase create_client select order range pagination execute data service role secret key\", limit:5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/secure-data",
+              "title": "Securing your data"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/quickstarts/vue",
+              "title": "Use Supabase with Vue"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/examples/building-chatgpt-plugins",
+              "title": "Building ChatGPT plugins"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/connect-to-postgres",
+              "title": "Integrating with Supabase Database (Postgres)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/quickstarts/expo-react-native",
+              "title": "Use Supabase with Expo React Native"
+            }
+          ],
+          "resultChars": 40699
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query:\"python supabase range select rows pagination create_client\", limit:6) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/connect-to-postgres",
+              "title": "Integrating with Supabase Database (Postgres)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/quickstart",
+              "title": "Build an API route in less than 2 minutes."
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/server-side/migrating-to-ssr-from-auth-helpers",
+              "title": "Migrating to the SSR package from Auth Helpers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/sql-to-api",
+              "title": "Converting SQL to JavaScript API"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/oauth-admin-listclients"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/creating-routes",
+              "title": "Creating API Routes"
+            }
+          ],
+          "resultChars": 25727
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query:\"range() Python Reference supabase\",limit:4) { nodes { __typename title href content ... on ClientLibraryFunctionReference { language methodName } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/debugging/error-codes",
+              "title": "Error Codes"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/python/range",
+              "title": "range()"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/python/rangegte",
+              "title": "range_gte()"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/dart/using-modifiers-range"
+            }
+          ],
+          "resultChars": 16595
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query:\"Python Reference querying joins and nesting supabase table select foreign tables\", limit:3) { nodes { __typename title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/joins-and-nesting",
+              "title": "Querying Joins and Nested tables"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/engineering-for-scale",
+              "title": "Engineering for Scale"
+            }
+          ],
+          "resultChars": 28839
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-sol",
+        "inputTokens": 412956,
+        "cacheReadInputTokens": 361630,
+        "cacheWriteInputTokens": 51284,
+        "outputTokens": 4997
+      }
+    ],
+    "stepCount": 14,
+    "toolCallCount": 14,
+    "agentRunDurationMs": 92853,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 314019,
+      "duration": 275836,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1689769458,
+        "egress": 9074383
+      }
+    },
+    "prompt": "We need the nightly sales report working. `app/report.py` has the spec in a\ncomment — it runs in our Python backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
+    "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report-py/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-sol/build-dataapi-001-relational-report-py/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-6-sol",
@@ -60964,6 +63355,423 @@
       "modelId": "gpt-6-sol",
       "reasoningEffort": "medium"
     },
+    "eval": "build-dataapi-001-relational-report-py",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read returned 0 rows"
+      },
+      {
+        "name": "implementation uses supabase-py",
+        "passed": true,
+        "notes": "imports found in: app/report.py"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"python supabase create_client secret key table select execute range pagination\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/creating-routes",
+              "title": "Creating API Routes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/secure-data",
+              "title": "Securing your data"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/sql-to-api",
+              "title": "Converting SQL to JavaScript API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/postgres-changes",
+              "title": "Postgres Changes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/connect-to-postgres",
+              "title": "Integrating with Supabase Database (Postgres)"
+            }
+          ],
+          "resultChars": 68940
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"python select range pagination supabase-py\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/python/range",
+              "title": "range()"
+            }
+          ],
+          "resultChars": 674
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"python query foreign tables joins select related tables supabase\", limit: 4) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/joins-and-nesting",
+              "title": "Querying Joins and Nested tables"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/engineering-for-scale",
+              "title": "Engineering for Scale"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/tables",
+              "title": "Tables and data"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/managing-user-data",
+              "title": "User Management"
+            }
+          ],
+          "resultChars": 63327
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-sol",
+        "inputTokens": 317673,
+        "cacheReadInputTokens": 276030,
+        "cacheWriteInputTokens": 41601,
+        "outputTokens": 5340
+      }
+    ],
+    "stepCount": 14,
+    "toolCallCount": 13,
+    "agentRunDurationMs": 85013,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 347605,
+      "duration": 278599,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1685974278,
+        "egress": 5334357
+      }
+    },
+    "prompt": "We need the nightly sales report working. `app/report.py` has the spec in a\ncomment — it runs in our Python backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
+    "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report-py/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-sol-no-skills/build-dataapi-001-relational-report-py/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-sol-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-sol",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-dataapi-001-relational-report-py",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read returned 0 rows"
+      },
+      {
+        "name": "implementation uses supabase-py",
+        "passed": true,
+        "notes": "imports found in: app/report.py"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query:\"python supabase select foreign table join nested query range pagination 1000 rows service_role secret key\", limit:5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/secure-data",
+              "title": "Securing your data"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/engineering-for-scale",
+              "title": "Engineering for Scale"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/debugging/logs",
+              "title": "Logs"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/connect-to-postgres",
+              "title": "Integrating with Supabase Database (Postgres)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/joins-and-nesting",
+              "title": "Querying Joins and Nested tables"
+            }
+          ],
+          "resultChars": 41358
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/reference/python/select range pagination python supabase create_client",
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query:\"python select range pagination retrieve records limit 1000\", limit:3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/python/limit",
+              "title": "limit()"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advanced-log-filtering",
+              "title": "Query logs with SQL"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/python/range",
+              "title": "range()"
+            }
+          ],
+          "resultChars": 24228
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-sol",
+        "inputTokens": 331732,
+        "cacheReadInputTokens": 287277,
+        "cacheWriteInputTokens": 40197,
+        "outputTokens": 5395
+      }
+    ],
+    "stepCount": 15,
+    "toolCallCount": 12,
+    "agentRunDurationMs": 87794,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 254106,
+      "duration": 242984,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1691889423,
+        "egress": 9152252
+      }
+    },
+    "prompt": "We need the nightly sales report working. `app/report.py` has the spec in a\ncomment — it runs in our Python backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
+    "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report-py/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-sol-no-skills/build-dataapi-001-relational-report-py/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-sol-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-sol",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-dataapi-001-relational-report-py",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read returned 0 rows"
+      },
+      {
+        "name": "implementation uses supabase-py",
+        "passed": true,
+        "notes": "imports found in: app/report.py"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query:\"python supabase create_client secret key table select range order pagination response data\",limit:5){ nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/creating-routes",
+              "title": "Creating API Routes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/sql-to-api",
+              "title": "Converting SQL to JavaScript API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/secure-data",
+              "title": "Securing your data"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/connect-to-postgres",
+              "title": "Integrating with Supabase Database (Postgres)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/quickstart",
+              "title": "Build an API route in less than 2 minutes."
+            }
+          ],
+          "resultChars": 26906
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query:\"python range supabase select paginate rows range(start end) max 1000\",limit:4){ nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/observability/advanced-log-filtering",
+              "title": "Query logs with SQL"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/using-modifiers-range"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/sql-to-api",
+              "title": "Converting SQL to JavaScript API"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/python/range",
+              "title": "range()"
+            }
+          ],
+          "resultChars": 26668
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-sol",
+        "inputTokens": 480478,
+        "cacheReadInputTokens": 450460,
+        "cacheWriteInputTokens": 29958,
+        "outputTokens": 6155
+      }
+    ],
+    "stepCount": 20,
+    "toolCallCount": 15,
+    "agentRunDurationMs": 101409,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 250976,
+      "duration": 253581,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1690990416,
+        "egress": 9099722
+      }
+    },
+    "prompt": "We need the nightly sales report working. `app/report.py` has the spec in a\ncomment — it runs in our Python backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
+    "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report-py/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-sol-no-skills/build-dataapi-001-relational-report-py/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-sol-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-sol",
+      "reasoningEffort": "medium"
+    },
     "eval": "build-dataapi-002-restock-alert-report",
     "stage": "build",
     "product": [
@@ -69618,6 +72426,525 @@
     "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report/PROMPT.md",
     "run": 3,
     "sourcePath": "grok-4.7/build-dataapi-001-relational-report/run-3/result.json"
+  },
+  {
+    "experiment": "grok-4.7",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "grok",
+      "modelProvider": "spacexai",
+      "modelId": "grok-4.7",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-dataapi-001-relational-report-py",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read returned 0 rows"
+      },
+      {
+        "name": "implementation uses supabase-py",
+        "passed": true,
+        "notes": "imports found in: app/report.py"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"python client create_client secret key service role\", limit: 5) { nodes { title href content ... on ClientLibraryFunctionReference { language methodName } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/realtime/getting_started",
+              "title": "Getting Started with Realtime"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/oauth-admin-createclient"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/roles",
+              "title": "Postgres Roles"
+            }
+          ],
+          "resultChars": 20396
+        },
+        {
+          "source": "web_search",
+          "query": "supabase-py 2.33 create_client SUPABASE_SECRET_KEY python service role",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/python/error-codes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/api-keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/why-is-my-service-role-key-client-getting-rls-errors-or-not-returning-data-7_1K9z"
+            }
+          ],
+          "resultChars": 2375
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"python select nested resources foreign tables range pagination\", limit: 3) { nodes { title href content ... on ClientLibraryFunctionReference { language methodName } } } }",
+          "hasContent": true,
+          "pages": [],
+          "resultChars": 38
+        },
+        {
+          "source": "shell_fetch",
+          "query": "curl -fsSL --max-time 20 https://supabase.com/changelog.md | head -c 8000; echo; echo '---PY---'; python3 -c 'import supabase; print(supabase.__file__)' 2>&1 | head -5; which uv; ls /tmp/sandbox-18fd6118/app",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 8058
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Python select filter order limit range\", limit: 5) { nodes { title href content ... on ClientLibraryFunctionReference { language methodName } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/python/range",
+              "title": "range()"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/python/limit",
+              "title": "limit()"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/python/using-filters",
+              "title": "Using Filters"
+            }
+          ],
+          "resultChars": 2951
+        },
+        {
+          "source": "shell_fetch",
+          "query": "curl -fsSL --max-time 25 \"https://supabase.com/docs/reference/python/select.md\" | head -c 12000; echo; echo '======= INITIALIZING ======='; curl -fsSL --max-time 25 \"https://supabase.com/docs/reference/python/initializing.md\" | head -c 8000",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/python/select.md"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/python/initializing.md"
+            }
+          ],
+          "resultChars": 136
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"python query foreign tables resource embedding select\", limit: 4) { nodes { title href content ... on ClientLibraryFunctionReference { language methodName } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/ai/engineering-for-scale",
+              "title": "Engineering for Scale"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/automatic-embeddings",
+              "title": "Automatic embeddings"
+            }
+          ],
+          "resultChars": 20396
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"python initializing create_client ClientOptions persist_session\", limit: 3) { nodes { title href content ... on ClientLibraryFunctionReference { language methodName } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/python/auth-admin-oauth-createclient",
+              "title": "admin.oauth.create_client()"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/python/realtime-api",
+              "title": "Overview"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/python/initializing"
+            }
+          ],
+          "resultChars": 2796
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "grok-4.7",
+        "inputTokens": 597322,
+        "cacheReadInputTokens": 512512,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 4701
+      }
+    ],
+    "stepCount": 18,
+    "toolCallCount": 35,
+    "agentRunDurationMs": 132827,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 262697,
+      "duration": 291300,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1578199083,
+        "egress": 20690770
+      }
+    },
+    "prompt": "We need the nightly sales report working. `app/report.py` has the spec in a\ncomment — it runs in our Python backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
+    "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report-py/PROMPT.md",
+    "run": 1,
+    "sourcePath": "grok-4.7/build-dataapi-001-relational-report-py/run-1/result.json"
+  },
+  {
+    "experiment": "grok-4.7",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "grok",
+      "modelProvider": "spacexai",
+      "modelId": "grok-4.7",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-dataapi-001-relational-report-py",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read returned 0 rows"
+      },
+      {
+        "name": "implementation uses supabase-py",
+        "passed": true,
+        "notes": "imports found in: app/report.py"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"python client service role secret key select from table\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/realtime/postgres-changes",
+              "title": "Postgres Changes"
+            }
+          ],
+          "resultChars": 20396
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"python create_client secret key service role SUPABASE_SECRET_KEY\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/oauth-admin-createclient"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/performing-administration-tasks-on-the-server-side-with-the-servicerole-secret-BYM4Fa",
+              "title": "Performing administration tasks on the server side with a secret key"
+            }
+          ],
+          "resultChars": 14448
+        },
+        {
+          "source": "web_search",
+          "query": "supabase-py create_client sb_secret key python 2.33 2026",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/python"
+            }
+          ],
+          "resultChars": 2785
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"python select foreign table embed range pagination\", limit: 2) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [],
+          "resultChars": 38
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "grok-4.7",
+        "inputTokens": 533007,
+        "cacheReadInputTokens": 459008,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 4551
+      }
+    ],
+    "stepCount": 17,
+    "toolCallCount": 31,
+    "agentRunDurationMs": 237326,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 436976,
+      "duration": 469181,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1573828070,
+        "egress": 16983053
+      }
+    },
+    "prompt": "We need the nightly sales report working. `app/report.py` has the spec in a\ncomment — it runs in our Python backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
+    "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report-py/PROMPT.md",
+    "run": 2,
+    "sourcePath": "grok-4.7/build-dataapi-001-relational-report-py/run-2/result.json"
+  },
+  {
+    "experiment": "grok-4.7",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "grok",
+      "modelProvider": "spacexai",
+      "modelId": "grok-4.7",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-dataapi-001-relational-report-py",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read returned 0 rows"
+      },
+      {
+        "name": "implementation uses supabase-py",
+        "passed": true,
+        "notes": "imports found in: app/report.py"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"python client select from table service role secret key\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/realtime/postgres-changes",
+              "title": "Postgres Changes"
+            }
+          ],
+          "resultChars": 20396
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"python initializing client service role key select query foreign tables\", limit: 3) { nodes { ... on ClientLibraryFunctionReference { title href language methodName content } ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/analytics/query-with-postgres",
+              "title": "Query with Postgres"
+            }
+          ],
+          "resultChars": 2632
+        },
+        {
+          "source": "shell_fetch",
+          "query": "curl -fsSL \"https://supabase.com/changelog.md\" | head -c 8000; echo; echo \"==== PYTHON DOCS ====\"; curl -fsSL \"https://supabase.com/docs/reference/python/installing.md\" | head -c 4000; echo; echo \"==== INITIALIZING ====\"; curl -fsSL \"https://supabase.com/docs/reference/python/initializing.md\" | head -c 6000",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/python/installing.md"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/python/initializing.md"
+            }
+          ],
+          "resultChars": 8133
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"python create_client secret key service role select nested resources\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [],
+          "resultChars": 38
+        },
+        {
+          "source": "shell_fetch",
+          "query": "curl -fsSL -o /dev/null -w \"%{http_code} %{url_effective}\\n\" \"https://supabase.com/docs/reference/python/introduction\" ; curl -fsSL \"https://supabase.com/docs/reference/python/introduction.md\" | head -c 3000; echo; echo \"==== SELECT ====\"; curl -fsSL \"https://supabase.com/docs/reference/python/select.md\" | head -c 2500; echo; echo \"==== INIT ====\"; curl -fsSL \"https://supabase.com/docs/guides/api/api-keys.md\" | head -c 2000",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/python/introduction.md"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/python/select.md"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/api-keys.md"
+            }
+          ],
+          "resultChars": 2231
+        },
+        {
+          "source": "shell_fetch",
+          "query": "curl -fsSL \"https://supabase.com/docs/reference/python/introduction\" | python3 -c \"\nimport sys,re\nhtml=sys.stdin.read()\n# strip tags roughly\ntext=re.sub(r'<script[\\s\\S]*?</script>',' ',html)\ntext=re.sub(r'<style[\\s\\S]*?</style>',' ',text)\ntext=re.sub(r'<[^>]+>',' ',text)\ntext=re.sub(r'\\s+',' ',text)\nprint(text[:8000])\n\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/python/introduction"
+            }
+          ],
+          "resultChars": 3325
+        },
+        {
+          "source": "shell_fetch",
+          "query": "curl -fsSL \"https://supabase.com/docs/guides/api/api-keys.md\" | rg -n -i \"secret|service_role|sb_secret|python|create_client\" | head -80",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/api-keys.md"
+            }
+          ],
+          "resultChars": 91
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "grok-4.7",
+        "inputTokens": 473389,
+        "cacheReadInputTokens": 430848,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 3569
+      }
+    ],
+    "stepCount": 15,
+    "toolCallCount": 29,
+    "agentRunDurationMs": 91498,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 362036,
+      "duration": 292547,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1576944326,
+        "egress": 18071432
+      }
+    },
+    "prompt": "We need the nightly sales report working. `app/report.py` has the spec in a\ncomment — it runs in our Python backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
+    "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report-py/PROMPT.md",
+    "run": 3,
+    "sourcePath": "grok-4.7/build-dataapi-001-relational-report-py/run-3/result.json"
   },
   {
     "experiment": "grok-4.7",
@@ -78874,6 +82201,420 @@
       "modelId": "grok-4.7",
       "reasoningEffort": "high"
     },
+    "eval": "build-dataapi-001-relational-report-py",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read returned 0 rows"
+      },
+      {
+        "name": "implementation uses supabase-py",
+        "passed": true,
+        "notes": "imports found in: app/report.py"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"python create_client secret key service role select embed\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/ai/examples/building-chatgpt-plugins",
+              "title": "Building ChatGPT plugins"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/examples/mixpeek-video-search",
+              "title": "Video Search with Mixpeek Multimodal Embeddings"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/oauth-admin-createclient"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            }
+          ],
+          "resultChars": 20386
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"python initializing secret key create_client supabase-py\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/quickstarts/reflex",
+              "title": "Use Supabase with Reflex"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/examples/mixpeek-video-search",
+              "title": "Video Search with Mixpeek Multimodal Embeddings"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/python/initializing"
+            }
+          ],
+          "resultChars": 17514
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"understanding API keys secret key python client sb_secret service role bypass RLS\", limit: 2) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/access-control",
+              "title": "Storage Access Control"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            }
+          ],
+          "resultChars": 20396
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "grok-4.7",
+        "inputTokens": 343954,
+        "cacheReadInputTokens": 305408,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 2388
+      }
+    ],
+    "stepCount": 12,
+    "toolCallCount": 23,
+    "agentRunDurationMs": 96479,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 410326,
+      "duration": 315160,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1573692925,
+        "egress": 15974225
+      }
+    },
+    "prompt": "We need the nightly sales report working. `app/report.py` has the spec in a\ncomment — it runs in our Python backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
+    "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report-py/PROMPT.md",
+    "run": 1,
+    "sourcePath": "grok-4.7-no-skills/build-dataapi-001-relational-report-py/run-1/result.json"
+  },
+  {
+    "experiment": "grok-4.7-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "grok",
+      "modelProvider": "spacexai",
+      "modelId": "grok-4.7",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-dataapi-001-relational-report-py",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read returned 0 rows"
+      },
+      {
+        "name": "implementation uses supabase-py",
+        "passed": true,
+        "notes": "imports found in: app/report.py"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Python client create_client secret key service role select from tables\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/secure-data",
+              "title": "Securing your data"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/quickstarts/flask",
+              "title": "Use Supabase with Python"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/getting_started",
+              "title": "Getting Started with Realtime"
+            }
+          ],
+          "resultChars": 20395
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"python supabase-py create_client secret key service_role nested select foreign tables\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/secure-data",
+              "title": "Securing your data"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/engineering-for-scale",
+              "title": "Engineering for Scale"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/quickstarts/flask",
+              "title": "Use Supabase with Python"
+            }
+          ],
+          "resultChars": 17778
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "grok-4.7",
+        "inputTokens": 247259,
+        "cacheReadInputTokens": 215552,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 2360
+      }
+    ],
+    "stepCount": 10,
+    "toolCallCount": 17,
+    "agentRunDurationMs": 62275,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 229726,
+      "duration": 210654,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1577827637,
+        "egress": 18631336
+      }
+    },
+    "prompt": "We need the nightly sales report working. `app/report.py` has the spec in a\ncomment — it runs in our Python backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
+    "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report-py/PROMPT.md",
+    "run": 2,
+    "sourcePath": "grok-4.7-no-skills/build-dataapi-001-relational-report-py/run-2/result.json"
+  },
+  {
+    "experiment": "grok-4.7-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "grok",
+      "modelProvider": "spacexai",
+      "modelId": "grok-4.7",
+      "reasoningEffort": "high"
+    },
+    "eval": "build-dataapi-001-relational-report-py",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read returned 0 rows"
+      },
+      {
+        "name": "implementation uses supabase-py",
+        "passed": true,
+        "notes": "imports found in: app/report.py"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"python client service role select nested foreign tables\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/ai/engineering-for-scale",
+              "title": "Engineering for Scale"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advisors?queryGroups=lint&lint=0017_foreign_table_in_api",
+              "title": "Database Advisor: Lint 0017_foreign_table_in_api"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/roles",
+              "title": "Postgres Roles"
+            }
+          ],
+          "resultChars": 12
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"python initializing client secret key service role select\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/realtime/getting_started",
+              "title": "Getting Started with Realtime"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            }
+          ],
+          "resultChars": 20397
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"python create_client select nested resource embedding foreign key\", limit: 3) { nodes { ... on ClientLibraryFunctionReference { title href language methodName content } title href content } } }",
+          "hasContent": true,
+          "pages": [],
+          "resultChars": 38
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Python select data from table\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/python/select",
+              "title": "Fetch data: select()"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/analytics/examples/pyiceberg",
+              "title": "PyIceberg"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/analytics/examples/apache-spark",
+              "title": "Apache Spark"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/full-text-search",
+              "title": "Full Text Search"
+            }
+          ],
+          "resultChars": 20378
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "grok-4.7",
+        "inputTokens": 307613,
+        "cacheReadInputTokens": 270976,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 2599
+      }
+    ],
+    "stepCount": 11,
+    "toolCallCount": 21,
+    "agentRunDurationMs": 39134,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 239693,
+      "duration": 192054,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1577998422,
+        "egress": 18733366
+      }
+    },
+    "prompt": "We need the nightly sales report working. `app/report.py` has the spec in a\ncomment — it runs in our Python backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
+    "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report-py/PROMPT.md",
+    "run": 3,
+    "sourcePath": "grok-4.7-no-skills/build-dataapi-001-relational-report-py/run-3/result.json"
+  },
+  {
+    "experiment": "grok-4.7-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "grok",
+      "modelProvider": "spacexai",
+      "modelId": "grok-4.7",
+      "reasoningEffort": "high"
+    },
     "eval": "build-dataapi-002-restock-alert-report",
     "stage": "build",
     "product": [
@@ -86782,6 +90523,286 @@
       "modelProvider": "moonshotai",
       "modelId": "moonshotai/kimi-k3"
     },
+    "eval": "build-dataapi-001-relational-report-py",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read returned 0 rows"
+      },
+      {
+        "name": "implementation uses supabase-py",
+        "passed": true,
+        "notes": "imports found in: app/report.py"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": []
+    },
+    "docs": {
+      "calls": []
+    },
+    "usage": [
+      {
+        "model": "moonshotai/kimi-k3",
+        "inputTokens": 96679,
+        "cacheReadInputTokens": 43008,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 4371
+      }
+    ],
+    "stepCount": 9,
+    "toolCallCount": 12,
+    "agentRunDurationMs": 66945,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 298223,
+      "duration": 232922,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1707463282,
+        "egress": 18345563
+      }
+    },
+    "prompt": "We need the nightly sales report working. `app/report.py` has the spec in a\ncomment — it runs in our Python backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
+    "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report-py/PROMPT.md",
+    "run": 1,
+    "sourcePath": "opencode-kimi-k3/build-dataapi-001-relational-report-py/run-1/result.json"
+  },
+  {
+    "experiment": "opencode-kimi-k3",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "opencode",
+      "modelProvider": "moonshotai",
+      "modelId": "moonshotai/kimi-k3"
+    },
+    "eval": "build-dataapi-001-relational-report-py",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read returned 0 rows"
+      },
+      {
+        "name": "implementation uses supabase-py",
+        "passed": true,
+        "notes": "imports found in: app/report.py"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_fetch",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 101614
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "moonshotai/kimi-k3",
+        "inputTokens": 279973,
+        "cacheReadInputTokens": 237440,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 5300
+      }
+    ],
+    "stepCount": 13,
+    "toolCallCount": 18,
+    "agentRunDurationMs": 106152,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 471212,
+      "duration": 335118,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1704455957,
+        "egress": 15882350
+      }
+    },
+    "prompt": "We need the nightly sales report working. `app/report.py` has the spec in a\ncomment — it runs in our Python backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
+    "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report-py/PROMPT.md",
+    "run": 2,
+    "sourcePath": "opencode-kimi-k3/build-dataapi-001-relational-report-py/run-2/result.json"
+  },
+  {
+    "experiment": "opencode-kimi-k3",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "opencode",
+      "modelProvider": "moonshotai",
+      "modelId": "moonshotai/kimi-k3"
+    },
+    "eval": "build-dataapi-001-relational-report-py",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read returned 0 rows"
+      },
+      {
+        "name": "implementation uses supabase-py",
+        "passed": true,
+        "notes": "imports found in: app/report.py"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_fetch",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 101614
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "moonshotai/kimi-k3",
+        "inputTokens": 167298,
+        "cacheReadInputTokens": 72576,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 5018
+      }
+    ],
+    "stepCount": 9,
+    "toolCallCount": 12,
+    "agentRunDurationMs": 90771,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 509508,
+      "duration": 336812,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1704409465,
+        "egress": 15224708
+      }
+    },
+    "prompt": "We need the nightly sales report working. `app/report.py` has the spec in a\ncomment — it runs in our Python backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
+    "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report-py/PROMPT.md",
+    "run": 3,
+    "sourcePath": "opencode-kimi-k3/build-dataapi-001-relational-report-py/run-3/result.json"
+  },
+  {
+    "experiment": "opencode-kimi-k3",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "opencode",
+      "modelProvider": "moonshotai",
+      "modelId": "moonshotai/kimi-k3"
+    },
     "eval": "build-dataapi-002-restock-alert-report",
     "stage": "build",
     "product": [
@@ -94425,6 +98446,249 @@
     "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report/PROMPT.md",
     "run": 3,
     "sourcePath": "opencode-kimi-k3-no-skills/build-dataapi-001-relational-report/run-3/result.json"
+  },
+  {
+    "experiment": "opencode-kimi-k3-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "opencode",
+      "modelProvider": "moonshotai",
+      "modelId": "moonshotai/kimi-k3"
+    },
+    "eval": "build-dataapi-001-relational-report-py",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read returned 0 rows"
+      },
+      {
+        "name": "implementation uses supabase-py",
+        "passed": true,
+        "notes": "imports found in: app/report.py"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": []
+    },
+    "usage": [
+      {
+        "model": "moonshotai/kimi-k3",
+        "inputTokens": 77849,
+        "cacheReadInputTokens": 47168,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 3392
+      }
+    ],
+    "stepCount": 8,
+    "toolCallCount": 11,
+    "agentRunDurationMs": 55464,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 280318,
+      "duration": 215251,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1706670010,
+        "egress": 17840869
+      }
+    },
+    "prompt": "We need the nightly sales report working. `app/report.py` has the spec in a\ncomment — it runs in our Python backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
+    "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report-py/PROMPT.md",
+    "run": 1,
+    "sourcePath": "opencode-kimi-k3-no-skills/build-dataapi-001-relational-report-py/run-1/result.json"
+  },
+  {
+    "experiment": "opencode-kimi-k3-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "opencode",
+      "modelProvider": "moonshotai",
+      "modelId": "moonshotai/kimi-k3"
+    },
+    "eval": "build-dataapi-001-relational-report-py",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read returned 0 rows"
+      },
+      {
+        "name": "implementation uses supabase-py",
+        "passed": true,
+        "notes": "imports found in: app/report.py"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": []
+    },
+    "usage": [
+      {
+        "model": "moonshotai/kimi-k3",
+        "inputTokens": 116269,
+        "cacheReadInputTokens": 59136,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 4390
+      }
+    ],
+    "stepCount": 10,
+    "toolCallCount": 13,
+    "agentRunDurationMs": 75083,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 293675,
+      "duration": 238306,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1707235021,
+        "egress": 18641509
+      }
+    },
+    "prompt": "We need the nightly sales report working. `app/report.py` has the spec in a\ncomment — it runs in our Python backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
+    "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report-py/PROMPT.md",
+    "run": 2,
+    "sourcePath": "opencode-kimi-k3-no-skills/build-dataapi-001-relational-report-py/run-2/result.json"
+  },
+  {
+    "experiment": "opencode-kimi-k3-no-skills",
+    "experimentSuite": "no-skills",
+    "experimentDisplay": {
+      "agent": "opencode",
+      "modelProvider": "moonshotai",
+      "modelId": "moonshotai/kimi-k3"
+    },
+    "eval": "build-dataapi-001-relational-report-py",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "report runs and prints JSON",
+        "passed": true,
+        "notes": "exit 0"
+      },
+      {
+        "name": "report numbers match the database (per customer, sorted)",
+        "passed": true,
+        "notes": "expected [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}], got [{\"customer\":\"Ada Lovelace\",\"orderCount\":2,\"totalCents\":41900,\"topProduct\":\"Keyboard\"},{\"customer\":\"Grace Hopper\",\"orderCount\":2,\"totalCents\":15600,\"topProduct\":\"Cable\"},{\"customer\":\"Linus Pauling\",\"orderCount\":1,\"totalCents\":66500,\"topProduct\":\"Monitor\"}]"
+      },
+      {
+        "name": "tables stay locked down (publishable key reads nothing)",
+        "passed": true,
+        "notes": "publishable read returned 0 rows"
+      },
+      {
+        "name": "implementation uses supabase-py",
+        "passed": true,
+        "notes": "imports found in: app/report.py"
+      },
+      {
+        "name": "report queries via the Data API, not raw SQL",
+        "passed": true,
+        "notes": "no psql / raw Postgres driver usage found"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": []
+    },
+    "usage": [
+      {
+        "model": "moonshotai/kimi-k3",
+        "inputTokens": 78648,
+        "cacheReadInputTokens": 38784,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 3682
+      }
+    ],
+    "stepCount": 8,
+    "toolCallCount": 12,
+    "agentRunDurationMs": 56659,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 315163,
+      "duration": 228369,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1706242323,
+        "egress": 17249310
+      }
+    },
+    "prompt": "We need the nightly sales report working. `app/report.py` has the spec in a\ncomment — it runs in our Python backend worker and prints a JSON summary of what\neach customer has ordered.\n\nThe data lives in the Supabase project in `supabase/` (already running\nlocally). Finish the script and make sure it prints the right numbers.",
+    "promptSourcePath": "evals/benchmark/build-dataapi-001-relational-report-py/PROMPT.md",
+    "run": 3,
+    "sourcePath": "opencode-kimi-k3-no-skills/build-dataapi-001-relational-report-py/run-3/result.json"
   },
   {
     "experiment": "opencode-kimi-k3-no-skills",
