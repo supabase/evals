@@ -56,7 +56,7 @@ pnpm eval -- \
   --eval investigate-auth-001-deleted-user-access
 ```
 
-`--suite`, `--experiment-suite`, `--experiment`, and `--eval` accept multiple inputs via repeated flags as well as comma-separated values.
+`--suite`, `--experiment-suite`, `--experiment`, `--eval`, and `--sdk` accept multiple inputs via repeated flags as well as comma-separated values. `--sdk py` runs only the evals whose frontmatter declares that client SDK.
 
 Use `--runs N` to score each experiment and eval pair independently `N` times.
 Each run writes to `results/<experiment>/<eval>/run-<n>/result.json`. Add

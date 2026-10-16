@@ -1,6 +1,8 @@
 import {
+  evalSdkSchema,
   evalSuiteSchema,
   experimentSuiteSchema,
+  type EvalSdk,
   type EvalSuite,
   type ExperimentSuite,
 } from '@supabase-evals/core/eval-metadata';
@@ -76,6 +78,19 @@ export function readSuiteFilters(rawArgs: string[]): EvalSuite[] {
     if (!parsed.success) {
       throw new Error(
         `invalid suite "${value}". Expected one of: ${evalSuiteSchema.options.join(', ')}`
+      );
+    }
+    return parsed.data;
+  });
+}
+
+/** `--sdk` values, validated against the sdk enum. */
+export function readSdkFilters(rawArgs: string[]): EvalSdk[] {
+  return readRepeatedFlag(rawArgs, 'sdk').map((value) => {
+    const parsed = evalSdkSchema.safeParse(value.trim().toLowerCase());
+    if (!parsed.success) {
+      throw new Error(
+        `invalid sdk "${value}". Expected one of: ${evalSdkSchema.options.join(', ')}`
       );
     }
     return parsed.data;
