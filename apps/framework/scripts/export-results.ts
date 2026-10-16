@@ -76,6 +76,7 @@ export function toEvalResult(
     topic: promptData?.topic ?? parsedResult.topic,
     suite: promptData?.suite ?? parsedResult.suite,
     interface: promptData?.interface ?? parsedResult.interface,
+    sdk: promptData?.sdk ?? parsedResult.sdk,
     // The run's recorded version (the binary that actually ran) wins over the
     // frontmatter pin, which only names what the eval requested.
     cliVersion: parsedResult.cliVersion ?? promptData?.cliVersion,

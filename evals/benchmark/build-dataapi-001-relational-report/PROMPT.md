@@ -1,6 +1,7 @@
 ---
 stage: build
 interface: cli
+sdk: js
 product:
   - data-api
   - database

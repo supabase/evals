@@ -358,6 +358,7 @@ async function collectRows(
         eval_suite: suite,
         stage: promptData?.stage ?? result.stage,
         interface: promptData?.interface ?? result.interface,
+        sdk: promptData?.sdk ?? result.sdk,
         skills: result.skills,
         docs: result.docs,
         source_path: sourcePath,
