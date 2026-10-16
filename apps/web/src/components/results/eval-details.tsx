@@ -14,11 +14,16 @@ import {
   passFailClassName,
 } from "@/components/results/table-shared"
 import {
+  getSdkKey,
   type CheckResult,
   type DocsCall,
   type ParsedResult,
 } from "@/lib/eval-results"
-import { formatProductLabel, formatTagLabel } from "@/lib/format"
+import {
+  formatProductLabel,
+  formatSdkLabel,
+  formatTagLabel,
+} from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 const DOCS_CALL_SOURCE_LABEL: Record<DocsCall["source"], string> = {
@@ -258,6 +263,7 @@ export function EvalDetails({ result }: { result: ParsedResult }) {
         label="Topic"
         value={result.topic.map(formatTagLabel).join(", ") || "-"}
       />
+      <EvalMetadataRow label="SDK" value={formatSdkLabel(getSdkKey(result))} />
       {result.checks?.length ? (
         <EvalMetadataRow
           label="Result details"

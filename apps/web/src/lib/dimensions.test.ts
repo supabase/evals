@@ -90,11 +90,38 @@ describe("the product dimension", () => {
   })
 })
 
+describe("the sdk dimension", () => {
+  it("buckets a run under its sdk, or none", () => {
+    expect(DIMENSIONS.sdk.keyOf(makeResult({ sdk: "py" }))).toBe("py")
+    expect(DIMENSIONS.sdk.keyOf(makeResult({}))).toBe("none")
+  })
+
+  it("lists sdks alphabetically with none last", () => {
+    const results = [
+      makeResult({ eval: "a" }),
+      makeResult({ eval: "b", sdk: "py" }),
+      makeResult({ eval: "c", sdk: "js" }),
+    ]
+
+    expect(DIMENSIONS.sdk.keys(results)).toEqual(["js", "py", "none"])
+    expect(DIMENSIONS.sdk.filter("none", results).map((r) => r.eval)).toEqual([
+      "a",
+    ])
+  })
+
+  it("reads a run by its sdk label", () => {
+    expect(dimensionCell(DIMENSIONS.sdk, makeResult({ sdk: "js" }))).toBe(
+      "JavaScript"
+    )
+    expect(dimensionCell(DIMENSIONS.sdk, makeResult({}))).toBe("None")
+  })
+})
+
 describe("the eval dimension", () => {
   it("pins the axes an eval selection already determines", () => {
     // Every run of one eval shares its stage and products, so the sheet drops
     // those columns rather than repeating a constant.
-    expect(DIMENSIONS.eval.implies).toEqual(["stage", "product"])
+    expect(DIMENSIONS.eval.implies).toEqual(["stage", "product", "sdk"])
   })
 
   it("keeps the raw id available as a tooltip", () => {
