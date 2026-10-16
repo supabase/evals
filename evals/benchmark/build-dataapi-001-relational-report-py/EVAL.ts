@@ -7,13 +7,29 @@ import {
 // Python port of build-dataapi-001-relational-report: the prompt asks the
 // agent to finish a backend reporting script over a seeded relational schema
 // (customers → orders → order_items → products) and never names supabase-py —
-// the stub is a uv project (pyproject.toml depends on `supabase`), and the
-// "uses supabase-py" check is GATING, so shelling out to psql / a raw Postgres
-// driver instead fails. Expected numbers are computed from the database at
-// scoring time, so the seed stays the single source of truth.
+// the stub is a bare uv project with no dependencies (mirroring the JS
+// starter's empty package.json), so the agent has to discover and add the SDK
+// itself; the "uses supabase-py" check is GATING, so shelling out to psql / a
+// raw Postgres driver instead fails. Expected numbers are computed from the
+// database at scoring time, so the seed stays the single source of truth.
 
 const APP_DIR = 'app';
 const REPORT = 'report.py';
+
+// Install whatever the agent declared, wherever it declared it: sync the uv
+// project when pyproject.toml is still there, and/or install requirements.txt
+// into the app's venv (creating one if needed). Each step is a no-op when the
+// agent already did it. Mirrors the JS eval's unconditional `npm install`.
+// ponytail: covers pyproject + requirements.txt only; add Pipfile/poetry when a run shows it.
+const INSTALL_CMD =
+  `cd ${APP_DIR} && ` +
+  `( [ ! -f pyproject.toml ] || uv sync --quiet ) && ` +
+  `( [ ! -f requirements.txt ] || { [ -d .venv ] || uv venv --quiet; uv pip install --quiet -r requirements.txt; } )`;
+
+// Prefer the app's own venv (uv's `.venv`, or a hand-made `venv/`); fall back
+// to the sandbox python3 for agents that installed with `pip install --user`.
+const PYTHON_CMD =
+  'PY=python3; for c in .venv/bin/python venv/bin/python; do [ -x "$c" ] && PY="$c" && break; done';
 
 interface ReportRow {
   customer: unknown;
@@ -67,10 +83,8 @@ const scorer: LocalStackScorer = async (ctx) => {
     }
 
     // Be generous about a missing install step; the eval is about the report,
-    // not uv. A no-op when the agent already synced the environment.
-    const install = await ctx.exec(`cd ${APP_DIR} && uv sync --quiet`, {
-      timeoutMs: 180_000,
-    });
+    // not packaging. See INSTALL_CMD.
+    const install = await ctx.exec(INSTALL_CMD, { timeoutMs: 180_000 });
     if (!install.ok) {
       return fail(
         'installed app dependencies',
@@ -79,7 +93,7 @@ const scorer: LocalStackScorer = async (ctx) => {
     }
 
     const run = await ctx.exec(
-      `cd ${APP_DIR} && SUPABASE_URL="${apiUrl}" SUPABASE_SECRET_KEY="${secretKey}" uv run --quiet python ${REPORT}`,
+      `cd ${APP_DIR} && ${PYTHON_CMD}; SUPABASE_URL="${apiUrl}" SUPABASE_SECRET_KEY="${secretKey}" "$PY" ${REPORT}`,
       { timeoutMs: 60_000 }
     );
     const actual = parseReport(run.stdout);
