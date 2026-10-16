@@ -1,12 +1,12 @@
 # Common base image for the agent's sandbox (both eval modes). It carries the
-# general developer tooling every agent run needs — Node, Python (python3 + uv)
-# and the skills CLI; the Supabase CLI is NOT here — it's a local-stack
+# general developer tooling every agent run needs — Node, Python (python3 + uv),
+# Flutter and the skills CLI; the Supabase CLI is NOT here — it's a local-stack
 # component installed at setup time (installSupabaseCli), so tools-mode
 # sandboxes genuinely lack it. The only mode difference.
 FROM node:22-slim
 
 RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
-    ca-certificates curl git docker.io postgresql-client python3 \
+    ca-certificates curl git docker.io postgresql-client python3 unzip \
   && rm -rf /var/lib/apt/lists/*
 
 # Global npm installs (both the baked-in skills CLI below and the agent's own
@@ -30,3 +30,21 @@ RUN npm install -g "skills@${SKILLS_CLI_VERSION}"
 ARG UV_VERSION=0.13.1
 RUN curl -LsSf "https://astral.sh/uv/${UV_VERSION}/install.sh" \
   | env UV_INSTALL_DIR=/home/node/.npm-global/bin UV_NO_MODIFY_PATH=1 sh
+
+# Flutter toolchain for Flutter-SDK evals (Dart comes bundled). Cloned at the
+# release tag so the same step works on x64 and arm64 hosts: the first run
+# fetches the Dart SDK and engine artifacts for the host architecture.
+# `flutter` and `dart` are linked into the same
+# node-owned bin dir as uv, so they work unelevated. The universal artifacts
+# (including the flutter_tester binary `flutter test` runs on) are precached,
+# and analytics are disabled up front so no first-run notice lands in a
+# scorer's stdout.
+ARG FLUTTER_VERSION=3.47.6
+RUN git clone --quiet --depth 1 --branch "${FLUTTER_VERSION}" \
+    https://github.com/flutter/flutter.git /home/node/flutter \
+  && ln -s /home/node/flutter/bin/flutter /home/node/.npm-global/bin/flutter \
+  && ln -s /home/node/flutter/bin/dart /home/node/.npm-global/bin/dart \
+  && /home/node/flutter/bin/flutter --disable-analytics \
+  && /home/node/flutter/bin/flutter config --no-cli-animations \
+  && /home/node/flutter/bin/flutter precache --universal --no-android --no-ios \
+    --no-web --no-linux --no-windows --no-macos --no-fuchsia
