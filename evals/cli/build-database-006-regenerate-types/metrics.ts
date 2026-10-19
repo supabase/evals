@@ -19,11 +19,25 @@ import type { StackProbe } from '../lib/stack.js';
 import type { MigrationEvidenceSource } from './schema.js';
 import type { ProjectAnalysis } from './typecheck.js';
 
+export const OUTPUT_FAILURE =
+  /"_tag"\s*:\s*"Error"|\berror:|error running container|Try rerunning the command with --debug/i;
+
+/** Whether the tool call exited zero and its output holds no CLI error. */
+export function toolCallSucceeded(call: ToolCallRecord | undefined): boolean {
+  return (
+    call?.error === undefined &&
+    typeof call?.result === 'string' &&
+    !OUTPUT_FAILURE.test(call.result)
+  );
+}
+
 export type GenTypesRuns = {
   runs: number;
   sources: string[];
   /** Runs whose tool call errored; `silent` means the error text was empty. */
   failed: Array<{ command: string; silent: boolean }>;
+  /** Commands of the runs whose tool call exited zero with no CLI error in its output. */
+  succeeded: string[];
 };
 
 const GEN_TYPES_SOURCE_FLAGS = [
@@ -56,13 +70,13 @@ export function subcommand(invocation: SupabaseInvocation): string | undefined {
   });
 }
 
-function isGenTypes(invocation: SupabaseInvocation): boolean {
+export function isGenTypes(invocation: SupabaseInvocation): boolean {
   return (
     invocationVerb(invocation) === 'gen' && subcommand(invocation) === 'types'
   );
 }
 
-/** Direct `supabase gen types` invocations, the distinct database sources they named and the runs whose tool call errored. */
+/** Direct `supabase gen types` invocations, the distinct database sources they named, the runs whose tool call errored and the runs that succeeded. */
 export function countGenTypesRuns(
   invocations: readonly SupabaseInvocation[],
   toolCalls: readonly ToolCallRecord[]
@@ -84,6 +98,46 @@ export function countGenTypesRuns(
             },
           ];
     }),
+    succeeded: runs.flatMap(({ commandIndex }) =>
+      toolCallSucceeded(records[commandIndex])
+        ? [entries[commandIndex]?.command ?? '']
+        : []
+    ),
+  };
+}
+
+export function checkTypesRegenerated({
+  runs,
+  failed,
+  succeeded,
+}: GenTypesRuns): CheckResult {
+  const name = 'types were regenerated with supabase gen types';
+  const last = succeeded.at(-1);
+  if (last !== undefined) {
+    return {
+      name,
+      passed: true,
+      notes: `\`${last}\` exited zero with no CLI error in its output`,
+    };
+  }
+  if (runs === 0) {
+    return {
+      name,
+      passed: false,
+      notes:
+        'no direct `supabase gen types` run (runs through package scripts are not counted)',
+    };
+  }
+  const printedError = runs - failed.length;
+  return {
+    name,
+    passed: false,
+    notes: `no gen types run succeeded: ${[
+      ...failed.map(({ command }) => `tool call errored: \`${command}\``),
+      ...(printedError > 0
+        ? [`${printedError} printed a CLI error or recorded no output`]
+        : []),
+    ].join('; ')}`,
   };
 }
 
@@ -186,6 +240,7 @@ export async function checkMetrics(
     ),
     genTypesRuns: await safely(() => genTypes.runs),
     genTypesFailedRuns: await safely(() => genTypes.failed.length),
+    genTypesSucceededRuns: await safely(() => genTypes.succeeded.length),
     genTypesSources: await safely(() => genTypes.sources),
     stackStoppedByAgent: await safely(() => lifecycle.stoppedByAgent),
     migrationEvidence,

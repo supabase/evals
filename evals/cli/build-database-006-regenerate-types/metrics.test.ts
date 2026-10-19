@@ -11,11 +11,16 @@ import { extractCommandEntries } from '../lib/detours.js';
 import type { StackProbe } from '../lib/stack.js';
 import {
   analysisFixture,
+  COMPOUND_GEN_TYPES_CALL,
   dockerRunToolCalls,
+  failedCall,
+  MASKED_PIPE_GEN_TYPES_CALL,
   SILENT_FAILED_GEN_TYPES_CALL,
+  SUCCEEDED_GEN_TYPES_CALL,
 } from './fixtures.js';
 import {
   checkMetrics,
+  checkTypesRegenerated,
   countGenTypesRuns,
   readCliFacts,
   readStackLifecycle,
@@ -56,7 +61,12 @@ const NO_LIFECYCLE: StackLifecycle = {
   stoppedByAgent: false,
 };
 
-const NO_GEN_TYPES: GenTypesRuns = { runs: 0, sources: [], failed: [] };
+const NO_GEN_TYPES: GenTypesRuns = {
+  runs: 0,
+  sources: [],
+  failed: [],
+  succeeded: [],
+};
 
 const shellCall = (command: string): ToolCallRecord => ({
   tool: { kind: 'other', toolName: 'shell' },
@@ -201,6 +211,7 @@ describe('countGenTypesRuns failed runs', () => {
       runs: 1,
       sources: ['local'],
       failed: [{ command: SILENT_FAILED_GEN_TYPES_CALL.command, silent: true }],
+      succeeded: [],
     });
   });
 
@@ -234,7 +245,126 @@ describe('countGenTypesRuns failed runs', () => {
   it('ignores a failed call that ran no gen types', () => {
     const start = { ...shellCall('supabase start'), error: 'boom' };
 
-    expect(countCalls([start])).toEqual({ runs: 0, sources: [], failed: [] });
+    expect(countCalls([start])).toEqual({
+      runs: 0,
+      sources: [],
+      failed: [],
+      succeeded: [],
+    });
+  });
+});
+
+describe('countGenTypesRuns succeeded runs', () => {
+  it('counts a redirected run whose output is the CLI progress as succeeded', () => {
+    expect(countCalls([SUCCEEDED_GEN_TYPES_CALL])).toMatchObject({
+      runs: 1,
+      failed: [],
+      succeeded: [SUCCEEDED_GEN_TYPES_CALL.command],
+    });
+  });
+
+  it('counts a gen types run inside a compound command that exited zero as succeeded', () => {
+    expect(countCalls([COMPOUND_GEN_TYPES_CALL])).toMatchObject({
+      runs: 1,
+      failed: [],
+      succeeded: [COMPOUND_GEN_TYPES_CALL.command],
+    });
+  });
+
+  it('counts neither succeeded nor failed a run that exited zero through a pipe while printing the CLI error', () => {
+    expect(countCalls([MASKED_PIPE_GEN_TYPES_CALL])).toMatchObject({
+      runs: 1,
+      failed: [],
+      succeeded: [],
+    });
+  });
+
+  it('does not count a silent failure as succeeded', () => {
+    expect(countCalls([SILENT_FAILED_GEN_TYPES_CALL])).toMatchObject({
+      runs: 1,
+      failed: [{ silent: true }],
+      succeeded: [],
+    });
+  });
+
+  it('does not count a call with an error message as succeeded', () => {
+    const call = failedCall(
+      'supabase gen types --local',
+      '{"_tag":"Error","error":{"code":"GenTypesLocalDbNotRunningError"}}\n'
+    );
+
+    expect(countCalls([call])).toMatchObject({ failed: [{}], succeeded: [] });
+  });
+
+  it('does not count a call that recorded no output as succeeded', () => {
+    const { result: _result, ...call } = SUCCEEDED_GEN_TYPES_CALL;
+
+    expect(countCalls([call])).toMatchObject({ failed: [], succeeded: [] });
+  });
+
+  it('lists only the succeeded calls among several runs', () => {
+    expect(
+      countCalls([
+        SILENT_FAILED_GEN_TYPES_CALL,
+        MASKED_PIPE_GEN_TYPES_CALL,
+        SUCCEEDED_GEN_TYPES_CALL,
+      ])
+    ).toMatchObject({
+      runs: 3,
+      succeeded: [SUCCEEDED_GEN_TYPES_CALL.command],
+    });
+  });
+});
+
+describe('checkTypesRegenerated', () => {
+  const NAME = 'types were regenerated with supabase gen types';
+
+  it('fails with a note when the agent ran no gen types', () => {
+    const check = checkTypesRegenerated(countCalls([]));
+
+    expect(check).toMatchObject({ name: NAME, passed: false });
+    expect(check.notes).toContain('no direct `supabase gen types` run');
+  });
+
+  it('passes when a run succeeded and names it in the notes', () => {
+    const check = checkTypesRegenerated(countCalls([SUCCEEDED_GEN_TYPES_CALL]));
+
+    expect(check).toMatchObject({ name: NAME, passed: true });
+    expect(check.notes).toContain(`\`${SUCCEEDED_GEN_TYPES_CALL.command}\``);
+  });
+
+  it('passes when a failed run is followed by a later success, naming the last success', () => {
+    const check = checkTypesRegenerated(
+      countCalls([
+        SILENT_FAILED_GEN_TYPES_CALL,
+        SUCCEEDED_GEN_TYPES_CALL,
+        COMPOUND_GEN_TYPES_CALL,
+      ])
+    );
+
+    expect(check.passed).toBe(true);
+    expect(check.notes).toContain(`\`${COMPOUND_GEN_TYPES_CALL.command}\``);
+  });
+
+  it('fails when the only run succeeded through a pipe while printing the CLI error', () => {
+    const check = checkTypesRegenerated(
+      countCalls([MASKED_PIPE_GEN_TYPES_CALL])
+    );
+
+    expect(check.passed).toBe(false);
+    expect(check.notes).toContain('1 printed a CLI error');
+  });
+
+  it('fails listing each errored run and the runs with a CLI error in their output', () => {
+    const check = checkTypesRegenerated(
+      countCalls([SILENT_FAILED_GEN_TYPES_CALL, MASKED_PIPE_GEN_TYPES_CALL])
+    );
+
+    expect(check.passed).toBe(false);
+    expect(check.notes).toContain(
+      `tool call errored: \`${SILENT_FAILED_GEN_TYPES_CALL.command}\``
+    );
+    expect(check.notes).toContain('1 printed a CLI error');
   });
 });
 
@@ -340,6 +470,7 @@ describe('checkMetrics', () => {
       },
       genTypesRuns: 2,
       genTypesFailedRuns: 0,
+      genTypesSucceededRuns: 2,
       stackStoppedByAgent: false,
       migrationEvidence: 'probe',
       typesModules: ['src/types/supabase.ts'],
@@ -416,10 +547,11 @@ describe('checkMetrics', () => {
     expect(metricsOf(check)).toMatchObject({
       genTypesRuns: 3,
       genTypesFailedRuns: 1,
+      genTypesSucceededRuns: 2,
     });
   });
 
-  it.each(['probe', 'tool-output', 'none'] as const)(
+  it.each(['probe', 'tool-output', 'gen-types-db-url', 'none'] as const)(
     'reports migrationEvidence %s from the facts',
     async (migrationEvidence) => {
       const check = await checkMetrics(undefined, {
@@ -519,7 +651,12 @@ describe('checkMetrics', () => {
 
     const hostileGenTypes = await checkMetrics(MARKER, {
       commands,
-      genTypes: throwing({ runs: 1, sources: ['local'], failed: [] }),
+      genTypes: throwing({
+        runs: 1,
+        sources: ['local'],
+        failed: [],
+        succeeded: [],
+      }),
       stack: STACK,
       lifecycle: NO_LIFECYCLE,
       analysis: analysisFixture(),
@@ -530,6 +667,7 @@ describe('checkMetrics', () => {
     expect(metricsOf(hostileGenTypes)).toMatchObject({
       genTypesRuns: null,
       genTypesFailedRuns: null,
+      genTypesSucceededRuns: null,
       genTypesSources: null,
       cliDetours: 0,
       diagnostics: 0,

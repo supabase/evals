@@ -25,7 +25,12 @@ const MIGRATED: SchemaProbe = {
   },
 };
 
-const NO_RUNS: GenTypesRuns = { runs: 0, sources: [], failed: [] };
+const NO_RUNS: GenTypesRuns = {
+  runs: 0,
+  sources: [],
+  failed: [],
+  succeeded: [],
+};
 const CLI: CliFacts = { versions: { cliVersion: '2.117.0' }, cliOverride: [] };
 const NO_LIFECYCLE: StackLifecycle = {
   lastCommand: null,
@@ -65,7 +70,7 @@ describe('describeGroundTruth', () => {
         suppressions: ['src/tasks.ts:12 @ts-ignore'],
         missingExports: ['label'],
       }),
-      genTypes: { runs: 1, sources: ['local'], failed: [] },
+      genTypes: { runs: 1, sources: ['local'], failed: [], succeeded: [] },
     });
 
     expect(lines.length).toBeGreaterThan(0);
@@ -234,13 +239,39 @@ describe('describeGroundTruth', () => {
     it('says the migration applied per the tool output when the schema could not be read but the evidence shows it applied', () => {
       const text = describe_({
         schema: { ok: false, notes: 'The local stack is not running.' },
-        evidence: { command: 'supabase start' },
+        evidence: { command: 'supabase start', via: 'apply-output' },
       }).join('\n');
 
       expect(text).toContain(
         '- migration 20260315000000 applied: yes, per the output of `supabase start`; the stack was not running when the harness probed'
       );
       expect(text).not.toContain('migration state unavailable');
+    });
+
+    describe('credited to a gen types --db-url run', () => {
+      const command = 'supabase gen types typescript --db-url "$DB_URL"';
+      const text = describe_({
+        schema: { ok: false, notes: 'The local stack is not running.' },
+        evidence: { command, via: 'gen-types-db-url' },
+      }).join('\n');
+
+      it('credits the run and says the harness cannot see that database', () => {
+        expect(text).toContain(
+          `credited to the successful \`${command}\`, which read a local database the harness cannot see`
+        );
+      });
+
+      it('says the local stack was not running when the harness probed', () => {
+        expect(text).toContain(
+          "the project's local stack was not running when the harness probed"
+        );
+      });
+
+      it('does not claim the migration applied to the local stack', () => {
+        expect(text).not.toContain('applied: yes');
+        expect(text).not.toContain('per the output');
+        expect(text).not.toContain('migration state unavailable');
+      });
     });
 
     it('prefers the probed schema over the evidence when the schema could be read', () => {
@@ -250,7 +281,7 @@ describe('describeGroundTruth', () => {
           applied: false,
           columns: { id: 'int8', is_complete: 'bool' },
         },
-        evidence: { command: 'supabase start' },
+        evidence: { command: 'supabase start', via: 'apply-output' },
       }).join('\n');
 
       expect(text).toMatch(/applied: no/);
@@ -357,7 +388,12 @@ describe('describeGroundTruth', () => {
     it('gives the run count and the distinct sources', () => {
       const line = lineFor(
         describe_({
-          genTypes: { runs: 3, sources: ['local', 'db-url'], failed: [] },
+          genTypes: {
+            runs: 3,
+            sources: ['local', 'db-url'],
+            failed: [],
+            succeeded: [],
+          },
         }),
         /gen types/i
       );
@@ -373,7 +409,9 @@ describe('describeGroundTruth', () => {
 
     it('states what is counted: direct invocations, no package scripts', () => {
       const line = lineFor(
-        describe_({ genTypes: { runs: 1, sources: ['local'], failed: [] } }),
+        describe_({
+          genTypes: { runs: 1, sources: ['local'], failed: [], succeeded: [] },
+        }),
         /gen types/i
       );
 
@@ -384,7 +422,9 @@ describe('describeGroundTruth', () => {
 
     it('says none of the runs exited non-zero when none failed', () => {
       const line = lineFor(
-        describe_({ genTypes: { runs: 2, sources: ['local'], failed: [] } }),
+        describe_({
+          genTypes: { runs: 2, sources: ['local'], failed: [], succeeded: [] },
+        }),
         /gen types/i
       );
 
@@ -394,7 +434,9 @@ describe('describeGroundTruth', () => {
 
     it('says nothing about exit status when there were no runs', () => {
       const line = lineFor(
-        describe_({ genTypes: { runs: 0, sources: [], failed: [] } }),
+        describe_({
+          genTypes: { runs: 0, sources: [], failed: [], succeeded: [] },
+        }),
         /gen types/i
       );
 
@@ -409,6 +451,7 @@ describe('describeGroundTruth', () => {
             runs: 1,
             sources: ['local'],
             failed: [{ command, silent: true }],
+            succeeded: [],
           },
         }),
         /gen types/i
@@ -427,6 +470,7 @@ describe('describeGroundTruth', () => {
             runs: 1,
             sources: ['local'],
             failed: [{ command: 'supabase gen types --local', silent: false }],
+            succeeded: [],
           },
         }),
         /gen types/i
@@ -445,6 +489,7 @@ describe('describeGroundTruth', () => {
             { command: 'first', silent: true },
             { command: 'second', silent: false },
           ],
+          succeeded: [],
         },
       });
 
@@ -454,6 +499,43 @@ describe('describeGroundTruth', () => {
           '  exited non-zero: `second`',
         ]
       );
+    });
+
+    it('names each run that succeeded on its own indented line', () => {
+      const lines = describe_({
+        genTypes: {
+          runs: 3,
+          sources: ['local'],
+          failed: [{ command: 'first', silent: true }],
+          succeeded: ['second', 'third'],
+        },
+      });
+
+      expect(
+        lines.filter((line) =>
+          line.includes('succeeded (tool call exited zero')
+        )
+      ).toEqual([
+        '  succeeded (tool call exited zero with no CLI error in its output): `second`',
+        '  succeeded (tool call exited zero with no CLI error in its output): `third`',
+      ]);
+    });
+
+    it('says none succeeded when every run failed or printed a CLI error', () => {
+      const line = lineFor(
+        describe_({
+          genTypes: {
+            runs: 2,
+            sources: ['local'],
+            failed: [{ command: 'first', silent: true }],
+            succeeded: [],
+          },
+        }),
+        /gen types/i
+      );
+
+      expect(line).toContain('  succeeded: none');
+      expect(line).not.toContain('succeeded (tool call');
     });
   });
 

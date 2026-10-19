@@ -4,13 +4,20 @@ import type {
   ToolCallRecord,
 } from '@supabase-evals/core';
 import {
+  invocationFlag,
   invocationVerb,
   type SupabaseInvocation,
 } from '../lib/cli-invocations.js';
 import { commandToolCalls } from '../lib/detours.js';
 import { describeFailure, errorMessage, shellQuote } from '../lib/shell.js';
 import type { StackProbe } from '../lib/stack.js';
-import { subcommand, type StackLifecycle } from './metrics.js';
+import {
+  isGenTypes,
+  OUTPUT_FAILURE,
+  subcommand,
+  toolCallSucceeded,
+  type StackLifecycle,
+} from './metrics.js';
 
 export const NEW_MIGRATION_VERSION = '20260315000000';
 
@@ -71,16 +78,21 @@ export async function readTasksSchema(
   }
 }
 
-export type MigrationEvidence = { command: string };
+export type MigrationEvidence = {
+  command: string;
+  via: 'apply-output' | 'gen-types-db-url';
+};
 
-export type MigrationEvidenceSource = 'probe' | 'tool-output' | 'none';
+export type MigrationEvidenceSource =
+  | 'probe'
+  | 'tool-output'
+  | 'gen-types-db-url'
+  | 'none';
 
 const APPLYING_LINE = new RegExp(
   `Applying migration ${NEW_MIGRATION_VERSION}_`,
   'g'
 );
-const OUTPUT_FAILURE =
-  /"_tag"\s*:\s*"Error"|\berror:|error running container|Try rerunning the command with --debug/i;
 const LOCAL_APPLY_COMMANDS = new Set([
   'start',
   'db start',
@@ -116,23 +128,60 @@ function appliedWithoutError(output: string): boolean {
   );
 }
 
-/** The last local `supabase` invocation whose successful tool output shows the new migration applied and not followed by an error. */
+const DB_URL_HOST =
+  /^[a-z][a-z\d+.-]*:\/\/(?:[^/?#]*@)?(\[[^\]]*\]|[^/?#:@]*)/i;
+const LOOPBACK_IPV4 = /^127(?:\.\d{1,3}){3}$/;
+
+function isLocalDbUrl(url: string): boolean {
+  const host = DB_URL_HOST.exec(url)?.[1]
+    ?.replace(/^\[|\]$/g, '')
+    .toLowerCase();
+  if (host === undefined || /[$`]/.test(host)) return true;
+  if (host.includes(':')) return host === '::1';
+  return (
+    !host.includes('.') ||
+    host.endsWith('.localhost') ||
+    LOOPBACK_IPV4.test(host) ||
+    host === '0.0.0.0' ||
+    host === 'host.docker.internal'
+  );
+}
+
+/** The last local `supabase` invocation whose successful tool output shows the new migration applied and not followed by an error, else the last successful `gen types --db-url` run against a local or unreadable database. */
 export function readMigrationEvidence(
   toolCalls: readonly ToolCallRecord[],
   invocations: readonly SupabaseInvocation[]
 ): MigrationEvidence | undefined {
   const calls = commandToolCalls(toolCalls);
-  return invocations
-    .filter(appliesMigrationsLocally)
-    .flatMap((invocation) => {
-      const call = calls[invocation.commandIndex];
-      return call?.error === undefined &&
+  const last = (
+    via: MigrationEvidence['via'],
+    credits: (invocation: SupabaseInvocation, call?: ToolCallRecord) => boolean
+  ): MigrationEvidence | undefined =>
+    invocations
+      .filter((invocation) =>
+        credits(invocation, calls[invocation.commandIndex])
+      )
+      .map((invocation) => ({ command: invocation.argv.join(' '), via }))
+      .at(-1);
+  return (
+    last(
+      'apply-output',
+      (invocation, call) =>
+        appliesMigrationsLocally(invocation) &&
+        call?.error === undefined &&
         typeof call?.result === 'string' &&
         appliedWithoutError(call.result)
-        ? [{ command: invocation.argv.join(' ') }]
-        : [];
+    ) ??
+    last('gen-types-db-url', (invocation, call) => {
+      const url = invocationFlag(invocation, '--db-url');
+      return (
+        isGenTypes(invocation) &&
+        url !== undefined &&
+        isLocalDbUrl(url) &&
+        toolCallSucceeded(call)
+      );
     })
-    .at(-1);
+  );
 }
 
 export function migrationEvidenceSource(
@@ -140,7 +189,10 @@ export function migrationEvidenceSource(
   evidence: MigrationEvidence | undefined
 ): MigrationEvidenceSource {
   if (probe.ok) return 'probe';
-  return evidence === undefined ? 'none' : 'tool-output';
+  if (evidence === undefined) return 'none';
+  return evidence.via === 'gen-types-db-url'
+    ? 'gen-types-db-url'
+    : 'tool-output';
 }
 
 export function checkMigrationApplied(
@@ -156,7 +208,10 @@ export function checkMigrationApplied(
     return {
       name,
       passed: true,
-      notes: `applied per the output of \`${evidence.command}\`; the harness could not probe the database afterwards (${reason})`,
+      notes:
+        evidence.via === 'gen-types-db-url'
+          ? `credited to the successful \`${evidence.command}\`, which read a local database the harness cannot see; the harness could not probe the local stack (${reason})`
+          : `applied per the output of \`${evidence.command}\`; the harness could not probe the database afterwards (${reason})`,
     };
   }
   if (!probe.ok) {

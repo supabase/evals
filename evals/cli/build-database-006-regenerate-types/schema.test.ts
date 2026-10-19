@@ -7,8 +7,14 @@ import type { StackProbe } from '../lib/stack.js';
 import {
   APPLY_CREATE_TASKS,
   APPLY_TASK_STATUS,
+  codexCall,
+  dbUrlGenTypesCall,
   DOCKER_START_OUTPUT,
   dockerRunToolCalls,
+  GEN_TYPES_OUTPUT,
+  SUCCEEDED_GEN_TYPES_CALL,
+  THROWAWAY_DB_URL,
+  throwawayDbToolCalls,
 } from './fixtures.js';
 import {
   checkMigrationApplied,
@@ -258,6 +264,22 @@ describe('checkMigrationApplied', () => {
     expect(check).toMatchObject({ name: CHECK_NAME, passed: false });
     expect(check.notes).toContain(NEW_MIGRATION_VERSION);
     expect(check.notes).toContain('not in applied history');
+    expect(check.notes).not.toContain('history query failed');
+  });
+
+  it('shows why the history could not be read in the notes', () => {
+    const check = checkMigrationApplied(
+      probe({
+        applied: false,
+        appliedError: 'exit 1: psql: error: connection to server was lost',
+      })
+    );
+
+    expect(check.passed).toBe(false);
+    expect(check.notes).toContain('not in applied history');
+    expect(check.notes).toContain(
+      'history query failed: exit 1: psql: error: connection to server was lost'
+    );
   });
 
   it('fails when is_complete is still a column', () => {
@@ -355,66 +377,6 @@ describe('checkMigrationApplied', () => {
   });
 });
 
-describe('readTasksSchema into checkMigrationApplied', () => {
-  it('passes for a migrated database', async () => {
-    const { ctx } = fakeCtx(migrated);
-
-    expect(
-      checkMigrationApplied(await readTasksSchema(ctx, STACK)).passed
-    ).toBe(true);
-  });
-
-  it('fails when the stack did not resolve', async () => {
-    const { ctx } = fakeCtx(migrated);
-
-    const check = checkMigrationApplied(
-      await readTasksSchema(ctx, { ok: false, notes: 'stack list: none' })
-    );
-
-    expect(check.passed).toBe(false);
-    expect(check.notes).toContain('stack list: none');
-  });
-
-  it('fails, never passes, when the columns query errors', async () => {
-    const { ctx } = fakeCtx({
-      columns: failure('psql: error: connection refused'),
-      applied: migrated.applied,
-    });
-
-    expect(
-      checkMigrationApplied(await readTasksSchema(ctx, STACK)).passed
-    ).toBe(false);
-  });
-
-  it('shows why the history could not be read in the check notes', async () => {
-    const { ctx } = fakeCtx({
-      columns: migrated.columns,
-      applied: failure('psql: error: connection to server was lost'),
-    });
-
-    const check = checkMigrationApplied(await readTasksSchema(ctx, STACK));
-
-    expect(check.passed).toBe(false);
-    expect(check.notes).toContain('not in applied history');
-    expect(check.notes).toContain('connection to server was lost');
-  });
-
-  it('fails when the history table is missing even though the columns look migrated', async () => {
-    const { ctx } = fakeCtx({
-      columns: migrated.columns,
-      applied: failure(
-        'relation "supabase_migrations.schema_migrations" does not exist'
-      ),
-    });
-
-    const check = checkMigrationApplied(await readTasksSchema(ctx, STACK));
-
-    expect(check.passed).toBe(false);
-    expect(check.notes).toContain('not in applied history');
-    expect(check.notes).not.toContain('history query failed');
-  });
-});
-
 const evidenceOf = (toolCalls: ToolCallRecord[]) =>
   readMigrationEvidence(
     toolCalls,
@@ -428,6 +390,7 @@ describe('readMigrationEvidence', () => {
   it('finds the supabase start whose output applied the new migration', () => {
     expect(evidenceOf(dockerRunToolCalls())).toEqual({
       command: 'supabase start',
+      via: 'apply-output',
     });
   });
 
@@ -441,7 +404,7 @@ describe('readMigrationEvidence', () => {
     'supabase migration up --local',
     'supabase start --exclude gotrue,realtime,storage-api',
   ])('accepts the applying line in the output of `%s`', (command) => {
-    expect(startedWith(command)).toEqual({ command });
+    expect(startedWith(command)).toEqual({ command, via: 'apply-output' });
   });
 
   it('uses the last call that applied the migration', () => {
@@ -450,7 +413,10 @@ describe('readMigrationEvidence', () => {
       ...dockerRunToolCalls({ command: 'supabase start' }),
     ];
 
-    expect(evidenceOf(calls)).toEqual({ command: 'supabase start' });
+    expect(evidenceOf(calls)).toEqual({
+      command: 'supabase start',
+      via: 'apply-output',
+    });
   });
 
   it('finds nothing without tool calls', () => {
@@ -522,10 +488,127 @@ describe('readMigrationEvidence', () => {
       evidenceOf([{ ...failed, error: String(result) }, ...rest])
     ).toBeUndefined();
   });
+
+  describe('a successful gen types --db-url run', () => {
+    const [failedAttempt, secondFailedAttempt, succeeded] =
+      throwawayDbToolCalls();
+    const SUCCEEDED_COMMAND = `supabase gen types typescript --db-url ${THROWAWAY_DB_URL} --schema public`;
+    const dbUrl = (url: string) => evidenceOf([dbUrlGenTypesCall(url)]);
+
+    it('is evidence for the run that succeeded after two errored attempts', () => {
+      expect(
+        evidenceOf([failedAttempt, secondFailedAttempt, succeeded])
+      ).toEqual({ command: SUCCEEDED_COMMAND, via: 'gen-types-db-url' });
+    });
+
+    it('is not evidence when the calls errored', () => {
+      expect(evidenceOf([failedAttempt, secondFailedAttempt])).toBeUndefined();
+    });
+
+    it('is not evidence when its output holds the CLI error', () => {
+      expect(
+        evidenceOf([
+          dbUrlGenTypesCall(
+            THROWAWAY_DB_URL,
+            '{"_tag":"Error","error":{"code":"DbConnectError","message":"tls error"}}\n'
+          ),
+        ])
+      ).toBeUndefined();
+    });
+
+    it('is not evidence when the call recorded no output', () => {
+      const { result: _result, ...noOutput } = succeeded;
+
+      expect(evidenceOf([noOutput])).toBeUndefined();
+    });
+
+    it('uses the last succeeded run', () => {
+      expect(
+        evidenceOf([
+          dbUrlGenTypesCall('postgresql://postgres:pw@localhost:5432/first'),
+          succeeded,
+        ])
+      ).toEqual({ command: SUCCEEDED_COMMAND, via: 'gen-types-db-url' });
+    });
+
+    it('reads --db-url=<url> as well', () => {
+      expect(
+        evidenceOf([
+          codexCall(
+            `supabase gen types typescript --db-url=${THROWAWAY_DB_URL}`,
+            GEN_TYPES_OUTPUT
+          ),
+        ])
+      ).toEqual({
+        command: `supabase gen types typescript --db-url=${THROWAWAY_DB_URL}`,
+        via: 'gen-types-db-url',
+      });
+    });
+
+    it.each([
+      'postgresql://postgres:postgres@localhost:5432/postgres',
+      'postgresql://postgres:postgres@db.localhost:5432/postgres',
+      'postgresql://postgres:postgres@127.0.0.1:54322/postgres',
+      'postgresql://postgres:postgres@127.1.2.3:5432/postgres',
+      'postgresql://postgres:postgres@[::1]:5432/postgres',
+      'postgresql://postgres:postgres@0.0.0.0:5432/postgres',
+      'postgresql://postgres:postgres@host.docker.internal:5432/postgres',
+      'postgresql://postgres:postgres@scratch-db:5432/postgres',
+      THROWAWAY_DB_URL,
+      '$DB_URL',
+      'postgresql://postgres:postgres@$DB_HOST:5432/postgres',
+      'postgres:postgres@scratch.example.com/postgres',
+    ])('credits a run against the local or unreadable database %s', (url) => {
+      expect(dbUrl(url)?.via).toBe('gen-types-db-url');
+    });
+
+    it.each([
+      'postgresql://postgres:postgres@db.abcdefghijklmnop.supabase.co:5432/postgres',
+      'postgresql://postgres.abcdefghijklmnop:pw@aws-0-eu-west-1.pooler.supabase.com:6543/postgres',
+      'postgresql://postgres:postgres@10.0.0.5:5432/postgres',
+      'postgresql://postgres:postgres@localhost.example.com:5432/postgres',
+      'postgresql://postgres:postgres@127.0.0.1.example.com:5432/postgres',
+      'postgresql://postgres:postgres@[2001:db8::1]:5432/postgres',
+    ])('does not credit a run against the remote database %s', (url) => {
+      expect(dbUrl(url)).toBeUndefined();
+    });
+
+    it.each([
+      ['gen types --local', SUCCEEDED_GEN_TYPES_CALL],
+      [
+        'gen types --linked',
+        codexCall('supabase gen types --linked', GEN_TYPES_OUTPUT),
+      ],
+      [
+        'another command that reads --db-url',
+        codexCall(
+          `supabase db dump --db-url ${THROWAWAY_DB_URL}`,
+          GEN_TYPES_OUTPUT
+        ),
+      ],
+    ])('does not credit %s', (_label, call) => {
+      expect(evidenceOf([call])).toBeUndefined();
+    });
+
+    it('is outranked by start output that applied the migration, even when the run came later', () => {
+      expect(evidenceOf([...dockerRunToolCalls(), succeeded])).toEqual({
+        command: 'supabase start',
+        via: 'apply-output',
+      });
+    });
+
+    it('wins when the start output did not apply the migration', () => {
+      const output = DOCKER_START_OUTPUT.replace(`${APPLY_TASK_STATUS}\n`, '');
+
+      expect(
+        evidenceOf([...dockerRunToolCalls({ output }), succeeded])?.via
+      ).toBe('gen-types-db-url');
+    });
+  });
 });
 
 describe('migrationEvidenceSource', () => {
-  const evidence = { command: 'supabase start' };
+  const evidence = { command: 'supabase start', via: 'apply-output' } as const;
 
   it('is probe whenever the live probe read the schema, with or without evidence', () => {
     const probe: SchemaProbe = { ok: true, applied: false, columns: {} };
@@ -540,6 +623,18 @@ describe('migrationEvidenceSource', () => {
     ).toBe('tool-output');
   });
 
+  it('is gen-types-db-url when the probe failed and a gen types --db-url run is the evidence', () => {
+    expect(
+      migrationEvidenceSource(
+        { ok: false, notes: 'no stack' },
+        {
+          command: 'supabase gen types --db-url "$DB_URL"',
+          via: 'gen-types-db-url',
+        }
+      )
+    ).toBe('gen-types-db-url');
+  });
+
   it('is none when the probe failed and there is no evidence', () => {
     expect(
       migrationEvidenceSource({ ok: false, notes: 'no stack' }, undefined)
@@ -548,7 +643,7 @@ describe('migrationEvidenceSource', () => {
 });
 
 describe('checkMigrationApplied with tool output evidence', () => {
-  const evidence = { command: 'supabase start' };
+  const evidence = { command: 'supabase start', via: 'apply-output' } as const;
   const noProbe: SchemaProbe = {
     ok: false,
     notes: 'The local stack is not running.',
@@ -609,6 +704,56 @@ describe('checkMigrationApplied with tool output evidence', () => {
 
     expect(check.passed).toBe(false);
     expect(check.notes).toContain('not in applied history');
+  });
+
+  describe('from a gen types --db-url run', () => {
+    const dbUrlEvidence = {
+      command: `supabase gen types typescript --db-url ${THROWAWAY_DB_URL} --schema public`,
+      via: 'gen-types-db-url',
+    } as const;
+
+    it('passes, crediting the run and saying the harness cannot see that database', () => {
+      expect(
+        checkMigrationApplied(
+          noProbe,
+          { lastCommand: 'supabase start', stoppedByAgent: false },
+          dbUrlEvidence
+        )
+      ).toEqual({
+        name: CHECK_NAME,
+        passed: true,
+        notes: `credited to the successful \`${dbUrlEvidence.command}\`, which read a local database the harness cannot see; the harness could not probe the local stack (The local stack is not running.)`,
+      });
+    });
+
+    it('gives the stop as the reason when the agent stopped the stack', () => {
+      const check = checkMigrationApplied(
+        noProbe,
+        { lastCommand: 'supabase stop', stoppedByAgent: true },
+        dbUrlEvidence
+      );
+
+      expect(check.passed).toBe(true);
+      expect(check.notes).toContain(
+        'the harness could not probe the local stack (the agent stopped the stack, last stack command: `supabase stop`)'
+      );
+    });
+
+    it('fails when the live probe resolved the old schema, even with the run as evidence', () => {
+      const check = checkMigrationApplied(
+        {
+          ok: true,
+          applied: false,
+          columns: { id: 'int8', title: 'text', is_complete: 'bool' },
+        },
+        undefined,
+        dbUrlEvidence
+      );
+
+      expect(check.passed).toBe(false);
+      expect(check.notes).toContain('not in applied history');
+      expect(check.notes).not.toContain('credited');
+    });
   });
 
   it('reports the probe result, not the evidence, when the probe read the migrated schema', () => {

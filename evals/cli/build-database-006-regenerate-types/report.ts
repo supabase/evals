@@ -32,7 +32,12 @@ function describeLifecycle(
     : [];
 }
 
-function describeGenTypes({ runs, sources, failed }: GenTypesRuns): string[] {
+function describeGenTypes({
+  runs,
+  sources,
+  failed,
+  succeeded,
+}: GenTypesRuns): string[] {
   return [
     `- direct \`supabase gen types\` invocations: ${runs}${sources.length === 0 ? '' : ` (sources: ${sources.join(', ')})`}; runs through package scripts are not counted`,
     ...(runs > 0 && failed.length === 0
@@ -40,6 +45,12 @@ function describeGenTypes({ runs, sources, failed }: GenTypesRuns): string[] {
       : failed.map(
           ({ command, silent }) =>
             `  exited non-zero: \`${command}\`${silent ? ' (no output captured; a redirect may have sent the error into the file)' : ''}`
+        )),
+    ...(succeeded.length === 0
+      ? ['  succeeded: none']
+      : succeeded.map(
+          (command) =>
+            `  succeeded (tool call exited zero with no CLI error in its output): \`${command}\``
         )),
   ];
 }
@@ -49,8 +60,13 @@ function describeSchema(
   evidence: MigrationEvidence | undefined
 ): string[] {
   if (!schema.ok) {
-    return evidence === undefined
-      ? [`- migration state unavailable (${schema.notes})`]
+    if (evidence === undefined) {
+      return [`- migration state unavailable (${schema.notes})`];
+    }
+    return evidence.via === 'gen-types-db-url'
+      ? [
+          `- migration ${NEW_MIGRATION_VERSION} credited to the successful \`${evidence.command}\`, which read a local database the harness cannot see; the project's local stack was not running when the harness probed`,
+        ]
       : [
           `- migration ${NEW_MIGRATION_VERSION} applied: yes, per the output of \`${evidence.command}\`; the stack was not running when the harness probed`,
         ];

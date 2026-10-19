@@ -331,7 +331,7 @@ export const DOCKER_START_OUTPUT = [
   '',
 ].join('\n');
 
-function codexCall(command: string, result: string): ToolCallRecord {
+export function codexCall(command: string, result: string): ToolCallRecord {
   const wrapped = command.includes("'")
     ? `/bin/bash -lc "${command}"`
     : `/bin/bash -lc '${command}'`;
@@ -361,6 +361,71 @@ export const SILENT_FAILED_GEN_TYPES_CALL: ToolCallRecord = {
   ts: 1792409985161,
   resultTs: 1792409985974,
 };
+
+export function failedCall(command: string, error: string): ToolCallRecord {
+  const { result: _result, ...call } = codexCall(command, '');
+  return { ...call, error };
+}
+
+export const GEN_TYPES_OUTPUT =
+  'Connecting to 127.0.0.1 54322\nGenerated TypeScript is unformatted. Format it with:\n  npx oxfmt <generated-file.ts>\n';
+
+/** A `gen types` call that exited zero, its output redirected into the types file. */
+export const SUCCEEDED_GEN_TYPES_CALL = codexCall(
+  'supabase gen types typescript --local --schema public > src/database.types.ts',
+  GEN_TYPES_OUTPUT
+);
+
+/** `start`, `migration up` and `gen types` in one call, all of which exited zero. */
+export const COMPOUND_GEN_TYPES_CALL = codexCall(
+  'supabase start --exclude gotrue,realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor && supabase migration up --local && supabase gen types --local --schema public > /tmp/task-board.database.types.ts && wc -l /tmp/task-board.database.types.ts',
+  [
+    'Seeding globals from roles.sql...',
+    APPLY_CREATE_TASKS,
+    APPLY_TASK_STATUS,
+    'no files matched pattern: supabase/seed.sql',
+    '{"DB_URL":"postgresql://postgres:postgres@127.0.0.1:54322/postgres","message":""}',
+    'Connecting to local database...',
+    '{"applied":[],"message":"Migrations applied"}',
+    `${GEN_TYPES_OUTPUT}150 /tmp/task-board.database.types.ts`,
+    '',
+  ].join('\n')
+);
+
+/** A `gen types` that failed inside a pipe: the call exited zero while its output holds the CLI's error JSON. */
+export const MASKED_PIPE_GEN_TYPES_CALL = codexCall(
+  "ls -l /tmp/task-board-database.types.ts && supabase gen types --local --schema public 2>&1 | sed -n '1,80p'",
+  '{"_tag":"Error","error":{"code":"ContainerRuntimeNotFoundError","message":"docker: command not found (podman also not found) \u2014 install Docker Desktop or Podman and ensure it is on PATH"}}\n'
+);
+
+export const THROWAWAY_DB_URL =
+  'postgresql://postgres:typegen-only@127.0.0.1:$port/postgres?sslmode=disable';
+
+/** `gen types --db-url` against `url`, redirecting the types into a file. */
+export function dbUrlGenTypesCall(
+  url: string,
+  output = GEN_TYPES_OUTPUT
+): ToolCallRecord {
+  return codexCall(
+    `supabase gen types typescript --db-url "${url}" --schema public > /tmp/task-board.database.types.ts`,
+    output
+  );
+}
+
+/** An agent that applied both migrations with psql into a throwaway Postgres container: two `gen types --db-url` attempts errored, the third succeeded. */
+export function throwawayDbToolCalls(): ToolCallRecord[] {
+  return [
+    failedCall(
+      'supabase gen types typescript --db-url "postgresql://postgres:typegen-only@127.0.0.1:$port/postgres" --schema public > /tmp/task-board.database.types.ts',
+      'Connecting to 127.0.0.1 32768\n'
+    ),
+    failedCall(
+      'supabase --debug gen types typescript --db-url "postgresql://postgres:typegen-only@127.0.0.1:$port/postgres" --schema public >/tmp/task-board.database.types.ts 2>&1',
+      'type generation exit: 1\nConnecting to 127.0.0.1 32769\n{"_tag":"Error","error":{"code":"DbConnectError","message":"failed to connect to postgres: tls error (The server does not support SSL connections)"}}\n'
+    ),
+    dbUrlGenTypesCall(THROWAWAY_DB_URL),
+  ];
+}
 
 /** Tool calls of an agent that starts the stack, regenerates the types and stops the stack. */
 export function dockerRunToolCalls({

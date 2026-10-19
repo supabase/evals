@@ -26,6 +26,7 @@ import {
 } from './behaviour.js';
 import {
   checkMetrics,
+  checkTypesRegenerated,
   countGenTypesRuns,
   readCliFacts,
   readStackLifecycle,
@@ -73,6 +74,7 @@ const scorer: LocalStackScorer = async (ctx) => {
     const checks: CheckResult[] = [
       checkMigrationApplied(schema, lifecycle, evidence),
       checkTypesDescribeSchema(analysis),
+      checkTypesRegenerated(genTypes),
       checkAppTypeChecks(analysis),
       checkAppNotSilenced(analysis),
       await checkBehaviourKept(ctx, analysis),
