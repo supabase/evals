@@ -5,16 +5,18 @@ import type { StackProbe } from '../lib/stack.js';
 import {
   DUE_DATE_COLUMN,
   SEEDED_MIGRATION_FILE,
+  SEEDED_MIGRATION_VERSION,
   TASKS_TABLE,
 } from './fixtures.js';
 
-export type ColumnMigration = {
-  version: string;
-  file: string;
-  shapeChangedBy?: string;
-};
+export type ColumnMigration = { version: string; file: string };
 export type ColumnMigrationsProbe =
-  | { ok: true; migrations: ColumnMigration[] }
+  | {
+      ok: true;
+      migrations: ColumnMigration[];
+      addsNeededShape: boolean;
+      notes: string;
+    }
   | { ok: false; notes: string };
 export type RecordedMigrationsProbe =
   | { ok: true; recorded: ColumnMigration[]; missing: ColumnMigration[] }
@@ -27,13 +29,24 @@ export const MIGRATION_RECORDED_CHECK_NAME =
 
 const MIGRATION_FILENAME_RE = /^(\d+)_(.+)\.sql$/;
 const ACCEPTED_TYPE_RE =
-  /^(?:pg_catalog\.)?"?(?:date|timestamptz|timestamp)"?(?:\s*\(\s*\d+\s*\))?(?:\s+(?:with|without)\s+time\s+zone)?(?![\w$"])/i;
+  /^(?:"?pg_catalog"?\s*\.\s*)?"?(?:date|timestamptz|timestamp)"?(?:\s*\(\s*\d+\s*\))?(?:\s+(?:with|without)\s+time\s+zone)?(?![\w$"])/i;
+const ARRAY_SUFFIX_RE = /^\s*(?:\[|array(?![\w$"]))/i;
 const NOT_NULL_RE = /\bnot\s+null\b/i;
 
 const escapeRegExp = (text: string) =>
   text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-type ColumnAction = { kind: 'add'; clause: string } | { kind: 'alter' };
+const squash = (text: string) => text.replace(/\s+/g, ' ').trim();
+
+const compareText = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+
+type ColumnAction =
+  | { kind: 'add'; clause: string; ifNotExists: boolean }
+  | { kind: 'type'; type: string }
+  | { kind: 'nullability'; nullable: boolean }
+  | { kind: 'drop'; ifExists: boolean }
+  | { kind: 'rename' }
+  | { kind: 'drop-table' };
 
 /** `text` with everything inside parentheses, and the parentheses themselves, blanked. */
 function blankNested(text: string): string {
@@ -61,41 +74,92 @@ function topLevelActions(text: string): string[] {
   return actions;
 }
 
-/** The `add` and `alter` actions on `column` in `alter table public.<table>` statements, in order, ignoring comments and literals. */
+/** The actions that change `column`, or drop `table`, in `public.<table>` statements, in order, ignoring comments and literals. */
 function columnActions(
   sql: string,
   table: string,
   column: string
 ): ColumnAction[] {
   const columnName = `"?${escapeRegExp(column)}"?(?![\\w$"])`;
+  const alterColumn = `^\\s*alter\\s+(?:column\\s+)?${columnName}`;
+  const tableName = `(?:"?public"?\\s*\\.\\s*)?"?${escapeRegExp(table)}"?(?![\\w$"])`;
   const alterTable = new RegExp(
-    `^\\s*alter\\s+table\\s+(?:if\\s+exists\\s+)?(?:only\\s+)?(?:"?public"?\\.)?"?${escapeRegExp(table)}"?(?![\\w$"])`,
+    `^\\s*alter\\s+table\\s+(?:if\\s+exists\\s+)?(?:only\\s+)?${tableName}`,
     'i'
   );
+  const dropTable = /^\s*drop\s+table\s+(?:if\s+exists\s+)?/i;
+  const tableItem = new RegExp(`^\\s*${tableName}`, 'i');
   const addColumn = new RegExp(
-    `^\\s*add\\s+(?:column\\s+)?(?:if\\s+not\\s+exists\\s+)?${columnName}`,
+    `^\\s*add\\s+(?:column\\s+)?(if\\s+not\\s+exists\\s+)?${columnName}`,
     'i'
   );
-  const alterColumn = new RegExp(
-    `^\\s*alter\\s+(?:column\\s+)?${columnName}`,
+  const alterType = new RegExp(
+    `${alterColumn}\\s+(?:set\\s+data\\s+)?type\\s+`,
     'i'
   );
+  const alterNullability = new RegExp(
+    `${alterColumn}\\s+(drop|set)\\s+not\\s+null(?![\\w$"])`,
+    'i'
+  );
+  const dropColumn = new RegExp(
+    `^\\s*drop\\s+(?:column\\s+)?(if\\s+exists\\s+)?${columnName}`,
+    'i'
+  );
+  const renameColumn = new RegExp(
+    `^\\s*rename\\s+(?:column\\s+)?${columnName}\\s+to(?![\\w$"])`,
+    'i'
+  );
+
+  const parseAction = (action: string): ColumnAction[] => {
+    const added = addColumn.exec(action);
+    if (added !== null) {
+      return [
+        {
+          kind: 'add',
+          clause: action.slice(added[0].length).trim(),
+          ifNotExists: added[1] !== undefined,
+        },
+      ];
+    }
+    const typed = alterType.exec(action);
+    if (typed !== null) {
+      return [{ kind: 'type', type: action.slice(typed[0].length).trim() }];
+    }
+    const nullability = alterNullability.exec(action);
+    if (nullability !== null) {
+      return [
+        {
+          kind: 'nullability',
+          nullable: nullability[1].toLowerCase() === 'drop',
+        },
+      ];
+    }
+    const dropped = dropColumn.exec(action);
+    if (dropped !== null) {
+      return [{ kind: 'drop', ifExists: dropped[1] !== undefined }];
+    }
+    return renameColumn.test(action) ? [{ kind: 'rename' }] : [];
+  };
+
   return maskSqlLiteralsAndComments(sql)
     .split(';')
     .flatMap((statement): ColumnAction[] => {
       const alter = alterTable.exec(statement);
-      if (alter === null) return [];
-      return topLevelActions(
-        statement.slice(alter.index + alter[0].length)
-      ).flatMap((action): ColumnAction[] => {
-        const added = addColumn.exec(action);
-        if (added !== null) {
-          return [
-            { kind: 'add', clause: action.slice(added[0].length).trim() },
-          ];
-        }
-        return alterColumn.test(action) ? [{ kind: 'alter' }] : [];
-      });
+      if (alter !== null) {
+        return topLevelActions(
+          statement.slice(alter.index + alter[0].length)
+        ).flatMap(parseAction);
+      }
+      const drop = dropTable.exec(statement);
+      if (
+        drop !== null &&
+        topLevelActions(statement.slice(drop[0].length)).some((item) =>
+          tableItem.test(item)
+        )
+      ) {
+        return [{ kind: 'drop-table' }];
+      }
+      return [];
     });
 }
 
@@ -108,12 +172,106 @@ export function migrationAddsColumn(
   return columnActions(sql, table, column).some(({ kind }) => kind === 'add');
 }
 
-const isNullableDateOrTimestamp = (clause: string) =>
-  ACCEPTED_TYPE_RE.test(clause) && !NOT_NULL_RE.test(blankNested(clause));
+function isAcceptedType(clause: string): boolean {
+  const match = ACCEPTED_TYPE_RE.exec(clause);
+  return match !== null && !ARRAY_SUFFIX_RE.test(clause.slice(match[0].length));
+}
+
+type ColumnState =
+  | { kind: 'missing'; note?: string }
+  | {
+      kind: 'exists';
+      typeClause: string;
+      nullable: boolean;
+      addedBy: string;
+      addedAs: string;
+    }
+  | { kind: 'broken'; note: string };
+
+function applyAction(
+  state: ColumnState,
+  action: ColumnAction,
+  file: string
+): ColumnState {
+  if (state.kind === 'broken') return state;
+  if (action.kind === 'drop-table') {
+    return state.kind === 'exists'
+      ? { kind: 'missing', note: `${file} drops ${TASKS_TABLE}` }
+      : state;
+  }
+  if (state.kind === 'missing') {
+    if (action.kind === 'add') {
+      return {
+        kind: 'exists',
+        typeClause: action.clause,
+        nullable: !NOT_NULL_RE.test(blankNested(action.clause)),
+        addedBy: file,
+        addedAs: action.clause,
+      };
+    }
+    return action.kind === 'drop' && action.ifExists
+      ? state
+      : {
+          kind: 'broken',
+          note: `${file} alters ${DUE_DATE_COLUMN} before any migration adds it, so a reset fails`,
+        };
+  }
+  switch (action.kind) {
+    case 'add':
+      return action.ifNotExists
+        ? state
+        : {
+            kind: 'broken',
+            note: `${file} adds ${DUE_DATE_COLUMN} again without if not exists, so a reset fails`,
+          };
+    case 'type':
+      return { ...state, typeClause: action.type };
+    case 'nullability':
+      return { ...state, nullable: action.nullable };
+    case 'drop':
+      return { kind: 'missing', note: `${file} drops ${DUE_DATE_COLUMN}` };
+    case 'rename':
+      return { kind: 'missing', note: `${file} renames ${DUE_DATE_COLUMN}` };
+  }
+}
+
+function describeOutcome(
+  state: ColumnState,
+  migrations: readonly ColumnMigration[],
+  fallback: string
+): { addsNeededShape: boolean; notes: string } {
+  if (state.kind === 'broken') {
+    return { addsNeededShape: false, notes: state.note };
+  }
+  if (state.kind === 'missing') {
+    return { addsNeededShape: false, notes: state.note ?? fallback };
+  }
+  const files = migrations.map(({ file }) => file).join(', ');
+  const shape = squash(state.typeClause);
+  if (!isAcceptedType(state.typeClause)) {
+    return {
+      addsNeededShape: false,
+      notes: `after ${files}, ${DUE_DATE_COLUMN} is ${shape}, not a nullable date or timestamp`,
+    };
+  }
+  if (!state.nullable) {
+    return {
+      addsNeededShape: false,
+      notes: `after ${files}, ${DUE_DATE_COLUMN} is ${shape}, not null`,
+    };
+  }
+  const later = migrations
+    .slice(migrations.findIndex(({ file }) => file === state.addedBy) + 1)
+    .map(({ file }) => file);
+  return {
+    addsNeededShape: true,
+    notes: `${state.addedBy} adds ${DUE_DATE_COLUMN} as ${squash(state.addedAs)}${later.length > 0 ? `; then ${later.join(', ')} change its type or nullability` : ''}`,
+  };
+}
 
 type ScannedMigration = ColumnMigration & { actions: ColumnAction[] };
 
-/** Migration files other than the seeded one that add `due_date` to `tasks` as a nullable date or timestamp. */
+/** Replays the migrations after the seeded one in version order and reports whether `tasks.due_date` ends as a nullable date or timestamp. */
 export async function findDueDateMigrations(
   ctx: Pick<LocalStackEvalContext, 'exec' | 'folderExists'>
 ): Promise<ColumnMigrationsProbe> {
@@ -133,6 +291,7 @@ export async function findDueDateMigrations(
       };
     }
     const scanned: ScannedMigration[] = [];
+    const sortsBeforeSeeded: string[] = [];
     let seededAddsColumn = false;
     for (const file of files) {
       const match = file.match(MIGRATION_FILENAME_RE);
@@ -148,40 +307,42 @@ export async function findDueDateMigrations(
       );
       if (file === SEEDED_MIGRATION_FILE) {
         seededAddsColumn = actions.some(({ kind }) => kind === 'add');
-      } else {
+      } else if (match[1] <= SEEDED_MIGRATION_VERSION) {
+        if (actions.length > 0) sortsBeforeSeeded.push(file);
+      } else if (actions.length > 0) {
         scanned.push({ version: match[1], file, actions });
       }
     }
+    scanned.sort(
+      (a, b) => compareText(a.version, b.version) || compareText(a.file, b.file)
+    );
 
-    const migrations: ColumnMigration[] = [];
-    const wrongShape: string[] = [];
-    scanned.forEach(({ version, file, actions }, index) => {
-      const adds = actions.filter((action) => action.kind === 'add');
-      if (adds.length === 0) return;
-      if (adds.some(({ clause }) => isNullableDateOrTimestamp(clause))) {
-        migrations.push({ version, file });
-        return;
-      }
-      const reshaper = scanned
-        .slice(index + 1)
-        .find((later) => later.actions.some(({ kind }) => kind === 'alter'));
-      if (reshaper !== undefined) {
-        migrations.push({ version, file, shapeChangedBy: reshaper.file });
-        return;
-      }
-      wrongShape.push(
-        `${file} adds ${DUE_DATE_COLUMN} as ${adds[0].clause.replace(/\s+/g, ' ')}, not a nullable date or timestamp`
-      );
-    });
+    let state: ColumnState = { kind: 'missing' };
+    for (const { file, actions } of scanned) {
+      for (const action of actions) state = applyAction(state, action, file);
+    }
 
-    if (migrations.length > 0) return { ok: true, migrations };
-    if (wrongShape.length > 0)
-      return { ok: false, notes: wrongShape.join('; ') };
+    const migrations = scanned.map(({ version, file }) => ({ version, file }));
+    if (sortsBeforeSeeded.length > 0) {
+      return {
+        ok: true,
+        migrations,
+        addsNeededShape: false,
+        notes: sortsBeforeSeeded
+          .map(
+            (file) =>
+              `${file} sorts at or before ${SEEDED_MIGRATION_VERSION}, so a reset applies it before ${TASKS_TABLE} exists`
+          )
+          .join('; '),
+      };
+    }
+    const fallback = seededAddsColumn
+      ? `only the seeded migration ${SEEDED_MIGRATION_FILE} adds ${DUE_DATE_COLUMN}; no new migration does`
+      : `no new migration adds ${DUE_DATE_COLUMN} to ${TASKS_TABLE}`;
     return {
-      ok: false,
-      notes: seededAddsColumn
-        ? `only the seeded migration ${SEEDED_MIGRATION_FILE} adds ${DUE_DATE_COLUMN}; no new migration does`
-        : `no new migration adds ${DUE_DATE_COLUMN} to ${TASKS_TABLE}`,
+      ok: true,
+      migrations,
+      ...describeOutcome(state, migrations, fallback),
     };
   } catch (error) {
     return { ok: false, notes: errorMessage(error) };
@@ -198,33 +359,31 @@ export function checkNewMigrationAddsDueDate(
 ): CheckResult {
   const name = NEW_MIGRATION_CHECK_NAME;
   if (!probe.ok) return { name, passed: false, notes: probe.notes };
-  const reshapers = new Set(
-    probe.migrations.flatMap(({ shapeChangedBy }) => shapeChangedBy ?? [])
-  );
-  const reshaped =
-    reshapers.size > 0
-      ? `; shape changed by ${[...reshapers].join(', ')}; the database check covers the final shape`
-      : '';
+  const touched = describeMigrations(probe.migrations);
   return {
     name,
-    passed: true,
-    notes: `${describeMigrations(probe.migrations)}${reshaped}`,
+    passed: probe.addsNeededShape,
+    notes: touched === '' ? probe.notes : `${touched}; ${probe.notes}`,
   };
 }
 
 export const describeMissingVersions = (missing: readonly ColumnMigration[]) =>
   `version(s) ${missing.map(({ version }) => version).join(', ')} not in supabase_migrations.schema_migrations`;
 
-/** Reads which of the matching migrations are in the CLI's migration history. */
+/** Reads which of the migrations that touch the column are in the CLI's migration history. */
 export async function readRecordedMigrations(
   ctx: Pick<LocalStackEvalContext, 'exec'>,
   stack: StackProbe,
-  migrations: ColumnMigrationsProbe
+  probe: ColumnMigrationsProbe
 ): Promise<RecordedMigrationsProbe> {
   if (!stack.ok) return { ok: false, notes: stack.notes };
-  if (!migrations.ok) return { ok: false, notes: migrations.notes };
+  if (!probe.ok) return { ok: false, notes: probe.notes };
+  const { migrations } = probe;
+  if (migrations.length === 0) {
+    return { ok: false, notes: `no new migration touches ${DUE_DATE_COLUMN}` };
+  }
   try {
-    const versions = migrations.migrations.map(({ version }) => `'${version}'`);
+    const versions = migrations.map(({ version }) => `'${version}'`);
     const result = await ctx.exec(
       `psql ${shellQuote(stack.dbUrl)} -tAc "select version from supabase_migrations.schema_migrations where version in (${versions.join(', ')})"`
     );
@@ -237,25 +396,21 @@ export async function readRecordedMigrations(
     );
     return {
       ok: true,
-      recorded: migrations.migrations.filter(({ version }) =>
-        rows.has(version)
-      ),
-      missing: migrations.migrations.filter(
-        ({ version }) => !rows.has(version)
-      ),
+      recorded: migrations.filter(({ version }) => rows.has(version)),
+      missing: migrations.filter(({ version }) => !rows.has(version)),
     };
   } catch (error) {
     return { ok: false, notes: errorMessage(error) };
   }
 }
 
-/** Passes when a migration that adds the column is recorded in the CLI's migration history. */
+/** Passes when every migration that touches the column is recorded in the CLI's migration history. */
 export function checkMigrationRecorded(
   probe: RecordedMigrationsProbe
 ): CheckResult {
   const name = MIGRATION_RECORDED_CHECK_NAME;
   if (!probe.ok) return { name, passed: false, notes: probe.notes };
-  if (probe.recorded.length === 0) {
+  if (probe.missing.length > 0 || probe.recorded.length === 0) {
     return {
       name,
       passed: false,

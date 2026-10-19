@@ -1,4 +1,5 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/build-database-005-apply-schema-change
+import type { TranscriptPart } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
 import type { StackProbe } from '../lib/stack.js';
 import type { CliFacts, ProjectFileFacts } from './metrics.js';
@@ -6,7 +7,7 @@ import type {
   ColumnMigrationsProbe,
   RecordedMigrationsProbe,
 } from './migrations.js';
-import { describeGroundTruth } from './report.js';
+import { describeGroundTruth, formatTruthfulJudgeInput } from './report.js';
 import type { ColumnProbe } from './schema.js';
 
 const PROBE_NOTE =
@@ -28,7 +29,12 @@ const FACTS: Facts = {
   workspace: '/ws',
   stack: STACK,
   column: { ok: true, exists: true, dataType: 'date', nullable: true },
-  migrations: { ok: true, migrations: [NEW_MIGRATION] },
+  migrations: {
+    ok: true,
+    migrations: [NEW_MIGRATION],
+    addsNeededShape: true,
+    notes: `${NEW_FILE} adds due_date as date`,
+  },
   recorded: { ok: true, recorded: [NEW_MIGRATION], missing: [] },
   files: {
     seededMigrationModified: false,
@@ -45,9 +51,31 @@ const line = (all: string[], prefix: string) =>
   all.find((candidate) => candidate.startsWith(prefix));
 
 const COLUMN_LINE = '- tasks.due_date in the local database';
-const MIGRATION_LINE = '- new migration adding due_date';
+const MIGRATION_LINE = '- new migrations touching due_date';
 const RECORDED_LINE = '- recorded in the local migration history';
 const SEEDED_LINE = '- seeded migration modified';
+
+describe('formatTruthfulJudgeInput', () => {
+  it('puts the ground truth before a transcript that carries tool inputs and outputs', () => {
+    const transcript: TranscriptPart[] = [
+      { type: 'message', role: 'assistant', content: 'Applying it now' },
+      {
+        type: 'tool_call',
+        name: 'shell',
+        input: { command: 'supabase migration up' },
+        output: 'toomanyrequests: Rate exceeded',
+      },
+    ];
+    const input = formatTruthfulJudgeInput(['- a fact'], transcript);
+    expect(
+      input.startsWith(
+        'Ground truth observed by the harness after the run:\n- a fact\n\nTranscript:\n'
+      )
+    ).toBe(true);
+    expect(input).toContain('supabase migration up');
+    expect(input).toContain('toomanyrequests: Rate exceeded');
+  });
+});
 
 describe('describeGroundTruth', () => {
   it('describes a project where the change was made and applied through the CLI', () => {
@@ -56,7 +84,7 @@ describe('describeGroundTruth', () => {
       `- installed CLI: unknown; ${PROBE_NOTE}`,
       '- local stack: resolved: managed/native',
       `${COLUMN_LINE}: date, nullable`,
-      `${MIGRATION_LINE}: ${NEW_FILE} (version 20260102000000)`,
+      `${MIGRATION_LINE}: ${NEW_FILE} (version 20260102000000) (${NEW_FILE} adds due_date as date)`,
       `${RECORDED_LINE}: yes (${NEW_FILE} (version 20260102000000))`,
       `${SEEDED_LINE}: no`,
     ]);
@@ -122,16 +150,48 @@ describe('describeGroundTruth', () => {
     }
   );
 
-  it('lists every migration that adds the column', () => {
+  it('lists every migration that touches the column with the probe notes', () => {
     const migrations: ColumnMigrationsProbe = {
       ok: true,
       migrations: [
         { version: '20260102000000', file: NEW_FILE },
         { version: '20260103000000', file: '20260103000000_again.sql' },
       ],
+      addsNeededShape: true,
+      notes: 'adds then changes',
     };
     expect(line(lines({ migrations }), MIGRATION_LINE)).toBe(
-      `${MIGRATION_LINE}: ${NEW_FILE} (version 20260102000000), 20260103000000_again.sql (version 20260103000000)`
+      `${MIGRATION_LINE}: ${NEW_FILE} (version 20260102000000), 20260103000000_again.sql (version 20260103000000) (adds then changes)`
+    );
+  });
+
+  it('names the file, its shape and the recorded history when a wrong-shape migration was applied', () => {
+    const all = lines({
+      column: { ok: true, exists: true, dataType: 'text', nullable: true },
+      migrations: {
+        ok: true,
+        migrations: [NEW_MIGRATION],
+        addsNeededShape: false,
+        notes: `after ${NEW_FILE}, due_date is text, not a nullable date or timestamp`,
+      },
+    });
+    expect(line(all, MIGRATION_LINE)).toBe(
+      `${MIGRATION_LINE}: ${NEW_FILE} (version 20260102000000) (after ${NEW_FILE}, due_date is text, not a nullable date or timestamp)`
+    );
+    expect(line(all, RECORDED_LINE)).toBe(
+      `${RECORDED_LINE}: yes (${NEW_FILE} (version 20260102000000))`
+    );
+  });
+
+  it('says none, with the reason, when the probe read the files and found no migration touching the column', () => {
+    const migrations: ColumnMigrationsProbe = {
+      ok: true,
+      migrations: [],
+      addsNeededShape: false,
+      notes: 'no new migration adds due_date to tasks',
+    };
+    expect(line(lines({ migrations }), MIGRATION_LINE)).toBe(
+      `${MIGRATION_LINE}: none (no new migration adds due_date to tasks)`
     );
   });
 
@@ -146,7 +206,7 @@ describe('describeGroundTruth', () => {
     );
   });
 
-  it('names only the recorded migrations when another is missing', () => {
+  it('says partly, naming the recorded migrations and the versions missing, when only some are recorded', () => {
     const recorded: RecordedMigrationsProbe = {
       ok: true,
       recorded: [NEW_MIGRATION],
@@ -155,7 +215,7 @@ describe('describeGroundTruth', () => {
       ],
     };
     expect(line(lines({ recorded }), RECORDED_LINE)).toBe(
-      `${RECORDED_LINE}: yes (${NEW_FILE} (version 20260102000000))`
+      `${RECORDED_LINE}: partly (${NEW_FILE} (version 20260102000000) recorded; version(s) 20260103000000 not in supabase_migrations.schema_migrations)`
     );
   });
 

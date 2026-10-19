@@ -7,6 +7,7 @@ import {
   DUE_DATE_COLUMN,
   SEEDED_MIGRATION_FILE,
   SEEDED_MIGRATION_SHA256,
+  SEEDED_MIGRATION_VERSION,
   TASKS_TABLE,
 } from './fixtures.js';
 import { migrationAddsColumn } from './migrations.js';
@@ -40,6 +41,12 @@ function promptParts() {
 describe('fixture constants', () => {
   it('carry the seeded migration checksum as a sha256 hex digest', () => {
     expect(SEEDED_MIGRATION_SHA256).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('name the seeded migration by its version', () => {
+    expect(SEEDED_MIGRATION_FILE).toBe(
+      `${SEEDED_MIGRATION_VERSION}_create_tasks.sql`
+    );
   });
 });
 

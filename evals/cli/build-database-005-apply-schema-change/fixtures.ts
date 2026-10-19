@@ -1,5 +1,6 @@
 export const TASKS_TABLE = 'tasks';
 export const DUE_DATE_COLUMN = 'due_date';
+export const SEEDED_MIGRATION_VERSION = '20260101000000';
 export const SEEDED_MIGRATION_FILE = '20260101000000_create_tasks.sql';
 
 /** sha256 (hex) of `local/supabase/migrations/<SEEDED_MIGRATION_FILE>`. */

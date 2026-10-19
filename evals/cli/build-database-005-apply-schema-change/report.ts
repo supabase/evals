@@ -1,3 +1,4 @@
+import { serializeTranscript, type TranscriptPart } from '@supabase-evals/core';
 import { describeStack, type StackProbe } from '../lib/stack.js';
 import type { CliFacts, ProjectFileFacts } from './metrics.js';
 import {
@@ -29,16 +30,17 @@ function describeColumn(column: ColumnProbe): string {
 }
 
 function describeFoundMigrations(probe: ColumnMigrationsProbe): string {
-  return probe.ok
-    ? describeMigrations(probe.migrations)
+  return probe.ok && probe.migrations.length > 0
+    ? `${describeMigrations(probe.migrations)} (${probe.notes})`
     : `none (${probe.notes})`;
 }
 
 function describeRecorded(probe: RecordedMigrationsProbe): string {
   if (!probe.ok) return `unknown (${probe.notes})`;
-  return probe.recorded.length > 0
-    ? `yes (${describeMigrations(probe.recorded)})`
-    : `no (${describeMissingVersions(probe.missing)})`;
+  const { recorded, missing } = probe;
+  if (missing.length === 0) return `yes (${describeMigrations(recorded)})`;
+  if (recorded.length === 0) return `no (${describeMissingVersions(missing)})`;
+  return `partly (${describeMigrations(recorded)} recorded; ${describeMissingVersions(missing)})`;
 }
 
 function describeSeededMigration({
@@ -63,8 +65,25 @@ export function describeGroundTruth(facts: {
     ...describeProbeCli(facts.cli),
     `- local stack: ${describeStack(facts.stack)}`,
     `- tasks.due_date in the local database: ${describeColumn(facts.column)}`,
-    `- new migration adding due_date: ${describeFoundMigrations(facts.migrations)}`,
+    `- new migrations touching due_date: ${describeFoundMigrations(facts.migrations)}`,
     `- recorded in the local migration history: ${describeRecorded(facts.recorded)}`,
     `- seeded migration modified: ${describeSeededMigration(facts.files)}`,
   ];
+}
+
+/** Ground truth plus the transcript with tool inputs and outputs, so the judge sees what the tools reported. */
+export function formatTruthfulJudgeInput(
+  groundTruth: readonly string[],
+  transcript: TranscriptPart[]
+): string {
+  return [
+    'Ground truth observed by the harness after the run:',
+    ...groundTruth,
+    '',
+    'Transcript:',
+    serializeTranscript(transcript, {
+      includeToolCallInputs: true,
+      includeToolCallOutputs: true,
+    }),
+  ].join('\n');
 }

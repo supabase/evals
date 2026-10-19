@@ -6,6 +6,7 @@ import type {
   LocalStackEnvironmentMarker,
   LocalStackEvalContext,
   ToolCallRecord,
+  TranscriptPart,
 } from '@supabase-evals/core';
 import { describe, expect, it, vi } from 'vitest';
 import scorer from './EVAL.js';
@@ -59,6 +60,7 @@ type World = {
   history?: string[];
   rows?: number;
   judge?: (args: JudgeInput) => Promise<{ passed: boolean; notes?: string }>;
+  transcript?: TranscriptPart[];
   marker?: LocalStackEnvironmentMarker | 'throws';
   execThrows?: boolean;
 };
@@ -154,7 +156,7 @@ function fakeCtx(toolCalls: ToolCallRecord[], world: World = {}) {
     exec,
     folderExists: async (path: string) => path === 'supabase/migrations',
     toolCalls,
-    transcript: [],
+    transcript: world.transcript ?? [],
     environmentMarker: async () => {
       if (world.marker === 'throws') throw new Error('marker unreadable');
       return world.marker ?? MARKER;
@@ -361,7 +363,7 @@ describe('known-bad runs', () => {
         },
         column: 'timestamp with time zone|YES\n',
       },
-      [NEW_MIGRATION, RECORDED],
+      [NEW_MIGRATION],
     ],
     [
       'wrote a text migration and changed the type by hand',
@@ -379,7 +381,7 @@ describe('known-bad runs', () => {
         },
         column: 'date|YES\n',
       },
-      [NEW_MIGRATION, RECORDED],
+      [NEW_MIGRATION],
     ],
     [
       'wrote only a declarative schema file with no generated migration',
@@ -426,7 +428,76 @@ describe('known-bad runs', () => {
             'drop table public.tasks;\ncreate table public.tasks (id bigint primary key, due_date date);\n',
         },
       },
+      [NEW_MIGRATION],
+    ],
+    [
+      'wrote the migration with a date older than the seeded one',
+      SETUP,
+      {
+        files: {
+          [SEEDED_MIGRATION_FILE]: SEEDED_SQL,
+          '20240601000000_add_due_date.sql': ADD_DUE_DATE,
+        },
+        history: [SEEDED_VERSION, '20240601000000'],
+      },
       [NEW_MIGRATION, RECORDED],
+    ],
+    [
+      'wrote a correct migration beside a stray one that sorts before the seeded migration',
+      SETUP,
+      {
+        files: {
+          [SEEDED_MIGRATION_FILE]: SEEDED_SQL,
+          '0001_add_due_date.sql': ADD_DUE_DATE,
+          [NEW_FILE]: ADD_DUE_DATE,
+        },
+      },
+      [NEW_MIGRATION],
+    ],
+    [
+      'wrote a not-null date add and a later migration that only sets not null',
+      SETUP,
+      {
+        files: {
+          [SEEDED_MIGRATION_FILE]: SEEDED_SQL,
+          [NEW_FILE]:
+            'alter table public.tasks add column due_date date not null default current_date;\n',
+          '20260103000000_set_not_null.sql':
+            'alter table public.tasks alter column due_date set not null;\n',
+        },
+        column: 'date|NO\n',
+        history: [SEEDED_VERSION, NEW_VERSION, '20260103000000'],
+      },
+      [COLUMN, NEW_MIGRATION],
+    ],
+    [
+      'wrote an up migration and a down migration and applied both',
+      SETUP,
+      {
+        files: {
+          [SEEDED_MIGRATION_FILE]: SEEDED_SQL,
+          [NEW_FILE]: ADD_DUE_DATE,
+          '20260103000000_add_due_date_down.sql':
+            'alter table public.tasks drop column due_date;\n',
+        },
+        column: '',
+        history: [SEEDED_VERSION, NEW_VERSION, '20260103000000'],
+      },
+      [COLUMN, NEW_MIGRATION],
+    ],
+    [
+      'wrote two migrations that touch the column and applied only the first',
+      SETUP,
+      {
+        files: {
+          [SEEDED_MIGRATION_FILE]: SEEDED_SQL,
+          [NEW_FILE]: ADD_DUE_DATE,
+          '20260103000000_due_date_again.sql':
+            'alter table public.tasks add column if not exists due_date date;\n',
+        },
+        history: [SEEDED_VERSION, NEW_VERSION],
+      },
+      [RECORDED],
     ],
   ] satisfies Array<[string, ToolCallRecord[], World, string[]]>)(
     'fails only the checks the run got wrong when it %s',
@@ -513,7 +584,7 @@ describe('valid alternatives', () => {
       { schemas: ['tasks.sql'] },
     ],
     [
-      'writes two matching migrations of which one is recorded',
+      'writes two migrations that touch the column and applies both',
       {
         files: {
           [SEEDED_MIGRATION_FILE]: SEEDED_SQL,
@@ -521,7 +592,19 @@ describe('valid alternatives', () => {
           '20260103000000_due_date_again.sql':
             'alter table public.tasks add column if not exists due_date date;\n',
         },
-        history: [SEEDED_VERSION, '20260103000000'],
+        history: [SEEDED_VERSION, NEW_VERSION, '20260103000000'],
+      },
+    ],
+    [
+      'fixes the type of a text add in a later migration',
+      {
+        files: {
+          [SEEDED_MIGRATION_FILE]: SEEDED_SQL,
+          [NEW_FILE]: 'alter table public.tasks add column due_date text;\n',
+          '20260103000000_fix_type.sql':
+            'alter table public.tasks alter column due_date type date using due_date::date;\n',
+        },
+        history: [SEEDED_VERSION, NEW_VERSION, '20260103000000'],
       },
     ],
   ] satisfies Array<[string, World]>)(
@@ -543,7 +626,7 @@ describe('valid alternatives', () => {
     expect(await failedNames(ctx)).toEqual([]);
   });
 
-  it('says in the check notes that a later migration changed the shape', async () => {
+  it('says in the check notes which later migration changed the shape', async () => {
     const { ctx } = fakeCtx(SETUP, {
       files: {
         [SEEDED_MIGRATION_FILE]: SEEDED_SQL,
@@ -558,7 +641,7 @@ describe('valid alternatives', () => {
       ({ name }) => name === NEW_MIGRATION
     );
     expect(check?.notes).toContain(
-      'shape changed by 20260103000000_relax.sql; the database check covers the final shape'
+      `${NEW_FILE} adds due_date as timestamptz not null default now(); then 20260103000000_relax.sql change its type or nullability`
     );
   });
 
@@ -728,7 +811,7 @@ describe('report judge', () => {
       '- tasks.due_date in the local database: date, nullable'
     );
     expect(input).toContain(
-      `- new migration adding due_date: ${NEW_FILE} (version ${NEW_VERSION})`
+      `- new migrations touching due_date: ${NEW_FILE} (version ${NEW_VERSION}) (${NEW_FILE} adds due_date as date)`
     );
     expect(input).toContain('- recorded in the local migration history: yes');
     expect(input).toContain('- seeded migration modified: no');
@@ -747,11 +830,45 @@ describe('report judge', () => {
       '- tasks.due_date in the local database: unavailable ('
     );
     expect(input).toContain(
-      '- new migration adding due_date: none (no new migration adds due_date to tasks)'
+      '- new migrations touching due_date: none (no new migration adds due_date to tasks)'
     );
     expect(input).toContain(
       '- recorded in the local migration history: unknown ('
     );
+  });
+
+  it('names the file, its shape and the recorded history when a wrong-shape migration was applied', async () => {
+    const { ctx, judge } = fakeCtx(SETUP, {
+      files: {
+        [SEEDED_MIGRATION_FILE]: SEEDED_SQL,
+        [NEW_FILE]: 'alter table public.tasks add column due_date text;\n',
+      },
+      column: 'text|YES\n',
+    });
+    await scorer(ctx);
+    const input = judgeCall(judge, REPORT_RUBRIC)?.input ?? '';
+    expect(input).toContain(
+      `- new migrations touching due_date: ${NEW_FILE} (version ${NEW_VERSION}) (after ${NEW_FILE}, due_date is text, not a nullable date or timestamp)`
+    );
+    expect(input).toContain(
+      `- recorded in the local migration history: yes (${NEW_FILE} (version ${NEW_VERSION}))`
+    );
+  });
+
+  it('receives the tool outputs in the transcript', async () => {
+    const { ctx, judge } = fakeCtx(SETUP, {
+      transcript: [
+        {
+          type: 'tool_call',
+          name: 'shell',
+          input: { command: 'supabase start' },
+          output: 'toomanyrequests: Rate exceeded',
+        },
+      ],
+    });
+    await scorer(ctx);
+    const input = judgeCall(judge, REPORT_RUBRIC)?.input ?? '';
+    expect(input).toContain('toomanyrequests: Rate exceeded');
   });
 
   it('says the history is unknown when the stack is down and a migration was written', async () => {
