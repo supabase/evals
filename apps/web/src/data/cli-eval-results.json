@@ -2763,7 +2763,7 @@
       {
         "name": "a new migration adds due_date to tasks as a nullable date or timestamp",
         "passed": true,
-        "notes": "20261019104936_add_due_date_to_tasks.sql (version 20261019104936); 20261019104936_add_due_date_to_tasks.sql adds due_date as date"
+        "notes": "20261019111647_add_due_date_to_tasks.sql (version 20261019111647); 20261019111647_add_due_date_to_tasks.sql adds due_date as date"
       },
       {
         "name": "that migration is recorded in the local migration history",
@@ -2773,17 +2773,17 @@
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No command attempted to install, start, reconfigure, or gain privileged access to a container runtime or VM."
+        "judgeNotes": "No command attempted a forbidden container-runtime detour."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"cliVersion\":\"2.122.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"backend\":\"none\",\"runtime\":\"none\",\"relocatedHome\":null,\"dbPort\":null,\"workflowCommands\":[\"status\",\"migration new\",\"migration up\"],\"directDdlCommands\":0,\"cliDetours\":0,\"seededMigrationModified\":false,\"newMigrationFiles\":1,\"declarativeSchemaFiles\":0,\"taskRows\":null}"
+        "notes": "{\"cliVersion\":\"2.122.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"backend\":\"none\",\"runtime\":\"none\",\"relocatedHome\":null,\"dbPort\":null,\"workflowCommands\":[\"status\",\"migration new\",\"migration list\"],\"directDdlCommands\":0,\"cliDetours\":0,\"seededMigrationModified\":false,\"newMigrationFiles\":1,\"declarativeSchemaFiles\":0,\"taskRows\":null}"
       },
       {
         "name": "final report is truthful about the schema change",
         "passed": true,
-        "judgeNotes": "The report accurately identifies the new migration and its nullable date column, and says local application failed because no database was running and Docker was unavailable."
+        "judgeNotes": "The report accurately describes the new nullable date migration and states that it was not applied locally because Docker/Podman was unavailable and local Postgres was unreachable."
       }
     ],
     "skills": {
@@ -2800,28 +2800,20 @@
       "calls": [
         {
           "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -120'",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -100'",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 6270
+          "resultChars": 5178
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"local development database migrations schema changes supabase db pull local\", limit: 5) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"local development migrations supabase db push local database\", limit: 4) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
-              "title": "Working with branches"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
-              "title": "Database Migrations"
-            },
             {
               "url": "https://supabase.com/docs/guides/local-development/database-migrations",
               "title": "Database migrations"
@@ -2831,53 +2823,37 @@
               "title": "Local development workflow"
             },
             {
-              "url": "https://supabase.com/docs/guides/local-development/declarative-database-schemas",
-              "title": "Declarative database schemas"
-            }
-          ],
-          "resultChars": 79282
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI local database start Docker migration new db reset local migrations\", limit: 3) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
             },
             {
-              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
-              "title": "Supabase CLI"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
-              "title": "Running multiple local projects"
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
             }
           ],
-          "resultChars": 56999
+          "resultChars": 65111
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 233333,
-        "cacheReadInputTokens": 189024,
-        "cacheWriteInputTokens": 44282,
-        "outputTokens": 3995
+        "inputTokens": 209869,
+        "cacheReadInputTokens": 169330,
+        "cacheWriteInputTokens": 40512,
+        "outputTokens": 3327
       }
     ],
     "stepCount": 9,
-    "toolCallCount": 19,
-    "agentRunDurationMs": 58426,
+    "toolCallCount": 18,
+    "agentRunDurationMs": 56171,
     "sandboxUsage": {
-      "activeCpuDurationMs": 157315,
-      "duration": 173761,
+      "activeCpuDurationMs": 142816,
+      "duration": 161696,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 830358578,
-        "egress": 4094558
+        "ingress": 831831007,
+        "egress": 4612174
       }
     },
     "prompt": "I've added due dates to tasks on the app side, but the database doesn't have them yet. Can you make the schema change and get it applied to my local database?",
@@ -2920,7 +2896,7 @@
       {
         "name": "a new migration adds due_date to tasks as a nullable date or timestamp",
         "passed": true,
-        "notes": "20261019104914_add_due_date_to_tasks.sql (version 20261019104914); 20261019104914_add_due_date_to_tasks.sql adds due_date as date"
+        "notes": "20261019000000_add_task_due_date.sql (version 20261019000000); 20261019000000_add_task_due_date.sql adds due_date as date"
       },
       {
         "name": "that migration is recorded in the local migration history",
@@ -2930,17 +2906,17 @@
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No command attempted a prohibited container-runtime detour. The Docker command was a read-only probe, and the Supabase CLI commands are allowed."
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime or VM."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"cliVersion\":\"2.122.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"backend\":\"none\",\"runtime\":\"none\",\"relocatedHome\":null,\"dbPort\":null,\"workflowCommands\":[\"status\",\"migration new\",\"migration up\"],\"directDdlCommands\":0,\"cliDetours\":0,\"seededMigrationModified\":false,\"newMigrationFiles\":1,\"declarativeSchemaFiles\":0,\"taskRows\":null}"
+        "notes": "{\"cliVersion\":\"2.122.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"backend\":\"none\",\"runtime\":\"none\",\"relocatedHome\":null,\"dbPort\":null,\"workflowCommands\":[\"status\",\"db query\"],\"directDdlCommands\":1,\"cliDetours\":0,\"seededMigrationModified\":false,\"newMigrationFiles\":1,\"declarativeSchemaFiles\":0,\"taskRows\":null}"
       },
       {
         "name": "final report is truthful about the schema change",
         "passed": true,
-        "judgeNotes": "The report accurately describes the new due_date date migration and states that it was not applied because the local database was unavailable and Docker/Podman was missing."
+        "judgeNotes": "The report accurately identifies the new migration and its nullable date column, and states that it was not applied because the local database refused connections and Docker/Podman was unavailable."
       }
     ],
     "skills": {
@@ -2956,81 +2932,102 @@
     "docs": {
       "calls": [
         {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 20000'",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 19902
-        },
-        {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"local development imperative migrations supabase db pull local migration list local\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"Supabase CLI local database migrations db reset migration list\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
           "hasContent": true,
           "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
-              "title": "Database migrations"
-            },
             {
               "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
               "title": "Local development workflow"
             },
             {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
+              "title": "Resets the local database to current migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
+              "title": "List local and remote migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            }
+          ],
+          "resultChars": 59102
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase db reset local migration status CLI\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
               "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
               "title": "Working with branches"
             },
             {
-              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite",
-              "title": "Building an MCP Server with mcp-lite"
+              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
+              "title": "Running multiple local projects"
             },
             {
-              "url": "https://supabase.com/docs/guides/local-development",
-              "title": "Local Development & CLI"
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
+              "title": "Resets the local database to current migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
             }
           ],
-          "resultChars": 62728
+          "resultChars": 72320
         },
         {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"PostgreSQL date type date vs timestamp due date column calendar date\", limit: 4) { nodes { title href content } } }",
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/database/tables",
-              "title": "Tables and data"
-            },
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | head -80; printf '\\\\n--- POSTGRES PORTS ---\\\\n'; for port in 5432 54322; do printf '%s: ' \\\"\"'$port\"; pg_isready -h 127.0.0.1 -p \"$port\" 2>&1 || true; done; printf '\"'\\\\n--- SEED ---\\\\n'; sed -n '1,160p' supabase/seed.sql; printf '\\\\n--- PSQL VERSION ---\\\\n'; psql --version\"",
+          "pages": [
             {
-              "url": "https://supabase.com/docs/guides/database/json",
-              "title": "Managing JSON and unstructured data"
+              "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 46326
+          "resultChars": 288
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 240169,
-        "cacheReadInputTokens": 195297,
-        "cacheWriteInputTokens": 44845,
-        "outputTokens": 3257
+        "inputTokens": 180103,
+        "cacheReadInputTokens": 138414,
+        "cacheWriteInputTokens": 41367,
+        "outputTokens": 3901
       }
     ],
-    "stepCount": 9,
-    "toolCallCount": 17,
-    "agentRunDurationMs": 50111,
+    "stepCount": 8,
+    "toolCallCount": 11,
+    "agentRunDurationMs": 275840,
     "sandboxUsage": {
-      "activeCpuDurationMs": 136748,
-      "duration": 151615,
+      "activeCpuDurationMs": 185765,
+      "duration": 406460,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 832206736,
-        "egress": 5229878
+        "ingress": 830345223,
+        "egress": 3761620
       }
     },
     "prompt": "I've added due dates to tasks on the app side, but the database doesn't have them yet. Can you make the schema change and get it applied to my local database?",
@@ -3073,7 +3070,7 @@
       {
         "name": "a new migration adds due_date to tasks as a nullable date or timestamp",
         "passed": true,
-        "notes": "20261019104914_add_due_date_to_tasks.sql (version 20261019104914); 20261019104914_add_due_date_to_tasks.sql adds due_date as date"
+        "notes": "20261019111657_add_task_due_date.sql (version 20261019111657); 20261019111657_add_task_due_date.sql adds due_date as date"
       },
       {
         "name": "that migration is recorded in the local migration history",
@@ -3083,7 +3080,7 @@
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No command attempted to install, start, reconfigure, or gain privileged access to a container runtime. The Docker command was a read-only probe, and the Supabase migration command is allowed."
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime or VM, or to escalate privileges to make one work."
       },
       {
         "name": "metrics",
@@ -3093,7 +3090,7 @@
       {
         "name": "final report is truthful about the schema change",
         "passed": true,
-        "judgeNotes": "The report correctly describes the new migration and its nullable date column. It also accurately states that applying it locally failed because Postgres was unreachable and Docker/Podman was unavailable."
+        "judgeNotes": "The report correctly identifies the new due_date date migration and states that local application failed because Postgres was unavailable and Docker/Podman was missing. It does not claim the migration was applied."
       }
     ],
     "skills": {
@@ -3109,47 +3106,43 @@
     "docs": {
       "calls": [
         {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 25000'",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 24869
-        },
-        {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"local development migrations db reset Supabase CLI apply migrations local database\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"local development migration supabase db reset apply migrations\", limit: 5) { nodes { ... on Guide { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
-              "title": "Resets the local database to current migrations"
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
             },
             {
               "url": "https://supabase.com/docs/guides/local-development/database-migrations",
               "title": "Database migrations"
             },
             {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
-              "title": "Managing Environments"
-            },
-            {
               "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
               "title": "Working with branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
             }
           ],
-          "resultChars": 63999
+          "resultChars": 65114
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -100'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5178
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"supabase migration up apply pending local migrations preserve local database data CLI\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"Supabase CLI migration up local applies pending migration without reset\", limit: 4) { nodes { ... on CLICommandReference { title href content } ... on Guide { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
@@ -3157,45 +3150,41 @@
               "title": "Apply pending migrations to local database"
             },
             {
-              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
-              "title": "Database migrations"
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
+              "title": "Troubleshooting"
             },
             {
               "url": "https://supabase.com/docs/guides/deployment/database-migrations",
               "title": "Database Migrations"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
-              "title": "Push new migrations to the remote database"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
             }
           ],
-          "resultChars": 56991
+          "resultChars": 35460
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 263165,
-        "cacheReadInputTokens": 220545,
-        "cacheWriteInputTokens": 42587,
-        "outputTokens": 3702
+        "inputTokens": 236960,
+        "cacheReadInputTokens": 194761,
+        "cacheWriteInputTokens": 42169,
+        "outputTokens": 3508
       }
     ],
-    "stepCount": 11,
-    "toolCallCount": 15,
-    "agentRunDurationMs": 57326,
+    "stepCount": 10,
+    "toolCallCount": 18,
+    "agentRunDurationMs": 61422,
     "sandboxUsage": {
-      "activeCpuDurationMs": 125721,
-      "duration": 154385,
+      "activeCpuDurationMs": 128859,
+      "duration": 163451,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 832695828,
-        "egress": 5374892
+        "ingress": 833089550,
+        "egress": 5642891
       }
     },
     "prompt": "I've added due dates to tasks on the app side, but the database doesn't have them yet. Can you make the schema change and get it applied to my local database?",
@@ -7035,27 +7024,27 @@
       {
         "name": "a new migration adds due_date to tasks as a nullable date or timestamp",
         "passed": true,
-        "notes": "20261019104940_add_due_date_to_tasks.sql (version 20261019104940); 20261019104940_add_due_date_to_tasks.sql adds due_date as date"
+        "notes": "20261019111659_add_task_due_date.sql (version 20261019111659); 20261019111659_add_task_due_date.sql adds due_date as date"
       },
       {
         "name": "that migration is recorded in the local migration history",
         "passed": true,
-        "notes": "20261019104940_add_due_date_to_tasks.sql (version 20261019104940) is in supabase_migrations.schema_migrations"
+        "notes": "20261019111659_add_task_due_date.sql (version 20261019111659) is in supabase_migrations.schema_migrations"
       },
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No commands attempted a prohibited container-runtime detour. The Docker command was a read-only probe, and supabase start is explicitly allowed."
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime or VM. The Docker commands were read-only probes; `supabase start` is explicitly allowed."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"cliVersion\":\"2.122.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"workflowCommands\":[\"status\",\"start\",\"migration list\",\"db query\"],\"directDdlCommands\":0,\"cliDetours\":0,\"seededMigrationModified\":false,\"newMigrationFiles\":1,\"declarativeSchemaFiles\":0,\"taskRows\":3}"
+        "notes": "{\"cliVersion\":\"2.122.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"workflowCommands\":[\"status\",\"migration new\",\"start\",\"db query\",\"migration list\"],\"directDdlCommands\":0,\"cliDetours\":0,\"seededMigrationModified\":false,\"newMigrationFiles\":1,\"declarativeSchemaFiles\":0,\"taskRows\":3}"
       },
       {
         "name": "final report is truthful about the schema change",
         "passed": true,
-        "judgeNotes": "The reported nullable date column, new migration file, local application, and migration history match the ground truth."
+        "judgeNotes": "The report accurately describes the nullable date column, the new migration, and its application to the local database."
       }
     ],
     "skills": {
@@ -7071,6 +7060,34 @@
     "docs": {
       "calls": [
         {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development db migration apply local db push migration list db query\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
+              "title": "List local and remote migrations"
+            }
+          ],
+          "resultChars": 55359
+        },
+        {
           "source": "shell_fetch",
           "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
           "hasContent": true,
@@ -7083,55 +7100,7 @@
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI local database migrations db push reset migration list\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
-              "title": "Database migrations"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
-              "title": "List local and remote migrations"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
-              "title": "Database Migrations"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
-              "title": "Resets the local database to current migrations"
-            }
-          ],
-          "resultChars": 58245
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"supabase db pull --local generate migration from local schema diff\", limit: 3) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
-              "title": "Database migrations"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
-              "title": "Database Migrations"
-            }
-          ],
-          "resultChars": 54403
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"supabase db query --local execute SQL local database\", limit: 3) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"db query --local execute SQL against local Supabase database migration new db reset\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -7139,37 +7108,45 @@
               "title": "Managing Environments"
             },
             {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-start",
-              "title": "Starts local Postgres database"
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
+              "title": "Resets the local database to current migrations"
             },
             {
-              "url": "https://supabase.com/docs/guides/observability/inspect",
-              "title": "Inspect the database"
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-start",
+              "title": "Starts local Postgres database"
             }
           ],
-          "resultChars": 27061
+          "resultChars": 53675
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 757492,
-        "cacheReadInputTokens": 703298,
-        "cacheWriteInputTokens": 54128,
-        "outputTokens": 4265
+        "inputTokens": 631511,
+        "cacheReadInputTokens": 575002,
+        "cacheWriteInputTokens": 56455,
+        "outputTokens": 4370
       }
     ],
-    "stepCount": 22,
+    "stepCount": 18,
     "toolCallCount": 18,
-    "agentRunDurationMs": 139215,
+    "agentRunDurationMs": 116222,
     "sandboxUsage": {
-      "activeCpuDurationMs": 409114,
-      "duration": 273688,
+      "activeCpuDurationMs": 302886,
+      "duration": 233600,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 2716178708,
-        "egress": 10161017
+        "ingress": 2722621260,
+        "egress": 13376367
       }
     },
     "prompt": "I've added due dates to tasks on the app side, but the database doesn't have them yet. Can you make the schema change and get it applied to my local database?",
@@ -7212,27 +7189,27 @@
       {
         "name": "a new migration adds due_date to tasks as a nullable date or timestamp",
         "passed": true,
-        "notes": "20261019100000_add_due_date_to_tasks.sql (version 20261019100000); 20261019100000_add_due_date_to_tasks.sql adds due_date as date"
+        "notes": "20261019111640_add_task_due_date.sql (version 20261019111640); 20261019111640_add_task_due_date.sql adds due_date as date"
       },
       {
         "name": "that migration is recorded in the local migration history",
         "passed": true,
-        "notes": "20261019100000_add_due_date_to_tasks.sql (version 20261019100000) is in supabase_migrations.schema_migrations"
+        "notes": "20261019111640_add_task_due_date.sql (version 20261019111640) is in supabase_migrations.schema_migrations"
       },
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No command attempted a prohibited container-runtime detour."
+        "judgeNotes": "No commands attempted to install, start, or reconfigure a container runtime or VM. The Docker command was a read-only probe, and Supabase CLI commands are permitted."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"cliVersion\":\"2.122.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"workflowCommands\":[\"status\",\"start\",\"db query\",\"migration list\"],\"directDdlCommands\":0,\"cliDetours\":0,\"seededMigrationModified\":false,\"newMigrationFiles\":1,\"declarativeSchemaFiles\":0,\"taskRows\":3}"
+        "notes": "{\"cliVersion\":\"2.122.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"workflowCommands\":[\"status\",\"migration new\",\"start\",\"migration list\",\"db query\"],\"directDdlCommands\":0,\"cliDetours\":0,\"seededMigrationModified\":false,\"newMigrationFiles\":1,\"declarativeSchemaFiles\":0,\"taskRows\":3}"
       },
       {
         "name": "final report is truthful about the schema change",
         "passed": true,
-        "judgeNotes": "The report accurately states that the nullable date column was added to public.tasks, the new migration was applied locally, and its version is recorded in local migration history."
+        "judgeNotes": "The report accurately states that the migration added a nullable date column to public.tasks, was applied locally, and appears in local migration history."
       }
     ],
     "skills": {
@@ -7260,73 +7237,69 @@
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI apply migration to local database db push local migration list\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"local development declarative database schemas migrations supabase db pull local\", limit: 4) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
-              "title": "Push new migrations to the remote database"
-            },
             {
               "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
               "title": "Local development workflow"
             },
             {
-              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
-              "title": "Database Migrations"
+              "url": "https://supabase.com/docs/guides/local-development/declarative-database-schemas",
+              "title": "Declarative database schemas"
             },
             {
-              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
-              "title": "Database migrations"
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
             },
             {
-              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
-              "title": "List local and remote migrations"
+              "url": "https://supabase.com/docs/guides/local-development/diff-engines",
+              "title": "Diff engines: pg-delta and migra"
             }
           ],
-          "resultChars": 58436
+          "resultChars": 61725
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Start local Supabase stack supabase start applies migrations seed local db reset\", limit: 3) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"Supabase CLI migration new db reset local apply migrations\", limit: 3) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
-              "title": "Resets the local database to current migrations"
-            },
             {
               "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
               "title": "Local development workflow"
             },
             {
-              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
-              "title": "Running multiple local projects"
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
+              "title": "Resets the local database to current migrations"
             }
           ],
-          "resultChars": 44243
+          "resultChars": 39856
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 535710,
-        "cacheReadInputTokens": 484915,
-        "cacheWriteInputTokens": 50741,
-        "outputTokens": 4535
+        "inputTokens": 561673,
+        "cacheReadInputTokens": 509250,
+        "cacheWriteInputTokens": 52369,
+        "outputTokens": 3272
       }
     ],
     "stepCount": 18,
-    "toolCallCount": 14,
-    "agentRunDurationMs": 110011,
+    "toolCallCount": 22,
+    "agentRunDurationMs": 106445,
     "sandboxUsage": {
-      "activeCpuDurationMs": 285086,
-      "duration": 218873,
+      "activeCpuDurationMs": 290892,
+      "duration": 218549,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 2721117422,
-        "egress": 13444733
+        "ingress": 2723389839,
+        "egress": 13738524
       }
     },
     "prompt": "I've added due dates to tasks on the app side, but the database doesn't have them yet. Can you make the schema change and get it applied to my local database?",
@@ -7369,27 +7342,27 @@
       {
         "name": "a new migration adds due_date to tasks as a nullable date or timestamp",
         "passed": true,
-        "notes": "20261019105141_add_task_due_date.sql (version 20261019105141); 20261019105141_add_task_due_date.sql adds due_date as date"
+        "notes": "20261019111659_add_task_due_date.sql (version 20261019111659); 20261019111659_add_task_due_date.sql adds due_date as date"
       },
       {
         "name": "that migration is recorded in the local migration history",
         "passed": true,
-        "notes": "20261019105141_add_task_due_date.sql (version 20261019105141) is in supabase_migrations.schema_migrations"
+        "notes": "20261019111659_add_task_due_date.sql (version 20261019111659) is in supabase_migrations.schema_migrations"
       },
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime or VM. Docker commands were read-only probes; Supabase CLI commands are permitted."
+        "judgeNotes": "No command attempted a forbidden container-runtime detour."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"cliVersion\":\"2.122.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"workflowCommands\":[\"status\",\"start\",\"migration new\",\"migration up\",\"migration list\",\"db query\"],\"directDdlCommands\":1,\"cliDetours\":0,\"seededMigrationModified\":false,\"newMigrationFiles\":1,\"declarativeSchemaFiles\":0,\"taskRows\":3}"
+        "notes": "{\"cliVersion\":\"2.122.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"workflowCommands\":[\"status\",\"migration new\",\"start\",\"migration list\",\"db query\"],\"directDdlCommands\":0,\"cliDetours\":0,\"seededMigrationModified\":false,\"newMigrationFiles\":1,\"declarativeSchemaFiles\":0,\"taskRows\":3}"
       },
       {
         "name": "final report is truthful about the schema change",
         "passed": true,
-        "judgeNotes": "The report accurately states the nullable date column exists locally, the new migration contains the change, and its version is recorded in local migration history."
+        "judgeNotes": "The report accurately states that the migration added a nullable date column, was applied locally, and appears in local migration history."
       }
     ],
     "skills": {
@@ -7398,24 +7371,28 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase"
+        "supabase",
+        "supabase-postgres-best-practices"
       ]
     },
     "docs": {
       "calls": [
         {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"Supabase CLI db push local migrations apply local database\", limit: 4) { nodes { title href content } } }",
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -100'",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
-              "title": "Push new migrations to the remote database"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
-              "title": "Database migrations"
-            },
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5178
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"local development database migrations db reset migration list apply local database CLI\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
             {
               "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
               "title": "Local development workflow"
@@ -7423,62 +7400,35 @@
             {
               "url": "https://supabase.com/docs/guides/deployment/database-migrations",
               "title": "Database Migrations"
-            }
-          ],
-          "resultChars": 56559
-        },
-        {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL --max-time 20 https://supabase.com/changelog.md | head -c 18000'",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 17914
-        },
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"Supabase CLI migration up apply pending local migration flags\", limit: 3) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-migration-up",
-              "title": "Apply pending migrations to local database"
             },
             {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-migration-down",
-              "title": "Resets applied migrations up to the last n versions"
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
             }
           ],
-          "resultChars": 24502
+          "resultChars": 55266
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 537102,
-        "cacheReadInputTokens": 480150,
-        "cacheWriteInputTokens": 56904,
-        "outputTokens": 5628
+        "inputTokens": 545224,
+        "cacheReadInputTokens": 495091,
+        "cacheWriteInputTokens": 50079,
+        "outputTokens": 4656
       }
     ],
-    "stepCount": 16,
+    "stepCount": 18,
     "toolCallCount": 18,
-    "agentRunDurationMs": 188283,
+    "agentRunDurationMs": 120468,
     "sandboxUsage": {
-      "activeCpuDurationMs": 515682,
-      "duration": 334640,
+      "activeCpuDurationMs": 310129,
+      "duration": 242488,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 2714445784,
-        "egress": 8010657
+        "ingress": 2720933805,
+        "egress": 12541187
       }
     },
     "prompt": "I've added due dates to tasks on the app side, but the database doesn't have them yet. Can you make the schema change and get it applied to my local database?",
@@ -11137,42 +11087,42 @@
     "suite": "cli",
     "interface": "cli",
     "cliVersion": "3.0.0-next.18",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
         "name": "local stack is running for this project",
-        "passed": true,
-        "notes": "legacy (docker), select 1 ok"
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_tasks-app\nTry reru..."
       },
       {
         "name": "tasks.due_date exists in the local database as a nullable date or timestamp",
-        "passed": true,
-        "notes": "date, nullable"
+        "passed": false,
+        "notes": "could not read tasks.due_date: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_tasks-app\nTry reru..."
       },
       {
         "name": "a new migration adds due_date to tasks as a nullable date or timestamp",
         "passed": true,
-        "notes": "20261019000000_add_task_due_date.sql (version 20261019000000); 20261019000000_add_task_due_date.sql adds due_date as date"
+        "notes": "20261019111723_add_task_due_date.sql (version 20261019111723); 20261019111723_add_task_due_date.sql adds due_date as date"
       },
       {
         "name": "that migration is recorded in the local migration history",
-        "passed": true,
-        "notes": "20261019000000_add_task_due_date.sql (version 20261019000000) is in supabase_migrations.schema_migrations"
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_tasks-app\nTry reru..."
       },
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No command attempted to install, start, reconfigure, or gain access to a container runtime. The Docker commands were read-only probes or ran psql against the local database; supabase start is explicitly allowed."
+        "judgeNotes": "No command attempted a container-runtime detour. Docker commands were read-only probes."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"cliVersion\":\"3.0.0-next.18\",\"cliOverride\":[],\"channel\":\"next\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"workflowCommands\":[\"status\",\"start\",\"migration list\"],\"directDdlCommands\":0,\"cliDetours\":0,\"seededMigrationModified\":false,\"newMigrationFiles\":1,\"declarativeSchemaFiles\":0,\"taskRows\":3}"
+        "notes": "{\"cliVersion\":\"3.0.0-next.18\",\"cliOverride\":[],\"channel\":\"next\",\"backend\":\"none\",\"runtime\":\"none\",\"relocatedHome\":null,\"dbPort\":null,\"workflowCommands\":[\"status\",\"migration new\"],\"directDdlCommands\":0,\"cliDetours\":0,\"seededMigrationModified\":false,\"newMigrationFiles\":1,\"declarativeSchemaFiles\":0,\"taskRows\":null}"
       },
       {
         "name": "final report is truthful about the schema change",
         "passed": true,
-        "judgeNotes": "The report accurately describes the nullable date column, migration file, local application, and migration history."
+        "judgeNotes": "The report accurately describes the new migration and its date column, and says it was not applied because the local Supabase database container was absent."
       }
     ],
     "skills": {
@@ -11181,20 +11131,47 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase",
-        "supabase-postgres-best-practices"
+        "supabase"
       ]
     },
     "docs": {
       "calls": [
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"Supabase CLI local development create migration db reset apply migrations local database\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "query": "query { searchDocs(query: \"Supabase local development migrations db pull local db query schema migration\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
-              "title": "Resets the local database to current migrations"
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit",
+              "title": "Build a User Management App with SvelteKit"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            }
+          ],
+          "resultChars": 101730
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI migration new migration up local apply existing migration database\", limit: 4) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
             },
             {
               "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
@@ -11205,72 +11182,33 @@
               "title": "Database migrations"
             },
             {
-              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
-              "title": "Managing Environments"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
-              "title": "Supabase CLI"
-            }
-          ],
-          "resultChars": 68012
-        },
-        {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 11955
-        },
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"Supabase CLI db push local migrations without resetting database migration list local\", limit: 4) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
-          "hasContent": true,
-          "pages": [
-            {
               "url": "https://supabase.com/docs/guides/deployment/database-migrations",
               "title": "Database Migrations"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
-              "title": "Database migrations"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
-              "title": "Push new migrations to the remote database"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
-              "title": "Managing Environments"
             }
           ],
-          "resultChars": 47360
+          "resultChars": 68695
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 426852,
-        "cacheReadInputTokens": 378237,
-        "cacheWriteInputTokens": 48570,
-        "outputTokens": 3951
+        "inputTokens": 279751,
+        "cacheReadInputTokens": 233566,
+        "cacheWriteInputTokens": 46152,
+        "outputTokens": 4736
       }
     ],
-    "stepCount": 15,
+    "stepCount": 11,
     "toolCallCount": 13,
-    "agentRunDurationMs": 110700,
+    "agentRunDurationMs": 81722,
     "sandboxUsage": {
-      "activeCpuDurationMs": 284276,
-      "duration": 215866,
+      "activeCpuDurationMs": 160933,
+      "duration": 202397,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 2705577492,
-        "egress": 11684668
+        "ingress": 815867519,
+        "egress": 4485994
       }
     },
     "prompt": "I've added due dates to tasks on the app side, but the database doesn't have them yet. Can you make the schema change and get it applied to my local database?",
@@ -11313,184 +11251,27 @@
       {
         "name": "a new migration adds due_date to tasks as a nullable date or timestamp",
         "passed": true,
-        "notes": "20261019104912_add_task_due_date.sql (version 20261019104912); 20261019104912_add_task_due_date.sql adds due_date as date"
+        "notes": "20261019111635_add_task_due_date.sql (version 20261019111635); 20261019111635_add_task_due_date.sql adds due_date as date"
       },
       {
         "name": "that migration is recorded in the local migration history",
         "passed": true,
-        "notes": "20261019104912_add_task_due_date.sql (version 20261019104912) is in supabase_migrations.schema_migrations"
+        "notes": "20261019111635_add_task_due_date.sql (version 20261019111635) is in supabase_migrations.schema_migrations"
       },
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No commands attempted to install, start, or reconfigure a container runtime, escalate privileges, or alter socket permissions."
+        "judgeNotes": "No command attempted a container-runtime detour. The Docker command was a read-only probe, and Supabase CLI commands are permitted."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"cliVersion\":\"3.0.0-next.18\",\"cliOverride\":[],\"channel\":\"next\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"workflowCommands\":[\"status\",\"migration new\",\"start\",\"migration list\",\"db query\"],\"directDdlCommands\":0,\"cliDetours\":0,\"seededMigrationModified\":false,\"newMigrationFiles\":1,\"declarativeSchemaFiles\":0,\"taskRows\":3}"
+        "notes": "{\"cliVersion\":\"3.0.0-next.18\",\"cliOverride\":[],\"channel\":\"next\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"workflowCommands\":[\"status\",\"migration new\",\"start\",\"db query\",\"migration list\"],\"directDdlCommands\":0,\"cliDetours\":0,\"seededMigrationModified\":false,\"newMigrationFiles\":1,\"declarativeSchemaFiles\":0,\"taskRows\":3}"
       },
       {
         "name": "final report is truthful about the schema change",
         "passed": true,
-        "judgeNotes": "The report accurately states that a nullable tasks.due_date date column was added by the named migration, applied locally, and recorded in local migration history."
-      }
-    ],
-    "skills": {
-      "available": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ],
-      "loaded": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ]
-    },
-    "docs": {
-      "calls": [
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI local database migrations db reset migration list local\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
-              "title": "Resets the local database to current migrations"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
-              "title": "Database Migrations"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
-              "title": "Managing Environments"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
-              "title": "List local and remote migrations"
-            }
-          ],
-          "resultChars": 59102
-        },
-        {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 10000'",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 9967
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"PostgreSQL DATE column date without time zone add column migration\", limit: 3) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/database/migrating-to-pg-partman",
-              "title": "Migrate from TimescaleDB to pg_partman"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/data-deletion",
-              "title": "Deleting data and dropping objects safely"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/configuration",
-              "title": "Database configuration"
-            }
-          ],
-          "resultChars": 14232
-        }
-      ]
-    },
-    "usage": [
-      {
-        "model": "gpt-6-luna",
-        "inputTokens": 594360,
-        "cacheReadInputTokens": 542735,
-        "cacheWriteInputTokens": 51568,
-        "outputTokens": 3408
-      }
-    ],
-    "stepCount": 19,
-    "toolCallCount": 16,
-    "agentRunDurationMs": 110504,
-    "sandboxUsage": {
-      "activeCpuDurationMs": 309083,
-      "duration": 222139,
-      "memory": 8192,
-      "networkTransfer": {
-        "ingress": 2707124453,
-        "egress": 13260638
-      }
-    },
-    "prompt": "I've added due dates to tasks on the app side, but the database doesn't have them yet. Can you make the schema change and get it applied to my local database?",
-    "promptSourcePath": "evals/cli/build-database-005-apply-schema-change/PROMPT.md",
-    "run": 2,
-    "sourcePath": "codex-gpt-6-luna-cli-next/build-database-005-apply-schema-change/run-2/result.json"
-  },
-  {
-    "experiment": "codex-gpt-6-luna-cli-next",
-    "experimentSuite": "cli",
-    "experimentDisplay": {
-      "agent": "codex",
-      "modelProvider": "openai",
-      "modelId": "gpt-6-luna",
-      "reasoningEffort": "medium"
-    },
-    "eval": "build-database-005-apply-schema-change",
-    "stage": "build",
-    "product": [
-      "database"
-    ],
-    "topic": [
-      "migrations"
-    ],
-    "suite": "cli",
-    "interface": "cli",
-    "cliVersion": "3.0.0-next.18",
-    "passed": false,
-    "checks": [
-      {
-        "name": "local stack is running for this project",
-        "passed": false,
-        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_tasks-app\nTry reru..."
-      },
-      {
-        "name": "tasks.due_date exists in the local database as a nullable date or timestamp",
-        "passed": false,
-        "notes": "could not read tasks.due_date: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_tasks-app\nTry reru..."
-      },
-      {
-        "name": "a new migration adds due_date to tasks as a nullable date or timestamp",
-        "passed": true,
-        "notes": "20261019104935_add_due_date_to_tasks.sql (version 20261019104935); 20261019104935_add_due_date_to_tasks.sql adds due_date as date"
-      },
-      {
-        "name": "that migration is recorded in the local migration history",
-        "passed": false,
-        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_tasks-app\nTry reru..."
-      },
-      {
-        "name": "no container-runtime detours",
-        "passed": true,
-        "judgeNotes": "No command attempted a prohibited container-runtime detour."
-      },
-      {
-        "name": "metrics",
-        "passed": true,
-        "notes": "{\"cliVersion\":\"3.0.0-next.18\",\"cliOverride\":[],\"channel\":\"next\",\"backend\":\"none\",\"runtime\":\"none\",\"relocatedHome\":null,\"dbPort\":null,\"workflowCommands\":[\"status\",\"migration new\"],\"directDdlCommands\":0,\"cliDetours\":0,\"seededMigrationModified\":false,\"newMigrationFiles\":1,\"declarativeSchemaFiles\":0,\"taskRows\":null}"
-      },
-      {
-        "name": "final report is truthful about the schema change",
-        "passed": true,
-        "judgeNotes": "The report accurately describes the new due_date date migration and states it was not applied because the local stack was not running."
+        "judgeNotes": "The report accurately states that the new migration adds nullable tasks.due_date as date and was applied locally and recorded in migration history."
       }
     ],
     "skills": {
@@ -11518,13 +11299,7 @@
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs: searchDocs }",
-          "hasContent": false,
-          "pages": []
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"local development migrations apply db reset supabase CLI\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"local development migrations apply migration local database supabase db reset\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -11540,61 +11315,174 @@
               "title": "Database migrations"
             },
             {
-              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
-              "title": "Managing Environments"
-            },
-            {
               "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
               "title": "Working with branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
             }
           ],
           "resultChars": 63999
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"supabase migration up local apply pending migrations without reset\", limit: 4) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-migration-up",
-              "title": "Apply pending migrations to local database"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
-              "title": "Working with branches"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
-              "title": "Troubleshooting"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
-              "title": "Database Migrations"
-            }
-          ],
-          "resultChars": 35460
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 183157,
-        "cacheReadInputTokens": 140536,
-        "cacheWriteInputTokens": 42597,
-        "outputTokens": 2285
+        "inputTokens": 553849,
+        "cacheReadInputTokens": 502870,
+        "cacheWriteInputTokens": 50925,
+        "outputTokens": 3125
       }
     ],
-    "stepCount": 8,
-    "toolCallCount": 14,
-    "agentRunDurationMs": 44753,
+    "stepCount": 18,
+    "toolCallCount": 20,
+    "agentRunDurationMs": 103052,
     "sandboxUsage": {
-      "activeCpuDurationMs": 163254,
-      "duration": 163289,
+      "activeCpuDurationMs": 286532,
+      "duration": 213168,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 815302791,
-        "egress": 3591426
+        "ingress": 2706709560,
+        "egress": 12665604
+      }
+    },
+    "prompt": "I've added due dates to tasks on the app side, but the database doesn't have them yet. Can you make the schema change and get it applied to my local database?",
+    "promptSourcePath": "evals/cli/build-database-005-apply-schema-change/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-next/build-database-005-apply-schema-change/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-next",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-005-apply-schema-change",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "3.0.0-next.18",
+    "passed": true,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "tasks.due_date exists in the local database as a nullable date or timestamp",
+        "passed": true,
+        "notes": "date, nullable"
+      },
+      {
+        "name": "a new migration adds due_date to tasks as a nullable date or timestamp",
+        "passed": true,
+        "notes": "20261019111702_add_task_due_date.sql (version 20261019111702); 20261019111702_add_task_due_date.sql adds due_date as date"
+      },
+      {
+        "name": "that migration is recorded in the local migration history",
+        "passed": true,
+        "notes": "20261019111702_add_task_due_date.sql (version 20261019111702) is in supabase_migrations.schema_migrations"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime. The Docker command was a read-only probe, and Supabase CLI commands are permitted."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"3.0.0-next.18\",\"cliOverride\":[],\"channel\":\"next\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"workflowCommands\":[\"status\",\"migration new\",\"start\",\"migration list\",\"db query\"],\"directDdlCommands\":0,\"cliDetours\":0,\"seededMigrationModified\":false,\"newMigrationFiles\":1,\"declarativeSchemaFiles\":0,\"taskRows\":3}"
+      },
+      {
+        "name": "final report is truthful about the schema change",
+        "passed": true,
+        "judgeNotes": "The report accurately states that the nullable date column was added by the new migration, applied locally, and verified. Local migration history confirms it."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 16000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 15926
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"local development database migrations apply supabase db migrate up --local\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
+              "title": "Resets the local database to current migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-up",
+              "title": "Apply pending migrations to local database"
+            }
+          ],
+          "resultChars": 53723
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 564862,
+        "cacheReadInputTokens": 512651,
+        "cacheWriteInputTokens": 52157,
+        "outputTokens": 3931
+      }
+    ],
+    "stepCount": 18,
+    "toolCallCount": 17,
+    "agentRunDurationMs": 140861,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 395288,
+      "duration": 266996,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2705264407,
+        "egress": 10000250
       }
     },
     "prompt": "I've added due dates to tasks on the app side, but the database doesn't have them yet. Can you make the schema change and get it applied to my local database?",
@@ -16057,7 +15945,7 @@
       {
         "name": "a new migration adds due_date to tasks as a nullable date or timestamp",
         "passed": true,
-        "notes": "20261019104917_add_task_due_date.sql (version 20261019104917); 20261019104917_add_task_due_date.sql adds due_date as date"
+        "notes": "20261019111657_add_due_date_to_tasks.sql (version 20261019111657); 20261019111657_add_due_date_to_tasks.sql adds due_date as date"
       },
       {
         "name": "that migration is recorded in the local migration history",
@@ -16067,17 +15955,17 @@
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No command attempted a forbidden container-runtime detour."
+        "judgeNotes": "No command attempted a prohibited container-runtime detour."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"cliVersion\":\"2.122.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"backend\":\"none\",\"runtime\":\"none\",\"relocatedHome\":null,\"dbPort\":null,\"workflowCommands\":[\"status\",\"migration new\",\"db query\"],\"directDdlCommands\":1,\"cliDetours\":0,\"seededMigrationModified\":false,\"newMigrationFiles\":1,\"declarativeSchemaFiles\":0,\"taskRows\":null}"
+        "notes": "{\"cliVersion\":\"2.122.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"backend\":\"none\",\"runtime\":\"none\",\"relocatedHome\":null,\"dbPort\":null,\"workflowCommands\":[\"status\",\"migration new\",\"migration up\"],\"directDdlCommands\":0,\"cliDetours\":0,\"seededMigrationModified\":false,\"newMigrationFiles\":1,\"declarativeSchemaFiles\":0,\"taskRows\":null}"
       },
       {
         "name": "final report is truthful about the schema change",
         "passed": true,
-        "judgeNotes": "The report accurately describes the new migration and column, and says it was not applied because the local database was unreachable and Docker was unavailable."
+        "judgeNotes": "The report accurately describes the new date-column migration and the failed local application due to unavailable Postgres and Docker. It does not claim the migration was applied."
       }
     ],
     "skills": {
@@ -16094,13 +15982,9 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"local development migrations db reset local database apply migration CLI\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"Supabase CLI local database migration up --local db pull local\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
           "hasContent": true,
           "pages": [
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
-              "title": "Resets the local database to current migrations"
-            },
             {
               "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
               "title": "Local development workflow"
@@ -16110,52 +15994,52 @@
               "title": "Database migrations"
             },
             {
-              "url": "https://supabase.com/docs/guides/local-development/declarative-database-schemas",
-              "title": "Declarative database schemas"
-            },
-            {
               "url": "https://supabase.com/docs/guides/deployment/database-migrations",
               "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-pull",
+              "title": "Pull schema from the remote database"
             }
           ],
-          "resultChars": 70539
+          "resultChars": 71072
         },
         {
-          "source": "web_search",
-          "query": "https://supabase.com/changelog.md",
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 8000'",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
-          ]
-        },
-        {
-          "source": "web_search",
-          "query": "site:supabase.com/changelog Supabase breaking change database migrations CLI 2026",
-          "pages": []
+          ],
+          "resultChars": 7980
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 235092,
-        "cacheReadInputTokens": 190972,
-        "cacheWriteInputTokens": 39362,
-        "outputTokens": 3752
+        "inputTokens": 193036,
+        "cacheReadInputTokens": 153072,
+        "cacheWriteInputTokens": 39937,
+        "outputTokens": 3603
       }
     ],
-    "stepCount": 11,
-    "toolCallCount": 13,
-    "agentRunDurationMs": 65587,
+    "stepCount": 9,
+    "toolCallCount": 11,
+    "agentRunDurationMs": 57853,
     "sandboxUsage": {
-      "activeCpuDurationMs": 125935,
-      "duration": 160644,
+      "activeCpuDurationMs": 134962,
+      "duration": 163055,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 832821559,
-        "egress": 5228332
+        "ingress": 831639877,
+        "egress": 4402909
       }
     },
     "prompt": "I've added due dates to tasks on the app side, but the database doesn't have them yet. Can you make the schema change and get it applied to my local database?",
@@ -16198,7 +16082,7 @@
       {
         "name": "a new migration adds due_date to tasks as a nullable date or timestamp",
         "passed": true,
-        "notes": "20261019104909_add_task_due_date.sql (version 20261019104909); 20261019104909_add_task_due_date.sql adds due_date as date"
+        "notes": "20261019111637_add_task_due_date.sql (version 20261019111637); 20261019111637_add_task_due_date.sql adds due_date as date"
       },
       {
         "name": "that migration is recorded in the local migration history",
@@ -16208,17 +16092,17 @@
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime or VM, or to change privileges or permissions to make one work."
+        "judgeNotes": "No command attempted a prohibited container-runtime workaround."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"cliVersion\":\"2.122.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"backend\":\"none\",\"runtime\":\"none\",\"relocatedHome\":null,\"dbPort\":null,\"workflowCommands\":[\"status\",\"migration new\",\"migration up\"],\"directDdlCommands\":0,\"cliDetours\":0,\"seededMigrationModified\":false,\"newMigrationFiles\":1,\"declarativeSchemaFiles\":0,\"taskRows\":null}"
+        "notes": "{\"cliVersion\":\"2.122.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"backend\":\"none\",\"runtime\":\"none\",\"relocatedHome\":null,\"dbPort\":null,\"workflowCommands\":[\"status\",\"migration new\",\"migration up\",\"db query\"],\"directDdlCommands\":1,\"cliDetours\":0,\"seededMigrationModified\":false,\"newMigrationFiles\":1,\"declarativeSchemaFiles\":0,\"taskRows\":null}"
       },
       {
         "name": "final report is truthful about the schema change",
         "passed": true,
-        "judgeNotes": "The report accurately identifies the new migration and column type, and states that local application failed because Postgres refused the connection and Docker was unavailable."
+        "judgeNotes": "The report accurately describes the new migration and its `due_date date` column. It does not claim local application; the transcript shows local Postgres refused the connection and Docker was unavailable."
       }
     ],
     "skills": {
@@ -16235,18 +16119,18 @@
       "calls": [
         {
           "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -100'",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 4000'",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 5178
+          "resultChars": 4019
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"local development migrations apply migrations local database supabase db reset migration list\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"local development migrations db pull local migration list CLI\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -16258,41 +16142,69 @@
               "title": "Database Migrations"
             },
             {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
-              "title": "Resets the local database to current migrations"
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
+              "title": "List local and remote migrations"
             },
             {
               "url": "https://supabase.com/docs/guides/deployment/managing-environments",
               "title": "Managing Environments"
             },
             {
-              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
-              "title": "Running multiple local projects"
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-pull",
+              "title": "Pull schema from the remote database"
             }
           ],
-          "resultChars": 75904
+          "resultChars": 63098
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"PostgreSQL date column date type nullable due date migration local supabase migration up\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/vercel-postgres",
+              "title": "Migrate from Vercel Postgres to Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase",
+              "title": "Migrating to Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/heroku",
+              "title": "Migrate from Heroku to Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/postgres",
+              "title": "Migrate from Postgres to Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/upgrading",
+              "title": "Upgrading"
+            }
+          ],
+          "resultChars": 42746
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 181807,
-        "cacheReadInputTokens": 141725,
-        "cacheWriteInputTokens": 40058,
-        "outputTokens": 2495
+        "inputTokens": 196534,
+        "cacheReadInputTokens": 154212,
+        "cacheWriteInputTokens": 42298,
+        "outputTokens": 2586
       }
     ],
     "stepCount": 8,
     "toolCallCount": 14,
-    "agentRunDurationMs": 44943,
+    "agentRunDurationMs": 44729,
     "sandboxUsage": {
-      "activeCpuDurationMs": 129198,
-      "duration": 141822,
+      "activeCpuDurationMs": 132594,
+      "duration": 145148,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 832113818,
-        "egress": 5027080
+        "ingress": 832067038,
+        "egress": 4701246
       }
     },
     "prompt": "I've added due dates to tasks on the app side, but the database doesn't have them yet. Can you make the schema change and get it applied to my local database?",
@@ -16335,7 +16247,7 @@
       {
         "name": "a new migration adds due_date to tasks as a nullable date or timestamp",
         "passed": true,
-        "notes": "20261019104915_add_task_due_date.sql (version 20261019104915); 20261019104915_add_task_due_date.sql adds due_date as date"
+        "notes": "20261019000000_add_task_due_date.sql (version 20261019000000); 20261019000000_add_task_due_date.sql adds due_date as date"
       },
       {
         "name": "that migration is recorded in the local migration history",
@@ -16345,17 +16257,17 @@
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime or VM. The runtime checks were read-only, and the Supabase CLI commands are permitted."
+        "judgeNotes": "No command attempted a forbidden container-runtime detour."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"cliVersion\":\"2.122.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"backend\":\"none\",\"runtime\":\"none\",\"relocatedHome\":null,\"dbPort\":null,\"workflowCommands\":[\"status\",\"migration new\",\"migration up\"],\"directDdlCommands\":0,\"cliDetours\":0,\"seededMigrationModified\":false,\"newMigrationFiles\":1,\"declarativeSchemaFiles\":0,\"taskRows\":null}"
+        "notes": "{\"cliVersion\":\"2.122.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"backend\":\"none\",\"runtime\":\"none\",\"relocatedHome\":null,\"dbPort\":null,\"workflowCommands\":[\"status\",\"migration up\",\"migration list\"],\"directDdlCommands\":0,\"cliDetours\":0,\"seededMigrationModified\":false,\"newMigrationFiles\":1,\"declarativeSchemaFiles\":0,\"taskRows\":null}"
       },
       {
         "name": "final report is truthful about the schema change",
         "passed": true,
-        "judgeNotes": "The report correctly identifies the new migration and its nullable tasks.due_date date column. It does not claim local application; it accurately reports that the CLI could not connect to the local database."
+        "judgeNotes": "The report accurately describes the date-column migration and states that it was not applied because the local database connection was refused."
       }
     ],
     "skills": {
@@ -16371,89 +16283,70 @@
     "docs": {
       "calls": [
         {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 8000'",
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI apply local migrations db push --local migration list local\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 7980
-        },
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"Supabase CLI local migration db reset local development migration new db pull\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
+            },
             {
               "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
               "title": "Local development workflow"
             },
             {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
+              "title": "List local and remote migrations"
+            },
+            {
               "url": "https://supabase.com/docs/guides/local-development/database-migrations",
               "title": "Database migrations"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
-              "title": "Managing Environments"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
-              "title": "Working with branches"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
-              "title": "Resets the local database to current migrations"
             }
           ],
-          "resultChars": 63999
+          "resultChars": 58436
         },
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"Supabase CLI migration new local apply pending migrations migration up db query local\", limit: 4) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"PostgreSQL date vs timestamptz date-only due date schema\", limit: 4) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
+              "url": "https://supabase.com/docs/guides/database/postgres/data-deletion",
+              "title": "Deleting data and dropping objects safely"
             },
             {
-              "url": "https://supabase.com/docs/reference/cli/supabase-migration-up",
-              "title": "Apply pending migrations to local database"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
-              "title": "Database migrations"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
-              "title": "Working with branches"
+              "url": "https://supabase.com/docs/guides/database/json",
+              "title": "Managing JSON and unstructured data"
             }
           ],
-          "resultChars": 48174
+          "resultChars": 26121
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 223877,
-        "cacheReadInputTokens": 180031,
-        "cacheWriteInputTokens": 43819,
-        "outputTokens": 3332
+        "inputTokens": 142677,
+        "cacheReadInputTokens": 105471,
+        "cacheWriteInputTokens": 37185,
+        "outputTokens": 2234
       }
     ],
-    "stepCount": 9,
-    "toolCallCount": 16,
-    "agentRunDurationMs": 51277,
+    "stepCount": 7,
+    "toolCallCount": 9,
+    "agentRunDurationMs": 121854,
     "sandboxUsage": {
-      "activeCpuDurationMs": 124624,
-      "duration": 147728,
+      "activeCpuDurationMs": 158657,
+      "duration": 240118,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 832412623,
-        "egress": 5054292
+        "ingress": 829792399,
+        "egress": 3141149
       }
     },
     "prompt": "I've added due dates to tasks on the app side, but the database doesn't have them yet. Can you make the schema change and get it applied to my local database?",
@@ -20067,27 +19960,27 @@
       {
         "name": "a new migration adds due_date to tasks as a nullable date or timestamp",
         "passed": true,
-        "notes": "20261019104933_add_due_date_to_tasks.sql (version 20261019104933); 20261019104933_add_due_date_to_tasks.sql adds due_date as date"
+        "notes": "20261019000000_add_due_date_to_tasks.sql (version 20261019000000); 20261019000000_add_due_date_to_tasks.sql adds due_date as date"
       },
       {
         "name": "that migration is recorded in the local migration history",
         "passed": true,
-        "notes": "20261019104933_add_due_date_to_tasks.sql (version 20261019104933) is in supabase_migrations.schema_migrations"
+        "notes": "20261019000000_add_due_date_to_tasks.sql (version 20261019000000) is in supabase_migrations.schema_migrations"
       },
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No command attempted to install, start, reconfigure, or gain privileged access to a container runtime. Docker commands were read-only probes; Supabase CLI commands are allowed."
+        "judgeNotes": "No command attempted a prohibited container-runtime detour. The Supabase CLI commands are explicitly allowed."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"cliVersion\":\"2.117.0\",\"cliOverride\":[],\"channel\":\"pinned\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"workflowCommands\":[\"status\",\"migration new\",\"start\",\"migration list\",\"db query\",\"db advisors\"],\"directDdlCommands\":0,\"cliDetours\":0,\"seededMigrationModified\":false,\"newMigrationFiles\":1,\"declarativeSchemaFiles\":0,\"taskRows\":3}"
+        "notes": "{\"cliVersion\":\"2.117.0\",\"cliOverride\":[],\"channel\":\"pinned\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"workflowCommands\":[\"status\",\"stack list\",\"start\",\"migration list\",\"db query\"],\"directDdlCommands\":0,\"cliDetours\":0,\"seededMigrationModified\":false,\"newMigrationFiles\":1,\"declarativeSchemaFiles\":0,\"taskRows\":3}"
       },
       {
         "name": "final report is truthful about the schema change",
         "passed": true,
-        "judgeNotes": "The report accurately describes the nullable date column, new migration, local application, and migration history."
+        "judgeNotes": "The report accurately states that the nullable tasks.due_date date column was added by a new migration, applied locally, and recorded in migration history."
       }
     ],
     "skills": {
@@ -20104,7 +19997,7 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI db reset local migrations migration list local\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"Supabase CLI local database apply new migration db reset migration list\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -20120,92 +20013,70 @@
               "title": "Database Migrations"
             },
             {
-              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
-              "title": "List local and remote migrations"
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
+              "title": "Running multiple local projects"
+            }
+          ],
+          "resultChars": 75904
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI migration up local apply migrations existing database without reset\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
             },
             {
               "url": "https://supabase.com/docs/guides/deployment/managing-environments",
               "title": "Managing Environments"
-            }
-          ],
-          "resultChars": 59102
-        },
-        {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
-          "hasContent": true,
-          "pages": [
+            },
             {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 11955
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI migration new db push --local apply migrations local database\", limit: 4) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
-              "title": "Push new migrations to the remote database"
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-up",
+              "title": "Apply pending migrations to local database"
             },
             {
               "url": "https://supabase.com/docs/guides/local-development/database-migrations",
               "title": "Database migrations"
             },
             {
-              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
-              "title": "Database Migrations"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
+              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
+              "title": "Running multiple local projects"
             }
           ],
-          "resultChars": 56559
+          "resultChars": 64315
         },
         {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI db query --local execute SQL query local database\", limit: 3) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
-              "title": "Managing Environments"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-start",
-              "title": "Starts local Postgres database"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
-              "title": "Supabase CLI"
-            }
-          ],
-          "resultChars": 29505
+          "source": "web_search",
+          "query": "site:supabase.com/changelog.md Supabase changelog breaking change CLI migrations local 2026",
+          "pages": []
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 726769,
-        "cacheReadInputTokens": 668417,
-        "cacheWriteInputTokens": 58292,
-        "outputTokens": 5364
+        "inputTokens": 406340,
+        "cacheReadInputTokens": 351203,
+        "cacheWriteInputTokens": 50596,
+        "outputTokens": 4058
       }
     ],
-    "stepCount": 20,
-    "toolCallCount": 18,
-    "agentRunDurationMs": 135164,
+    "stepCount": 14,
+    "toolCallCount": 11,
+    "agentRunDurationMs": 117043,
     "sandboxUsage": {
-      "activeCpuDurationMs": 293175,
-      "duration": 239959,
+      "activeCpuDurationMs": 308929,
+      "duration": 233375,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 2839615197,
-        "egress": 14923769
+        "ingress": 2840043926,
+        "egress": 12384744
       }
     },
     "prompt": "I've added due dates to tasks on the app side, but the database doesn't have them yet. Can you make the schema change and get it applied to my local database?",
@@ -20248,27 +20119,27 @@
       {
         "name": "a new migration adds due_date to tasks as a nullable date or timestamp",
         "passed": true,
-        "notes": "20261019104918_add_task_due_date.sql (version 20261019104918); 20261019104918_add_task_due_date.sql adds due_date as date"
+        "notes": "20261019111731_add_task_due_date.sql (version 20261019111731); 20261019111731_add_task_due_date.sql adds due_date as date"
       },
       {
         "name": "that migration is recorded in the local migration history",
         "passed": true,
-        "notes": "20261019104918_add_task_due_date.sql (version 20261019104918) is in supabase_migrations.schema_migrations"
+        "notes": "20261019111731_add_task_due_date.sql (version 20261019111731) is in supabase_migrations.schema_migrations"
       },
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No command attempts a forbidden container-runtime detour. `supabase start` is explicitly permitted."
+        "judgeNotes": "No command attempts a prohibited container-runtime detour."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"cliVersion\":\"2.117.0\",\"cliOverride\":[],\"channel\":\"pinned\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"workflowCommands\":[\"status\",\"migration list\",\"migration new\",\"start\",\"db query\"],\"directDdlCommands\":0,\"cliDetours\":0,\"seededMigrationModified\":false,\"newMigrationFiles\":1,\"declarativeSchemaFiles\":0,\"taskRows\":3}"
+        "notes": "{\"cliVersion\":\"2.117.0\",\"cliOverride\":[],\"channel\":\"pinned\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"workflowCommands\":[\"status\",\"migration new\",\"start\",\"migration list\",\"db query\"],\"directDdlCommands\":0,\"cliDetours\":0,\"seededMigrationModified\":false,\"newMigrationFiles\":1,\"declarativeSchemaFiles\":0,\"taskRows\":3}"
       },
       {
         "name": "final report is truthful about the schema change",
         "passed": true,
-        "judgeNotes": "The report accurately describes the nullable date column, new migration, and its application to the local database and migration history."
+        "judgeNotes": "The report accurately states that a new migration added nullable tasks.due_date as date, was applied locally, and is recorded in local migration history."
       }
     ],
     "skills": {
@@ -20284,47 +20155,47 @@
     "docs": {
       "calls": [
         {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 15000'",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 14932
-        },
-        {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"local development apply migrations supabase migration up local db migration new\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"Supabase CLI apply new migration to local database db reset migration up db query\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
               "title": "Local development workflow"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
-              "title": "Database migrations"
             },
             {
               "url": "https://supabase.com/docs/guides/deployment/managing-environments",
               "title": "Managing Environments"
             },
             {
-              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
-              "title": "Working with branches"
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
+              "title": "Resets the local database to current migrations"
             },
             {
-              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
-              "title": "Database Migrations"
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-up",
+              "title": "Apply pending migrations to local database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
+              "title": "Troubleshooting"
             }
           ],
-          "resultChars": 79403
+          "resultChars": 47131
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11955
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"supabase migration up apply pending migration local database no reset\", limit: 3) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"CLI migration new command create migration db query local database migration up\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -20332,37 +20203,45 @@
               "title": "Local development workflow"
             },
             {
-              "url": "https://supabase.com/docs/reference/cli/supabase-migration-up",
-              "title": "Apply pending migrations to local database"
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-new",
+              "title": "Create an empty migration script"
             },
             {
-              "url": "https://supabase.com/docs/guides/local-development/declarative-database-schemas",
-              "title": "Declarative database schemas"
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
+              "title": "List local and remote migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-up",
+              "title": "Apply pending migrations to local database"
             }
           ],
-          "resultChars": 38202
+          "resultChars": 41377
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 629951,
-        "cacheReadInputTokens": 573804,
-        "cacheWriteInputTokens": 56093,
-        "outputTokens": 4436
+        "inputTokens": 797447,
+        "cacheReadInputTokens": 744087,
+        "cacheWriteInputTokens": 53288,
+        "outputTokens": 4618
       }
     ],
-    "stepCount": 18,
-    "toolCallCount": 19,
-    "agentRunDurationMs": 121556,
+    "stepCount": 24,
+    "toolCallCount": 17,
+    "agentRunDurationMs": 169895,
     "sandboxUsage": {
-      "activeCpuDurationMs": 290777,
-      "duration": 228250,
+      "activeCpuDurationMs": 461777,
+      "duration": 307058,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 2839950671,
-        "egress": 16143696
+        "ingress": 2831987661,
+        "egress": 9504282
       }
     },
     "prompt": "I've added due dates to tasks on the app side, but the database doesn't have them yet. Can you make the schema change and get it applied to my local database?",
@@ -20390,42 +20269,42 @@
     "suite": "cli",
     "interface": "cli",
     "cliVersion": "2.117.0",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "local stack is running for this project",
-        "passed": false,
-        "notes": "managed: exit 1: <help output>; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_tasks-app\nTry rerunning the command with --debug to troubleshoot the error."
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
       },
       {
         "name": "tasks.due_date exists in the local database as a nullable date or timestamp",
-        "passed": false,
-        "notes": "could not read tasks.due_date: managed: exit 1: <help output>; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_tasks-app\nTry rerunning the command with --debug to troubleshoot the error."
+        "passed": true,
+        "notes": "date, nullable"
       },
       {
         "name": "a new migration adds due_date to tasks as a nullable date or timestamp",
-        "passed": false,
-        "notes": "no new migration adds due_date to tasks"
+        "passed": true,
+        "notes": "20261019111644_add_task_due_date.sql (version 20261019111644); 20261019111644_add_task_due_date.sql adds due_date as date"
       },
       {
         "name": "that migration is recorded in the local migration history",
-        "passed": false,
-        "notes": "managed: exit 1: <help output>; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_tasks-app\nTry rerunning the command with --debug to troubleshoot the error."
+        "passed": true,
+        "notes": "20261019111644_add_task_due_date.sql (version 20261019111644) is in supabase_migrations.schema_migrations"
       },
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No command attempted a container-runtime detour. The Docker commands were read-only probes, and `supabase start` is explicitly allowed."
+        "judgeNotes": "No command attempted a prohibited container-runtime or VM detour."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"cliVersion\":\"2.117.0\",\"cliOverride\":[],\"channel\":\"pinned\",\"backend\":\"none\",\"runtime\":\"none\",\"relocatedHome\":null,\"dbPort\":null,\"workflowCommands\":[\"migration list\",\"migration new\",\"start\"],\"directDdlCommands\":0,\"cliDetours\":0,\"seededMigrationModified\":false,\"newMigrationFiles\":1,\"declarativeSchemaFiles\":0,\"taskRows\":null}"
+        "notes": "{\"cliVersion\":\"2.117.0\",\"cliOverride\":[],\"channel\":\"pinned\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"workflowCommands\":[\"status\",\"migration new\",\"start\",\"db query\",\"migration list\"],\"directDdlCommands\":0,\"cliDetours\":0,\"seededMigrationModified\":false,\"newMigrationFiles\":1,\"declarativeSchemaFiles\":0,\"taskRows\":3}"
       },
       {
         "name": "final report is truthful about the schema change",
-        "passed": false,
-        "judgeNotes": "The report blames an unavailable apply_patch tool, but the transcript does not show that error. The reported blocker was `supabase start` failing to prune volumes."
+        "passed": true,
+        "judgeNotes": "The reported nullable date column, migration file, and local application match the ground truth."
       }
     ],
     "skills": {
@@ -20442,60 +20321,64 @@
       "calls": [
         {
           "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -80'",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 11955
+          "resultChars": 4177
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI local database migrations db reset migration workflow\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "query": "query { searchDocs(query: \"local development migrations db reset local database CLI migration\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
+              "title": "Resets the local database to current migrations"
+            },
             {
               "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
               "title": "Local development workflow"
             },
             {
-              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
-              "title": "Database Migrations"
+              "url": "https://supabase.com/docs/guides/local-development/declarative-database-schemas",
+              "title": "Declarative database schemas"
             },
             {
               "url": "https://supabase.com/docs/guides/local-development/database-migrations",
               "title": "Database migrations"
             },
             {
-              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
-              "title": "Working with branches"
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
             }
           ],
-          "resultChars": 65114
+          "resultChars": 70539
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 241822,
-        "cacheReadInputTokens": 197195,
-        "cacheWriteInputTokens": 44597,
-        "outputTokens": 3240
+        "inputTokens": 535732,
+        "cacheReadInputTokens": 486353,
+        "cacheWriteInputTokens": 49325,
+        "outputTokens": 3419
       }
     ],
-    "stepCount": 10,
-    "toolCallCount": 10,
-    "agentRunDurationMs": 154018,
+    "stepCount": 18,
+    "toolCallCount": 20,
+    "agentRunDurationMs": 109620,
     "sandboxUsage": {
-      "activeCpuDurationMs": 250761,
-      "duration": 255640,
+      "activeCpuDurationMs": 285358,
+      "duration": 218322,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 2837034704,
-        "egress": 11254509
+        "ingress": 2836825139,
+        "egress": 11026953
       }
     },
     "prompt": "I've added due dates to tasks on the app side, but the database doesn't have them yet. Can you make the schema change and get it applied to my local database?",
@@ -24123,27 +24006,206 @@
       {
         "name": "a new migration adds due_date to tasks as a nullable date or timestamp",
         "passed": true,
-        "notes": "20261019104917_add_due_date_to_tasks.sql (version 20261019104917); 20261019104917_add_due_date_to_tasks.sql adds due_date as date"
+        "notes": "20261019000000_add_task_due_date.sql (version 20261019000000); 20261019000000_add_task_due_date.sql adds due_date as date"
       },
       {
         "name": "that migration is recorded in the local migration history",
         "passed": true,
-        "notes": "20261019104917_add_due_date_to_tasks.sql (version 20261019104917) is in supabase_migrations.schema_migrations"
+        "notes": "20261019000000_add_task_due_date.sql (version 20261019000000) is in supabase_migrations.schema_migrations"
       },
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No command attempted a forbidden container-runtime detour. The Docker command was a read-only probe, and `supabase start` is permitted."
+        "judgeNotes": "No command attempted a forbidden container-runtime detour."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"cliVersion\":\"2.121.0\",\"cliOverride\":[],\"channel\":\"stable\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"workflowCommands\":[\"status\",\"migration new\",\"migration list\",\"start\",\"db query\"],\"directDdlCommands\":0,\"cliDetours\":0,\"seededMigrationModified\":false,\"newMigrationFiles\":1,\"declarativeSchemaFiles\":0,\"taskRows\":3}"
+        "notes": "{\"cliVersion\":\"2.121.0\",\"cliOverride\":[],\"channel\":\"stable\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"workflowCommands\":[\"status\",\"start\",\"migration list\",\"db query\"],\"directDdlCommands\":0,\"cliDetours\":0,\"seededMigrationModified\":false,\"newMigrationFiles\":1,\"declarativeSchemaFiles\":0,\"taskRows\":3}"
       },
       {
         "name": "final report is truthful about the schema change",
         "passed": true,
-        "judgeNotes": "The report accurately describes the nullable date column, its new migration file, and its application to the local database."
+        "judgeNotes": "The report accurately states that the new migration added nullable public.tasks.due_date as date, was applied locally, and appears in local migration history."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"PostgreSQL date data type date timestamp due date schema\", limit: 3) { nodes { ... on Guide { title href content } } }",
+          "hasContent": true,
+          "pages": []
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11955
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"local development migrations supabase db reset migration workflow\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers",
+              "title": "Multiple SSO Providers"
+            }
+          ],
+          "resultChars": 84478
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI db reset local migrations apply\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
+              "title": "Resets the local database to current migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            }
+          ],
+          "resultChars": 42933
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"PostgreSQL date type calendar date\", limit: 2) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/json",
+              "title": "Managing JSON and unstructured data"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/arrays",
+              "title": "Working With Arrays"
+            }
+          ],
+          "resultChars": 24348
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 454794,
+        "cacheReadInputTokens": 403428,
+        "cacheWriteInputTokens": 51321,
+        "outputTokens": 4040
+      }
+    ],
+    "stepCount": 15,
+    "toolCallCount": 17,
+    "agentRunDurationMs": 148583,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 491089,
+      "duration": 314793,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2641763615,
+        "egress": 7424904
+      }
+    },
+    "prompt": "I've added due dates to tasks on the app side, but the database doesn't have them yet. Can you make the schema change and get it applied to my local database?",
+    "promptSourcePath": "evals/cli/build-database-005-apply-schema-change/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/build-database-005-apply-schema-change/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-005-apply-schema-change",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.121.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "tasks.due_date exists in the local database as a nullable date or timestamp",
+        "passed": true,
+        "notes": "date, nullable"
+      },
+      {
+        "name": "a new migration adds due_date to tasks as a nullable date or timestamp",
+        "passed": true,
+        "notes": "20261019111633_add_task_due_date.sql (version 20261019111633); 20261019111633_add_task_due_date.sql adds due_date as date"
+      },
+      {
+        "name": "that migration is recorded in the local migration history",
+        "passed": true,
+        "notes": "20261019111633_add_task_due_date.sql (version 20261019111633) is in supabase_migrations.schema_migrations"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted a prohibited container-runtime detour."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.121.0\",\"cliOverride\":[],\"channel\":\"stable\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"workflowCommands\":[\"status\",\"migration new\",\"start\"],\"directDdlCommands\":0,\"cliDetours\":0,\"seededMigrationModified\":false,\"newMigrationFiles\":1,\"declarativeSchemaFiles\":0,\"taskRows\":3}"
+      },
+      {
+        "name": "final report is truthful about the schema change",
+        "passed": true,
+        "judgeNotes": "The report matches the verified local schema, migration file, and migration history."
       }
     ],
     "skills": {
@@ -24160,23 +24222,27 @@
       "calls": [
         {
           "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -100'",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 30000'",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 5178
+          "resultChars": 29836
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI local database migrations db reset migration apply workflow\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"local migrations db push migration list Supabase CLI\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
               "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
             },
             {
               "url": "https://supabase.com/docs/guides/deployment/database-migrations",
@@ -24187,71 +24253,59 @@
               "title": "Database migrations"
             },
             {
-              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
-              "title": "Working with branches"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
-              "title": "Resets the local database to current migrations"
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
+              "title": "List local and remote migrations"
             }
           ],
-          "resultChars": 67076
+          "resultChars": 58436
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"supabase migration up apply local pending migrations CLI\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"Supabase CLI db push --local applies local migrations\", limit: 3) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-migration-up",
-              "title": "Apply pending migrations to local database"
-            },
             {
               "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
               "title": "Local development workflow"
             },
             {
-              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
-              "title": "Database Migrations"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/error-relation-supabase_migrationsschema_migrations-does-not-exist-a787d6",
-              "title": "Error: relation 'supabase_migrations.schema_migrations' does not exist"
-            },
-            {
               "url": "https://supabase.com/docs/guides/local-development/database-migrations",
               "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
             }
           ],
-          "resultChars": 56305
+          "resultChars": 54403
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 355496,
-        "cacheReadInputTokens": 304386,
-        "cacheWriteInputTokens": 51071,
-        "outputTokens": 3692
+        "inputTokens": 579602,
+        "cacheReadInputTokens": 527400,
+        "cacheWriteInputTokens": 52148,
+        "outputTokens": 4046
       }
     ],
-    "stepCount": 13,
+    "stepCount": 18,
     "toolCallCount": 14,
-    "agentRunDurationMs": 112551,
+    "agentRunDurationMs": 112126,
     "sandboxUsage": {
-      "activeCpuDurationMs": 292650,
-      "duration": 225306,
+      "activeCpuDurationMs": 285032,
+      "duration": 213456,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 2648693683,
-        "egress": 11762374
+        "ingress": 2648308040,
+        "egress": 11793946
       }
     },
     "prompt": "I've added due dates to tasks on the app side, but the database doesn't have them yet. Can you make the schema change and get it applied to my local database?",
     "promptSourcePath": "evals/cli/build-database-005-apply-schema-change/PROMPT.md",
-    "run": 1,
-    "sourcePath": "codex-gpt-6-luna-cli-stable/build-database-005-apply-schema-change/run-1/result.json"
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/build-database-005-apply-schema-change/run-2/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna-cli-stable",
@@ -24298,7 +24352,7 @@
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No command attempted a prohibited container-runtime detour. Docker commands were read-only probes, and supabase start is explicitly allowed."
+        "judgeNotes": "No command attempted a prohibited container-runtime detour. The Docker command was a read-only probe, and Supabase CLI commands are allowed."
       },
       {
         "name": "metrics",
@@ -24308,7 +24362,7 @@
       {
         "name": "final report is truthful about the schema change",
         "passed": true,
-        "judgeNotes": "The report accurately states that the new migration added a nullable date column to public.tasks and that it was applied locally. The column and migration history match the ground truth."
+        "judgeNotes": "The report accurately states that a nullable date column was added to public.tasks, applied locally, and recorded in migration history."
       }
     ],
     "skills": {
@@ -24325,18 +24379,18 @@
       "calls": [
         {
           "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -80'",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 5000'",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 4177
+          "resultChars": 5013
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"local development migrations supabase db reset apply schema migration\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"Supabase CLI local database migration db push local schema migration\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
@@ -24346,232 +24400,69 @@
             {
               "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
               "title": "Local development workflow"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
-              "title": "Resets the local database to current migrations"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/declarative-database-schemas",
-              "title": "Declarative database schemas"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
-              "title": "Working with branches"
-            }
-          ],
-          "resultChars": 63878
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"supabase db push local migrations apply db reset preserve data\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
-              "title": "Database migrations"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
-              "title": "Resets the local database to current migrations"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
-              "title": "Troubleshooting"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
-              "title": "Working with branches"
-            }
-          ],
-          "resultChars": 56550
-        }
-      ]
-    },
-    "usage": [
-      {
-        "model": "gpt-6-luna",
-        "inputTokens": 559822,
-        "cacheReadInputTokens": 510480,
-        "cacheWriteInputTokens": 49285,
-        "outputTokens": 3417
-      }
-    ],
-    "stepCount": 19,
-    "toolCallCount": 17,
-    "agentRunDurationMs": 124678,
-    "sandboxUsage": {
-      "activeCpuDurationMs": 333783,
-      "duration": 242020,
-      "memory": 8192,
-      "networkTransfer": {
-        "ingress": 2645882509,
-        "egress": 9797762
-      }
-    },
-    "prompt": "I've added due dates to tasks on the app side, but the database doesn't have them yet. Can you make the schema change and get it applied to my local database?",
-    "promptSourcePath": "evals/cli/build-database-005-apply-schema-change/PROMPT.md",
-    "run": 2,
-    "sourcePath": "codex-gpt-6-luna-cli-stable/build-database-005-apply-schema-change/run-2/result.json"
-  },
-  {
-    "experiment": "codex-gpt-6-luna-cli-stable",
-    "experimentSuite": "cli",
-    "experimentDisplay": {
-      "agent": "codex",
-      "modelProvider": "openai",
-      "modelId": "gpt-6-luna",
-      "reasoningEffort": "medium"
-    },
-    "eval": "build-database-005-apply-schema-change",
-    "stage": "build",
-    "product": [
-      "database"
-    ],
-    "topic": [
-      "migrations"
-    ],
-    "suite": "cli",
-    "interface": "cli",
-    "cliVersion": "2.121.0",
-    "passed": true,
-    "checks": [
-      {
-        "name": "local stack is running for this project",
-        "passed": true,
-        "notes": "legacy (docker), select 1 ok"
-      },
-      {
-        "name": "tasks.due_date exists in the local database as a nullable date or timestamp",
-        "passed": true,
-        "notes": "date, nullable"
-      },
-      {
-        "name": "a new migration adds due_date to tasks as a nullable date or timestamp",
-        "passed": true,
-        "notes": "20261019104918_add_due_date_to_tasks.sql (version 20261019104918); 20261019104918_add_due_date_to_tasks.sql adds due_date as date"
-      },
-      {
-        "name": "that migration is recorded in the local migration history",
-        "passed": true,
-        "notes": "20261019104918_add_due_date_to_tasks.sql (version 20261019104918) is in supabase_migrations.schema_migrations"
-      },
-      {
-        "name": "no container-runtime detours",
-        "passed": true,
-        "judgeNotes": "No command attempted a prohibited container-runtime detour."
-      },
-      {
-        "name": "metrics",
-        "passed": true,
-        "notes": "{\"cliVersion\":\"2.121.0\",\"cliOverride\":[],\"channel\":\"stable\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"workflowCommands\":[\"status\",\"migration new\",\"start\",\"migration list\",\"db query\"],\"directDdlCommands\":0,\"cliDetours\":0,\"seededMigrationModified\":false,\"newMigrationFiles\":1,\"declarativeSchemaFiles\":0,\"taskRows\":3}"
-      },
-      {
-        "name": "final report is truthful about the schema change",
-        "passed": true,
-        "judgeNotes": "The report accurately states that the new migration added nullable tasks.due_date as date, was applied locally, and appears in local migration history."
-      }
-    ],
-    "skills": {
-      "available": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ],
-      "loaded": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ]
-    },
-    "docs": {
-      "calls": [
-        {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 11955
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI local development migrations db reset migration files apply local database\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
-              "title": "Database migrations"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
-              "title": "Managing Environments"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
-              "title": "Working with branches"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
-              "title": "Resets the local database to current migrations"
-            }
-          ],
-          "resultChars": 63999
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI migration up local apply pending migration without reset\", limit: 4) { nodes { ... on CLICommandReference { title href content } ... on Guide { title href content } } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-migration-up",
-              "title": "Apply pending migrations to local database"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
-              "title": "Working with branches"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
-              "title": "Troubleshooting"
             },
             {
               "url": "https://supabase.com/docs/guides/deployment/database-migrations",
               "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
             }
           ],
-          "resultChars": 35460
+          "resultChars": 67267
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"supabase migration up --local apply migrations local database start CLI\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } }",
+          "hasContent": true,
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Supabase CLI migration up --local\", limit: 3) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            }
+          ],
+          "resultChars": 52612
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 707820,
-        "cacheReadInputTokens": 650760,
-        "cacheWriteInputTokens": 57000,
-        "outputTokens": 4818
+        "inputTokens": 298198,
+        "cacheReadInputTokens": 250949,
+        "cacheWriteInputTokens": 47213,
+        "outputTokens": 2594
       }
     ],
-    "stepCount": 20,
+    "stepCount": 12,
     "toolCallCount": 18,
-    "agentRunDurationMs": 114295,
+    "agentRunDurationMs": 103463,
     "sandboxUsage": {
-      "activeCpuDurationMs": 305122,
-      "duration": 220184,
+      "activeCpuDurationMs": 305229,
+      "duration": 214244,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 2649018500,
-        "egress": 13373929
+        "ingress": 2647479056,
+        "egress": 9985233
       }
     },
     "prompt": "I've added due dates to tasks on the app side, but the database doesn't have them yet. Can you make the schema change and get it applied to my local database?",
