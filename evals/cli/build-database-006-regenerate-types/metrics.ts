@@ -29,14 +29,30 @@ function genTypesSource(invocation: SupabaseInvocation): string {
   return match?.[1] ?? 'none';
 }
 
-/** Executed `supabase gen types` runs and the distinct database sources they named. */
+// `invocationVerb` is the only positional parser cli-invocations exposes, so the
+// token that made it answer `gen` is dropped to read the next positional.
+function isGenTypes(invocation: SupabaseInvocation): boolean {
+  if (invocationVerb(invocation) !== 'gen') return false;
+  const { argv } = invocation;
+  const verbAt = argv.findIndex(
+    (_, index) =>
+      index > 0 &&
+      invocationVerb({ ...invocation, argv: argv.slice(0, index + 1) }) !==
+        undefined
+  );
+  return (
+    invocationVerb({
+      ...invocation,
+      argv: argv.filter((_, index) => index !== verbAt),
+    }) === 'types'
+  );
+}
+
+/** Direct `supabase gen types` invocations and the distinct database sources they named. */
 export function countGenTypesRuns(
   invocations: readonly SupabaseInvocation[]
 ): GenTypesRuns {
-  const runs = invocations.filter(
-    (invocation) =>
-      invocationVerb(invocation) === 'gen' && invocation.argv.includes('types')
-  );
+  const runs = invocations.filter(isGenTypes);
   return { runs: runs.length, sources: [...new Set(runs.map(genTypesSource))] };
 }
 
@@ -69,15 +85,14 @@ export async function checkMetrics(
   marker: LocalStackEnvironmentMarker | undefined,
   facts: {
     commands: readonly string[];
-    invocations: readonly SupabaseInvocation[];
+    genTypes: GenTypesRuns;
     stack: StackProbe;
     analysis: ProjectAnalysis;
     cli: CliFacts;
   }
 ): Promise<CheckResult> {
-  const { commands, invocations, stack, analysis } = facts;
+  const { commands, genTypes, stack, analysis } = facts;
   const { versions, cliOverride } = facts.cli;
-  const genTypes = await safely(() => countGenTypesRuns(invocations));
 
   const metrics = {
     cliVersion: versions?.cliVersion ?? null,
@@ -95,8 +110,8 @@ export async function checkMetrics(
           }
         : { backend: 'none', runtime: 'none', relocatedHome: null }
     ),
-    genTypesRuns: genTypes?.runs ?? null,
-    genTypesSources: genTypes?.sources ?? null,
+    genTypesRuns: await safely(() => genTypes.runs),
+    genTypesSources: await safely(() => genTypes.sources),
     typesModules: await safely(() =>
       analysis.ok ? analysis.typesModules.map((module) => module.path) : null
     ),

@@ -5,12 +5,19 @@ import type { StackProbe } from '../lib/stack.js';
 export const NEW_MIGRATION_VERSION = '20260315000000';
 
 export type SchemaProbe =
-  | { ok: true; applied: boolean; columns: Record<string, string> }
+  | {
+      ok: true;
+      applied: boolean;
+      columns: Record<string, string>;
+      appliedError?: string;
+    }
   | { ok: false; notes: string };
 
 const COLUMNS_SQL =
   "select column_name, udt_name from information_schema.columns where table_schema = 'public' and table_name = 'tasks'";
 
+const MISSING_HISTORY =
+  /relation "supabase_migrations\.schema_migrations" does not exist/;
 const APPLIED_SQL = `select count(*) from supabase_migrations.schema_migrations where version = '${NEW_MIGRATION_VERSION}'`;
 
 /** `public.tasks` column names mapped to their Postgres type names, plus whether the new migration is in the applied history. */
@@ -34,11 +41,21 @@ export async function readTasksSchema(
       const [name, type] = line.trim().split('|');
       if (name && type) columns[name] = type;
     }
-    // A missing history table fails this query, which means nothing was applied.
     const appliedResult = await ctx.exec(psql(APPLIED_SQL));
     const applied =
       appliedResult.ok && Number.parseInt(appliedResult.stdout.trim(), 10) > 0;
-    return { ok: true, applied, columns };
+    // A missing history table fails this query, which means nothing was applied.
+    const unexpectedFailure =
+      !appliedResult.ok &&
+      !MISSING_HISTORY.test(`${appliedResult.stderr}${appliedResult.stdout}`);
+    return {
+      ok: true,
+      applied,
+      columns,
+      ...(unexpectedFailure
+        ? { appliedError: describeFailure(appliedResult) }
+        : {}),
+    };
   } catch (error) {
     return { ok: false, notes: errorMessage(error) };
   }
@@ -49,7 +66,9 @@ export function checkMigrationApplied(probe: SchemaProbe): CheckResult {
   if (!probe.ok) return { name, passed: false, notes: probe.notes };
   const problems: string[] = [];
   if (!probe.applied) {
-    problems.push(`${NEW_MIGRATION_VERSION} not in applied history`);
+    problems.push(
+      `${NEW_MIGRATION_VERSION} not in applied history${probe.appliedError === undefined ? '' : ` (history query failed: ${probe.appliedError})`}`
+    );
   }
   if (probe.columns.status !== 'task_status') {
     problems.push(

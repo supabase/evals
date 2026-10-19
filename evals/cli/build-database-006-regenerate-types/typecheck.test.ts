@@ -1,7 +1,9 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/build-database-006-regenerate-types
+import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  ADD_STALE,
   fixedTasks,
   LABEL_FIXED,
   LABEL_STALE,
@@ -207,6 +209,57 @@ describe('regenerated types with the app fixed', () => {
     expectAllChecksPass(analysis);
   });
 
+  it('passes with types written to src/database.d.ts and the app imports updated', () => {
+    const analysis = analyse(
+      regeneratedWorkspace({
+        'src/database.types.ts': null,
+        'src/database.d.ts': rawCliTypes(),
+        'src/supabase.ts': replaceOnce(
+          SEEDED_SUPABASE,
+          './database.types',
+          './database'
+        ),
+        'src/tasks.ts': replaceOnce(
+          fixedTasks(),
+          './database.types',
+          './database'
+        ),
+      })
+    );
+
+    expectCleanAnalysis(analysis, 'src/database.d.ts');
+    expect(analysis.appFiles).toEqual(['src/supabase.ts', 'src/tasks.ts']);
+    expectAllChecksPass(analysis);
+  });
+
+  it('passes under a NodeNext tsconfig with .js relative imports', () => {
+    const analysis = analyse(
+      regeneratedWorkspace({
+        'tsconfig.json': tsconfigWith({
+          module: 'NodeNext',
+          moduleResolution: 'NodeNext',
+        }),
+        'src/supabase.ts': replaceOnce(
+          SEEDED_SUPABASE,
+          './database.types',
+          './database.types.js'
+        ),
+        'src/tasks.ts': replaceOnce(
+          replaceOnce(
+            fixedTasks(),
+            "from './supabase'",
+            "from './supabase.js'"
+          ),
+          './database.types',
+          './database.types.js'
+        ),
+      })
+    );
+
+    expectCleanAnalysis(analysis, 'src/database.types.ts');
+    expectAllChecksPass(analysis);
+  });
+
   it('judges only the modules the app imports when a stale types file is left unimported', () => {
     const analysis = analyse(
       regeneratedWorkspace({
@@ -218,6 +271,18 @@ describe('regenerated types with the app fixed', () => {
     expectCleanAnalysis(analysis, 'src/types/supabase.ts');
     expect(analysis.appFiles).not.toContain('src/types/supabase.ts');
     expectAllChecksPass(analysis);
+  });
+
+  it('keeps a stale unimported types file out of the app files and the suppression scan', () => {
+    const analysis = analyse(
+      regeneratedWorkspace({
+        ...RELOCATED_IMPORTS,
+        'src/database.types.ts': `${SEEDED_TYPES}\nexport type Loose = any;\n`,
+      })
+    );
+
+    expect(analysis.appFiles).toEqual(['src/supabase.ts', 'src/tasks.ts']);
+    expect(analysis.suppressions).toEqual([]);
   });
 
   it('judges every types module the app imports, so a stale one in use fails the check', () => {
@@ -297,6 +362,39 @@ describe('regenerated types that are wrong', () => {
     expect(types.notes).toContain(label);
   });
 
+  it('flags status columns typed any in Row, Insert and Update', () => {
+    const analysis = analyse(
+      regeneratedWorkspace({
+        'src/database.types.ts': regeneratedTypes({ statusType: 'any' }),
+      })
+    );
+
+    expect(analysis.typesModules).toEqual([
+      {
+        path: 'src/database.types.ts',
+        problems: ['tasks Row', 'tasks Insert', 'tasks Update'],
+      },
+    ]);
+  });
+
+  it.each(['string', 'any'])(
+    'flags a task_status enum typed as %s',
+    (enumType) => {
+      const analysis = analyse(
+        regeneratedWorkspace({
+          'src/database.types.ts': regeneratedTypes({
+            statusType: "'todo' | 'in_progress' | 'done'",
+            enumType,
+          }),
+        })
+      );
+
+      expect(analysis.typesModules).toEqual([
+        { path: 'src/database.types.ts', problems: ['task_status enum'] },
+      ]);
+    }
+  );
+
   it('fails the types check without throwing when the types file has a syntax error', () => {
     const truncated = regeneratedTypes();
     const analysis = analyse(
@@ -345,6 +443,36 @@ describe('silencing instead of fixing', () => {
       needle: '// @ts-expect-error',
     },
     {
+      name: '/// @ts-ignore above a stale line',
+      tasks: replaceOnce(
+        staleLabel,
+        LABEL_STALE,
+        `/// @ts-ignore\n  ${LABEL_STALE}`
+      ),
+      kind: '@ts-ignore',
+      needle: '/// @ts-ignore',
+    },
+    {
+      name: '/** @ts-ignore */ above a stale line',
+      tasks: replaceOnce(
+        staleLabel,
+        LABEL_STALE,
+        `/** @ts-ignore */\n  ${LABEL_STALE}`
+      ),
+      kind: '@ts-ignore',
+      needle: '/** @ts-ignore */',
+    },
+    {
+      name: 'a block comment ending in @ts-expect-error above a stale line',
+      tasks: replaceOnce(
+        staleLabel,
+        LABEL_STALE,
+        `/*\n   the label reads a column that is gone\n   @ts-expect-error */\n  ${LABEL_STALE}`
+      ),
+      kind: '@ts-expect-error',
+      needle: '@ts-expect-error */',
+    },
+    {
       name: '/* @ts-ignore */ above a stale line',
       tasks: replaceOnce(
         staleLabel,
@@ -359,6 +487,12 @@ describe('silencing instead of fixing', () => {
       tasks: `// @ts-nocheck\n${STALE_TASKS}`,
       kind: '@ts-nocheck',
       needle: '// @ts-nocheck',
+    },
+    {
+      name: '/// @ts-nocheck at the top of a stale file',
+      tasks: `/// @ts-nocheck\n${STALE_TASKS}`,
+      kind: '@ts-nocheck',
+      needle: '/// @ts-nocheck',
     },
     {
       name: 'an (db as any) cast',
@@ -379,6 +513,26 @@ describe('silencing instead of fixing', () => {
       ),
       kind: 'as unknown as',
       needle: 'as unknown as',
+    },
+    {
+      name: 'an as never cast on the stale insert',
+      tasks: replaceOnce(
+        fixedTasks(['add']),
+        ADD_STALE,
+        '.insert({ title, is_complete: false } as never)'
+      ),
+      kind: 'as never',
+      needle: 'as never',
+    },
+    {
+      name: 'an angle-bracket double assertion through unknown',
+      tasks: replaceOnce(
+        staleLabel,
+        LABEL_STALE,
+        "return `${(<{ is_complete: boolean }><unknown>task).is_complete ? '[x]' : '[ ]'} ${task.title}`;"
+      ),
+      kind: 'double assertion through unknown',
+      needle: '<unknown>task',
     },
     {
       name: 'an explicit any parameter',
@@ -423,6 +577,35 @@ describe('silencing instead of fixing', () => {
 export const HINT_IGNORE = '// @ts-ignore';
 export const HINT_EXPECT = \`@ts-expect-error\`;
 export const HINT_NOCHECK = "/* @ts-nocheck */";
+`;
+    const analysis = analyse(regeneratedWorkspace({ 'src/tasks.ts': tasks }));
+
+    expect(analysis.diagnostics).toEqual([]);
+    expect(analysis.suppressions).toEqual([]);
+    expectAllChecksPass(analysis);
+  });
+
+  it('flags a double assertion through never', () => {
+    const tasks = replaceOnce(
+      staleLabel,
+      LABEL_STALE,
+      "return `${(task as never as { is_complete: boolean }).is_complete ? '[x]' : '[ ]'} ${task.title}`;"
+    );
+    const analysis = analyse(regeneratedWorkspace({ 'src/tasks.ts': tasks }));
+
+    expect(analysis.diagnostics).toEqual([]);
+    expect(analysis.suppressions).toContain(
+      `src/tasks.ts:${lineOf(tasks, 'as never as')} as never as`
+    );
+  });
+
+  it('does not count a block comment whose lines only mention a directive', () => {
+    const tasks = `${fixedTasks()}
+/*
+ * we dropped the ts-ignore that used to sit here
+ * and the (@ts-nocheck) header, see @ts-expect-error in the docs
+ */
+// the old ts-ignore is gone
 `;
     const analysis = analyse(regeneratedWorkspace({ 'src/tasks.ts': tasks }));
 
@@ -631,6 +814,43 @@ describe('an agent weakening the scorer inputs', () => {
     const analysis = analyse(regeneratedWorkspace({ 'tsconfig.json': null }));
 
     expectCleanAnalysis(analysis, 'src/database.types.ts');
+    expectAllChecksPass(analysis);
+  });
+});
+
+describe('symbolic links under src', () => {
+  const appFiles = ['src/supabase.ts', 'src/tasks.ts'];
+
+  it('skips a dangling symlink instead of reporting it', () => {
+    const dir = regeneratedWorkspace();
+    fs.symlinkSync(
+      path.join(dir, 'src/missing.ts'),
+      path.join(dir, 'src/dangling.ts')
+    );
+
+    const analysis = analyse(dir);
+
+    expectCleanAnalysis(analysis, 'src/database.types.ts');
+    expect(analysis.appFiles).toEqual(appFiles);
+    expectAllChecksPass(analysis);
+  });
+
+  it('does not read a symlink to a file or directory outside the workspace', () => {
+    const outside = makeWorkspace({
+      'outside.ts': 'export const loose: any = 1;\n',
+      'dir/nested.ts': 'export const nested: any = 1;\n',
+    });
+    const dir = regeneratedWorkspace();
+    fs.symlinkSync(
+      path.join(outside, 'outside.ts'),
+      path.join(dir, 'src/outside.ts')
+    );
+    fs.symlinkSync(path.join(outside, 'dir'), path.join(dir, 'src/linked'));
+
+    const analysis = analyse(dir);
+
+    expectCleanAnalysis(analysis, 'src/database.types.ts');
+    expect(analysis.appFiles).toEqual(appFiles);
     expectAllChecksPass(analysis);
   });
 });

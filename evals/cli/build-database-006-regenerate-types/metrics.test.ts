@@ -98,20 +98,19 @@ describe('countGenTypesRuns', () => {
   });
 
   it('counts --linked and --project-id runs under their own sources', () => {
+    const result = count([
+      'supabase gen types typescript --linked',
+      'supabase gen types typescript --project-id abcdefghijklmnopqrst',
+    ]);
+
+    expect(result.runs).toBe(2);
+    expect([...result.sources].sort()).toEqual(['linked', 'project-id']);
+  });
+
+  it('counts a run that puts a value flag before gen', () => {
     expect(
-      count([
-        'supabase gen types typescript --linked',
-        'supabase gen types typescript --project-id abcdefghijklmnopqrst',
-      ])
-    ).toMatchObject({ runs: 2 });
-    expect(
-      [
-        ...count([
-          'supabase gen types typescript --linked',
-          'supabase gen types typescript --project-id abcdefghijklmnopqrst',
-        ]).sources,
-      ].sort()
-    ).toEqual(['linked', 'project-id']);
+      count(['supabase --workdir app gen types typescript --local'])
+    ).toEqual({ runs: 1, sources: ['local'] });
   });
 
   it('reports the source none for a run that names no database', () => {
@@ -143,6 +142,12 @@ describe('countGenTypesRuns', () => {
     ).toEqual({ runs: 0, sources: [] });
   });
 
+  it('does not count another gen subcommand that has types as a later argument', () => {
+    expect(
+      count(['supabase gen signing-key --algorithm types --local'])
+    ).toEqual({ runs: 0, sources: [] });
+  });
+
   it('does not count a gen types command that was only echoed', () => {
     expect(count(['echo "supabase gen types --local"'])).toEqual({
       runs: 0,
@@ -162,7 +167,7 @@ describe('checkMetrics', () => {
 
     const check = await checkMetrics(MARKER, {
       commands,
-      invocations,
+      genTypes: countGenTypesRuns(invocations),
       stack: { ...STACK, relocatedHome: '/home/agent/.supabase' },
       analysis: analysisFixture({
         diagnostics: ['src/tasks.ts:10 a', 'src/tasks.ts:11 b'],
@@ -194,7 +199,7 @@ describe('checkMetrics', () => {
   it('reports the pinned channel and a null relocated home when the run had no marker and the CLI home was the default', async () => {
     const check = await checkMetrics(undefined, {
       commands: [],
-      invocations: [],
+      genTypes: { runs: 0, sources: [] },
       stack: STACK,
       analysis: analysisFixture(),
       cli: await readCliFacts(ctx, undefined, []),
@@ -221,7 +226,7 @@ describe('checkMetrics', () => {
 
     const check = await checkMetrics(undefined, {
       commands: [],
-      invocations: [],
+      genTypes: { runs: 0, sources: [] },
       stack: { ok: false, notes: 'none' },
       analysis: { ok: false, notes: 'src directory is missing' },
       cli: await readCliFacts(failing, undefined, []),
@@ -252,7 +257,7 @@ describe('checkMetrics', () => {
 
     const check = await checkMetrics(MARKER, {
       commands,
-      invocations,
+      genTypes: countGenTypesRuns(invocations),
       stack: STACK,
       analysis: analysisFixture(),
       cli: await readCliFacts(moved, MARKER, invocations),
@@ -270,10 +275,11 @@ describe('checkMetrics', () => {
     const commands = ['supabase gen types typescript --local'];
     const invocations = findSupabaseInvocations(commands);
     const cli = await readCliFacts(ctx, MARKER, invocations);
+    const genTypes = countGenTypesRuns(invocations);
 
     const hostileCommands = await checkMetrics(MARKER, {
       commands: throwing([] as string[]),
-      invocations,
+      genTypes,
       stack: STACK,
       analysis: analysisFixture(),
       cli,
@@ -286,15 +292,15 @@ describe('checkMetrics', () => {
       diagnostics: 0,
     });
 
-    const hostileInvocations = await checkMetrics(MARKER, {
+    const hostileGenTypes = await checkMetrics(MARKER, {
       commands,
-      invocations: throwing([] as typeof invocations),
+      genTypes: throwing({ runs: 1, sources: ['local'] }),
       stack: STACK,
       analysis: analysisFixture(),
       cli,
     });
-    expect(hostileInvocations.passed).toBe(true);
-    expect(metricsOf(hostileInvocations)).toMatchObject({
+    expect(hostileGenTypes.passed).toBe(true);
+    expect(metricsOf(hostileGenTypes)).toMatchObject({
       genTypesRuns: null,
       genTypesSources: null,
       cliDetours: 0,
@@ -303,7 +309,7 @@ describe('checkMetrics', () => {
 
     const hostileAnalysis = await checkMetrics(MARKER, {
       commands,
-      invocations,
+      genTypes,
       stack: STACK,
       analysis: {
         ok: true,

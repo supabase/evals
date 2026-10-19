@@ -279,6 +279,17 @@ describe('describeGroundTruth', () => {
     it('reports zero runs', () => {
       expect(lineFor(describe_(), /gen types/i)).toMatch(/(?<!\d)0(?!\d)/);
     });
+
+    it('states only what is known: direct invocations, no exit status, no package scripts', () => {
+      const line = lineFor(
+        describe_({ genTypes: { runs: 1, sources: ['local'] } }),
+        /gen types/i
+      );
+
+      expect(line).toContain('direct');
+      expect(line).toContain('exit status is not tracked');
+      expect(line).toContain('package scripts are not counted');
+    });
   });
 
   it('carries the analysis notes instead of the findings when the workspace could not be analysed', () => {

@@ -30,17 +30,21 @@ export type ProjectAnalysis =
   | { ok: false; notes: string };
 
 const SUPABASE_JS = '@supabase/supabase-js';
-const MAX_LISTED_DIAGNOSTICS = 5;
+export const MAX_LISTED_DIAGNOSTICS = 5;
 const SUPPRESSION_DIRECTIVES = [
   '@ts-ignore',
   '@ts-expect-error',
   '@ts-nocheck',
 ];
+const ASSERTION_ESCAPES = new Map<ts.SyntaxKind, string>([
+  [ts.SyntaxKind.UnknownKeyword, 'unknown'],
+  [ts.SyntaxKind.NeverKeyword, 'never'],
+  [ts.SyntaxKind.AnyKeyword, 'any'],
+]);
 const DEFAULT_COMPILER_OPTIONS: ts.CompilerOptions = {
   target: ts.ScriptTarget.ES2022,
-  module: ts.ModuleKind.ESNext,
-  moduleResolution: ts.ModuleResolutionKind.Bundler,
 };
+const TYPESCRIPT_FILE = /\.tsx?$/;
 
 const STATUS_UNION = "'todo' | 'in_progress' | 'done'";
 const EXPECTED_TASKS_SHAPES = {
@@ -49,8 +53,7 @@ const EXPECTED_TASKS_SHAPES = {
   Update: `{ due_on?: string | null; id?: number; inserted_at?: string; status?: ${STATUS_UNION}; title?: string }`,
 };
 const PROBE_HEADER = [
-  'type Eq<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;',
-  'type Same<A, B> = Eq<A, B> extends true ? Eq<keyof A, keyof B> : false;',
+  'type Equals<X, Y> = (<T>() => T extends X ? 1 : 2) extends (<T>() => T extends Y ? 1 : 2) ? true : false;',
 ];
 
 const posix = (file: string) => file.split(path.sep).join('/');
@@ -80,7 +83,7 @@ export function resolveSupabaseJsDir(): string {
 function listProjectFiles(dir: string): string[] {
   return fs
     .readdirSync(dir, { withFileTypes: true })
-    .filter((entry) => entry.name !== 'node_modules')
+    .filter((entry) => entry.name !== 'node_modules' && !entry.isSymbolicLink())
     .flatMap((entry) => {
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) return listProjectFiles(full);
@@ -90,7 +93,7 @@ function listProjectFiles(dir: string): string[] {
 }
 
 function isSourceFile(fileName: string): boolean {
-  return /\.tsx?$/.test(fileName) && !fileName.endsWith('.d.ts');
+  return TYPESCRIPT_FILE.test(fileName) && !fileName.endsWith('.d.ts');
 }
 
 function loadCompilerOptions(
@@ -111,6 +114,9 @@ function loadCompilerOptions(
   }
   return {
     ...options,
+    module: ts.ModuleKind.ESNext,
+    moduleResolution: ts.ModuleResolutionKind.Bundler,
+    allowImportingTsExtensions: true,
     strict: true,
     noEmit: true,
     skipLibCheck: true,
@@ -127,8 +133,8 @@ function parse(file: string): ts.SourceFile {
   );
 }
 
-function exportsDatabase(file: string): boolean {
-  return parse(file).statements.some((statement) => {
+function exportsDatabase(source: ts.SourceFile): boolean {
+  return source.statements.some((statement) => {
     if (
       ts.isTypeAliasDeclaration(statement) ||
       ts.isInterfaceDeclaration(statement)
@@ -152,8 +158,8 @@ function exportsDatabase(file: string): boolean {
   });
 }
 
-function moduleSpecifiers(file: string): string[] {
-  return parse(file).statements.flatMap((statement) =>
+function moduleSpecifiers(source: ts.SourceFile): string[] {
+  return source.statements.flatMap((statement) =>
     (ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement)) &&
     statement.moduleSpecifier !== undefined &&
     ts.isStringLiteral(statement.moduleSpecifier)
@@ -169,11 +175,11 @@ function buildProbe(specifier: string): Probe {
   const assertions: [label: string, type: string][] = [
     ...(['Row', 'Insert', 'Update'] as const).map((kind): [string, string] => [
       `tasks ${kind}`,
-      `Same<${tasks}['${kind}'], ${EXPECTED_TASKS_SHAPES[kind]}>`,
+      `Equals<${tasks}['${kind}'], ${EXPECTED_TASKS_SHAPES[kind]}>`,
     ]),
     [
       'task_status enum',
-      `Eq<Database['public']['Enums']['task_status'], ${STATUS_UNION}>`,
+      `Equals<Database['public']['Enums']['task_status'], ${STATUS_UNION}>`,
     ],
   ];
   const header = [
@@ -210,6 +216,35 @@ function formatDiagnostic(root: string, diagnostic: ts.Diagnostic): string {
     : diagnosticMessage(diagnostic);
 }
 
+type Assertion = ts.AsExpression | ts.TypeAssertion;
+
+function isAssertion(node: ts.Node): node is Assertion {
+  return ts.isAsExpression(node) || ts.isTypeAssertionExpression(node);
+}
+
+function withoutParentheses(expression: ts.Expression): ts.Expression {
+  let inner = expression;
+  while (ts.isParenthesizedExpression(inner)) inner = inner.expression;
+  return inner;
+}
+
+function findDirective(
+  comment: string
+): { kind: string; offset: number } | undefined {
+  let offset = 0;
+  for (const line of comment.split('\n')) {
+    const text = line.replace(/^[\s/*]+/, '');
+    const kind = SUPPRESSION_DIRECTIVES.find((directive) =>
+      text.startsWith(directive)
+    );
+    if (kind !== undefined) {
+      return { kind, offset: offset + line.length - text.length };
+    }
+    offset += line.length + 1;
+  }
+  return undefined;
+}
+
 function scanSuppressions(
   relativePath: string,
   source: ts.SourceFile
@@ -226,23 +261,36 @@ function scanSuppressions(
     for (const comment of comments) {
       if (seenComments.has(comment.pos)) continue;
       seenComments.add(comment.pos);
-      const text = source.text.slice(comment.pos + 2, comment.end).trimStart();
-      const kind = SUPPRESSION_DIRECTIVES.find((directive) =>
-        text.startsWith(directive)
+      const directive = findDirective(
+        source.text.slice(comment.pos, comment.end)
       );
-      if (kind)
-        found.push({ pos: comment.pos, line: lineAt(comment.pos), kind });
+      if (directive) {
+        const pos = comment.pos + directive.offset;
+        found.push({ pos, line: lineAt(pos), kind: directive.kind });
+      }
     }
     const start = node.getStart(source);
     if (node.kind === ts.SyntaxKind.AnyKeyword) {
       found.push({ pos: start, line: lineAt(start), kind: 'any' });
     }
-    if (
-      ts.isAsExpression(node) &&
-      ts.isAsExpression(node.expression) &&
-      node.expression.type.kind === ts.SyntaxKind.UnknownKeyword
-    ) {
-      found.push({ pos: start, line: lineAt(start), kind: 'as unknown as' });
+    if (isAssertion(node)) {
+      if (node.type.kind === ts.SyntaxKind.NeverKeyword) {
+        found.push({ pos: start, line: lineAt(start), kind: 'as never' });
+      }
+      const inner = withoutParentheses(node.expression);
+      const escape = isAssertion(inner)
+        ? ASSERTION_ESCAPES.get(inner.type.kind)
+        : undefined;
+      if (escape !== undefined) {
+        found.push({
+          pos: start,
+          line: lineAt(start),
+          kind:
+            ts.isAsExpression(node) && ts.isAsExpression(inner)
+              ? `as ${escape} as`
+              : `double assertion through ${escape}`,
+        });
+      }
     }
     for (const child of node.getChildren(source)) visit(child);
   };
@@ -296,6 +344,12 @@ export function analyseProject(
     );
     const files = listProjectFiles(srcDir);
     const relative = (file: string) => posix(path.relative(root, file));
+    const parsed = new Map<string, ts.SourceFile>();
+    const sourceOf = (file: string) => {
+      const source = parsed.get(file) ?? parse(file);
+      parsed.set(file, source);
+      return source;
+    };
 
     const probeSources = new Map<string, string>();
     const host = ts.createCompilerHost(compilerOptions);
@@ -313,7 +367,7 @@ export function analyseProject(
 
     const typesFiles = new Set<string>();
     for (const file of files) {
-      for (const specifier of moduleSpecifiers(file)) {
+      for (const specifier of moduleSpecifiers(sourceOf(file))) {
         const resolved = ts.resolveModuleName(
           specifier,
           file,
@@ -327,9 +381,9 @@ export function analyseProject(
           !target.split(path.sep).includes('node_modules');
         if (
           inWorkspace &&
-          isSourceFile(target) &&
+          TYPESCRIPT_FILE.test(target) &&
           fs.existsSync(target) &&
-          exportsDatabase(target)
+          exportsDatabase(sourceOf(target))
         ) {
           typesFiles.add(target);
         }
@@ -338,7 +392,7 @@ export function analyseProject(
 
     const probes = [...typesFiles].sort().map((file, index) => {
       const probePath = path.join(srcDir, `__scorer_probe_${index}.ts`);
-      const specifier = `./${posix(path.relative(srcDir, file)).replace(/\.tsx?$/, '')}`;
+      const specifier = `./${posix(path.relative(srcDir, file)).replace(/\.(?:d\.)?tsx?$/, '')}`;
       const probe = buildProbe(specifier);
       probeSources.set(probePath, probe.text);
       return { file, probePath, labels: probe.labels };
@@ -384,10 +438,12 @@ export function analyseProject(
       ].filter((diagnostic) => !diagnostic.file),
     ].map((diagnostic) => formatDiagnostic(root, diagnostic));
 
-    const typesPaths = new Set(typesModules.map((module) => module.path));
+    const databaseExporters = new Set(
+      files.filter((file) => exportsDatabase(sourceOf(file)))
+    );
     const appFiles = files
+      .filter((file) => !databaseExporters.has(file))
       .map(relative)
-      .filter((file) => !typesPaths.has(file))
       .sort();
     const suppressions = appFiles.flatMap((file) => {
       const source = program.getSourceFile(path.join(root, file));

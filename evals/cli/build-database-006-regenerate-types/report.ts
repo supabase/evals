@@ -1,9 +1,7 @@
 import { describeStack, type StackProbe } from '../lib/stack.js';
 import type { CliFacts, GenTypesRuns } from './metrics.js';
 import { NEW_MIGRATION_VERSION, type SchemaProbe } from './schema.js';
-import type { ProjectAnalysis } from './typecheck.js';
-
-const MAX_LISTED_DIAGNOSTICS = 5;
+import { MAX_LISTED_DIAGNOSTICS, type ProjectAnalysis } from './typecheck.js';
 
 function describeProbeCli({ versions, cliOverride }: CliFacts): string[] {
   const installed = versions?.cliVersion ?? 'unknown';
@@ -66,6 +64,6 @@ export function describeGroundTruth(facts: {
     `- local stack: ${describeStack(stack)}`,
     ...describeSchema(schema),
     ...describeAnalysis(analysis),
-    `- gen types runs: ${genTypes.runs}${genTypes.sources.length === 0 ? '' : ` (sources: ${genTypes.sources.join(', ')})`}`,
+    `- direct \`supabase gen types\` invocations: ${genTypes.runs}${genTypes.sources.length === 0 ? '' : ` (sources: ${genTypes.sources.join(', ')})`}; exit status is not tracked and runs through package scripts are not counted`,
   ];
 }

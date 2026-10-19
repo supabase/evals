@@ -70,6 +70,8 @@ export type TypesOptions = {
   updateExtra?: string[];
   /** Members of `Enums.task_status`. */
   enumValues?: string[];
+  /** Type written for `Enums.task_status` instead of the union of `enumValues`. */
+  enumType?: string;
 };
 
 function tasksBlock(options: TypesOptions): string {
@@ -134,7 +136,7 @@ export function regeneratedTypes(options: TypesOptions = {}): string {
     replaceOnce(
       withTasks.slice(publicAt),
       '    Enums: {\n      [_ in never]: never;\n    };',
-      `    Enums: {\n      task_status: ${quoted.join(' | ')};\n    };`
+      `    Enums: {\n      task_status: ${options.enumType ?? quoted.join(' | ')};\n    };`
     );
   return replaceOnce(
     withEnum,
@@ -159,7 +161,7 @@ export function rawCliTypes(): string {
 
 const LIST_STALE = ".eq('is_complete', false)";
 const LIST_FIXED = ".neq('status', 'done')";
-const ADD_STALE = '.insert({ title, is_complete: false })';
+export const ADD_STALE = '.insert({ title, is_complete: false })';
 const ADD_FIXED = '.insert({ title })';
 const COMPLETE_STALE = '.update({ is_complete: true })';
 const COMPLETE_FIXED = ".update({ status: 'done' })";

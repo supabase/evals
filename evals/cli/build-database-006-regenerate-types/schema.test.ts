@@ -145,6 +145,20 @@ describe('readTasksSchema', () => {
     });
   });
 
+  it('keeps applied false and records the failure when the history query fails for another reason', async () => {
+    const { ctx } = fakeCtx({
+      columns: migrated.columns,
+      applied: failure('psql: error: connection to server was lost'),
+    });
+
+    expect(await readTasksSchema(ctx, STACK)).toEqual({
+      ok: true,
+      applied: false,
+      columns: NEW_COLUMNS,
+      appliedError: expect.stringContaining('connection to server was lost'),
+    });
+  });
+
   it('fails the probe, carrying the error, when the columns query errors', async () => {
     const { ctx } = fakeCtx({
       columns: failure('psql: error: connection refused'),
@@ -319,6 +333,19 @@ describe('readTasksSchema into checkMigrationApplied', () => {
     ).toBe(false);
   });
 
+  it('shows why the history could not be read in the check notes', async () => {
+    const { ctx } = fakeCtx({
+      columns: migrated.columns,
+      applied: failure('psql: error: connection to server was lost'),
+    });
+
+    const check = checkMigrationApplied(await readTasksSchema(ctx, STACK));
+
+    expect(check.passed).toBe(false);
+    expect(check.notes).toContain('not in applied history');
+    expect(check.notes).toContain('connection to server was lost');
+  });
+
   it('fails when the history table is missing even though the columns look migrated', async () => {
     const { ctx } = fakeCtx({
       columns: migrated.columns,
@@ -331,5 +358,6 @@ describe('readTasksSchema into checkMigrationApplied', () => {
 
     expect(check.passed).toBe(false);
     expect(check.notes).toContain('not in applied history');
+    expect(check.notes).not.toContain('history query failed');
   });
 });
