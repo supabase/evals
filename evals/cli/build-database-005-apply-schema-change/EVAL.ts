@@ -20,6 +20,7 @@ import {
   checkMigrationRecorded,
   checkNewMigrationAddsDueDate,
   findDueDateMigrations,
+  readRecordedMigrations,
 } from './migrations.js';
 import { describeGroundTruth } from './report.js';
 import {
@@ -45,7 +46,7 @@ const scorer: LocalStackScorer = async (ctx) => {
     );
     const column = await readDueDateColumn(ctx, stack);
     const migrations = await findDueDateMigrations(ctx);
-    const recorded = await checkMigrationRecorded(ctx, stack, migrations);
+    const recorded = await readRecordedMigrations(ctx, stack, migrations);
     const cli = await readCliFacts(ctx, marker, invocations);
     const files = await readProjectFileFacts(ctx);
 
@@ -53,7 +54,7 @@ const scorer: LocalStackScorer = async (ctx) => {
       await checkStackRunning(ctx, stack),
       checkDueDateColumn(column),
       checkNewMigrationAddsDueDate(migrations),
-      recorded,
+      checkMigrationRecorded(recorded),
       await checkNoContainerRuntimeDetours(ctx, commands),
       await checkMetrics(marker, {
         commands,

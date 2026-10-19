@@ -167,7 +167,7 @@ function fakeCtx(toolCalls: ToolCallRecord[], world: World = {}) {
 const CHECK_NAMES = [
   'local stack is running for this project',
   'tasks.due_date exists in the local database as a nullable date or timestamp',
-  'a new migration adds due_date to tasks',
+  'a new migration adds due_date to tasks as a nullable date or timestamp',
   'that migration is recorded in the local migration history',
   'no container-runtime detours',
   'metrics',
@@ -197,6 +197,10 @@ const judgeCall = (
   judge.mock.calls
     .map(([args]) => args)
     .find(({ rubric }) => rubric.includes(rubricPart));
+
+const groundTruthLines = (input: string) =>
+  input.split('\nTranscript:')[0].split('\n');
+const mentionsApplied = (line: string) => /applied/i.test(line);
 
 const DETOUR_RUBRIC = 'container runtime';
 const REPORT_RUBRIC = 'truthful';
@@ -341,6 +345,43 @@ describe('known-bad runs', () => {
       [COLUMN],
     ],
     [
+      'wrote a not-null migration and dropped the constraint by hand',
+      [
+        ...SETUP.slice(0, 2),
+        call(
+          `psql "$DATABASE_URL" -c "alter table public.tasks alter column due_date drop not null"`
+        ),
+        SETUP[2],
+      ],
+      {
+        files: {
+          [SEEDED_MIGRATION_FILE]: SEEDED_SQL,
+          [NEW_FILE]:
+            'alter table public.tasks add column due_date timestamptz not null default now();\n',
+        },
+        column: 'timestamp with time zone|YES\n',
+      },
+      [NEW_MIGRATION, RECORDED],
+    ],
+    [
+      'wrote a text migration and changed the type by hand',
+      [
+        ...SETUP.slice(0, 2),
+        call(
+          `psql "$DATABASE_URL" -c "alter table public.tasks alter column due_date type date using due_date::date"`
+        ),
+        SETUP[2],
+      ],
+      {
+        files: {
+          [SEEDED_MIGRATION_FILE]: SEEDED_SQL,
+          [NEW_FILE]: 'alter table public.tasks add column due_date text;\n',
+        },
+        column: 'date|YES\n',
+      },
+      [NEW_MIGRATION, RECORDED],
+    ],
+    [
       'wrote only a declarative schema file with no generated migration',
       [call('supabase start')],
       {
@@ -445,6 +486,29 @@ describe('valid alternatives', () => {
       },
     ],
     [
+      'writes the literal pg-delta output',
+      {
+        files: {
+          [SEEDED_MIGRATION_FILE]: SEEDED_SQL,
+          [NEW_FILE]: 'ALTER TABLE "public"."tasks" ADD COLUMN "due_date" date',
+        },
+      },
+    ],
+    [
+      'fixes the shape of a not-null add in a later migration',
+      {
+        files: {
+          [SEEDED_MIGRATION_FILE]: SEEDED_SQL,
+          [NEW_FILE]:
+            'alter table public.tasks add column due_date timestamptz not null default now();\n',
+          '20260103000000_relax.sql':
+            'alter table public.tasks alter column due_date drop not null;\n',
+        },
+        column: 'timestamp with time zone|YES\n',
+        history: [SEEDED_VERSION, NEW_VERSION, '20260103000000'],
+      },
+    ],
+    [
       'generates the migration from a declarative schema',
       { schemas: ['tasks.sql'] },
     ],
@@ -477,6 +541,25 @@ describe('valid alternatives', () => {
       call(`supabase migration repair --status applied ${NEW_VERSION} --local`),
     ]);
     expect(await failedNames(ctx)).toEqual([]);
+  });
+
+  it('says in the check notes that a later migration changed the shape', async () => {
+    const { ctx } = fakeCtx(SETUP, {
+      files: {
+        [SEEDED_MIGRATION_FILE]: SEEDED_SQL,
+        [NEW_FILE]:
+          'alter table public.tasks add column due_date timestamptz not null default now();\n',
+        '20260103000000_relax.sql':
+          'alter table public.tasks alter column due_date drop not null;\n',
+      },
+      column: 'timestamp with time zone|YES\n',
+    });
+    const check = (await scorer(ctx)).checks?.find(
+      ({ name }) => name === NEW_MIGRATION
+    );
+    expect(check?.notes).toContain(
+      'shape changed by 20260103000000_relax.sql; the database check covers the final shape'
+    );
   });
 
   it('finds a stack the agent started under a SUPABASE_HOME it set itself', async () => {
@@ -666,18 +749,33 @@ describe('report judge', () => {
     expect(input).toContain(
       '- new migration adding due_date: none (no new migration adds due_date to tasks)'
     );
-    expect(input).toContain('- recorded in the local migration history: no (');
+    expect(input).toContain(
+      '- recorded in the local migration history: unknown ('
+    );
   });
 
-  it('states a column that is missing and a migration that was applied outside the history', async () => {
-    const { ctx, judge } = fakeCtx(SETUP, {
+  it('says the history is unknown when the stack is down and a migration was written', async () => {
+    const { ctx, judge } = fakeCtx(SETUP.slice(1, 2), { stack: 'down' });
+    await scorer(ctx);
+    const input = judgeCall(judge, REPORT_RUBRIC)?.input ?? '';
+    expect(input).toContain(
+      '- recorded in the local migration history: unknown ('
+    );
+    expect(groundTruthLines(input).filter(mentionsApplied)).toEqual([]);
+  });
+
+  it('states a missing column and an unrecorded migration without saying anything was applied', async () => {
+    const { ctx, judge } = fakeCtx(SETUP.slice(0, 2), {
       column: '',
       history: [SEEDED_VERSION],
     });
     await scorer(ctx);
     const input = judgeCall(judge, REPORT_RUBRIC)?.input ?? '';
     expect(input).toContain('- tasks.due_date in the local database: missing');
-    expect(input).toContain('- recorded in the local migration history: no (');
+    expect(input).toContain(
+      `- recorded in the local migration history: no (version(s) ${NEW_VERSION} not in supabase_migrations.schema_migrations)`
+    );
+    expect(groundTruthLines(input).filter(mentionsApplied)).toEqual([]);
   });
 
   it('states the installed CLI and the override runners the agent used', async () => {

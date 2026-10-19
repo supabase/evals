@@ -1,7 +1,11 @@
-import type { CheckResult } from '@supabase-evals/core';
 import { describeStack, type StackProbe } from '../lib/stack.js';
 import type { CliFacts, ProjectFileFacts } from './metrics.js';
-import type { ColumnMigrationsProbe } from './migrations.js';
+import {
+  describeMigrations,
+  describeMissingVersions,
+  type ColumnMigrationsProbe,
+  type RecordedMigrationsProbe,
+} from './migrations.js';
 import type { ColumnProbe } from './schema.js';
 
 function describeProbeCli({ versions, cliOverride }: CliFacts): string[] {
@@ -24,12 +28,17 @@ function describeColumn(column: ColumnProbe): string {
   return `${column.dataType}, ${column.nullable ? 'nullable' : 'not null'}`;
 }
 
-function describeMigrations(migrations: ColumnMigrationsProbe): string {
-  return migrations.ok
-    ? migrations.migrations
-        .map(({ file, version }) => `${file} (version ${version})`)
-        .join(', ')
-    : `none (${migrations.notes})`;
+function describeFoundMigrations(probe: ColumnMigrationsProbe): string {
+  return probe.ok
+    ? describeMigrations(probe.migrations)
+    : `none (${probe.notes})`;
+}
+
+function describeRecorded(probe: RecordedMigrationsProbe): string {
+  if (!probe.ok) return `unknown (${probe.notes})`;
+  return probe.recorded.length > 0
+    ? `yes (${describeMigrations(probe.recorded)})`
+    : `no (${describeMissingVersions(probe.missing)})`;
 }
 
 function describeSeededMigration({
@@ -45,18 +54,17 @@ export function describeGroundTruth(facts: {
   stack: StackProbe;
   column: ColumnProbe;
   migrations: ColumnMigrationsProbe;
-  recorded: CheckResult;
+  recorded: RecordedMigrationsProbe;
   files: ProjectFileFacts;
   cli: CliFacts;
 }): string[] {
-  const { recorded } = facts;
   return [
     `- project directory: ${facts.workspace}`,
     ...describeProbeCli(facts.cli),
     `- local stack: ${describeStack(facts.stack)}`,
     `- tasks.due_date in the local database: ${describeColumn(facts.column)}`,
-    `- new migration adding due_date: ${describeMigrations(facts.migrations)}`,
-    `- recorded in the local migration history: ${recorded.passed ? 'yes' : 'no'}${recorded.notes ? ` (${recorded.notes})` : ''}`,
+    `- new migration adding due_date: ${describeFoundMigrations(facts.migrations)}`,
+    `- recorded in the local migration history: ${describeRecorded(facts.recorded)}`,
     `- seeded migration modified: ${describeSeededMigration(facts.files)}`,
   ];
 }

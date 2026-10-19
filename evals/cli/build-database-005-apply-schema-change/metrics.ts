@@ -21,6 +21,9 @@ type ExecContext = Pick<LocalStackEvalContext, 'exec'>;
 const WORD_RE = /^[a-z][a-z-]*$/;
 const VALUE_FLAGS = new Set([
   '--workdir',
+  '--stack',
+  '--stack-id',
+  '--project-id',
   '--profile',
   '--output',
   '-o',
@@ -28,6 +31,9 @@ const VALUE_FLAGS = new Set([
   '--network-id',
   '--log-level',
   '--dns-resolver',
+  '--runtime',
+  '--exclude',
+  '-x',
   '--agent',
 ]);
 const TWO_WORD_VERBS = new Set([
@@ -77,17 +83,22 @@ export function listWorkflowCommands(
 const ALTER_TABLE_RE = /alter\s+table/i;
 const DUE_DATE_RE = /due_date/i;
 const DB_QUERY_RE = /\bdb\s+query\b/;
+const MIGRATION_FILE_FLAG_RE =
+  /(?:^|\s)(?:-f|--file)[=\s]*['"]?\S*supabase\/migrations\//;
 
-/** Commands that ran DDL adding `due_date` straight against a database (`psql` or `supabase db query`) instead of writing a file. A regex diagnostic. */
+const isSqlClient = (segment: string) =>
+  leadingWord(segment) === 'psql' || DB_QUERY_RE.test(segment);
+
+/** Commands that ran DDL adding `due_date` straight against a database (`psql` or `supabase db query`), or applied a migration file by hand, instead of writing a file. A regex diagnostic. */
 export function countDirectDdl(commands: readonly string[]): number {
-  return commands.filter((command) =>
-    unmaskedCommandSegments(command).some(
-      (segment) =>
-        (leadingWord(segment) === 'psql' || DB_QUERY_RE.test(segment)) &&
-        ALTER_TABLE_RE.test(segment) &&
-        DUE_DATE_RE.test(segment)
-    )
-  ).length;
+  return commands.filter((command) => {
+    const clients = unmaskedCommandSegments(command).filter(isSqlClient);
+    return (
+      clients.length > 0 &&
+      ((ALTER_TABLE_RE.test(command) && DUE_DATE_RE.test(command)) ||
+        clients.some((segment) => MIGRATION_FILE_FLAG_RE.test(segment)))
+    );
+  }).length;
 }
 
 export type ProjectFileFacts = {

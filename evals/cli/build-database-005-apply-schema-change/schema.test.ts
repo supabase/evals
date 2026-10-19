@@ -60,15 +60,6 @@ const exists = (dataType: string, nullable: boolean): ColumnProbe => ({
   nullable,
 });
 
-describe('check names', () => {
-  it('are the ones the scorer reports', () => {
-    expect(STACK_CHECK_NAME).toBe('local stack is running for this project');
-    expect(COLUMN_CHECK_NAME).toBe(
-      'tasks.due_date exists in the local database as a nullable date or timestamp'
-    );
-  });
-});
-
 describe('readDueDateColumn', () => {
   it('reports the stack failure without querying when the stack did not resolve', async () => {
     const db = fakeDatabase();

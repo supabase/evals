@@ -67,6 +67,13 @@ describe('listWorkflowCommands', () => {
       'db schema declarative sync',
     ],
     ['npx --yes supabase@2.120.0 migration up', 'migration up'],
+    ['supabase --runtime native start', 'start'],
+    ['supabase --stack dev start', 'start'],
+    ['supabase --stack-id dev start', 'start'],
+    ['supabase --project-id tasks-app start', 'start'],
+    ['supabase -x studio start', 'start'],
+    ['supabase --exclude studio start', 'start'],
+    ['supabase --runtime=native --stack dev db reset', 'db reset'],
   ])('records %j as %j', (command, expected) => {
     expect(workflow([command])).toEqual([expected]);
   });
@@ -137,6 +144,38 @@ describe('countDirectDdl', () => {
       'a statement after another command',
       `cd /ws && psql "$DATABASE_URL" -c "${ADD_DUE_DATE_SQL}"`,
     ],
+    [
+      'a heredoc fed to psql',
+      `psql "$DATABASE_URL" <<'SQL'\n${ADD_DUE_DATE_SQL};\nSQL`,
+    ],
+    [
+      'a heredoc fed to supabase db query',
+      `supabase db query <<'SQL'\n${ADD_DUE_DATE_SQL};\nSQL`,
+    ],
+    [
+      'an echo piped into psql',
+      `echo "${ADD_DUE_DATE_SQL};" | psql "$DATABASE_URL"`,
+    ],
+    [
+      'a printf piped into psql in a subshell',
+      `(printf '%s;' "${ADD_DUE_DATE_SQL}" | psql "$DATABASE_URL")`,
+    ],
+    [
+      'a heredoc that writes a file psql -f then runs',
+      `cat > add_due_date.sql <<'EOF'\n${ADD_DUE_DATE_SQL};\nEOF\npsql "$DATABASE_URL" -f add_due_date.sql`,
+    ],
+    [
+      'psql applying a migration file by hand',
+      'psql "$DATABASE_URL" -f supabase/migrations/20260102000000_add_due_date.sql',
+    ],
+    [
+      'psql applying a migration file by an absolute path with --file',
+      'psql "$DATABASE_URL" --file=/ws/supabase/migrations/20260102000000_add_due_date.sql',
+    ],
+    [
+      'psql applying a quoted migration file path',
+      `psql "$DATABASE_URL" -f "./supabase/migrations/20260102000000_add_due_date.sql"`,
+    ],
   ])('counts %s', (_label, command) => {
     expect(countDirectDdl([command])).toBe(1);
   });
@@ -151,12 +190,16 @@ describe('countDirectDdl', () => {
       `echo "${ADD_DUE_DATE_SQL};" > supabase/migrations/20260102000000_add_due_date.sql`,
     ],
     [
-      'a heredoc writing a file that psql -f then runs',
-      `cat > add_due_date.sql <<'EOF'\n${ADD_DUE_DATE_SQL};\nEOF\npsql "$DATABASE_URL" -f add_due_date.sql`,
+      'psql running a file outside the migrations folder that holds no DDL',
+      'psql "$DATABASE_URL" -f scripts/seed.sql',
     ],
     [
-      'psql reading a file',
-      'psql "$DATABASE_URL" -f supabase/migrations/20260102000000_add_due_date.sql',
+      'a heredoc writing a file with no psql or db query in the command',
+      `cat > add_due_date.sql <<'EOF'\n${ADD_DUE_DATE_SQL};\nEOF`,
+    ],
+    [
+      'an echo mentioning a migration path and psql -f in prose',
+      'echo "run psql -f supabase/migrations/x.sql later"',
     ],
     [
       'a psql read of due_date',

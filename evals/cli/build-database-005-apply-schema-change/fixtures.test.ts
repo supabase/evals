@@ -5,7 +5,6 @@ import { describe, expect, it } from 'vitest';
 import { migrationCreatesTable } from '../lib/migrations.js';
 import {
   DUE_DATE_COLUMN,
-  DUE_DATE_TYPES,
   SEEDED_MIGRATION_FILE,
   SEEDED_MIGRATION_SHA256,
   TASKS_TABLE,
@@ -39,22 +38,6 @@ function promptParts() {
 }
 
 describe('fixture constants', () => {
-  it('name the tasks table, the due_date column and the seeded migration', () => {
-    expect([TASKS_TABLE, DUE_DATE_COLUMN, SEEDED_MIGRATION_FILE]).toEqual([
-      'tasks',
-      'due_date',
-      '20260101000000_create_tasks.sql',
-    ]);
-  });
-
-  it('accept a date or either timestamp type as a due date', () => {
-    expect(DUE_DATE_TYPES).toEqual([
-      'date',
-      'timestamp without time zone',
-      'timestamp with time zone',
-    ]);
-  });
-
   it('carry the seeded migration checksum as a sha256 hex digest', () => {
     expect(SEEDED_MIGRATION_SHA256).toMatch(/^[0-9a-f]{64}$/);
   });

@@ -10,6 +10,7 @@ import {
   MIGRATION_RECORDED_CHECK_NAME,
   migrationAddsColumn,
   NEW_MIGRATION_CHECK_NAME,
+  readRecordedMigrations,
   type ColumnMigrationsProbe,
 } from './migrations.js';
 
@@ -36,17 +37,6 @@ const NEW_VERSION = '20260102000000';
 function result(stdout: string, ok = true, stderr = ''): CommandResult {
   return { ok, exitCode: ok ? 0 : 1, stdout, stderr };
 }
-
-describe('check names', () => {
-  it('are the ones the scorer reports', () => {
-    expect(NEW_MIGRATION_CHECK_NAME).toBe(
-      'a new migration adds due_date to tasks'
-    );
-    expect(MIGRATION_RECORDED_CHECK_NAME).toBe(
-      'that migration is recorded in the local migration history'
-    );
-  });
-});
 
 describe('migrationAddsColumn', () => {
   const adds = (sql: string) => migrationAddsColumn(sql, 'tasks', 'due_date');
@@ -438,6 +428,203 @@ describe('findDueDateMigrations', () => {
     });
   });
 
+  describe('column shape', () => {
+    const only = (sql: string, extra: Record<string, string> = {}) =>
+      fakeProject({
+        files: {
+          [SEEDED_MIGRATION_FILE]: SEEDED_SQL,
+          [NEW_FILE]: sql,
+          ...extra,
+        },
+      });
+    const add = (clause: string) =>
+      `alter table public.tasks add column due_date ${clause};\n`;
+
+    it.each([
+      ['date', add('date')],
+      ['a quoted type', add('"date"')],
+      ['a pg_catalog-qualified type', add('pg_catalog.date')],
+      ['an explicit null', add('DATE NULL')],
+      ['a null default', add('date default null')],
+      [
+        'a nullable timestamptz with a default',
+        add('timestamptz default now()'),
+      ],
+      ['a timestamp', add('timestamp')],
+      [
+        'a timestamp with precision and a time zone',
+        add('timestamp(3) with time zone'),
+      ],
+      ['a timestamp without a time zone', add('timestamp without time zone')],
+      [
+        'a check constraint that mentions not null inside parentheses',
+        add('date check (due_date is not null)'),
+      ],
+      [
+        'a not-null column beside it',
+        'alter table public.tasks add column priority int not null default 0, add column due_date date;\n',
+      ],
+      [
+        'a default whose parentheses hold a comma',
+        'alter table public.tasks add column due_date date default coalesce(null, null), add column priority int not null default 0;\n',
+      ],
+      [
+        'the literal pg-delta output',
+        'ALTER TABLE "public"."tasks" ADD COLUMN "due_date" date',
+      ],
+      [
+        'the literal db diff output',
+        'alter table "public"."tasks" add column "due_date" date;',
+      ],
+    ])('counts %s', async (_label, sql) => {
+      expect(await findDueDateMigrations(only(sql))).toEqual({
+        ok: true,
+        migrations: [{ version: NEW_VERSION, file: NEW_FILE }],
+      });
+    });
+
+    it.each([
+      [
+        'a not-null timestamptz with a default',
+        add('timestamptz not null default now()'),
+        'timestamptz not null default now()',
+      ],
+      ['text', add('text'), 'text'],
+      [
+        'a not-null date with a default',
+        add('date not null default current_date'),
+        'date not null default current_date',
+      ],
+      ['a type that only starts like a date', add('datetime'), 'datetime'],
+      ['a time of day', add('time with time zone'), 'time with time zone'],
+      [
+        'a not-null date after a multi-action comma',
+        'alter table public.tasks add column priority int, add column due_date date\n  not null;\n',
+        'date not null',
+      ],
+      [
+        'not null after a default with commas in parentheses',
+        add('date default coalesce(null, null) not null'),
+        'date default coalesce(null, null) not null',
+      ],
+    ])('rejects %s', async (_label, sql, clause) => {
+      expect(await findDueDateMigrations(only(sql))).toEqual({
+        ok: false,
+        notes: `${NEW_FILE} adds due_date as ${clause}, not a nullable date or timestamp`,
+      });
+    });
+
+    it('names every wrong-shape file when none counts', async () => {
+      const ctx = only(add('text'), {
+        '20260103000000_again.sql': add('date not null'),
+      });
+      expect(await findDueDateMigrations(ctx)).toEqual({
+        ok: false,
+        notes: `${NEW_FILE} adds due_date as text, not a nullable date or timestamp; 20260103000000_again.sql adds due_date as date not null, not a nullable date or timestamp`,
+      });
+    });
+
+    it('counts the right-shaped file when another file added the wrong shape', async () => {
+      const ctx = only(add('text'), {
+        '20260103000000_again.sql': add('date'),
+      });
+      expect(await findDueDateMigrations(ctx)).toEqual({
+        ok: true,
+        migrations: [
+          { version: '20260103000000', file: '20260103000000_again.sql' },
+        ],
+      });
+    });
+
+    it.each([
+      [
+        'dropping not null',
+        'alter table public.tasks alter column due_date drop not null;',
+      ],
+      [
+        'changing the type',
+        'alter table public.tasks alter column due_date type date using due_date::date;',
+      ],
+      [
+        'an alter without the column keyword',
+        'alter table "public"."tasks" alter due_date drop not null;',
+      ],
+    ])(
+      'counts a wrong-shape add when a later migration reshapes the column by %s',
+      async (_label, alter) => {
+        const ctx = only(add('timestamptz not null default now()'), {
+          '20260103000000_relax.sql': alter,
+        });
+        expect(await findDueDateMigrations(ctx)).toEqual({
+          ok: true,
+          migrations: [
+            {
+              version: NEW_VERSION,
+              file: NEW_FILE,
+              shapeChangedBy: '20260103000000_relax.sql',
+            },
+          ],
+        });
+      }
+    );
+
+    it('does not count a wrong-shape add when the reshaping alter is in an earlier file', async () => {
+      const ctx = fakeProject({
+        files: {
+          [SEEDED_MIGRATION_FILE]: SEEDED_SQL,
+          '20260101500000_relax.sql':
+            'alter table public.tasks alter column due_date drop not null;',
+          [NEW_FILE]: add('text'),
+        },
+      });
+      expect(await findDueDateMigrations(ctx)).toEqual({
+        ok: false,
+        notes: `${NEW_FILE} adds due_date as text, not a nullable date or timestamp`,
+      });
+    });
+
+    it('does not count a wrong-shape add whose reshaping alter is in the same file', async () => {
+      const ctx = only(
+        add('text') +
+          'alter table public.tasks alter column due_date type date using due_date::date;\n'
+      );
+      expect(await findDueDateMigrations(ctx)).toMatchObject({ ok: false });
+    });
+
+    it('does not take an alter of another column as a reshape', async () => {
+      const ctx = only(add('text'), {
+        '20260103000000_other.sql':
+          'alter table public.tasks alter column title drop not null;',
+      });
+      expect(await findDueDateMigrations(ctx)).toMatchObject({ ok: false });
+    });
+
+    it('does not take a seeded-file alter as a reshape', async () => {
+      const ctx = fakeProject({
+        files: {
+          [SEEDED_MIGRATION_FILE]:
+            SEEDED_SQL +
+            'alter table public.tasks alter column due_date drop not null;',
+          [NEW_FILE]: add('text'),
+        },
+      });
+      expect(await findDueDateMigrations(ctx)).toMatchObject({ ok: false });
+    });
+
+    it('names the wrong-shape file before the seeded-only note', async () => {
+      const ctx = fakeProject({
+        files: {
+          [SEEDED_MIGRATION_FILE]: SEEDED_SQL + ADD_DUE_DATE,
+          [NEW_FILE]: add('text'),
+        },
+      });
+      expect(await findDueDateMigrations(ctx)).toEqual({
+        ok: false,
+        notes: `${NEW_FILE} adds due_date as text, not a nullable date or timestamp`,
+      });
+    });
+  });
+
   it('fails when supabase/migrations does not exist', async () => {
     const ctx = fakeProject({ migrationsDir: false });
     expect(await findDueDateMigrations(ctx)).toEqual({
@@ -501,6 +688,32 @@ describe('checkNewMigrationAddsDueDate', () => {
     }
   });
 
+  it('says the final shape is left to the database check when a later migration reshaped the column', () => {
+    const check = checkNewMigrationAddsDueDate({
+      ok: true,
+      migrations: [
+        {
+          version: NEW_VERSION,
+          file: NEW_FILE,
+          shapeChangedBy: '20260103000000_relax.sql',
+        },
+      ],
+    });
+    expect(check).toEqual({
+      name: NEW_MIGRATION_CHECK_NAME,
+      passed: true,
+      notes: `${NEW_FILE} (version ${NEW_VERSION}); shape changed by 20260103000000_relax.sql; the database check covers the final shape`,
+    });
+  });
+
+  it('adds no shape note when no migration was reshaped', () => {
+    const check = checkNewMigrationAddsDueDate({
+      ok: true,
+      migrations: [{ version: NEW_VERSION, file: NEW_FILE }],
+    });
+    expect(check.notes).not.toContain('shape changed');
+  });
+
   it('fails with the probe notes', () => {
     expect(
       checkNewMigrationAddsDueDate({
@@ -557,61 +770,41 @@ const TWO: ColumnMigrationsProbe = {
   ],
 };
 
-describe('checkMigrationRecorded', () => {
-  it('passes and names the recorded migration when its version is in the history', async () => {
-    const ctx = fakeHistory({ versions: [SEEDED_VERSION, NEW_VERSION] });
-    const check = await checkMigrationRecorded(ctx, STACK, ONE);
-    expect(check).toMatchObject({
-      name: MIGRATION_RECORDED_CHECK_NAME,
-      passed: true,
-    });
-    expect(check.notes).toContain(NEW_FILE);
-    expect(check.notes).toContain(NEW_VERSION);
-  });
-
-  it('fails when only the seeded migration is in the history', async () => {
-    const ctx = fakeHistory({ versions: [SEEDED_VERSION] });
-    const check = await checkMigrationRecorded(ctx, STACK, ONE);
-    expect(check).toMatchObject({
-      name: MIGRATION_RECORDED_CHECK_NAME,
-      passed: false,
-    });
-    expect(check.notes).toContain(NEW_VERSION);
-    expect(check.notes).toContain(
-      'not in supabase_migrations.schema_migrations'
-    );
-  });
-
-  it('fails when the history is empty', async () => {
-    const ctx = fakeHistory({ versions: [] });
-    expect((await checkMigrationRecorded(ctx, STACK, ONE)).passed).toBe(false);
-  });
-
-  it('passes when only one of two matching migrations is recorded', async () => {
+describe('readRecordedMigrations', () => {
+  it('splits the matching migrations into recorded and missing', async () => {
     const ctx = fakeHistory({ versions: [SEEDED_VERSION, '20260103000000'] });
-    const check = await checkMigrationRecorded(ctx, STACK, TWO);
-    expect(check.passed).toBe(true);
-    expect(check.notes).toContain('20260103000000_again.sql');
+    expect(await readRecordedMigrations(ctx, STACK, TWO)).toEqual({
+      ok: true,
+      recorded: [
+        { version: '20260103000000', file: '20260103000000_again.sql' },
+      ],
+      missing: [{ version: NEW_VERSION, file: NEW_FILE }],
+    });
   });
 
-  it('passes when both matching migrations are recorded', async () => {
+  it('records nothing when only the seeded migration is in the history', async () => {
+    const ctx = fakeHistory({ versions: [SEEDED_VERSION] });
+    expect(await readRecordedMigrations(ctx, STACK, ONE)).toEqual({
+      ok: true,
+      recorded: [],
+      missing: [{ version: NEW_VERSION, file: NEW_FILE }],
+    });
+  });
+
+  it('records every matching migration that is in the history', async () => {
     const ctx = fakeHistory({
       versions: [SEEDED_VERSION, NEW_VERSION, '20260103000000'],
     });
-    expect((await checkMigrationRecorded(ctx, STACK, TWO)).passed).toBe(true);
-  });
-
-  it('fails and names every version when neither matching migration is recorded', async () => {
-    const ctx = fakeHistory({ versions: [SEEDED_VERSION] });
-    const check = await checkMigrationRecorded(ctx, STACK, TWO);
-    expect(check.passed).toBe(false);
-    expect(check.notes).toContain(NEW_VERSION);
-    expect(check.notes).toContain('20260103000000');
+    expect(await readRecordedMigrations(ctx, STACK, TWO)).toMatchObject({
+      ok: true,
+      recorded: TWO.ok ? TWO.migrations : [],
+      missing: [],
+    });
   });
 
   it('asks only about the candidate versions, not the seeded one', async () => {
     const ctx = fakeHistory({ versions: [NEW_VERSION] });
-    await checkMigrationRecorded(ctx, STACK, TWO);
+    await readRecordedMigrations(ctx, STACK, TWO);
     expect(ctx.exec).toHaveBeenCalledTimes(1);
     const command = ctx.exec.mock.calls[0][0];
     expect(command).toContain(NEW_VERSION);
@@ -621,7 +814,10 @@ describe('checkMigrationRecorded', () => {
 
   it('compares whole versions, not substrings of longer rows', async () => {
     const ctx = fakeHistory({ versions: [], stdout: `1${NEW_VERSION}\n` });
-    expect((await checkMigrationRecorded(ctx, STACK, ONE)).passed).toBe(false);
+    expect(await readRecordedMigrations(ctx, STACK, ONE)).toMatchObject({
+      ok: true,
+      recorded: [],
+    });
   });
 
   it('finds the version among several returned rows', async () => {
@@ -629,46 +825,44 @@ describe('checkMigrationRecorded', () => {
       versions: [],
       stdout: `20260103000000\n\n${NEW_VERSION}\n`,
     });
-    expect((await checkMigrationRecorded(ctx, STACK, ONE)).passed).toBe(true);
+    expect(await readRecordedMigrations(ctx, STACK, ONE)).toMatchObject({
+      ok: true,
+      recorded: [{ version: NEW_VERSION, file: NEW_FILE }],
+    });
   });
 
   it('fails with the stack notes, without querying, when no stack resolved', async () => {
     const ctx = fakeHistory({ versions: [NEW_VERSION] });
-    const check = await checkMigrationRecorded(
-      ctx,
-      { ok: false, notes: 'managed: exit 1: no stack running' },
-      ONE
-    );
-    expect(check).toEqual({
-      name: MIGRATION_RECORDED_CHECK_NAME,
-      passed: false,
-      notes: 'managed: exit 1: no stack running',
-    });
+    expect(
+      await readRecordedMigrations(
+        ctx,
+        { ok: false, notes: 'managed: exit 1: no stack running' },
+        ONE
+      )
+    ).toEqual({ ok: false, notes: 'managed: exit 1: no stack running' });
     expect(ctx.exec).not.toHaveBeenCalled();
   });
 
   it('fails with the probe notes, without querying, when no migration adds the column', async () => {
     const ctx = fakeHistory({ versions: [NEW_VERSION] });
-    const check = await checkMigrationRecorded(ctx, STACK, {
-      ok: false,
-      notes: 'no new migration adds due_date to tasks',
-    });
-    expect(check).toEqual({
-      name: MIGRATION_RECORDED_CHECK_NAME,
-      passed: false,
-      notes: 'no new migration adds due_date to tasks',
-    });
+    expect(
+      await readRecordedMigrations(ctx, STACK, {
+        ok: false,
+        notes: 'no new migration adds due_date to tasks',
+      })
+    ).toEqual({ ok: false, notes: 'no new migration adds due_date to tasks' });
     expect(ctx.exec).not.toHaveBeenCalled();
   });
 
   it('reports the stack failure first when the stack and the probe both failed', async () => {
     const ctx = fakeHistory({ versions: [] });
-    const check = await checkMigrationRecorded(
-      ctx,
-      { ok: false, notes: 'stack down' },
-      { ok: false, notes: 'no migration' }
-    );
-    expect(check.notes).toBe('stack down');
+    expect(
+      await readRecordedMigrations(
+        ctx,
+        { ok: false, notes: 'stack down' },
+        { ok: false, notes: 'no migration' }
+      )
+    ).toEqual({ ok: false, notes: 'stack down' });
   });
 
   it('fails with the psql failure when the history table does not exist', async () => {
@@ -680,9 +874,8 @@ describe('checkMigrationRecorded', () => {
         'ERROR:  relation "supabase_migrations.schema_migrations" does not exist'
       ),
     });
-    expect(await checkMigrationRecorded(ctx, STACK, ONE)).toEqual({
-      name: MIGRATION_RECORDED_CHECK_NAME,
-      passed: false,
+    expect(await readRecordedMigrations(ctx, STACK, ONE)).toEqual({
+      ok: false,
       notes:
         'exit 1: ERROR:  relation "supabase_migrations.schema_migrations" does not exist',
     });
@@ -690,10 +883,85 @@ describe('checkMigrationRecorded', () => {
 
   it('fails with the error message when the query throws', async () => {
     const ctx = fakeHistory({ versions: [], throws: 'sandbox gone' });
-    expect(await checkMigrationRecorded(ctx, STACK, ONE)).toEqual({
+    expect(await readRecordedMigrations(ctx, STACK, ONE)).toEqual({
+      ok: false,
+      notes: 'sandbox gone',
+    });
+  });
+});
+
+describe('checkMigrationRecorded', () => {
+  const FIRST = { version: NEW_VERSION, file: NEW_FILE };
+  const SECOND = {
+    version: '20260103000000',
+    file: '20260103000000_again.sql',
+  };
+
+  it('passes and names the recorded migration', () => {
+    const check = checkMigrationRecorded({
+      ok: true,
+      recorded: [FIRST],
+      missing: [],
+    });
+    expect(check).toEqual({
+      name: MIGRATION_RECORDED_CHECK_NAME,
+      passed: true,
+      notes: `${NEW_FILE} (version ${NEW_VERSION}) is in supabase_migrations.schema_migrations`,
+    });
+  });
+
+  it('passes when only one of two matching migrations is recorded', () => {
+    const check = checkMigrationRecorded({
+      ok: true,
+      recorded: [SECOND],
+      missing: [FIRST],
+    });
+    expect(check.passed).toBe(true);
+    expect(check.notes).toContain(SECOND.file);
+    expect(check.notes).not.toContain(FIRST.file);
+  });
+
+  it('names every recorded migration when several are', () => {
+    const check = checkMigrationRecorded({
+      ok: true,
+      recorded: [FIRST, SECOND],
+      missing: [],
+    });
+    expect(check.notes).toContain(FIRST.file);
+    expect(check.notes).toContain(SECOND.file);
+    expect(check.notes).toContain(
+      'are in supabase_migrations.schema_migrations'
+    );
+  });
+
+  it('fails stating only the versions missing from the history', () => {
+    expect(
+      checkMigrationRecorded({
+        ok: true,
+        recorded: [],
+        missing: [FIRST, SECOND],
+      })
+    ).toEqual({
       name: MIGRATION_RECORDED_CHECK_NAME,
       passed: false,
-      notes: 'sandbox gone',
+      notes: `version(s) ${NEW_VERSION}, 20260103000000 not in supabase_migrations.schema_migrations`,
+    });
+  });
+
+  it('fails without claiming how the column got there', () => {
+    const check = checkMigrationRecorded({
+      ok: true,
+      recorded: [],
+      missing: [FIRST],
+    });
+    expect(check.notes).not.toMatch(/applied|outside/i);
+  });
+
+  it('fails with the probe notes when the probe could not read the history', () => {
+    expect(checkMigrationRecorded({ ok: false, notes: 'stack down' })).toEqual({
+      name: MIGRATION_RECORDED_CHECK_NAME,
+      passed: false,
+      notes: 'stack down',
     });
   });
 });

@@ -1,9 +1,11 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/build-database-005-apply-schema-change
-import type { CheckResult } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
 import type { StackProbe } from '../lib/stack.js';
 import type { CliFacts, ProjectFileFacts } from './metrics.js';
-import type { ColumnMigrationsProbe } from './migrations.js';
+import type {
+  ColumnMigrationsProbe,
+  RecordedMigrationsProbe,
+} from './migrations.js';
 import { describeGroundTruth } from './report.js';
 import type { ColumnProbe } from './schema.js';
 
@@ -18,7 +20,7 @@ const STACK: StackProbe = {
 };
 
 const NEW_FILE = '20260102000000_add_due_date.sql';
-const RECORDED_NOTES = `${NEW_FILE} (version 20260102000000) is in supabase_migrations.schema_migrations`;
+const NEW_MIGRATION = { version: '20260102000000', file: NEW_FILE };
 
 type Facts = Parameters<typeof describeGroundTruth>[0];
 
@@ -26,15 +28,8 @@ const FACTS: Facts = {
   workspace: '/ws',
   stack: STACK,
   column: { ok: true, exists: true, dataType: 'date', nullable: true },
-  migrations: {
-    ok: true,
-    migrations: [{ version: '20260102000000', file: NEW_FILE }],
-  },
-  recorded: {
-    name: 'that migration is recorded in the local migration history',
-    passed: true,
-    notes: RECORDED_NOTES,
-  },
+  migrations: { ok: true, migrations: [NEW_MIGRATION] },
+  recorded: { ok: true, recorded: [NEW_MIGRATION], missing: [] },
   files: {
     seededMigrationModified: false,
     newMigrationFiles: 1,
@@ -62,7 +57,7 @@ describe('describeGroundTruth', () => {
       '- local stack: resolved: managed/native',
       `${COLUMN_LINE}: date, nullable`,
       `${MIGRATION_LINE}: ${NEW_FILE} (version 20260102000000)`,
-      `${RECORDED_LINE}: yes (${RECORDED_NOTES})`,
+      `${RECORDED_LINE}: yes (${NEW_FILE} (version 20260102000000))`,
       `${SEEDED_LINE}: no`,
     ]);
   });
@@ -75,11 +70,7 @@ describe('describeGroundTruth', () => {
         ok: false,
         notes: 'no new migration adds due_date to tasks',
       },
-      recorded: {
-        name: 'that migration is recorded in the local migration history',
-        passed: false,
-        notes: 'no new migration adds due_date to tasks',
-      },
+      recorded: { ok: false, notes: 'no new migration adds due_date to tasks' },
     });
     expect(all).toContain(
       '- local stack: none (managed: exit 1: no stack running)'
@@ -91,7 +82,7 @@ describe('describeGroundTruth', () => {
       `${MIGRATION_LINE}: none (no new migration adds due_date to tasks)`
     );
     expect(line(all, RECORDED_LINE)).toBe(
-      `${RECORDED_LINE}: no (no new migration adds due_date to tasks)`
+      `${RECORDED_LINE}: unknown (no new migration adds due_date to tasks)`
     );
   });
 
@@ -144,16 +135,60 @@ describe('describeGroundTruth', () => {
     );
   });
 
-  it('says a migration is not recorded, with the reason', () => {
-    const recorded: CheckResult = {
-      name: 'that migration is recorded in the local migration history',
-      passed: false,
-      notes:
-        "version(s) 20260102000000 not in supabase_migrations.schema_migrations (the column was applied outside the CLI's migration history)",
+  it('says a migration is not recorded, naming only the versions missing from the history', () => {
+    const recorded: RecordedMigrationsProbe = {
+      ok: true,
+      recorded: [],
+      missing: [NEW_MIGRATION],
     };
     expect(line(lines({ recorded }), RECORDED_LINE)).toBe(
-      `${RECORDED_LINE}: no (${recorded.notes})`
+      `${RECORDED_LINE}: no (version(s) 20260102000000 not in supabase_migrations.schema_migrations)`
     );
+  });
+
+  it('names only the recorded migrations when another is missing', () => {
+    const recorded: RecordedMigrationsProbe = {
+      ok: true,
+      recorded: [NEW_MIGRATION],
+      missing: [
+        { version: '20260103000000', file: '20260103000000_again.sql' },
+      ],
+    };
+    expect(line(lines({ recorded }), RECORDED_LINE)).toBe(
+      `${RECORDED_LINE}: yes (${NEW_FILE} (version 20260102000000))`
+    );
+  });
+
+  it('says the history is unknown when the probe could not read it', () => {
+    const recorded: RecordedMigrationsProbe = {
+      ok: false,
+      notes: 'exit 2: connection refused',
+    };
+    expect(line(lines({ recorded }), RECORDED_LINE)).toBe(
+      `${RECORDED_LINE}: unknown (exit 2: connection refused)`
+    );
+  });
+
+  it('never says the column was applied when it is missing and the migration is unrecorded', () => {
+    const all = lines({
+      column: { ok: true, exists: false },
+      recorded: { ok: true, recorded: [], missing: [NEW_MIGRATION] },
+    });
+    expect(line(all, COLUMN_LINE)).toBe(`${COLUMN_LINE}: missing`);
+    expect(all.filter((entry) => /applied/i.test(entry))).toEqual([]);
+  });
+
+  it('says the history is unknown, never applied, when the stack is down', () => {
+    const notes = 'managed: exit 1: no stack running';
+    const all = lines({
+      stack: { ok: false, notes },
+      column: { ok: false, notes },
+      recorded: { ok: false, notes },
+    });
+    expect(line(all, RECORDED_LINE)).toBe(
+      `${RECORDED_LINE}: unknown (${notes})`
+    );
+    expect(all.filter((entry) => /applied/i.test(entry))).toEqual([]);
   });
 
   it.each([
