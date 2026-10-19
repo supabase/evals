@@ -201,7 +201,9 @@ lowercase. `historySqlWrites`, in `metrics`, counts commands that write
 | `codex-gpt-6-luna-cli-absent` | npm `beta` | no Docker at all | red |
 
 Every row is red by design: no hosted project in CI until the staging org
-lands (ASK-06 in the plan; no linked CLI issue yet). Checks 1 to 5 fail.
+lands
+([CLI-2754](https://linear.app/supabase/issue/CLI-2754/give-cli-evals-a-staging-org-so-hosted-evals-can-run),
+ASK-06 in the plan). Checks 1 to 5 fail.
 Check 6 passes unless the agent deletes local migration work. The detour,
 metrics and report checks are expected to pass when the agent reports the
 blocker truthfully.
@@ -213,7 +215,7 @@ runs under.
 ### What turns it green
 
 Set `hostedProject: true` once CLI experiments link a hosted project: a staging
-org with a project ref and an access token available in CI. Until then,
+org with a project ref and an access token available in CI (CLI-2754). Until then,
 `skipUnlessCli` skips every `hostedProject: true` eval and the refresh would
 run nothing, which is why the key is left unset: every environment runs the
 eval and records a real red. The Docker-less arms also can't use `db pull`
