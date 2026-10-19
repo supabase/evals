@@ -4,6 +4,8 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   ADD_STALE,
+  ANY_CLIENT_IN_TYPES_ONLY_DECLARER,
+  DECLARER_ALIAS_WITH_CONNECT,
   fixedTasks,
   LABEL_FIXED,
   LABEL_STALE,
@@ -17,6 +19,7 @@ import {
   replaceOnce,
   SEEDED_SUPABASE,
   SEEDED_TYPES,
+  STALE_QUERIES_IN_DECLARER,
   STALE_TASKS,
   withoutFunction,
 } from './fixtures.js';
@@ -294,16 +297,19 @@ describe('regenerated types with the app fixed', () => {
     expectAllChecksPass(analysis);
   });
 
-  it('keeps a stale unimported types file out of the app files and the suppression scan', () => {
+  it('keeps a stale unimported types file out of the app files but still scans it for suppressions', () => {
+    const types = `${SEEDED_TYPES}\nexport type Loose = any;\n`;
     const analysis = analyse(
       regeneratedWorkspace({
         ...RELOCATED_IMPORTS,
-        'src/database.types.ts': `${SEEDED_TYPES}\nexport type Loose = any;\n`,
+        'src/database.types.ts': types,
       })
     );
 
     expect(analysis.appFiles).toEqual(['src/supabase.ts', 'src/tasks.ts']);
-    expect(analysis.suppressions).toEqual([]);
+    expect(analysis.suppressions).toEqual([
+      `src/database.types.ts:${lineOf(types, 'Loose')} any`,
+    ]);
   });
 
   it('judges every types module the app imports, so a stale one in use fails the check', () => {
@@ -583,13 +589,30 @@ describe('silencing instead of fixing', () => {
     }
   );
 
-  it('does not count directives or any inside the types module itself', () => {
+  it('counts a directive or any added to the types module itself', () => {
     const types = `${regeneratedTypes()}\n// @ts-ignore\nexport type Loose = any;\n`;
     const analysis = analyse(
       regeneratedWorkspace({ 'src/database.types.ts': types })
     );
 
+    expect(analysis.suppressions).toEqual([
+      `src/database.types.ts:${lineOf(types, '@ts-ignore')} @ts-ignore`,
+      `src/database.types.ts:${lineOf(types, 'Loose')} any`,
+    ]);
+    expect(analysis.appFiles).not.toContain('src/database.types.ts');
+    expect(checkAppNotSilenced(analysis).passed).toBe(false);
+  });
+
+  it.each([
+    ['regeneratedTypes()', regeneratedTypes],
+    ['rawCliTypes()', rawCliTypes],
+  ])('finds nothing to flag in %s', (_name, types) => {
+    const analysis = analyse(
+      regeneratedWorkspace({ 'src/database.types.ts': types() })
+    );
+
     expect(analysis.suppressions).toEqual([]);
+    expect(analysis.appFiles).toEqual(['src/supabase.ts', 'src/tasks.ts']);
     expectAllChecksPass(analysis);
   });
 
@@ -768,6 +791,90 @@ export function connect(url: string, key: string) {
     expectAllChecksPass(analysis);
   });
 
+  it.each([
+    [
+      'a typed factory that is itself named createClient',
+      `import { createClient as createSupabaseClient, type SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from './database.types';
+
+export type Client = SupabaseClient<Database>;
+
+function createClient(url: string, key: string): Client {
+  return createSupabaseClient<Database>(url, key);
+}
+
+export function connect(url: string, key: string) {
+  const client = createClient(url, key);
+  return client;
+}
+`,
+    ],
+    [
+      'a project type that is itself named SupabaseClient',
+      `import { createClient, type SupabaseClient as BaseClient } from '@supabase/supabase-js';
+import type { Database } from './database.types';
+
+export type SupabaseClient = BaseClient<Database>;
+export type Client = SupabaseClient;
+
+export function connect(url: string, key: string): Client {
+  return createClient<Database>(url, key);
+}
+`,
+    ],
+    [
+      'new SupabaseClient with explicit type arguments',
+      `import { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from './database.types';
+
+export type Client = SupabaseClient<Database>;
+
+export function connect(url: string, key: string) {
+  return new SupabaseClient<Database>(url, key);
+}
+`,
+    ],
+    [
+      'new SupabaseClient returned from a function declared to return the typed client',
+      `import { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from './database.types';
+
+export type Client = SupabaseClient<Database>;
+
+export function connect(url: string, key: string): SupabaseClient<Database> {
+  return new SupabaseClient(url, key);
+}
+`,
+    ],
+  ])('does not flag %s', (_name, supabase) => {
+    const analysis = analyse(
+      regeneratedWorkspace({ 'src/supabase.ts': supabase })
+    );
+
+    expect(analysis.diagnostics).toEqual([]);
+    expect(analysis.suppressions).toEqual([]);
+    expectAllChecksPass(analysis);
+  });
+
+  it('flags new SupabaseClient with no type arguments and no contextual type', () => {
+    const supabase = `import { SupabaseClient } from '@supabase/supabase-js';
+
+export function connect(url: string, key: string) {
+  return new SupabaseClient(url, key);
+}
+export type Client = ReturnType<typeof connect>;
+`;
+    const analysis = analyse(
+      regeneratedWorkspace({ 'src/supabase.ts': supabase })
+    );
+    const entry = `src/supabase.ts:${lineOf(supabase, 'new SupabaseClient')} untyped Supabase client`;
+
+    expect(analysis.suppressions).toEqual([entry]);
+    const check = checkAppNotSilenced(analysis);
+    expect(check).toMatchObject({ name: SILENCED_CHECK, passed: false });
+    expect(check.notes).toContain(entry);
+  });
+
   it('does not count a block comment whose lines only mention a directive', () => {
     const tasks = `${fixedTasks()}
 /*
@@ -862,6 +969,51 @@ export function connect(url: string, key: string): Client {
     const analysis = analyse(regeneratedWorkspace());
 
     expect(analysis.appFiles).not.toContain('src/database.types.ts');
+  });
+});
+
+describe('files that declare Database', () => {
+  it('scans a declarer that holds stale query functions behind @ts-ignore and keeps it in the app files', () => {
+    const supabase = STALE_QUERIES_IN_DECLARER['src/supabase.ts'];
+    const analysis = analyse(regeneratedWorkspace(STALE_QUERIES_IN_DECLARER));
+    const ignoreLines = supabase
+      .split('\n')
+      .flatMap((line, index) =>
+        line.includes('@ts-ignore') ? [index + 1] : []
+      );
+
+    expect(ignoreLines).toHaveLength(3);
+    expect(analysis.diagnostics).toEqual([]);
+    expect(analysis.suppressions).toEqual(
+      ignoreLines.map((line) => `src/supabase.ts:${line} @ts-ignore`)
+    );
+    expect(analysis.appFiles).toEqual(['src/supabase.ts', 'src/tasks.ts']);
+    const check = checkAppNotSilenced(analysis);
+    expect(check).toMatchObject({ name: SILENCED_CHECK, passed: false });
+    expect(check.notes).toContain('src/supabase.ts');
+  });
+
+  it('scans a types-only declarer that types the client as any and keeps it out of the app files', () => {
+    const db = ANY_CLIENT_IN_TYPES_ONLY_DECLARER['src/db.ts'];
+    const analysis = analyse(
+      regeneratedWorkspace(ANY_CLIENT_IN_TYPES_ONLY_DECLARER)
+    );
+    const entry = `src/db.ts:${lineOf(db, 'SupabaseClient<any>')} any`;
+
+    expect(analysis.diagnostics).toEqual([]);
+    expect(analysis.suppressions).toEqual([entry]);
+    expect(analysis.appFiles).toEqual(['src/supabase.ts', 'src/tasks.ts']);
+    const check = checkAppNotSilenced(analysis);
+    expect(check).toMatchObject({ name: SILENCED_CHECK, passed: false });
+    expect(check.notes).toContain(entry);
+  });
+
+  it('keeps a declarer that exports connect in the app files and passes a valid fix', () => {
+    const analysis = analyse(regeneratedWorkspace(DECLARER_ALIAS_WITH_CONNECT));
+
+    expect(analysis.appFiles).toEqual(['src/supabase.ts', 'src/tasks.ts']);
+    expect(analysis.suppressions).toEqual([]);
+    expectAllChecksPass(analysis);
   });
 });
 

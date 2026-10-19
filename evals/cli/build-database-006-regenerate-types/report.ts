@@ -17,8 +17,11 @@ function describeProbeCli({ versions, cliOverride }: CliFacts): string[] {
   ];
 }
 
-function describeLifecycle({ lastCommand, stoppedByAgent }: StackLifecycle) {
-  return stoppedByAgent
+function describeLifecycle(
+  { lastCommand, stoppedByAgent }: StackLifecycle,
+  probeFailed: boolean
+) {
+  return stoppedByAgent && probeFailed
     ? [
         `- the agent stopped the stack (last stack command: \`${lastCommand}\`), so the harness could not probe the database the agent used; the stack and migration facts here cannot confirm or contradict what the agent saw`,
       ]
@@ -71,7 +74,7 @@ export function describeGroundTruth(facts: {
   return [
     ...describeProbeCli(cli),
     `- local stack: ${describeStack(stack)}`,
-    ...describeLifecycle(lifecycle),
+    ...describeLifecycle(lifecycle, !stack.ok || !schema.ok),
     ...describeSchema(schema),
     ...describeAnalysis(analysis),
     `- direct \`supabase gen types\` invocations: ${genTypes.runs}${genTypes.sources.length === 0 ? '' : ` (sources: ${genTypes.sources.join(', ')})`}; exit status is not tracked and runs through package scripts are not counted`,

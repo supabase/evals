@@ -81,19 +81,21 @@ function lifecycleCommand(invocation: SupabaseInvocation): string | undefined {
     : undefined;
 }
 
-/** The last stack start or stop command the agent ran, and whether it left the stack stopped. */
+/** The last stack start or stop invocation the agent ran, flags included, and whether it left the stack stopped. */
 export function readStackLifecycle(
   invocations: readonly SupabaseInvocation[]
 ): StackLifecycle {
   const last = invocations
-    .map(lifecycleCommand)
-    .filter((command) => command !== undefined)
+    .flatMap((invocation) => {
+      const command = lifecycleCommand(invocation);
+      return command === undefined ? [] : [{ command, argv: invocation.argv }];
+    })
     .at(-1);
   return last === undefined
     ? { lastCommand: null, stoppedByAgent: false }
     : {
-        lastCommand: `supabase ${last}`,
-        stoppedByAgent: STACK_STOP_COMMANDS.has(last),
+        lastCommand: last.argv.join(' '),
+        stoppedByAgent: STACK_STOP_COMMANDS.has(last.command),
       };
 }
 

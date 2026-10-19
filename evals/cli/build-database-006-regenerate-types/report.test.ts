@@ -147,6 +147,41 @@ describe('describeGroundTruth', () => {
       expect(text).toContain('could not probe the database');
     });
 
+    it('keeps the flags of the stopping command in the line', () => {
+      const text = describe_({
+        stack: { ok: false, notes: 'The local stack is not running.' },
+        lifecycle: {
+          lastCommand: 'supabase stop --no-backup',
+          stoppedByAgent: true,
+        },
+      }).join('\n');
+
+      expect(text).toContain('`supabase stop --no-backup`');
+    });
+
+    it('says the agent stopped the stack when the stack resolved but the schema probe failed', () => {
+      const text = describe_({
+        schema: { ok: false, notes: 'psql: connection refused' },
+        lifecycle: { lastCommand: 'supabase stop', stoppedByAgent: true },
+      }).join('\n');
+
+      expect(text).toContain('the agent stopped the stack');
+    });
+
+    it('does not claim the harness could not probe when the stack and schema probes succeeded', () => {
+      const text = describe_({
+        lifecycle: {
+          lastCommand: 'supabase stop --project-id scratch',
+          stoppedByAgent: true,
+        },
+      }).join('\n');
+
+      expect(text).not.toContain('stopped the stack');
+      expect(text).not.toContain('could not probe');
+      expect(text).toContain('resolved: managed/native');
+      expect(text).toMatch(/applied: yes/);
+    });
+
     it('does not mention a stop when the last stack command was a start', () => {
       expect(
         describe_({

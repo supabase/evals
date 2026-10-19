@@ -215,6 +215,77 @@ export function regeneratedWorkspace(
   });
 }
 
+export const STALE_QUERIES_IN_DECLARER = {
+  'src/supabase.ts': `import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import type { Database as Generated, Tables } from './database.types';
+
+export type Database = Generated;
+export type Client = SupabaseClient<Database>;
+type Task = Tables<'tasks'>;
+
+export function connect(url: string, key: string): Client {
+  return createClient<Database>(url, key);
+}
+
+export async function listOpenTasks(db: Client): Promise<Task[]> {
+  // @ts-ignore
+  const { data, error } = await db.from('tasks').select('*').eq('is_complete', false);
+  if (error) throw error;
+  return data;
+}
+
+export async function addTask(db: Client, title: string): Promise<void> {
+  const { error } = await db.from('tasks').insert({ title });
+  if (error) throw error;
+}
+
+export async function completeTask(db: Client, id: number): Promise<void> {
+  // @ts-ignore
+  const { error } = await db.from('tasks').update({ is_complete: true }).eq('id', id);
+  if (error) throw error;
+}
+
+export function label(task: Task): string {
+  // @ts-ignore
+  return \`\${task.is_complete ? '[x]' : '[ ]'} \${task.title}\`;
+}
+`,
+  'src/tasks.ts':
+    "export { listOpenTasks, addTask, completeTask, label } from './supabase';\n",
+};
+
+export const ANY_CLIENT_IN_TYPES_ONLY_DECLARER = {
+  'src/db.ts': `import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database as Generated } from './database.types';
+
+export type Database = Generated;
+export type Client = SupabaseClient<any>;
+`,
+  'src/supabase.ts': `import { createClient } from '@supabase/supabase-js';
+import type { Client, Database } from './db';
+
+export type { Client };
+
+export function connect(url: string, key: string): Client {
+  return createClient<Database>(url, key);
+}
+`,
+  'src/tasks.ts': fixedTasks(['list', 'add', 'complete']),
+};
+
+export const DECLARER_ALIAS_WITH_CONNECT = {
+  'src/supabase.ts': `import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import type { Database as Generated } from './database.types';
+
+export type Database = Generated;
+export type Client = SupabaseClient<Database>;
+
+export function connect(url: string, key: string): Client {
+  return createClient<Database>(url, key);
+}
+`,
+};
+
 export const CLEAN_TYPES_MODULE = {
   path: 'src/types/supabase.ts',
   problems: [],

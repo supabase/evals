@@ -289,18 +289,37 @@ function isConstAssertion(assertion: Assertion): boolean {
   );
 }
 
-function refersTo(
+function isSupabaseJsFile(fileName: string, supabaseJsDir: string): boolean {
+  const file = posix(path.normalize(fileName));
+  return (
+    file.startsWith(`${posix(supabaseJsDir)}/`) ||
+    file.includes('/node_modules/@supabase/')
+  );
+}
+
+function refersToSupabaseJs(
   checker: ts.TypeChecker,
   node: ts.Node,
   name: string,
-  source: ts.SourceFile
+  supabaseJsDir: string
 ): boolean {
   const symbol = checker.getSymbolAtLocation(node);
   const target =
     symbol && symbol.flags & ts.SymbolFlags.Alias
       ? checker.getAliasedSymbol(symbol)
       : symbol;
-  return (target?.name ?? node.getText(source)) === name;
+  return (
+    target?.name === name &&
+    (target.declarations ?? []).some((declaration) =>
+      isSupabaseJsFile(declaration.getSourceFile().fileName, supabaseJsDir)
+    )
+  );
+}
+
+function calleeName(expression: ts.Expression): ts.Node {
+  return ts.isPropertyAccessExpression(expression)
+    ? expression.name
+    : expression;
 }
 
 function findDirective(
@@ -323,7 +342,8 @@ function findDirective(
 function scanSuppressions(
   relativePath: string,
   source: ts.SourceFile,
-  checker: ts.TypeChecker
+  checker: ts.TypeChecker,
+  supabaseJsDir: string
 ): string[] {
   const found: { pos: number; line: number; kind: string }[] = [];
   const seenComments = new Set<number>();
@@ -377,25 +397,23 @@ function scanSuppressions(
     if (
       ts.isTypeReferenceNode(node) &&
       node.typeArguments === undefined &&
-      refersTo(
+      refersToSupabaseJs(
         checker,
         ts.isQualifiedName(node.typeName) ? node.typeName.right : node.typeName,
         'SupabaseClient',
-        source
+        supabaseJsDir
       )
     ) {
       report(UNTYPED_CLIENT);
     }
     if (
-      ts.isCallExpression(node) &&
+      (ts.isCallExpression(node) || ts.isNewExpression(node)) &&
       node.typeArguments === undefined &&
-      refersTo(
+      refersToSupabaseJs(
         checker,
-        ts.isPropertyAccessExpression(node.expression)
-          ? node.expression.name
-          : node.expression,
-        'createClient',
-        source
+        calleeName(node.expression),
+        ts.isNewExpression(node) ? 'SupabaseClient' : 'createClient',
+        supabaseJsDir
       ) &&
       checker.getContextualType(node) === undefined
     ) {
@@ -409,24 +427,19 @@ function scanSuppressions(
     .map(({ line, kind }) => `${relativePath}:${line} ${kind}`);
 }
 
-function findCallableExports(
-  program: ts.Program,
-  files: readonly string[]
-): Set<string> {
+function findCallableExports(program: ts.Program, file: string): Set<string> {
   const checker = program.getTypeChecker();
   const callable = new Set<string>();
-  for (const file of files) {
-    const source = program.getSourceFile(file);
-    const moduleSymbol = source && checker.getSymbolAtLocation(source);
-    if (!moduleSymbol) continue;
-    for (const symbol of checker.getExportsOfModule(moduleSymbol)) {
-      const target =
-        symbol.flags & ts.SymbolFlags.Alias
-          ? checker.getAliasedSymbol(symbol)
-          : symbol;
-      if (checker.getTypeOfSymbol(target).getCallSignatures().length > 0) {
-        callable.add(symbol.name);
-      }
+  const source = program.getSourceFile(file);
+  const moduleSymbol = source && checker.getSymbolAtLocation(source);
+  if (!moduleSymbol) return callable;
+  for (const symbol of checker.getExportsOfModule(moduleSymbol)) {
+    const target =
+      symbol.flags & ts.SymbolFlags.Alias
+        ? checker.getAliasedSymbol(symbol)
+        : symbol;
+    if (checker.getTypeOfSymbol(target).getCallSignatures().length > 0) {
+      callable.add(symbol.name);
     }
   }
   return callable;
@@ -445,10 +458,8 @@ export function analyseProject(
     if (!fs.existsSync(srcDir)) {
       return { ok: false, notes: 'no src directory in the workspace' };
     }
-    const compilerOptions = loadCompilerOptions(
-      root,
-      options.supabaseJsDir ?? resolveSupabaseJsDir()
-    );
+    const supabaseJsDir = options.supabaseJsDir ?? resolveSupabaseJsDir();
+    const compilerOptions = loadCompilerOptions(root, supabaseJsDir);
     const files = listProjectFiles(srcDir);
     const relative = (file: string) => posix(path.relative(root, file));
     const parsed = new Map<string, ts.SourceFile>();
@@ -552,15 +563,32 @@ export function analyseProject(
       ].filter((diagnostic) => !diagnostic.file),
     ].map((diagnostic) => formatDiagnostic(root, diagnostic));
 
-    const appFiles = appPaths.map(relative).sort();
     const checker = program.getTypeChecker();
-    const suppressions = appFiles.flatMap((file) => {
-      const source = program.getSourceFile(path.join(root, file));
-      return source ? scanSuppressions(file, source, checker) : [];
-    });
+    const suppressions = files
+      .map(relative)
+      .sort()
+      .flatMap((file) => {
+        const source = program.getSourceFile(path.join(root, file));
+        return source
+          ? scanSuppressions(file, source, checker, supabaseJsDir)
+          : [];
+      });
 
-    const callable = findCallableExports(program, files);
+    const callableByFile = new Map(
+      files.map((file) => [file, findCallableExports(program, file)])
+    );
+    const callable = new Set(
+      [...callableByFile.values()].flatMap((names) => [...names])
+    );
     const missingExports = APP_EXPORTS.filter((name) => !callable.has(name));
+    const appFiles = files
+      .filter(
+        (file) =>
+          !databaseDeclarers.has(file) ||
+          (callableByFile.get(file)?.size ?? 0) > 0
+      )
+      .map(relative)
+      .sort();
 
     return {
       ok: true,

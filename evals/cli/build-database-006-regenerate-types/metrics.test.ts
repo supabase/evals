@@ -195,7 +195,11 @@ describe('readStackLifecycle', () => {
 
   it.each([
     ['supabase stop', 'supabase stop'],
-    ['supabase stop --no-backup', 'supabase stop'],
+    ['supabase stop --no-backup', 'supabase stop --no-backup'],
+    [
+      'supabase stop --project-id scratch',
+      'supabase stop --project-id scratch',
+    ],
     ['supabase stack stop', 'supabase stack stop'],
     ['supabase stack destroy', 'supabase stack destroy'],
   ])('treats %s as a stop', (command, last) => {
