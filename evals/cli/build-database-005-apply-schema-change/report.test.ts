@@ -35,7 +35,12 @@ const FACTS: Facts = {
     addsNeededShape: true,
     notes: `${NEW_FILE} adds due_date as date`,
   },
-  recorded: { ok: true, recorded: [NEW_MIGRATION], missing: [] },
+  recorded: {
+    ok: true,
+    recorded: [NEW_MIGRATION],
+    missing: [],
+    mismatched: [],
+  },
   files: {
     seededMigrationModified: false,
     newMigrationFiles: 1,
@@ -200,6 +205,7 @@ describe('describeGroundTruth', () => {
       ok: true,
       recorded: [],
       missing: [NEW_MIGRATION],
+      mismatched: [],
     };
     expect(line(lines({ recorded }), RECORDED_LINE)).toBe(
       `${RECORDED_LINE}: no (version(s) 20260102000000 not in supabase_migrations.schema_migrations)`
@@ -213,9 +219,50 @@ describe('describeGroundTruth', () => {
       missing: [
         { version: '20260103000000', file: '20260103000000_again.sql' },
       ],
+      mismatched: [],
     };
     expect(line(lines({ recorded }), RECORDED_LINE)).toBe(
       `${RECORDED_LINE}: partly (${NEW_FILE} (version 20260102000000) recorded; version(s) 20260103000000 not in supabase_migrations.schema_migrations)`
+    );
+  });
+
+  it('says no, naming the versions whose recorded statements do not match the file, when nothing matches', () => {
+    const recorded: RecordedMigrationsProbe = {
+      ok: true,
+      recorded: [],
+      missing: [],
+      mismatched: [NEW_MIGRATION],
+    };
+    expect(line(lines({ recorded }), RECORDED_LINE)).toBe(
+      `${RECORDED_LINE}: no (version(s) 20260102000000 recorded with statements that don't match the file)`
+    );
+  });
+
+  it('says partly, naming the mismatched versions, when some are recorded and one does not match', () => {
+    const recorded: RecordedMigrationsProbe = {
+      ok: true,
+      recorded: [NEW_MIGRATION],
+      missing: [],
+      mismatched: [
+        { version: '20260103000000', file: '20260103000000_again.sql' },
+      ],
+    };
+    expect(line(lines({ recorded }), RECORDED_LINE)).toBe(
+      `${RECORDED_LINE}: partly (${NEW_FILE} (version 20260102000000) recorded; version(s) 20260103000000 recorded with statements that don't match the file)`
+    );
+  });
+
+  it('names both the missing and the mismatched versions', () => {
+    const recorded: RecordedMigrationsProbe = {
+      ok: true,
+      recorded: [],
+      missing: [NEW_MIGRATION],
+      mismatched: [
+        { version: '20260103000000', file: '20260103000000_again.sql' },
+      ],
+    };
+    expect(line(lines({ recorded }), RECORDED_LINE)).toBe(
+      `${RECORDED_LINE}: no (version(s) 20260102000000 not in supabase_migrations.schema_migrations; version(s) 20260103000000 recorded with statements that don't match the file)`
     );
   });
 
@@ -232,7 +279,12 @@ describe('describeGroundTruth', () => {
   it('never says the column was applied when it is missing and the migration is unrecorded', () => {
     const all = lines({
       column: { ok: true, exists: false },
-      recorded: { ok: true, recorded: [], missing: [NEW_MIGRATION] },
+      recorded: {
+        ok: true,
+        recorded: [],
+        missing: [NEW_MIGRATION],
+        mismatched: [],
+      },
     });
     expect(line(all, COLUMN_LINE)).toBe(`${COLUMN_LINE}: missing`);
     expect(all.filter((entry) => /applied/i.test(entry))).toEqual([]);

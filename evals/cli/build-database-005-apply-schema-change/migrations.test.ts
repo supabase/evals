@@ -1217,20 +1217,43 @@ describe('checkNewMigrationAddsDueDate', () => {
 
 type History = {
   versions: string[];
+  files?: Record<string, string>;
+  statements?: Record<string, string>;
   stdout?: string;
   failure?: CommandResult;
   throws?: string;
 };
 
-// Answers like psql: only the versions the query filters on, or every row when it does not filter.
-function fakeHistory({ versions, stdout, failure, throws }: History) {
+const SECOND_ADD =
+  'alter table public.tasks add column if not exists due_date date;\n';
+const FILES = { [NEW_FILE]: ADD_DUE_DATE, [SECOND_FILE]: SECOND_ADD };
+
+const hex = (text: string) => Buffer.from(text, 'utf8').toString('hex');
+
+// Answers like psql: only the versions the query filters on, or every row when it does not filter,
+// each with the hex of its recorded statements (the file's text unless `statements` overrides it).
+function fakeHistory({
+  versions,
+  files = FILES,
+  statements = {},
+  stdout,
+  failure,
+  throws,
+}: History) {
   const exec = vi.fn(async (command: string): Promise<CommandResult> => {
     if (throws !== undefined) throw new Error(throws);
+    const cat = command.match(/^cat 'supabase\/migrations\/(.+)'$/);
+    if (cat) {
+      return cat[1] in files
+        ? result(files[cat[1]])
+        : result('', false, `cat: ${cat[1]}: No such file or directory`);
+    }
     const psql = command.match(/^psql '([^']+)' -tAc ([\s\S]+)$/);
     if (
       !psql ||
       psql[1] !== DB_URL ||
-      !psql[2].includes('supabase_migrations.schema_migrations')
+      !psql[2].includes('supabase_migrations.schema_migrations') ||
+      !psql[2].includes('statements')
     ) {
       return result('', false, `unexpected command: ${command}`);
     }
@@ -1238,11 +1261,23 @@ function fakeHistory({ versions, stdout, failure, throws }: History) {
     if (stdout !== undefined) return result(stdout);
     const filtered = /\bversion\s+in\s*\(/i.test(psql[2]);
     const asked = [...psql[2].matchAll(/'(\d+)'/g)].map((m) => m[1]);
-    const rows = versions.filter((v) => !filtered || asked.includes(v));
+    const rows = versions
+      .filter((v) => !filtered || asked.includes(v))
+      .map((version) => {
+        const name = Object.keys(files).find((file) =>
+          file.startsWith(`${version}_`)
+        );
+        const recorded =
+          statements[version] ?? (name === undefined ? '' : files[name]);
+        return `${version}|${hex(recorded)}`;
+      });
     return result(rows.length > 0 ? `${rows.join('\n')}\n` : '');
   });
   return { exec };
 }
+
+const psqlCalls = (ctx: ReturnType<typeof fakeHistory>) =>
+  ctx.exec.mock.calls.filter(([command]) => command.startsWith('psql'));
 
 const ONE: ColumnMigrationsProbe = passes([NEW], 'adds');
 const TWO: ColumnMigrationsProbe = passes([NEW, SECOND], 'adds then changes');
@@ -1254,6 +1289,7 @@ describe('readRecordedMigrations', () => {
       ok: true,
       recorded: [SECOND],
       missing: [NEW],
+      mismatched: [],
     });
   });
 
@@ -1263,6 +1299,7 @@ describe('readRecordedMigrations', () => {
       ok: true,
       recorded: [],
       missing: [NEW],
+      mismatched: [],
     });
   });
 
@@ -1274,17 +1311,26 @@ describe('readRecordedMigrations', () => {
       ok: true,
       recorded: [NEW, SECOND],
       missing: [],
+      mismatched: [],
     });
   });
 
   it('asks only about the contributing versions, not the seeded one', async () => {
     const ctx = fakeHistory({ versions: [NEW_VERSION] });
     await readRecordedMigrations(ctx, STACK, TWO);
-    expect(ctx.exec).toHaveBeenCalledTimes(1);
-    const command = ctx.exec.mock.calls[0][0];
+    expect(psqlCalls(ctx)).toHaveLength(1);
+    const command = psqlCalls(ctx)[0][0];
     expect(command).toContain(NEW_VERSION);
     expect(command).toContain(SECOND.version);
     expect(command).not.toContain(SEEDED_VERSION);
+  });
+
+  it('selects the recorded statements as hex beside the version', async () => {
+    const ctx = fakeHistory({ versions: [NEW_VERSION] });
+    await readRecordedMigrations(ctx, STACK, ONE);
+    const command = psqlCalls(ctx)[0][0];
+    expect(command).toContain('array_to_string(statements');
+    expect(command).toContain("'hex'");
   });
 
   it('queries the contributors even when the final shape is wrong', async () => {
@@ -1295,22 +1341,26 @@ describe('readRecordedMigrations', () => {
         STACK,
         fails('after x, due_date is text', [NEW])
       )
-    ).toEqual({ ok: true, recorded: [NEW], missing: [] });
-    expect(ctx.exec).toHaveBeenCalledTimes(1);
+    ).toEqual({ ok: true, recorded: [NEW], missing: [], mismatched: [] });
+    expect(psqlCalls(ctx)).toHaveLength(1);
   });
 
   it('compares whole versions, not substrings of longer rows', async () => {
-    const ctx = fakeHistory({ versions: [], stdout: `1${NEW_VERSION}\n` });
+    const ctx = fakeHistory({
+      versions: [],
+      stdout: `1${NEW_VERSION}|${hex(ADD_DUE_DATE)}\n`,
+    });
     expect(await readRecordedMigrations(ctx, STACK, ONE)).toMatchObject({
       ok: true,
       recorded: [],
+      missing: [NEW],
     });
   });
 
   it('finds the version among several returned rows', async () => {
     const ctx = fakeHistory({
       versions: [],
-      stdout: `20260103000000\n\n${NEW_VERSION}\n`,
+      stdout: `20260103000000|${hex(SECOND_ADD)}\n\n${NEW_VERSION}|${hex(ADD_DUE_DATE)}\n`,
     });
     expect(await readRecordedMigrations(ctx, STACK, ONE)).toMatchObject({
       ok: true,
@@ -1324,11 +1374,183 @@ describe('readRecordedMigrations', () => {
       file: '20240601000000_add_due_date.sql',
     };
     const probe = await scanSeeded({ [stray.file]: ADD_DUE_DATE });
-    const ctx = fakeHistory({ versions: [SEEDED_VERSION, stray.version] });
+    const ctx = fakeHistory({
+      versions: [SEEDED_VERSION, stray.version],
+      files: { [stray.file]: ADD_DUE_DATE },
+    });
     expect(await readRecordedMigrations(ctx, STACK, probe)).toEqual({
       ok: true,
       recorded: [stray],
       missing: [],
+      mismatched: [],
+    });
+  });
+
+  describe('recorded statements', () => {
+    it('flags a migration recorded with empty statements while the file adds the column', async () => {
+      const ctx = fakeHistory({
+        versions: [NEW_VERSION],
+        statements: { [NEW_VERSION]: '' },
+      });
+      expect(await readRecordedMigrations(ctx, STACK, ONE)).toEqual({
+        ok: true,
+        recorded: [],
+        missing: [],
+        mismatched: [NEW],
+      });
+    });
+
+    it('flags recorded statements that add a different type than the file', async () => {
+      const ctx = fakeHistory({
+        versions: [NEW_VERSION],
+        statements: { [NEW_VERSION]: add('text') },
+      });
+      expect(await readRecordedMigrations(ctx, STACK, ONE)).toMatchObject({
+        recorded: [],
+        mismatched: [NEW],
+      });
+    });
+
+    it('flags recorded statements that never touch the column', async () => {
+      const ctx = fakeHistory({
+        versions: [NEW_VERSION],
+        statements: { [NEW_VERSION]: 'create index on public.tasks (done);' },
+      });
+      expect(await readRecordedMigrations(ctx, STACK, ONE)).toMatchObject({
+        recorded: [],
+        mismatched: [NEW],
+      });
+    });
+
+    it('records statements that match the file', async () => {
+      const ctx = fakeHistory({ versions: [NEW_VERSION] });
+      expect(await readRecordedMigrations(ctx, STACK, ONE)).toMatchObject({
+        recorded: [NEW],
+        mismatched: [],
+      });
+    });
+
+    it('records statements that match apart from comments, whitespace and case', async () => {
+      const ctx = fakeHistory({
+        versions: [NEW_VERSION],
+        statements: {
+          [NEW_VERSION]:
+            '-- add it\nALTER TABLE  public.tasks\n  ADD COLUMN due_date  DATE /* nullable */',
+        },
+      });
+      expect(await readRecordedMigrations(ctx, STACK, ONE)).toMatchObject({
+        recorded: [NEW],
+        mismatched: [],
+      });
+    });
+
+    it('records statements the CLI stored split and without their semicolons', async () => {
+      const files = {
+        [NEW_FILE]:
+          'create index tasks_done_idx on public.tasks (done);\nalter table public.tasks add column due_date date;\n',
+      };
+      const ctx = fakeHistory({
+        versions: [NEW_VERSION],
+        files,
+        statements: {
+          [NEW_VERSION]:
+            'create index tasks_done_idx on public.tasks (done);\nalter table public.tasks add column due_date date',
+        },
+      });
+      expect(await readRecordedMigrations(ctx, STACK, ONE)).toMatchObject({
+        recorded: [NEW],
+        mismatched: [],
+      });
+    });
+
+    it('records statements that migration repair upserted from the file', async () => {
+      const files = { [NEW_FILE]: add('date default null') };
+      const ctx = fakeHistory({
+        versions: [NEW_VERSION],
+        files,
+        statements: { [NEW_VERSION]: files[NEW_FILE] },
+      });
+      expect(await readRecordedMigrations(ctx, STACK, ONE)).toMatchObject({
+        recorded: [NEW],
+      });
+    });
+
+    it('decodes multi-line statements with non-ASCII identifiers from hex', async () => {
+      const sql =
+        'alter table public.tasks\n  add column due_date date\n    default null\n    constraint "échéance_ck" check (true);\n';
+      const ctx = fakeHistory({
+        versions: [NEW_VERSION],
+        files: { [NEW_FILE]: sql },
+      });
+      expect(await readRecordedMigrations(ctx, STACK, ONE)).toMatchObject({
+        recorded: [NEW],
+        mismatched: [],
+      });
+      const garbled = fakeHistory({
+        versions: [NEW_VERSION],
+        files: { [NEW_FILE]: sql },
+        statements: { [NEW_VERSION]: sql.replace('échéance', 'echeance') },
+      });
+      expect(await readRecordedMigrations(garbled, STACK, ONE)).toMatchObject({
+        recorded: [],
+        mismatched: [NEW],
+      });
+    });
+
+    it('splits each contributor into recorded, missing and mismatched', async () => {
+      const third = {
+        version: '20260104000000',
+        file: '20260104000000_third.sql',
+      };
+      const ctx = fakeHistory({
+        versions: [NEW_VERSION, third.version],
+        files: { ...FILES, [third.file]: SECOND_ADD },
+        statements: { [NEW_VERSION]: '' },
+      });
+      expect(
+        await readRecordedMigrations(
+          ctx,
+          STACK,
+          passes([NEW, SECOND, third], 'adds')
+        )
+      ).toEqual({
+        ok: true,
+        recorded: [third],
+        missing: [SECOND],
+        mismatched: [NEW],
+      });
+    });
+
+    it('fails with the cat failure when a contributor file can no longer be read', async () => {
+      const ctx = fakeHistory({ versions: [NEW_VERSION], files: {} });
+      expect(await readRecordedMigrations(ctx, STACK, ONE)).toEqual({
+        ok: false,
+        notes: `exit 1: cat: ${NEW_FILE}: No such file or directory`,
+      });
+    });
+
+    it.each([
+      ['text without a separator', 'ERROR: something went wrong'],
+      ['a payload that is not hex', `${NEW_VERSION}|not-hex`],
+      ['a payload of odd length', `${NEW_VERSION}|abc`],
+      ['a version that is not numeric', 'abc|00'],
+      ['a row of the old shape', NEW_VERSION],
+    ])('fails loudly on %s', async (_label, stdout) => {
+      const ctx = fakeHistory({ versions: [], stdout });
+      expect(await readRecordedMigrations(ctx, STACK, ONE)).toEqual({
+        ok: false,
+        notes: `unrecognised migration history row: ${stdout}`,
+      });
+    });
+
+    it('fails loudly even when a recognised row precedes the unrecognised one', async () => {
+      const ctx = fakeHistory({
+        versions: [],
+        stdout: `${NEW_VERSION}|${hex(ADD_DUE_DATE)}\nwarning: noisy\n`,
+      });
+      expect(await readRecordedMigrations(ctx, STACK, ONE)).toMatchObject({
+        ok: false,
+      });
     });
   });
 
@@ -1404,9 +1626,17 @@ describe('readRecordedMigrations', () => {
 });
 
 describe('checkMigrationRecorded', () => {
+  const MISMATCH = (versions: string) =>
+    `version(s) ${versions} recorded with different due_date statements than the file now holds, so the file changed after it was applied`;
+
   it('passes and names the recorded migration', () => {
     expect(
-      checkMigrationRecorded({ ok: true, recorded: [NEW], missing: [] })
+      checkMigrationRecorded({
+        ok: true,
+        recorded: [NEW],
+        missing: [],
+        mismatched: [],
+      })
     ).toEqual({
       name: MIGRATION_RECORDED_CHECK_NAME,
       passed: true,
@@ -1419,6 +1649,7 @@ describe('checkMigrationRecorded', () => {
       ok: true,
       recorded: [NEW, SECOND],
       missing: [],
+      mismatched: [],
     });
     expect(check.passed).toBe(true);
     expect(check.notes).toContain(NEW_FILE);
@@ -1430,7 +1661,12 @@ describe('checkMigrationRecorded', () => {
 
   it('fails naming the missing version when only one of two contributors is recorded', () => {
     expect(
-      checkMigrationRecorded({ ok: true, recorded: [SECOND], missing: [NEW] })
+      checkMigrationRecorded({
+        ok: true,
+        recorded: [SECOND],
+        missing: [NEW],
+        mismatched: [],
+      })
     ).toEqual({
       name: MIGRATION_RECORDED_CHECK_NAME,
       passed: false,
@@ -1440,7 +1676,12 @@ describe('checkMigrationRecorded', () => {
 
   it('fails stating every version missing from the history', () => {
     expect(
-      checkMigrationRecorded({ ok: true, recorded: [], missing: [NEW, SECOND] })
+      checkMigrationRecorded({
+        ok: true,
+        recorded: [],
+        missing: [NEW, SECOND],
+        mismatched: [],
+      })
     ).toEqual({
       name: MIGRATION_RECORDED_CHECK_NAME,
       passed: false,
@@ -1448,13 +1689,53 @@ describe('checkMigrationRecorded', () => {
     });
   });
 
-  it('fails without claiming how the column got there', () => {
+  it('fails without claiming how the column got there when a version is missing', () => {
     const check = checkMigrationRecorded({
       ok: true,
       recorded: [],
       missing: [NEW],
+      mismatched: [],
     });
     expect(check.notes).not.toMatch(/applied|outside/i);
+  });
+
+  it('fails naming the versions recorded with statements that differ from the file', () => {
+    expect(
+      checkMigrationRecorded({
+        ok: true,
+        recorded: [],
+        missing: [],
+        mismatched: [NEW],
+      })
+    ).toEqual({
+      name: MIGRATION_RECORDED_CHECK_NAME,
+      passed: false,
+      notes: MISMATCH(NEW_VERSION),
+    });
+  });
+
+  it('fails when one contributor is recorded and another mismatched', () => {
+    const check = checkMigrationRecorded({
+      ok: true,
+      recorded: [NEW],
+      missing: [],
+      mismatched: [SECOND],
+    });
+    expect(check.passed).toBe(false);
+    expect(check.notes).toBe(MISMATCH('20260103000000'));
+  });
+
+  it('names both problems when a version is missing and another mismatched', () => {
+    expect(
+      checkMigrationRecorded({
+        ok: true,
+        recorded: [],
+        missing: [NEW],
+        mismatched: [SECOND],
+      }).notes
+    ).toBe(
+      `version(s) ${NEW_VERSION} not in supabase_migrations.schema_migrations; ${MISMATCH('20260103000000')}`
+    );
   });
 
   it('fails with the probe notes when the probe could not read the history', () => {
@@ -1466,10 +1747,27 @@ describe('checkMigrationRecorded', () => {
   });
 
   it('passes a wrong-shape migration that is recorded, while the migration check fails it', async () => {
-    const probe = await scanSeeded({ [NEW_FILE]: add('text') });
-    const ctx = fakeHistory({ versions: [SEEDED_VERSION, NEW_VERSION] });
+    const files = { [NEW_FILE]: add('text') };
+    const probe = await scanSeeded(files);
+    const ctx = fakeHistory({ versions: [SEEDED_VERSION, NEW_VERSION], files });
     const recorded = await readRecordedMigrations(ctx, STACK, probe);
     expect(checkMigrationRecorded(recorded).passed).toBe(true);
     expect(checkNewMigrationAddsDueDate(probe).passed).toBe(false);
+  });
+
+  it('fails a migration recorded with empty statements, while the migration check passes it', async () => {
+    const probe = await scanSeeded({ [NEW_FILE]: ADD_DUE_DATE });
+    const ctx = fakeHistory({
+      versions: [NEW_VERSION],
+      files: { [NEW_FILE]: ADD_DUE_DATE },
+      statements: { [NEW_VERSION]: '' },
+    });
+    const recorded = await readRecordedMigrations(ctx, STACK, probe);
+    expect(checkNewMigrationAddsDueDate(probe).passed).toBe(true);
+    expect(checkMigrationRecorded(recorded)).toEqual({
+      name: MIGRATION_RECORDED_CHECK_NAME,
+      passed: false,
+      notes: MISMATCH(NEW_VERSION),
+    });
   });
 });

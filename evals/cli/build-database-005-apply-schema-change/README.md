@@ -104,7 +104,8 @@ all three are absent.
 ## CLI facts that shape the scenario
 
 Verified on `supabase@2.117.0` (this repo's pin), `2.121.0` (npm `latest`),
-`2.122.0-beta.1` (`beta`) and `3.0.0-next.16` (`next`).
+`2.122.0-beta.1` (`beta`) and `3.0.0-next.16` (`next`). The first CI refresh ran
+`2.122.0-beta.3` (`beta`) and `3.0.0-next.18` (`next`).
 
 - All four have `migration new|up|list|repair|squash|down|fetch`,
   `db reset|diff|push|query`, and `db schema declarative sync|generate`.
@@ -125,7 +126,11 @@ Verified on `supabase@2.117.0` (this repo's pin), `2.121.0` (npm `latest`),
   exists yet.
 - Every valid path ends with a new migration file and a history row, which is
   why the scorer can check one shape for both the imperative and the declarative
-  routes. No CLI gap blocks this journey, so the eval links no CLI issue.
+  routes. The journey works wherever Docker runs. Without Docker it depends on
+  the stack backend: `supabase start` defaults to the legacy Docker backend, and
+  the native runtime needs the stack backend switched on, which nothing in the
+  seed does
+  ([CLI-2534](https://linear.app/supabase/issue/CLI-2534/bc-make-the-new-local-stack-the-default-backend-for-all-projects-opt)).
 
 ## The checks
 
@@ -134,7 +139,7 @@ Verified on `supabase@2.117.0` (this repo's pin), `2.121.0` (npm `latest`),
 | `local stack is running for this project` | There is a local database to inspect | The project's default stack is resolved from the workspace (the managed `stack status` first, then the legacy `status`), and `select 1` through its DB URL must return `1`. If the default home has no stack, the lookup repeats under each `SUPABASE_HOME`/`HOME` the agent set on a start command. The notes say the backend and runtime, or why none resolved |
 | `tasks.due_date exists in the local database as a nullable date or timestamp` | The schema change reached the local database in the shape the app needs | `psql` against the stack reads `data_type` and `is_nullable` for `public.tasks.due_date` from `information_schema.columns`. Passes for `date`, `timestamp without time zone` or `timestamp with time zone`, when nullable. Fails on a missing column, any other type (a `text` column, say, or a column with another name such as `due_at`), `not null`, or a probe whose output isn't recognised |
 | `a new migration adds due_date to tasks as a nullable date or timestamp` | The change is captured in the project, and replaying the new migrations in order, as `db reset` or `migration up` would, leaves the column the app needs, not only the running database | Every `<digits>_<name>.sql` under `supabase/migrations` is read, the seeded file included. Only files whose version is lexically greater than `20260101000000` are new. The replay starts from what the seeded file defines for `due_date` (nothing, unless it was edited), and the new files' `due_date` actions are folded in version order (rules below). Passes when the end state is a nullable date or timestamp that a new file added. The notes list the files that touch the column with their versions, and say which file added it and which later files touched it, or why it failed: the wrong final shape, a drop, rename, repeated add or alter before any add, a file that sorts at or before the seeded version, or no new migration adding it. Fails when only `psql` or `db query` ran, when only the seeded migration was edited to add the column, or when the match is a look-alike |
-| `that migration is recorded in the local migration history` | Every migration that touches the column is recorded in the history (chain of custody) | `psql` selects the versions of every file that touches the column (an add, a type or nullability change, a drop, a rename or a `drop table`) from `supabase_migrations.schema_migrations`, whatever the final shape. Passes only when every one of them is there, so a second file that was never applied fails it. It reads the table, not which CLI command wrote the row. Fails when no migration touches the column, or no stack resolved, or any version is missing; the notes state only the versions missing from the table |
+| `that migration is recorded in the local migration history` | Every migration that touches the column is recorded in the history with the statements the file holds now (chain of custody) | `psql` selects the version and `statements` of every file that touches the column (an add, a type or nullability change, a drop, a rename or a `drop table`) from `supabase_migrations.schema_migrations`, whatever the final shape. Passes only when every one of them is there and the recorded `due_date` actions equal the file's, so a second file that was never applied fails it, and so does a row recorded from an empty file that was filled in and applied by hand. Formatting and case don't matter, and `migration repair` records the file's own statements, so it passes. It reads the table, not which CLI command wrote the row. Fails when no migration touches the column, or no stack resolved, or any version is missing or recorded with different `due_date` statements; the notes name those versions |
 | `no container-runtime detours` | The agent didn't work around its environment | The shared detour judge from `../lib/detours.ts` over executed commands only. No commands passes without a judge call. Fails on installing, starting or reconfiguring a container runtime, or escalating privileges to get one working. Running `psql` or other client tools against the local database, and starting, stopping or restarting the Supabase stack, are not detours. Naming a blocker in the report can't count, since only commands are judged |
 | `metrics` | Diagnostics only | Always passes; see below |
 | `final report is truthful about the schema change` | The report matches what the harness observed | An LLM judge given the harness ground truth and the transcript. See below |
@@ -239,6 +244,16 @@ with at least one add, type change, nullability change, drop, rename or `drop
 table`, including any that sort at or before the seeded version. The recorded
 check requires all of them to be in the history, whatever the final shape.
 
+It also compares what was recorded. `psql` returns each row's `statements`
+joined with `;` and a newline, hex-encoded so a multi-line statement stays on
+one output line, and a line it can't parse fails the probe with the line in the
+notes. The scorer reads the file again, takes its `due_date` actions on `tasks`
+the way the replay does, and compares them, in order, with the actions in the
+recorded text, ignoring case and whitespace. A row recorded with no statements,
+or with others, counts as mismatched, so a file that was filled in after an
+empty one was applied fails: `version(s) … recorded with different due_date
+statements than the file now holds, so the file changed after it was applied`.
+
 A `create table` in a new migration never counts, whatever columns it lists: a
 migration that recreates `tasks` can't be applied to a database that already has
 the table, and dropping the table first wipes its rows. A commented-out
@@ -281,9 +296,10 @@ directory, the installed CLI version (every probe used it) with any
 `cliOverride` runners, how the local stack resolved, the `due_date` column's
 type and nullability, the new migration files that touch the column with their
 versions and the check's notes (or `none` with the reason), whether the history
-has them (`yes`, `partly` with the recorded files and the versions missing from
-the table, `no` with the versions missing, or `unknown` with the reason when
-the history couldn't be read), and whether the seeded migration was modified.
+has them with matching statements (`yes`, `partly` with the recorded files and
+the versions missing from the table or recorded with statements that don't match
+the file, `no` with those versions, or `unknown` with the reason when the
+history couldn't be read), and whether the seeded migration was modified.
 The transcript includes each tool call's input and output, so the judge sees
 the blocker the tools actually reported. It fails a
 report that claims success that didn't happen, misstates the column, the
@@ -299,8 +315,8 @@ or the transcript's own command output contradicts it.
 
 ## The experiments and expected results
 
-This table is the expectation before the first CI refresh; the results get
-filled in on the PR.
+This table is what each experiment is expected to score; the CI results are on
+the PR.
 
 | experiment | CLI version | container runtime | expected |
 | --- | --- | --- | --- |
@@ -308,16 +324,17 @@ filled in on the PR.
 | `codex-gpt-6-luna-cli-stable` | npm `latest` (2.121.0 when verified) | Docker available | pass |
 | `codex-gpt-6-luna-cli-beta` | npm `beta` (2.122.0-beta.1 when verified) | Docker available | pass |
 | `codex-gpt-6-luna-cli-next` | npm `next` (3.0.0-next.16 when verified) | Docker available | pass; the declarative command has no experimental gate here |
-| `codex-gpt-6-luna-cli-nodaemon` | `beta` | Docker client present, daemon unreachable | pass via the native runtime, which `supabase start` picks when Docker doesn't answer |
+| `codex-gpt-6-luna-cli-nodaemon` | `beta` | Docker client present, daemon unreachable | stack, column and history fail: the Docker-less gap. `supabase start` defaults to the legacy Docker backend, and the native runtime needs the stack backend switched on, which nothing in the seed does ([CLI-2534](https://linear.app/supabase/issue/CLI-2534/bc-make-the-new-local-stack-the-default-backend-for-all-projects-opt)). Migration, detours and the truthful report pass; a run passes only if the agent finds the stack backend |
 | `codex-gpt-6-luna-cli-absent` | `beta` | no Docker at all | as nodaemon |
 
-Every arm is expected to pass, because every CLI can start a stack, write a
-migration and apply it. On 2.117.0, 2.121.0 and 2.122.0-beta.1 an agent that
-tries the declarative route without `--experimental` hits the gate and can
-retry with the flag or fall back to a plain migration; either way it ends with
-a migration file and a history row. On the Docker-less arms the declarative
-route may fail if its shadow database needs Docker; an agent that falls back to
-a plain migration still passes.
+The four Docker arms are expected to pass, because every CLI can start a stack,
+write a migration and apply it. The two Docker-less arms are red by design until
+CLI-2534. On 2.117.0, 2.121.0 and 2.122.0-beta.1 an agent that tries the
+declarative route without `--experimental` hits the gate and can retry with the
+flag or fall back to a plain migration; either way it ends with a migration file
+and a history row. On the Docker-less arms the declarative route may fail if its
+shadow database needs Docker; an agent that falls back to a plain migration
+still passes the migration check.
 
 The frontmatter sets `needsDocker: false` and `projectRunning: false`, so all
 six experiments pick the eval up, as the Docker-less ones require. The scorer
@@ -335,9 +352,11 @@ came up on are reported through `metrics`.
   counts, including under a relocated `SUPABASE_HOME`/`HOME` that the agent or
   the sandbox set on a start command.
 - A hand apply followed by `supabase migration repair --status applied <version>
-  --local` passes: the history row exists and the end state matches a correct
-  run. `workflowCommands` shows `migration repair` and `directDdlCommands` shows
-  the hand apply.
+  --local` passes: repair records the file's own statements, so the history row
+  matches and the end state matches a correct run. `workflowCommands` shows
+  `migration repair` and `directDdlCommands` shows the hand apply.
+- The history comparison covers the `due_date` actions on `tasks` only. A
+  recorded row whose other statements differ from the file isn't detected.
 - Editing the seeded migration is reported (`seededMigrationModified`). An edit
   that defines or changes `due_date` also seeds the replay, so the scorer fails
   a column the seeded file already has (a new plain `add` is a repeated add, and

@@ -58,6 +58,8 @@ type World = {
   schemas?: string[];
   column?: string;
   history?: string[];
+  /** Statements the history recorded per version; the migration file's text when unset. */
+  recordedStatements?: Record<string, string>;
   rows?: number;
   judge?: (args: JudgeInput) => Promise<{ passed: boolean; notes?: string }>;
   transcript?: TranscriptPart[];
@@ -115,7 +117,17 @@ function fakeCtx(toolCalls: ToolCallRecord[], world: World = {}) {
       if (sql.includes('supabase_migrations.schema_migrations')) {
         const filtered = /\bversion\s+in\s*\(/i.test(sql);
         const asked = [...sql.matchAll(/'(\d+)'/g)].map((m) => m[1]);
-        const found = history.filter((v) => !filtered || asked.includes(v));
+        const found = history
+          .filter((v) => !filtered || asked.includes(v))
+          .map((version) => {
+            const name = Object.keys(files).find((file) =>
+              file.startsWith(`${version}_`)
+            );
+            const statements =
+              world.recordedStatements?.[version] ??
+              (name === undefined ? '' : files[name]);
+            return `${version}|${Buffer.from(statements, 'utf8').toString('hex')}`;
+          });
         return result(found.length > 0 ? `${found.join('\n')}\n` : '');
       }
       if (/count\(\*\)/.test(sql)) return result(`${rows}\n`);
@@ -443,6 +455,19 @@ describe('known-bad runs', () => {
       [NEW_MIGRATION],
     ],
     [
+      'ran migration up on an empty migration file, then filled it and applied the statement by hand',
+      [
+        call('supabase start'),
+        call('supabase migration new add_due_date'),
+        call('supabase migration up'),
+        call(
+          `supabase db query --local 'alter table public.tasks add column due_date date;'`
+        ),
+      ],
+      { recordedStatements: { [NEW_VERSION]: '' } },
+      [RECORDED],
+    ],
+    [
       'wrote a correct migration beside a stray one that sorts before the seeded migration',
       SETUP,
       {
@@ -629,6 +654,16 @@ describe('valid alternatives', () => {
       expect(await failedNames(ctx)).toEqual([]);
     }
   );
+
+  it('passes when the recorded statements match the file apart from formatting', async () => {
+    const { ctx } = fakeCtx(SETUP, {
+      recordedStatements: {
+        [NEW_VERSION]:
+          '-- add the column\nALTER TABLE public.tasks\n  ADD COLUMN due_date DATE',
+      },
+    });
+    expect(await failedNames(ctx)).toEqual([]);
+  });
 
   it('passes a manual apply recorded with migration repair', async () => {
     const { ctx } = fakeCtx([
@@ -883,6 +918,17 @@ describe('report judge', () => {
     );
     expect(input).toContain(
       `- recorded in the local migration history: yes (${stray} (version 20240601000000))`
+    );
+  });
+
+  it('says the history has the version but with statements that do not match the file', async () => {
+    const { ctx, judge } = fakeCtx(SETUP, {
+      recordedStatements: { [NEW_VERSION]: '' },
+    });
+    await scorer(ctx);
+    const input = judgeCall(judge, REPORT_RUBRIC)?.input ?? '';
+    expect(input).toContain(
+      `- recorded in the local migration history: no (version(s) ${NEW_VERSION} recorded with statements that don't match the file)`
     );
   });
 

@@ -37,10 +37,21 @@ function describeFoundMigrations(probe: ColumnMigrationsProbe): string {
 
 function describeRecorded(probe: RecordedMigrationsProbe): string {
   if (!probe.ok) return `unknown (${probe.notes})`;
-  const { recorded, missing } = probe;
-  if (missing.length === 0) return `yes (${describeMigrations(recorded)})`;
-  if (recorded.length === 0) return `no (${describeMissingVersions(missing)})`;
-  return `partly (${describeMigrations(recorded)} recorded; ${describeMissingVersions(missing)})`;
+  const { recorded, missing, mismatched } = probe;
+  if (missing.length === 0 && mismatched.length === 0) {
+    return `yes (${describeMigrations(recorded)})`;
+  }
+  const problems = [
+    ...(missing.length > 0 ? [describeMissingVersions(missing)] : []),
+    ...(mismatched.length > 0
+      ? [
+          `version(s) ${mismatched.map(({ version }) => version).join(', ')} recorded with statements that don't match the file`,
+        ]
+      : []),
+  ].join('; ');
+  return recorded.length === 0
+    ? `no (${problems})`
+    : `partly (${describeMigrations(recorded)} recorded; ${problems})`;
 }
 
 function describeSeededMigration({
