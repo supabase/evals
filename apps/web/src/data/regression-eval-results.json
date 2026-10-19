@@ -2056,17 +2056,17 @@
       {
         "name": "identified video-thumbnails and the 546 resource-limit pattern",
         "passed": true,
-        "judgeNotes": "Identified video-thumbnails as the affected function and its failures as HTTP 546 responses caused by a CPU resource limit."
+        "judgeNotes": "Identified video-thumbnails as the affected function and its failures as HTTP 546 responses caused by the Edge Function CPU limit."
       },
       {
         "name": "attributed the 546s to CPU time exhaustion",
         "passed": true,
-        "judgeNotes": "The assistant attributes the logged 546 failures to CPU time exhaustion, citing `CPUTime` and CPU usage at the 2,000 ms limit. It appropriately notes that the available logs do not confirm today's incident."
+        "judgeNotes": "The assistant attributed the 546 failures to CPU time exhaustion, citing the logged CPUTime reason and full 2,000 ms CPU allowance."
       },
       {
         "name": "recommended reducing/offloading CPU work as the fix",
         "passed": true,
-        "judgeNotes": "Recommends reducing thumbnail-generation CPU work and moving processing to a worker or media service if needed."
+        "judgeNotes": "Recommends moving CPU-intensive thumbnail extraction out of the Edge Function to a video-processing service or worker."
       }
     ],
     "skills": {
@@ -2082,35 +2082,291 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Monitoring and Debugging logs Edge Functions function_edge_logs query logs\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"Monitoring and Debugging Edge Function logs query logs function_edge_logs\", limit: 5) { nodes { ... on Guide { title href content } } }",
+          "hasContent": true,
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Monitoring and Debugging\", limit: 5) { edges { node { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "query { schema }",
+          "hasContent": false,
+          "pages": [],
+          "resultChars": 8122
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Monitoring and Debugging Edge Function logs CPU time limit\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/observability/logs",
-              "title": "Logs in Studio"
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-wall-clock-time-limit-reached-Nk38bW",
+              "title": "Edge Function 'wall clock time limit reached'"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-takes-too-long-to-respond",
+              "title": "Edge Function takes too long to respond"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-monitoring-resource-usage",
+              "title": "Monitoring Edge Function resource usage"
             },
             {
               "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-546-error-response",
               "title": "546 - WORKER_RESOURCE_LIMIT Exceeded / WORKER_LIMIT Exceeded"
             },
             {
-              "url": "https://supabase.com/docs/guides/ai-tools/mcp",
-              "title": "Supabase MCP Server"
+              "url": "https://supabase.com/docs/guides/functions/limits",
+              "title": "Limits"
+            }
+          ],
+          "resultChars": 21830
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 121999,
+        "cacheReadInputTokens": 79058,
+        "cacheWriteInputTokens": 42923,
+        "outputTokens": 2823
+      }
+    ],
+    "stepCount": 6,
+    "toolCallCount": 12,
+    "agentRunDurationMs": 44674,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 115136,
+      "duration": 136180,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 767842675,
+        "egress": 4085848
+      }
+    },
+    "prompt": "Our `video-thumbnails` edge function has been failing intermittently since this morning. It generates a thumbnail from a user-uploaded video, and about half the calls are erroring out.\n\nCan you investigate the project logs and tell me what's going on and what we should do about it?",
+    "promptSourcePath": "evals/regression/investigate-functions-001-546-resource-limit/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna/investigate-functions-001-546-resource-limit/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "investigate-functions-001-546-resource-limit",
+    "stage": "investigate",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "observability"
+    ],
+    "suite": "regression",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "identified video-thumbnails and the 546 resource-limit pattern",
+        "passed": true,
+        "judgeNotes": "Identified video-thumbnails as the affected function and its failures as HTTP 546 responses caused by a CPU resource limit."
+      },
+      {
+        "name": "attributed the 546s to CPU time exhaustion",
+        "passed": true,
+        "judgeNotes": "The assistant attributes the 546 failures to CPU-time exhaustion and grounds this in the logged CPUTime shutdowns and 2,000 ms CPU usage."
+      },
+      {
+        "name": "recommended reducing/offloading CPU work as the fix",
+        "passed": true,
+        "judgeNotes": "Recommends moving CPU-intensive thumbnail generation to a worker or media-processing service, or reducing the video processing done per invocation."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Monitoring and Debugging Edge Function logs diagnose failures\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/unit-test",
+              "title": "Testing your Edge Functions"
             },
             {
-              "url": "https://supabase.com/docs/guides/platform/manage-your-usage/egress",
-              "title": "Manage Egress usage"
+              "url": "https://supabase.com/docs/guides/observability/logs",
+              "title": "Logs in Studio"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-takes-too-long-to-respond",
+              "title": "Edge Function takes too long to respond"
             },
             {
               "url": "https://supabase.com/docs/guides/functions/logging",
               "title": "Logging"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/debugging-tools",
+              "title": "Local Debugging"
             }
           ],
-          "resultChars": 45081
+          "resultChars": 21415
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"advanced log filtering ClickHouse logs function_edge_logs function_logs log_attributes Edge Function logs SQL\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"Monitoring and Debugging Edge Function logs CPU time limits compute time\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-wall-clock-time-limit-reached-Nk38bW",
+              "title": "Edge Function 'wall clock time limit reached'"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-takes-too-long-to-respond",
+              "title": "Edge Function takes too long to respond"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-monitoring-resource-usage",
+              "title": "Monitoring Edge Function resource usage"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-546-error-response",
+              "title": "546 - WORKER_RESOURCE_LIMIT Exceeded / WORKER_LIMIT Exceeded"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/limits",
+              "title": "Limits"
+            }
+          ],
+          "resultChars": 21830
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Edge Functions limits CPU time image video processing background tasks\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/background-tasks",
+              "title": "Background Tasks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/recursive-functions",
+              "title": "Recursive / Nested Function Calls"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/storage-caching",
+              "title": "Integrating with Supabase Storage"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/wasm",
+              "title": "Using Wasm modules"
+            }
+          ],
+          "resultChars": 35548
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 215696,
+        "cacheReadInputTokens": 166362,
+        "cacheWriteInputTokens": 49307,
+        "outputTokens": 5087
+      }
+    ],
+    "stepCount": 9,
+    "toolCallCount": 13,
+    "agentRunDurationMs": 71678,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 113527,
+      "duration": 161976,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 767709171,
+        "egress": 4752240
+      }
+    },
+    "prompt": "Our `video-thumbnails` edge function has been failing intermittently since this morning. It generates a thumbnail from a user-uploaded video, and about half the calls are erroring out.\n\nCan you investigate the project logs and tell me what's going on and what we should do about it?",
+    "promptSourcePath": "evals/regression/investigate-functions-001-546-resource-limit/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna/investigate-functions-001-546-resource-limit/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "investigate-functions-001-546-resource-limit",
+    "stage": "investigate",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "observability"
+    ],
+    "suite": "regression",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "identified video-thumbnails and the 546 resource-limit pattern",
+        "passed": true,
+        "judgeNotes": "Identified video-thumbnails as the affected function and its failures as HTTP 546 CPU-limit shutdowns, not 500s or 503s."
+      },
+      {
+        "name": "attributed the 546s to CPU time exhaustion",
+        "passed": true,
+        "judgeNotes": "The assistant attributes the 546 failures to CPU-time exhaustion, citing CPUTime shutdowns at the 2,000 ms CPU limit. It also flags a log-date mismatch without changing that attribution."
+      },
+      {
+        "name": "recommended reducing/offloading CPU work as the fix",
+        "passed": true,
+        "judgeNotes": "The assistant recommends reducing CPU work in the Edge Function or moving thumbnail extraction to a worker or media service."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Monitoring and Debugging Edge Function logs query_logs function_edge_logs\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -2118,47 +2374,71 @@
               "title": "Logs in Studio"
             },
             {
-              "url": "https://supabase.com/docs/guides/observability/advanced-log-filtering",
-              "title": "Query logs with SQL"
+              "url": "https://supabase.com/docs/guides/ai-tools/mcp",
+              "title": "Supabase MCP Server"
             },
             {
-              "url": "https://supabase.com/docs/guides/troubleshooting/how-to-interpret-and-explore-the-postgres-logs-OuCIOj",
-              "title": "How to Interpret and Explore the Postgres Logs"
+              "url": "https://supabase.com/docs/guides/functions/logging",
+              "title": "Logging"
             },
             {
-              "url": "https://supabase.com/docs/guides/troubleshooting/discovering-and-interpreting-api-errors-in-the-logs-7xREI9",
-              "title": "Discovering and Interpreting API Errors in the Logs"
+              "url": "https://supabase.com/docs/guides/platform/manage-your-usage/egress",
+              "title": "Manage Egress usage"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/inspecting-edge-function-environment-variables-wg5qOQ",
+              "title": "Inspecting edge function environment variables"
             }
           ],
-          "resultChars": 60133
+          "resultChars": 35879
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"advanced log filtering function_edge_logs function_logs log_attributes function name\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/observability/logs",
+              "title": "Logs in Studio"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advanced-log-filtering",
+              "title": "Query logs with SQL"
+            }
+          ],
+          "resultChars": 42005
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 159378,
-        "cacheReadInputTokens": 117038,
-        "cacheWriteInputTokens": 42319,
-        "outputTokens": 3432
+        "inputTokens": 159751,
+        "cacheReadInputTokens": 116926,
+        "cacheWriteInputTokens": 42804,
+        "outputTokens": 3742
       }
     ],
     "stepCount": 7,
-    "toolCallCount": 12,
-    "agentRunDurationMs": 64270,
+    "toolCallCount": 10,
+    "agentRunDurationMs": 59347,
     "sandboxUsage": {
-      "activeCpuDurationMs": 156789,
-      "duration": 184630,
+      "activeCpuDurationMs": 117857,
+      "duration": 151602,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 765737905,
-        "egress": 3199949
+        "ingress": 767146978,
+        "egress": 4162018
       }
     },
     "prompt": "Our `video-thumbnails` edge function has been failing intermittently since this morning. It generates a thumbnail from a user-uploaded video, and about half the calls are erroring out.\n\nCan you investigate the project logs and tell me what's going on and what we should do about it?",
     "promptSourcePath": "evals/regression/investigate-functions-001-546-resource-limit/PROMPT.md",
-    "run": 1,
-    "sourcePath": "codex-gpt-6-luna/investigate-functions-001-546-resource-limit/run-1/result.json"
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna/investigate-functions-001-546-resource-limit/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna",
