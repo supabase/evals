@@ -3730,6 +3730,490 @@
     "sourcePath": "codex-gpt-6-luna-cli-absent/resolve-database-003-docker-mode-unavailable/run-3/result.json"
   },
   {
+    "experiment": "codex-gpt-6-luna-cli-absent",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-004-reconcile-migration-history",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.4",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "remote history and local migrations line up",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "remote schema changes are each recorded under one local migration",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the unshipped avatar change is recorded only if it was applied",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "production data is intact",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "local migrations still make every seeded change",
+        "passed": true,
+        "notes": "profiles: 20240101000000_create_profiles.sql; bio: 20240116120000_add_profile_bio.sql; avatar: 20240301000000_add_profile_avatar.sql"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempts to install, start, reconfigure, or gain privileged access to a container runtime or VM."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0-beta.4\",\"cliOverride\":[],\"channel\":\"beta\",\"hostedProject\":false,\"localMigrations\":[\"20240101000000_create_profiles.sql\",\"20240116120000_add_profile_bio.sql\",\"20240301000000_add_profile_avatar.sql\"],\"remoteVersions\":null,\"cliCommands\":{\"other\":2,\"migration list\":1},\"historySqlWrites\":0,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the migration history",
+        "passed": true,
+        "judgeNotes": "The report accurately states that no hosted project was linked or reached, identifies the CLI’s missing project-ref error, describes only the local migration files, and does not claim remote changes or verified production data."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI migration list remote local migration history repair migration status mark applied repair\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-repair",
+              "title": "Repair the migration history table"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
+              "title": "List local and remote migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-up",
+              "title": "Apply pending migrations to local database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            }
+          ],
+          "resultChars": 48375
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI db dump schema only no data migration list linked\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-dump",
+              "title": "Dumps data or schemas from the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/postgres",
+              "title": "Migrate from Postgres to Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/restore-from-platform",
+              "title": "Restore a Platform Project to Self-Hosted"
+            }
+          ],
+          "resultChars": 94021
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 135088,
+        "cacheReadInputTokens": 94994,
+        "cacheWriteInputTokens": 39772,
+        "outputTokens": 2855
+      }
+    ],
+    "stepCount": 7,
+    "toolCallCount": 13,
+    "agentRunDurationMs": 46165,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 126331,
+      "duration": 144816,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 831450972,
+        "egress": 4597878
+      }
+    },
+    "prompt": "Our local migrations and the migration history on our hosted project don't match any more, and I'm not sure how they drifted apart. Can you work out what happened and get them back in line? Prod has real user data, so don't lose any of it.",
+    "promptSourcePath": "evals/cli/resolve-database-004-reconcile-migration-history/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-absent/resolve-database-004-reconcile-migration-history/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-absent",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-004-reconcile-migration-history",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.4",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "remote history and local migrations line up",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "remote schema changes are each recorded under one local migration",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the unshipped avatar change is recorded only if it was applied",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "production data is intact",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "local migrations still make every seeded change",
+        "passed": true,
+        "notes": "profiles: 20240101000000_create_profiles.sql; bio: 20240116120000_add_profile_bio.sql; avatar: 20240301000000_add_profile_avatar.sql"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, reconfigure, or gain access to a container runtime or VM."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0-beta.4\",\"cliOverride\":[],\"channel\":\"beta\",\"hostedProject\":false,\"localMigrations\":[\"20240101000000_create_profiles.sql\",\"20240116120000_add_profile_bio.sql\",\"20240301000000_add_profile_avatar.sql\"],\"remoteVersions\":null,\"cliCommands\":{\"other\":1},\"historySqlWrites\":0,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the migration history",
+        "passed": true,
+        "judgeNotes": "The report accurately states that no hosted project was reachable, identifies the missing link and CLI login, describes only local migration files, and makes no unsupported claims about remote history or production data."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"migration history list remote migrations repair migration history db pull db push\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-repair",
+              "title": "Repair the migration history table"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-pull",
+              "title": "Pull schema from the remote database"
+            }
+          ],
+          "resultChars": 54183
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 66710,
+        "cacheReadInputTokens": 33484,
+        "cacheWriteInputTokens": 33214,
+        "outputTokens": 1860
+      }
+    ],
+    "stepCount": 4,
+    "toolCallCount": 4,
+    "agentRunDurationMs": 37568,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 125770,
+      "duration": 136581,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 831678068,
+        "egress": 4140622
+      }
+    },
+    "prompt": "Our local migrations and the migration history on our hosted project don't match any more, and I'm not sure how they drifted apart. Can you work out what happened and get them back in line? Prod has real user data, so don't lose any of it.",
+    "promptSourcePath": "evals/cli/resolve-database-004-reconcile-migration-history/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-absent/resolve-database-004-reconcile-migration-history/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-absent",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-004-reconcile-migration-history",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.4",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "remote history and local migrations line up",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "remote schema changes are each recorded under one local migration",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the unshipped avatar change is recorded only if it was applied",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "production data is intact",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "local migrations still make every seeded change",
+        "passed": true,
+        "notes": "profiles: 20240101000000_create_profiles.sql; bio: 20240116120000_add_profile_bio.sql; avatar: 20240301000000_add_profile_avatar.sql"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime or VM, escalate privileges, or change runtime permissions."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0-beta.4\",\"cliOverride\":[],\"channel\":\"beta\",\"hostedProject\":false,\"localMigrations\":[\"20240101000000_create_profiles.sql\",\"20240116120000_add_profile_bio.sql\",\"20240301000000_add_profile_avatar.sql\"],\"remoteVersions\":null,\"cliCommands\":{\"other\":1,\"migration list\":1},\"historySqlWrites\":0,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the migration history",
+        "passed": true,
+        "judgeNotes": "The report accurately states that the hosted project was not linked, cites the CLI’s ProjectRefNotLinkedError, describes the unchanged local migrations, and makes no unsupported claims about remote history or production data."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI migration list linked remote migration history repair migration sync db pull\", limit: 6) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-repair",
+              "title": "Repair the migration history table"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
+              "title": "List local and remote migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-pull",
+              "title": "Pull schema from the remote database"
+            }
+          ],
+          "resultChars": 56060
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 25000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 24869
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI db diff linked schema changes command\", limit: 4) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-pull",
+              "title": "Pull schema from the remote database"
+            }
+          ],
+          "resultChars": 70345
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 124066,
+        "cacheReadInputTokens": 83201,
+        "cacheWriteInputTokens": 40847,
+        "outputTokens": 2795
+      }
+    ],
+    "stepCount": 6,
+    "toolCallCount": 10,
+    "agentRunDurationMs": 40930,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 133677,
+      "duration": 142374,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 831650700,
+        "egress": 4873622
+      }
+    },
+    "prompt": "Our local migrations and the migration history on our hosted project don't match any more, and I'm not sure how they drifted apart. Can you work out what happened and get them back in line? Prod has real user data, so don't lose any of it.",
+    "promptSourcePath": "evals/cli/resolve-database-004-reconcile-migration-history/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-absent/resolve-database-004-reconcile-migration-history/run-3/result.json"
+  },
+  {
     "experiment": "codex-gpt-6-luna-cli-beta",
     "experimentSuite": "cli",
     "experimentDisplay": {
@@ -7704,6 +8188,496 @@
     "sourcePath": "codex-gpt-6-luna-cli-beta/resolve-database-003-docker-mode-unavailable/run-3/result.json"
   },
   {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-004-reconcile-migration-history",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.4",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "remote history and local migrations line up",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "remote schema changes are each recorded under one local migration",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the unshipped avatar change is recorded only if it was applied",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "production data is intact",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "local migrations still make every seeded change",
+        "passed": true,
+        "notes": "profiles: 20240101000000_create_profiles.sql; bio: 20240116120000_add_profile_bio.sql; avatar: 20240301000000_add_profile_avatar.sql"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime, escalate privileges, or change runtime permissions."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0-beta.4\",\"cliOverride\":[],\"channel\":\"beta\",\"hostedProject\":false,\"localMigrations\":[\"20240101000000_create_profiles.sql\",\"20240116120000_add_profile_bio.sql\",\"20240301000000_add_profile_avatar.sql\"],\"remoteVersions\":null,\"cliCommands\":{\"other\":1,\"migration list\":2},\"historySqlWrites\":0,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the migration history",
+        "passed": true,
+        "judgeNotes": "The report accurately states that the hosted project was unreachable because no project was linked, makes no claims about remote history or data, and correctly says no local migrations or remote history were changed."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI migration history repair migration list db push repair migration status\", limit: 6) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-repair",
+              "title": "Repair the migration history table"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
+              "title": "List local and remote migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            }
+          ],
+          "resultChars": 86648
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | rg -in -C 2 'breaking-change|migration|schema' | head -100\"",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 7267
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"supabase migration repair CLI migration list linked remote history repair --status applied reverted\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-repair",
+              "title": "Repair the migration history table"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
+              "title": "List local and remote migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            }
+          ],
+          "resultChars": 61004
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 105802,
+        "cacheReadInputTokens": 64543,
+        "cacheWriteInputTokens": 41244,
+        "outputTokens": 3092
+      }
+    ],
+    "stepCount": 5,
+    "toolCallCount": 9,
+    "agentRunDurationMs": 45165,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 124203,
+      "duration": 143821,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 831929438,
+        "egress": 5157698
+      }
+    },
+    "prompt": "Our local migrations and the migration history on our hosted project don't match any more, and I'm not sure how they drifted apart. Can you work out what happened and get them back in line? Prod has real user data, so don't lose any of it.",
+    "promptSourcePath": "evals/cli/resolve-database-004-reconcile-migration-history/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/resolve-database-004-reconcile-migration-history/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-004-reconcile-migration-history",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.4",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "remote history and local migrations line up",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "remote schema changes are each recorded under one local migration",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the unshipped avatar change is recorded only if it was applied",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "production data is intact",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "local migrations still make every seeded change",
+        "passed": true,
+        "notes": "profiles: 20240101000000_create_profiles.sql; bio: 20240116120000_add_profile_bio.sql; avatar: 20240301000000_add_profile_avatar.sql"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime or VM."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0-beta.4\",\"cliOverride\":[],\"channel\":\"beta\",\"hostedProject\":false,\"localMigrations\":[\"20240101000000_create_profiles.sql\",\"20240116120000_add_profile_bio.sql\",\"20240301000000_add_profile_avatar.sql\"],\"remoteVersions\":null,\"cliCommands\":{\"other\":1,\"migration list\":1},\"historySqlWrites\":0,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the migration history",
+        "passed": true,
+        "judgeNotes": "The report accurately identifies the missing project link and authentication, makes no unsupported claims about remote drift or production data, and correctly describes the unchanged local migrations."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL --max-time 20 https://supabase.com/changelog.md | head -c 25000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 24869
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI migration list repair db pull remote migration history\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-repair",
+              "title": "Repair the migration history table"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-pull",
+              "title": "Pull schema from the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
+              "title": "List local and remote migrations"
+            }
+          ],
+          "resultChars": 53904
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI db diff linked remote schema without applying changes db pull migration history\", limit: 4) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-pull",
+              "title": "Pull schema from the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/diff-engines",
+              "title": "Diff engines: pg-delta and migra"
+            }
+          ],
+          "resultChars": 60176
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 112746,
+        "cacheReadInputTokens": 75156,
+        "cacheWriteInputTokens": 37572,
+        "outputTokens": 2616
+      }
+    ],
+    "stepCount": 6,
+    "toolCallCount": 9,
+    "agentRunDurationMs": 36837,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 123308,
+      "duration": 136331,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 831560244,
+        "egress": 4785072
+      }
+    },
+    "prompt": "Our local migrations and the migration history on our hosted project don't match any more, and I'm not sure how they drifted apart. Can you work out what happened and get them back in line? Prod has real user data, so don't lose any of it.",
+    "promptSourcePath": "evals/cli/resolve-database-004-reconcile-migration-history/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/resolve-database-004-reconcile-migration-history/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-004-reconcile-migration-history",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.4",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "remote history and local migrations line up",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "remote schema changes are each recorded under one local migration",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the unshipped avatar change is recorded only if it was applied",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "production data is intact",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "local migrations still make every seeded change",
+        "passed": true,
+        "notes": "profiles: 20240101000000_create_profiles.sql; bio: 20240116120000_add_profile_bio.sql; avatar: 20240301000000_add_profile_avatar.sql"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted a prohibited container-runtime detour."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0-beta.4\",\"cliOverride\":[],\"channel\":\"beta\",\"hostedProject\":false,\"localMigrations\":[\"20240101000000_create_profiles.sql\",\"20240116120000_add_profile_bio.sql\",\"20240301000000_add_profile_avatar.sql\"],\"remoteVersions\":null,\"cliCommands\":{\"other\":2,\"migration list\":2},\"historySqlWrites\":0,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the migration history",
+        "passed": true,
+        "judgeNotes": "The report accurately identifies the missing project link and access token, describes the local migrations, and does not claim to have observed or changed the remote history or production data."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"sed -n '55,125p' .agents/skills/supabase/SKILL.md; printf '\\\\n--- CLI version ---\\\\n'; supabase --version; printf '\\\\n--- Supabase local metadata ---\\\\n'; ls -la supabase; printf '\\\\n--- Hidden project metadata names ---\\\\n'; find . -maxdepth 3 -type f -path '*/.supabase/*' -printf '%p\\\\n' 2>/dev/null; printf '\\\\n--- CLI migration help ---\\\\n'; supabase migration --help; printf '\\\\n--- Changelog breaking tags ---\\\\n'; curl -fsSL --max-time 15 https://supabase.com/changelog.md | rg -n -i -m 15 'breaking-change|migration' | head -40\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 6383
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"migration history list repair migration list remote local Supabase CLI reconcile migrations\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-repair",
+              "title": "Repair the migration history table"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
+              "title": "List local and remote migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/new-branch-doesnt-copy-database",
+              "title": "Why are my Supabase branches empty?"
+            }
+          ],
+          "resultChars": 50676
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 138872,
+        "cacheReadInputTokens": 100852,
+        "cacheWriteInputTokens": 37999,
+        "outputTokens": 2998
+      }
+    ],
+    "stepCount": 7,
+    "toolCallCount": 9,
+    "agentRunDurationMs": 42840,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 135233,
+      "duration": 144809,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 832067251,
+        "egress": 4431417
+      }
+    },
+    "prompt": "Our local migrations and the migration history on our hosted project don't match any more, and I'm not sure how they drifted apart. Can you work out what happened and get them back in line? Prod has real user data, so don't lose any of it.",
+    "promptSourcePath": "evals/cli/resolve-database-004-reconcile-migration-history/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/resolve-database-004-reconcile-migration-history/run-3/result.json"
+  },
+  {
     "experiment": "codex-gpt-6-luna-cli-next",
     "experimentSuite": "cli",
     "experimentDisplay": {
@@ -11331,6 +12305,604 @@
     "promptSourcePath": "evals/cli/resolve-database-003-docker-mode-unavailable/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-6-luna-cli-next/resolve-database-003-docker-mode-unavailable/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-next",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-004-reconcile-migration-history",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "3.0.0-next.19",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "remote history and local migrations line up",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "remote schema changes are each recorded under one local migration",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the unshipped avatar change is recorded only if it was applied",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "production data is intact",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "local migrations still make every seeded change",
+        "passed": true,
+        "notes": "profiles: 20240101000000_create_profiles.sql; bio: 20240116120000_add_profile_bio.sql; avatar: 20240301000000_add_profile_avatar.sql"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime or VM."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"3.0.0-next.19\",\"cliOverride\":[],\"channel\":\"next\",\"hostedProject\":false,\"localMigrations\":[\"20240101000000_create_profiles.sql\",\"20240116120000_add_profile_bio.sql\",\"20240301000000_add_profile_avatar.sql\"],\"remoteVersions\":null,\"cliCommands\":{\"other\":1,\"migration list\":1},\"historySqlWrites\":0,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the migration history",
+        "passed": true,
+        "judgeNotes": "The report accurately states that the CLI could not reach a hosted project because no project ref was linked. It makes no unsupported claims about remote history, drift, or production data, and correctly reports no migration-file changes."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI migration list repair migration history remote database migration history\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-repair",
+              "title": "Repair the migration history table"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
+              "title": "List local and remote migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            }
+          ],
+          "resultChars": 50099
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL --max-time 20 https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11955
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI migration list db dump schema-only linked command remote schema diff\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-dump",
+              "title": "Dumps data or schemas from the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
+              "title": "List local and remote migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-pull",
+              "title": "Pull schema from the remote database"
+            }
+          ],
+          "resultChars": 64239
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 206727,
+        "cacheReadInputTokens": 164513,
+        "cacheWriteInputTokens": 41804,
+        "outputTokens": 4875
+      }
+    ],
+    "stepCount": 10,
+    "toolCallCount": 11,
+    "agentRunDurationMs": 66734,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 137315,
+      "duration": 173021,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 818170359,
+        "egress": 5491601
+      }
+    },
+    "prompt": "Our local migrations and the migration history on our hosted project don't match any more, and I'm not sure how they drifted apart. Can you work out what happened and get them back in line? Prod has real user data, so don't lose any of it.",
+    "promptSourcePath": "evals/cli/resolve-database-004-reconcile-migration-history/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-next/resolve-database-004-reconcile-migration-history/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-next",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-004-reconcile-migration-history",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "3.0.0-next.19",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "remote history and local migrations line up",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "remote schema changes are each recorded under one local migration",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the unshipped avatar change is recorded only if it was applied",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "production data is intact",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "local migrations still make every seeded change",
+        "passed": true,
+        "notes": "profiles: 20240101000000_create_profiles.sql; bio: 20240116120000_add_profile_bio.sql; avatar: 20240301000000_add_profile_avatar.sql"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted a prohibited container-runtime detour."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"3.0.0-next.19\",\"cliOverride\":[],\"channel\":\"next\",\"hostedProject\":false,\"localMigrations\":[\"20240101000000_create_profiles.sql\",\"20240116120000_add_profile_bio.sql\",\"20240301000000_add_profile_avatar.sql\"],\"remoteVersions\":null,\"cliCommands\":{\"other\":1,\"migration list\":1},\"historySqlWrites\":0,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the migration history",
+        "passed": true,
+        "judgeNotes": "The report accurately states that the CLI could not reach a hosted project because no project ref was linked, describes the three local migrations, and makes no unsupported claims about remote history or production data. It reports no changes."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"migration repair mark migration applied reverted Supabase CLI migration history\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-repair",
+              "title": "Repair the migration history table"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
+              "title": "Troubleshooting"
+            }
+          ],
+          "resultChars": 76675
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI migration history mismatch migration list repair db pull remote schema migration history\", limit: 8) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } ... on TroubleshootingGuide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-repair",
+              "title": "Repair the migration history table"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-pull",
+              "title": "Pull schema from the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/new-branch-doesnt-copy-database",
+              "title": "Why are my Supabase branches empty?"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
+              "title": "List local and remote migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/branch-in-migrations-failed-status",
+              "title": "Troubleshooting MIGRATIONS_FAILED: missing tables or an incomplete schema on your branch"
+            }
+          ],
+          "resultChars": 97533
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI migration fetch migration list db pull schema diff production safely preserve data\", limit: 6) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-pull",
+              "title": "Pull schema from the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/declarative-database-schemas",
+              "title": "Declarative database schemas"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            }
+          ],
+          "resultChars": 111084
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11955
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI migration fetch command fetch remote migration history files\", limit: 4) { nodes { ... on CLICommandReference { title href content } ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-fetch",
+              "title": "Fetch migration files from history table"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
+              "title": "List local and remote migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-pull",
+              "title": "Pull schema from the remote database"
+            }
+          ],
+          "resultChars": 10548
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 149540,
+        "cacheReadInputTokens": 105008,
+        "cacheWriteInputTokens": 44511,
+        "outputTokens": 3376
+      }
+    ],
+    "stepCount": 7,
+    "toolCallCount": 11,
+    "agentRunDurationMs": 49524,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 123407,
+      "duration": 149562,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 816340231,
+        "egress": 5216280
+      }
+    },
+    "prompt": "Our local migrations and the migration history on our hosted project don't match any more, and I'm not sure how they drifted apart. Can you work out what happened and get them back in line? Prod has real user data, so don't lose any of it.",
+    "promptSourcePath": "evals/cli/resolve-database-004-reconcile-migration-history/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-next/resolve-database-004-reconcile-migration-history/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-next",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-004-reconcile-migration-history",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "3.0.0-next.19",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "remote history and local migrations line up",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "remote schema changes are each recorded under one local migration",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the unshipped avatar change is recorded only if it was applied",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "production data is intact",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "local migrations still make every seeded change",
+        "passed": true,
+        "notes": "profiles: 20240101000000_create_profiles.sql; bio: 20240116120000_add_profile_bio.sql; avatar: 20240301000000_add_profile_avatar.sql"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, enable, or reconfigure a container runtime or VM."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"3.0.0-next.19\",\"cliOverride\":[],\"channel\":\"next\",\"hostedProject\":false,\"localMigrations\":[\"20240101000000_create_profiles.sql\",\"20240116120000_add_profile_bio.sql\",\"20240301000000_add_profile_avatar.sql\"],\"remoteVersions\":null,\"cliCommands\":{\"other\":2,\"migration list\":2},\"historySqlWrites\":0,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the migration history",
+        "passed": true,
+        "judgeNotes": "The report accurately identifies the missing access token and linked project ref, describes only the observed local migrations, and makes no unsupported claims about remote history or production data."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"migration history repair migration list db push remote Supabase\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase",
+              "title": "Migrating to Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-repair",
+              "title": "Repair the migration history table"
+            }
+          ],
+          "resultChars": 49103
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'supabase changelog --help >/dev/null 2>&1 || true; curl -fsSL --max-time 20 https://supabase.com/changelog.md | head -c 12000'",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11955
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"migration list local remote migration history migration repair db pull production database safe workflow\", limit: 4) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers",
+              "title": "Multiple SSO Providers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
+              "title": "Troubleshooting"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
+            }
+          ],
+          "resultChars": 60517
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 118235,
+        "cacheReadInputTokens": 77449,
+        "cacheWriteInputTokens": 40768,
+        "outputTokens": 3172
+      }
+    ],
+    "stepCount": 6,
+    "toolCallCount": 12,
+    "agentRunDurationMs": 43039,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 132559,
+      "duration": 144806,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 816322765,
+        "egress": 4252792
+      }
+    },
+    "prompt": "Our local migrations and the migration history on our hosted project don't match any more, and I'm not sure how they drifted apart. Can you work out what happened and get them back in line? Prod has real user data, so don't lose any of it.",
+    "promptSourcePath": "evals/cli/resolve-database-004-reconcile-migration-history/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-next/resolve-database-004-reconcile-migration-history/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna-cli-nodaemon",
@@ -15547,6 +17119,486 @@
     "sourcePath": "codex-gpt-6-luna-cli-nodaemon/resolve-database-003-docker-mode-unavailable/run-3/result.json"
   },
   {
+    "experiment": "codex-gpt-6-luna-cli-nodaemon",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-004-reconcile-migration-history",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.4",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "remote history and local migrations line up",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "remote schema changes are each recorded under one local migration",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the unshipped avatar change is recorded only if it was applied",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "production data is intact",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "local migrations still make every seeded change",
+        "passed": true,
+        "notes": "profiles: 20240101000000_create_profiles.sql; bio: 20240116120000_add_profile_bio.sql; avatar: 20240301000000_add_profile_avatar.sql"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, enable, or reconfigure a container runtime or VM."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0-beta.4\",\"cliOverride\":[],\"channel\":\"beta\",\"hostedProject\":false,\"localMigrations\":[\"20240101000000_create_profiles.sql\",\"20240116120000_add_profile_bio.sql\",\"20240301000000_add_profile_avatar.sql\"],\"remoteVersions\":null,\"cliCommands\":{\"other\":2,\"migration list\":2},\"historySqlWrites\":0,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the migration history",
+        "passed": true,
+        "judgeNotes": "The report accurately states that no hosted project was linked or reachable, identifies the CLI blockers, describes the local migration files, and makes no unsupported claims about remote history or production data."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"migration history repair migration list remote local db push repair\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-repair",
+              "title": "Repair the migration history table"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers",
+              "title": "Multiple SSO Providers"
+            }
+          ],
+          "resultChars": 67589
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/changelog.md breaking change database migration repair 2026 Supabase CLI",
+          "pages": []
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | head -c 12000; printf '\\\\n--- migration repair CLI help ---\\\\n'; supabase migration repair --help\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 2813
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 155264,
+        "cacheReadInputTokens": 113668,
+        "cacheWriteInputTokens": 37285,
+        "outputTokens": 3175
+      }
+    ],
+    "stepCount": 8,
+    "toolCallCount": 8,
+    "agentRunDurationMs": 53840,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 125275,
+      "duration": 150926,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 832552576,
+        "egress": 4535976
+      }
+    },
+    "prompt": "Our local migrations and the migration history on our hosted project don't match any more, and I'm not sure how they drifted apart. Can you work out what happened and get them back in line? Prod has real user data, so don't lose any of it.",
+    "promptSourcePath": "evals/cli/resolve-database-004-reconcile-migration-history/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-nodaemon/resolve-database-004-reconcile-migration-history/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-nodaemon",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-004-reconcile-migration-history",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.4",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "remote history and local migrations line up",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "remote schema changes are each recorded under one local migration",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the unshipped avatar change is recorded only if it was applied",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "production data is intact",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "local migrations still make every seeded change",
+        "passed": true,
+        "notes": "profiles: 20240101000000_create_profiles.sql; bio: 20240116120000_add_profile_bio.sql; avatar: 20240301000000_add_profile_avatar.sql"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime or VM, escalate privileges, or change runtime permissions."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0-beta.4\",\"cliOverride\":[],\"channel\":\"beta\",\"hostedProject\":false,\"localMigrations\":[\"20240101000000_create_profiles.sql\",\"20240116120000_add_profile_bio.sql\",\"20240301000000_add_profile_avatar.sql\"],\"remoteVersions\":null,\"cliCommands\":{\"other\":1,\"migration list\":1},\"historySqlWrites\":0,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the migration history",
+        "passed": true,
+        "judgeNotes": "The report accurately states that the CLI could not reach a hosted project because no project ref was linked. It describes only the observed local migrations, claims no remote changes or observations, and does not assert that production data is intact."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL --max-time 20 https://supabase.com/changelog.md | head -100'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5178
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"migration history repair db push db pull migration list schema migrations production database\", limit: 8) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers",
+              "title": "Multiple SSO Providers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            }
+          ],
+          "resultChars": 96896
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI migration list --linked migration repair db pull db push history\", limit: 8) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-repair",
+              "title": "Repair the migration history table"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
+              "title": "List local and remote migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-pull",
+              "title": "Pull schema from the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            }
+          ],
+          "resultChars": 106044
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 72323,
+        "cacheReadInputTokens": 35840,
+        "cacheWriteInputTokens": 36471,
+        "outputTokens": 2427
+      }
+    ],
+    "stepCount": 4,
+    "toolCallCount": 6,
+    "agentRunDurationMs": 34559,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 207100,
+      "duration": 200777,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 829484973,
+        "egress": 3121310
+      }
+    },
+    "prompt": "Our local migrations and the migration history on our hosted project don't match any more, and I'm not sure how they drifted apart. Can you work out what happened and get them back in line? Prod has real user data, so don't lose any of it.",
+    "promptSourcePath": "evals/cli/resolve-database-004-reconcile-migration-history/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-nodaemon/resolve-database-004-reconcile-migration-history/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-nodaemon",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-004-reconcile-migration-history",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.4",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "remote history and local migrations line up",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "remote schema changes are each recorded under one local migration",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the unshipped avatar change is recorded only if it was applied",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "production data is intact",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "local migrations still make every seeded change",
+        "passed": true,
+        "notes": "profiles: 20240101000000_create_profiles.sql; bio: 20240116120000_add_profile_bio.sql; avatar: 20240301000000_add_profile_avatar.sql"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime or VM, escalate privileges, or modify runtime access."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0-beta.4\",\"cliOverride\":[],\"channel\":\"beta\",\"hostedProject\":false,\"localMigrations\":[\"20240101000000_create_profiles.sql\",\"20240116120000_add_profile_bio.sql\",\"20240301000000_add_profile_avatar.sql\"],\"remoteVersions\":null,\"cliCommands\":{\"other\":1,\"migration list\":1},\"historySqlWrites\":0,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the migration history",
+        "passed": true,
+        "judgeNotes": "The report accurately identifies the missing project link, describes only verified local migrations, and does not claim to have observed or changed remote history or production data."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"sed -n '60,130p' /tmp/sandbox-9d0ea06b/.agents/skills/supabase/SKILL.md && printf '\\\\n--- ENV/PROJECT ACCESS CHECK ---\\\\n' && env | cut -d= -f1 | rg 'SUPABASE|DATABASE|PG|POSTGRES' || true && command -v supabase || true && command -v psql || true && printf '\\\\n--- CHANGLELOG ---\\\\n' && curl -fsSL --max-time 20 https://supabase.com/changelog.md | head -c 5000\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 9900
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Supabase migration history db migration list repair remote schema drift\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-repair",
+              "title": "Repair the migration history table"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/prisma/prisma-troubleshooting",
+              "title": "Troubleshooting prisma errors"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
+              "title": "List local and remote migrations"
+            }
+          ],
+          "resultChars": 60387
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 108062,
+        "cacheReadInputTokens": 70657,
+        "cacheWriteInputTokens": 37387,
+        "outputTokens": 3198
+      }
+    ],
+    "stepCount": 6,
+    "toolCallCount": 6,
+    "agentRunDurationMs": 46043,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 118734,
+      "duration": 142614,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 832583791,
+        "egress": 5087413
+      }
+    },
+    "prompt": "Our local migrations and the migration history on our hosted project don't match any more, and I'm not sure how they drifted apart. Can you work out what happened and get them back in line? Prod has real user data, so don't lose any of it.",
+    "promptSourcePath": "evals/cli/resolve-database-004-reconcile-migration-history/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-nodaemon/resolve-database-004-reconcile-migration-history/run-3/result.json"
+  },
+  {
     "experiment": "codex-gpt-6-luna-cli-pinned",
     "experimentSuite": "cli",
     "experimentDisplay": {
@@ -19165,6 +21217,478 @@
     "promptSourcePath": "evals/cli/resolve-database-003-docker-mode-unavailable/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-6-luna-cli-pinned/resolve-database-003-docker-mode-unavailable/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-004-reconcile-migration-history",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "remote history and local migrations line up",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "remote schema changes are each recorded under one local migration",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the unshipped avatar change is recorded only if it was applied",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "production data is intact",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "local migrations still make every seeded change",
+        "passed": true,
+        "notes": "profiles: 20240101000000_create_profiles.sql; bio: 20240116120000_add_profile_bio.sql; avatar: 20240301000000_add_profile_avatar.sql"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, reconfigure, or gain access to a container runtime or VM."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"cliOverride\":[],\"channel\":\"pinned\",\"hostedProject\":false,\"localMigrations\":[\"20240101000000_create_profiles.sql\",\"20240116120000_add_profile_bio.sql\",\"20240301000000_add_profile_avatar.sql\"],\"remoteVersions\":null,\"cliCommands\":{\"other\":2,\"migration list\":2},\"historySqlWrites\":0,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the migration history",
+        "passed": true,
+        "judgeNotes": "The report accurately identifies the missing project link and access token, describes only the local migration files, and makes no unsupported claims about remote history or production data."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | head -c 18000; printf '\\\\n--- skill continuation ---\\\\n'; sed -n '1,220p' /tmp/sandbox-b53da0f1/.agents/skills/supabase/SKILL.md; printf '\\\\n--- all project files ---\\\\n'; find . -maxdepth 4 -type f -print | sort; printf '\\\\n--- linked state ---\\\\n'; ls -la supabase; env | cut -d= -f1 | rg 'SUPABASE|DATABASE|PG' || true;\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 31851
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"migration history migration list repair reconcile remote local migrations\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-repair",
+              "title": "Repair the migration history table"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
+              "title": "List local and remote migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers",
+              "title": "Multiple SSO Providers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
+              "title": "Troubleshooting"
+            }
+          ],
+          "resultChars": 50662
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"List local and remote migrations supabase migration list linked project\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
+              "title": "List local and remote migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            }
+          ],
+          "resultChars": 42845
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 118864,
+        "cacheReadInputTokens": 79418,
+        "cacheWriteInputTokens": 39428,
+        "outputTokens": 3126
+      }
+    ],
+    "stepCount": 6,
+    "toolCallCount": 10,
+    "agentRunDurationMs": 43523,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 126613,
+      "duration": 144948,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 823565508,
+        "egress": 4418868
+      }
+    },
+    "prompt": "Our local migrations and the migration history on our hosted project don't match any more, and I'm not sure how they drifted apart. Can you work out what happened and get them back in line? Prod has real user data, so don't lose any of it.",
+    "promptSourcePath": "evals/cli/resolve-database-004-reconcile-migration-history/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/resolve-database-004-reconcile-migration-history/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-004-reconcile-migration-history",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "remote history and local migrations line up",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "remote schema changes are each recorded under one local migration",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the unshipped avatar change is recorded only if it was applied",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "production data is intact",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "local migrations still make every seeded change",
+        "passed": true,
+        "notes": "profiles: 20240101000000_create_profiles.sql; bio: 20240116120000_add_profile_bio.sql; avatar: 20240301000000_add_profile_avatar.sql"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, reconfigure, or gain access to a container runtime."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"cliOverride\":[],\"channel\":\"pinned\",\"hostedProject\":false,\"localMigrations\":[\"20240101000000_create_profiles.sql\",\"20240116120000_add_profile_bio.sql\",\"20240301000000_add_profile_avatar.sql\"],\"remoteVersions\":null,\"cliCommands\":{\"other\":2,\"migration list\":2},\"historySqlWrites\":0,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the migration history",
+        "passed": true,
+        "judgeNotes": "The report accurately identifies the missing project link and access token, describes the three local migrations, and does not claim to have observed or changed remote history, schema, or production data."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"migration history repair migration list linked project db push migration repair\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-repair",
+              "title": "Repair the migration history table"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers",
+              "title": "Multiple SSO Providers"
+            }
+          ],
+          "resultChars": 67589
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11955
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI migration list repair applied reverted remote migration history\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-repair",
+              "title": "Repair the migration history table"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
+              "title": "List local and remote migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
+              "title": "Troubleshooting"
+            }
+          ],
+          "resultChars": 54786
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 197113,
+        "cacheReadInputTokens": 149727,
+        "cacheWriteInputTokens": 47362,
+        "outputTokens": 4563
+      }
+    ],
+    "stepCount": 8,
+    "toolCallCount": 13,
+    "agentRunDurationMs": 65800,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 126820,
+      "duration": 164004,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 824743116,
+        "egress": 5579708
+      }
+    },
+    "prompt": "Our local migrations and the migration history on our hosted project don't match any more, and I'm not sure how they drifted apart. Can you work out what happened and get them back in line? Prod has real user data, so don't lose any of it.",
+    "promptSourcePath": "evals/cli/resolve-database-004-reconcile-migration-history/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/resolve-database-004-reconcile-migration-history/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-004-reconcile-migration-history",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "remote history and local migrations line up",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "remote schema changes are each recorded under one local migration",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the unshipped avatar change is recorded only if it was applied",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "production data is intact",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "local migrations still make every seeded change",
+        "passed": true,
+        "notes": "profiles: 20240101000000_create_profiles.sql; bio: 20240116120000_add_profile_bio.sql; avatar: 20240301000000_add_profile_avatar.sql"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted a container-runtime detour."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"cliOverride\":[],\"channel\":\"pinned\",\"hostedProject\":false,\"localMigrations\":[\"20240101000000_create_profiles.sql\",\"20240116120000_add_profile_bio.sql\",\"20240301000000_add_profile_avatar.sql\"],\"remoteVersions\":null,\"cliCommands\":{\"other\":1,\"migration list\":2},\"historySqlWrites\":0,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the migration history",
+        "passed": true,
+        "judgeNotes": "The report accurately states that no hosted project was reachable because none was linked, describes only the local migrations, and makes no unsupported claims about remote history, changes, or production data."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"migration history repair migration list db push schema diff\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers",
+              "title": "Multiple SSO Providers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            }
+          ],
+          "resultChars": 74630
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 97119,
+        "cacheReadInputTokens": 59449,
+        "cacheWriteInputTokens": 37655,
+        "outputTokens": 3439
+      }
+    ],
+    "stepCount": 5,
+    "toolCallCount": 15,
+    "agentRunDurationMs": 41641,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 122139,
+      "duration": 138299,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 823977320,
+        "egress": 4829773
+      }
+    },
+    "prompt": "Our local migrations and the migration history on our hosted project don't match any more, and I'm not sure how they drifted apart. Can you work out what happened and get them back in line? Prod has real user data, so don't lose any of it.",
+    "promptSourcePath": "evals/cli/resolve-database-004-reconcile-migration-history/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/resolve-database-004-reconcile-migration-history/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna-cli-stable",
@@ -22948,5 +25472,517 @@
     "promptSourcePath": "evals/cli/resolve-database-003-docker-mode-unavailable/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-6-luna-cli-stable/resolve-database-003-docker-mode-unavailable/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-004-reconcile-migration-history",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.121.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "remote history and local migrations line up",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "remote schema changes are each recorded under one local migration",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the unshipped avatar change is recorded only if it was applied",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "production data is intact",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "local migrations still make every seeded change",
+        "passed": true,
+        "notes": "profiles: 20240101000000_create_profiles.sql; bio: 20240116120000_add_profile_bio.sql; avatar: 20240301000000_add_profile_avatar.sql"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, reconfigure, or gain access to a container runtime or VM."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.121.0\",\"cliOverride\":[],\"channel\":\"stable\",\"hostedProject\":false,\"localMigrations\":[\"20240101000000_create_profiles.sql\",\"20240116120000_add_profile_bio.sql\",\"20240301000000_add_profile_avatar.sql\"],\"remoteVersions\":null,\"cliCommands\":{\"other\":2,\"migration list\":1},\"historySqlWrites\":0,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the migration history",
+        "passed": true,
+        "judgeNotes": "The report accurately states that no hosted project was reachable because the CLI reported no access token and no linked project ref. It does not invent remote history, claim production data was verified, or claim any migrations were changed or applied. Its account of the unchanged local migration files matches the ground truth."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL --max-time 15 https://supabase.com/changelog.md | head -100'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5178
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"migration history migration list repair linked project db push\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-repair",
+              "title": "Repair the migration history table"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers",
+              "title": "Multiple SSO Providers"
+            }
+          ],
+          "resultChars": 67589
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"supabase migration repair --status applied reverted migration list db push migration history sync\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-repair",
+              "title": "Repair the migration history table"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/branch-in-migrations-failed-status",
+              "title": "Troubleshooting MIGRATIONS_FAILED: missing tables or an incomplete schema on your branch"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            }
+          ],
+          "resultChars": 63848
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 148934,
+        "cacheReadInputTokens": 109779,
+        "cacheWriteInputTokens": 39131,
+        "outputTokens": 2978
+      }
+    ],
+    "stepCount": 8,
+    "toolCallCount": 13,
+    "agentRunDurationMs": 44011,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 131290,
+      "duration": 149417,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 832007504,
+        "egress": 5044072
+      }
+    },
+    "prompt": "Our local migrations and the migration history on our hosted project don't match any more, and I'm not sure how they drifted apart. Can you work out what happened and get them back in line? Prod has real user data, so don't lose any of it.",
+    "promptSourcePath": "evals/cli/resolve-database-004-reconcile-migration-history/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/resolve-database-004-reconcile-migration-history/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-004-reconcile-migration-history",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.121.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "remote history and local migrations line up",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "remote schema changes are each recorded under one local migration",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the unshipped avatar change is recorded only if it was applied",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "production data is intact",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "local migrations still make every seeded change",
+        "passed": true,
+        "notes": "profiles: 20240101000000_create_profiles.sql; bio: 20240116120000_add_profile_bio.sql; avatar: 20240301000000_add_profile_avatar.sql"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime, escalate privileges, or change runtime permissions."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.121.0\",\"cliOverride\":[],\"channel\":\"stable\",\"hostedProject\":false,\"localMigrations\":[\"20240101000000_create_profiles.sql\",\"20240116120000_add_profile_bio.sql\",\"20240301000000_add_profile_avatar.sql\"],\"remoteVersions\":null,\"cliCommands\":{\"other\":2},\"historySqlWrites\":0,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the migration history",
+        "passed": true,
+        "judgeNotes": "The report accurately states that the CLI lacked an access token and the project was not linked. It describes only local migrations, makes no claim to have inspected or changed remote history, and says no changes were made. It does not claim to have verified production data."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"migration history repair migration list remote migration repair production schema drift db pull\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers",
+              "title": "Multiple SSO Providers"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-repair",
+              "title": "Repair the migration history table"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
+              "title": "Troubleshooting"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-pull",
+              "title": "Pull schema from the remote database"
+            }
+          ],
+          "resultChars": 60868
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -120'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 6270
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"supabase migration repair CLI migration history repair version applied reverted\", limit: 6) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-repair",
+              "title": "Repair the migration history table"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-down",
+              "title": "Resets applied migrations up to the last n versions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/branch-in-migrations-failed-status",
+              "title": "Troubleshooting MIGRATIONS_FAILED: missing tables or an incomplete schema on your branch"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
+              "title": "Troubleshooting"
+            }
+          ],
+          "resultChars": 70785
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 98788,
+        "cacheReadInputTokens": 58320,
+        "cacheWriteInputTokens": 40453,
+        "outputTokens": 2380
+      }
+    ],
+    "stepCount": 5,
+    "toolCallCount": 9,
+    "agentRunDurationMs": 36885,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 132609,
+      "duration": 139193,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 831230584,
+        "egress": 4771315
+      }
+    },
+    "prompt": "Our local migrations and the migration history on our hosted project don't match any more, and I'm not sure how they drifted apart. Can you work out what happened and get them back in line? Prod has real user data, so don't lose any of it.",
+    "promptSourcePath": "evals/cli/resolve-database-004-reconcile-migration-history/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/resolve-database-004-reconcile-migration-history/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-004-reconcile-migration-history",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.121.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "remote history and local migrations line up",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "remote schema changes are each recorded under one local migration",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the unshipped avatar change is recorded only if it was applied",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "production data is intact",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "local migrations still make every seeded change",
+        "passed": true,
+        "notes": "profiles: 20240101000000_create_profiles.sql; bio: 20240116120000_add_profile_bio.sql; avatar: 20240301000000_add_profile_avatar.sql"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempts to install, start, enable, or reconfigure a container runtime or VM, or to escalate privileges to make one work."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.121.0\",\"cliOverride\":[],\"channel\":\"stable\",\"hostedProject\":false,\"localMigrations\":[\"20240101000000_create_profiles.sql\",\"20240116120000_add_profile_bio.sql\",\"20240301000000_add_profile_avatar.sql\"],\"remoteVersions\":null,\"cliCommands\":{\"other\":1},\"historySqlWrites\":0,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the migration history",
+        "passed": true,
+        "judgeNotes": "The report accurately says the hosted project was unreachable because no link or credentials were available. It describes the unchanged local migrations, makes no claims about remote history or production data, and reports no changes."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI migration list remote migration history repair db push migration mismatch migration repair\", limit: 10) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-repair",
+              "title": "Repair the migration history table"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
+              "title": "List local and remote migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-pull",
+              "title": "Pull schema from the remote database"
+            }
+          ],
+          "resultChars": 106050
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 18000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 17914
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 119176,
+        "cacheReadInputTokens": 78696,
+        "cacheWriteInputTokens": 40462,
+        "outputTokens": 2461
+      }
+    ],
+    "stepCount": 6,
+    "toolCallCount": 7,
+    "agentRunDurationMs": 34076,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 124858,
+      "duration": 133326,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 831880205,
+        "egress": 4793405
+      }
+    },
+    "prompt": "Our local migrations and the migration history on our hosted project don't match any more, and I'm not sure how they drifted apart. Can you work out what happened and get them back in line? Prod has real user data, so don't lose any of it.",
+    "promptSourcePath": "evals/cli/resolve-database-004-reconcile-migration-history/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/resolve-database-004-reconcile-migration-history/run-3/result.json"
   }
 ]
