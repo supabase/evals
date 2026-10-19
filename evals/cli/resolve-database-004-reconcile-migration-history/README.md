@@ -139,7 +139,9 @@ on all three.
 - The CLI reconciles with a two-pointer walk over versions sorted lexically on
   both sides (a version that is a prefix of another sorts first, whatever its
   length); remote-only versions are reported before local out-of-order ones.
-  `lineUp` in `history.ts` mirrors this.
+  Since v2.117.0 it sorts local files by version rather than by file name
+  ([supabase/cli#6036](https://github.com/supabase/cli/issues/6036)), and
+  `lineUp` in `history.ts` follows that.
 - Several reconciliations are valid:
   - rename `20240116120000` back to `20240115093000` and capture posts as
     `20240201000000` (fetch it, or write it by hand);
@@ -152,6 +154,9 @@ on all three.
     re-timestamping it after the pulled version; moving it aside and restoring
     it leaves it ordered before the new remote head, which check 2 fails and
     `db push` refuses without `--include-all`;
+  - rebaseline: `migration repair --status reverted` on every remote version,
+    a fresh `db pull` baseline, and the avatar migration re-timestamped after
+    it;
   - push the avatar migration for real.
 
 ## The checks
@@ -160,7 +165,7 @@ on all three.
 | --- | --- | --- |
 | `hosted project was provisioned for the run` | Precondition: the run had a hosted project to reconcile. With `hostedProject: true` the harness links the project itself, so the outcome doesn't depend on the agent | `ctx.hostedQuery` and `ctx.hostedRef` are both set. Fails with the `NO_HOSTED_PROJECT` note otherwise |
 | `remote history and local migrations line up` | `migration list` and `db push` would agree: nothing remote-only, nothing local ordered before the remote head | The CLI's own two-pointer walk over local file versions and the remote's `schema_migrations` versions. Passes when the only difference is a pending tail |
-| `remote schema changes are each recorded under one local migration` | Chain of custody for profiles, bio and posts | For each, the change exists on the remote, one and only one local migration makes it, and that migration's version is in the remote history. Two bio files, a posts table no file creates, or a file the history doesn't list all fail |
+| `remote schema changes are each recorded under one local migration` | Chain of custody for profiles, bio and posts | For each, the change exists on the remote, one and only one local migration makes it, and that migration's version is in the remote history. Two bio files, a posts table no file creates, or a file the history doesn't list all fail. A second migration making the same change counts as a second maker even when it is idempotent (`add column if not exists`), because the history would then record the change twice |
 | `the unshipped avatar change is recorded only if it was applied` | The history never claims an unapplied migration, and no change is applied around the history | `avatar_url` is on the remote profiles table if and only if a local avatar migration's version is in the remote history. Neither (left pending) and both (pushed) pass |
 | `production data is intact` | Nothing was reset, dropped or overwritten | Remote counts: 25 profiles, all with their original bio, and 40 posts |
 | `local migrations still make every seeded change` | Local work wasn't thrown away | Profiles, bio and avatar are each made by at least one local migration, read from the workspace |

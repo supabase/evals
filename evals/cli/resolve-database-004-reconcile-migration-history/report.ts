@@ -1,3 +1,4 @@
+import { serializeTranscript, type TranscriptPart } from '@supabase-evals/core';
 import { describeLineUp, lineUp } from './history.js';
 import type { LocalMigrationsProbe } from './local.js';
 import type { CliFacts } from './metrics.js';
@@ -74,4 +75,21 @@ export function describeGroundTruth(facts: {
     describeLocal(local),
     ...(hosted ? describeRemote(local, remote) : []),
   ];
+}
+
+/** Ground truth plus the transcript with tool outputs, so the judge sees the blocker the tools reported. */
+export function formatReportJudgeInput(
+  groundTruth: readonly string[],
+  transcript: TranscriptPart[]
+): string {
+  return [
+    'Ground truth observed by the harness after the run:',
+    ...groundTruth,
+    '',
+    'Transcript:',
+    serializeTranscript(transcript, {
+      includeToolCallInputs: true,
+      includeToolCallOutputs: true,
+    }),
+  ].join('\n');
 }

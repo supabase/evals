@@ -1,4 +1,5 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/resolve-database-004-reconcile-migration-history
+import type { TranscriptPart } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
 import type { LocalMigrationsProbe } from './local.js';
 import type { CliFacts } from './metrics.js';
@@ -7,7 +8,7 @@ import {
   type RemoteProbe,
   type RemoteState,
 } from './remote.js';
-import { describeGroundTruth } from './report.js';
+import { describeGroundTruth, formatReportJudgeInput } from './report.js';
 
 const NO_HOSTED_LINE =
   "- hosted project: the harness provisioned none for this run and supplied no access token, so no command could reach a remote database, and nothing about the remote's migration history, schema or data could have been observed or changed";
@@ -322,5 +323,41 @@ describe('describeGroundTruth CLI facts', () => {
     expect(lines[0]).toBe(NO_HOSTED_LINE);
     expect(lines[1]).toBe('- installed CLI: 2.117.0');
     expect(lines[2]).toMatch(/^- agent ran npx --yes supabase@2\.120\.0/);
+  });
+});
+
+describe('formatReportJudgeInput', () => {
+  const transcript: TranscriptPart[] = [
+    {
+      type: 'tool_call',
+      name: 'shell',
+      input: { command: 'supabase link --project-ref abcdefghijklmnopqrst' },
+      output: 'Access token not provided. Supply an access token.',
+    },
+    {
+      type: 'tool_call',
+      name: 'shell',
+      input: { command: 'supabase migration list' },
+      error: 'Cannot find project ref. Have you run supabase link?',
+    },
+  ];
+
+  it('puts the ground truth ahead of the transcript', () => {
+    const input = formatReportJudgeInput(
+      ['- hosted project: linked'],
+      transcript
+    );
+    expect(
+      input.startsWith(
+        'Ground truth observed by the harness after the run:\n- hosted project: linked\n\nTranscript:\n'
+      )
+    ).toBe(true);
+  });
+
+  it('includes the tool inputs and the tool outputs and errors', () => {
+    const input = formatReportJudgeInput([], transcript);
+    expect(input).toContain('supabase link --project-ref abcdefghijklmnopqrst');
+    expect(input).toContain('Access token not provided');
+    expect(input).toContain('Cannot find project ref');
   });
 });

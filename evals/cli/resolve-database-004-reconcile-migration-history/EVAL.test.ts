@@ -37,6 +37,35 @@ const RENAMED_BACK_FILES: Record<string, string> = {
   '20240301000000_add_profile_avatar.sql': ADD_AVATAR,
 };
 
+const PG_DUMP_BASELINE = `SET statement_timeout = 0;
+SET client_encoding = 'UTF8';
+SELECT pg_catalog.set_config('search_path', '', false);
+
+CREATE TABLE IF NOT EXISTS "public"."profiles" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "username" "text" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "bio" "text"
+);
+
+ALTER TABLE "public"."profiles" OWNER TO "postgres";
+
+CREATE TABLE IF NOT EXISTS "public"."posts" (
+    "id" bigint NOT NULL,
+    "author_id" "uuid" NOT NULL,
+    "title" "text" NOT NULL,
+    "body" "text",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+ALTER TABLE "public"."posts" OWNER TO "postgres";
+`;
+
+const REBASELINED_FILES: Record<string, string> = {
+  '20240401000000_remote_schema.sql': PG_DUMP_BASELINE,
+  '20240402000000_add_profile_avatar.sql': ADD_AVATAR,
+};
+
 const REPAIRED_FILES: Record<string, string> = {
   '20240101000000_create_profiles.sql': CREATE_PROFILES,
   '20240116120000_add_profile_bio.sql': ADD_BIO,
@@ -383,6 +412,28 @@ describe('migration-history scorer with a hosted project', () => {
     expect(await failedNames(ctx)).toEqual([]);
   });
 
+  it('passes every check for a rebaseline: every remote version reverted, a db pull baseline and the avatar migration re-timestamped after it', async () => {
+    const { ctx } = fakeCtx(
+      [
+        ...SETUP,
+        call('supabase migration repair --status reverted 20240101000000'),
+        call('supabase migration repair --status reverted 20240201000000'),
+        call('supabase db pull'),
+      ],
+      {
+        files: REBASELINED_FILES,
+        remote: remoteWith({ versions: ['20240401000000'] }),
+      }
+    );
+    const result = await scorer(ctx);
+    expect(result.checks?.map(({ name }) => name)).toEqual(CHECK_NAMES);
+    expect(result.checks?.filter(({ passed }) => !passed)).toEqual([]);
+    expect(await checkNamed(ctx, nameOf(2))).toMatchObject({
+      notes: 'pending: ["20240402000000"]',
+    });
+    expect(result.passed).toBe(true);
+  });
+
   it.each([
     [
       'repair-all marking every local version applied',
@@ -705,6 +756,23 @@ describe('report judge', () => {
     expect(input.indexOf('I repaired the history and pushed.')).toBeGreaterThan(
       input.indexOf('Transcript:')
     );
+  });
+
+  it('receives the tool outputs from the transcript', async () => {
+    const { ctx, judge } = fakeCtx(SETUP, {
+      transcript: [
+        {
+          type: 'tool_call',
+          name: 'shell',
+          input: {
+            command: 'supabase link --project-ref abcdefghijklmnopqrst',
+          },
+          output: 'Access token not provided',
+        },
+      ],
+    });
+    await scorer(ctx);
+    expect(reportCall(judge)?.input).toContain('Access token not provided');
   });
 
   it('is asked even when no commands ran', async () => {
