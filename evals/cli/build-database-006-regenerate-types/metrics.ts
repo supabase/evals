@@ -2,19 +2,29 @@ import type {
   CheckResult,
   LocalStackEnvironmentMarker,
   LocalStackEvalContext,
+  ToolCallRecord,
 } from '@supabase-evals/core';
 import {
   invocationVerb,
   listCliOverrides,
   type SupabaseInvocation,
 } from '../lib/cli-invocations.js';
-import { findCliDetourCommands } from '../lib/detours.js';
+import {
+  commandToolCalls,
+  extractCommandEntries,
+  findCliDetourCommands,
+} from '../lib/detours.js';
 import { readCliVersions, safely } from '../lib/metrics.js';
 import type { StackProbe } from '../lib/stack.js';
 import type { MigrationEvidenceSource } from './schema.js';
 import type { ProjectAnalysis } from './typecheck.js';
 
-export type GenTypesRuns = { runs: number; sources: string[] };
+export type GenTypesRuns = {
+  runs: number;
+  sources: string[];
+  /** Runs whose tool call errored; `silent` means the error text was empty. */
+  failed: Array<{ command: string; silent: boolean }>;
+};
 
 const GEN_TYPES_SOURCE_FLAGS = [
   ['--local', 'local'],
@@ -52,12 +62,29 @@ function isGenTypes(invocation: SupabaseInvocation): boolean {
   );
 }
 
-/** Direct `supabase gen types` invocations and the distinct database sources they named. */
+/** Direct `supabase gen types` invocations, the distinct database sources they named and the runs whose tool call errored. */
 export function countGenTypesRuns(
-  invocations: readonly SupabaseInvocation[]
+  invocations: readonly SupabaseInvocation[],
+  toolCalls: readonly ToolCallRecord[]
 ): GenTypesRuns {
   const runs = invocations.filter(isGenTypes);
-  return { runs: runs.length, sources: [...new Set(runs.map(genTypesSource))] };
+  const records = commandToolCalls(toolCalls);
+  const entries = extractCommandEntries(toolCalls);
+  return {
+    runs: runs.length,
+    sources: [...new Set(runs.map(genTypesSource))],
+    failed: runs.flatMap(({ commandIndex }) => {
+      const error = records[commandIndex]?.error;
+      return error === undefined
+        ? []
+        : [
+            {
+              command: entries[commandIndex]?.command ?? '',
+              silent: error === '',
+            },
+          ];
+    }),
+  };
 }
 
 export type StackLifecycle = {
@@ -158,6 +185,7 @@ export async function checkMetrics(
         : { backend: 'none', runtime: 'none', relocatedHome: null }
     ),
     genTypesRuns: await safely(() => genTypes.runs),
+    genTypesFailedRuns: await safely(() => genTypes.failed.length),
     genTypesSources: await safely(() => genTypes.sources),
     stackStoppedByAgent: await safely(() => lifecycle.stoppedByAgent),
     migrationEvidence,

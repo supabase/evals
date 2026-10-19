@@ -3,16 +3,23 @@ import type {
   CommandResult,
   LocalStackEnvironmentMarker,
   LocalStackEvalContext,
+  ToolCallRecord,
 } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
 import { findSupabaseInvocations } from '../lib/cli-invocations.js';
+import { extractCommandEntries } from '../lib/detours.js';
 import type { StackProbe } from '../lib/stack.js';
-import { analysisFixture } from './fixtures.js';
+import {
+  analysisFixture,
+  dockerRunToolCalls,
+  SILENT_FAILED_GEN_TYPES_CALL,
+} from './fixtures.js';
 import {
   checkMetrics,
   countGenTypesRuns,
   readCliFacts,
   readStackLifecycle,
+  type GenTypesRuns,
   type StackLifecycle,
 } from './metrics.js';
 
@@ -49,6 +56,22 @@ const NO_LIFECYCLE: StackLifecycle = {
   stoppedByAgent: false,
 };
 
+const NO_GEN_TYPES: GenTypesRuns = { runs: 0, sources: [], failed: [] };
+
+const shellCall = (command: string): ToolCallRecord => ({
+  tool: { kind: 'other', toolName: 'shell' },
+  body: { command },
+  command,
+  result: '',
+  ts: 0,
+});
+
+const countCalls = (toolCalls: ToolCallRecord[]) =>
+  countGenTypesRuns(
+    findSupabaseInvocations(extractCommandEntries(toolCalls)),
+    toolCalls
+  );
+
 const metricsOf = (check: { notes?: string }) =>
   JSON.parse(check.notes ?? '{}');
 
@@ -60,8 +83,13 @@ const throwing = <T extends object>(target: T): T =>
   });
 
 describe('countGenTypesRuns', () => {
-  const count = (commands: string[]) =>
-    countGenTypesRuns(findSupabaseInvocations(commands));
+  const count = (commands: string[]) => {
+    const { runs, sources } = countGenTypesRuns(
+      findSupabaseInvocations(commands),
+      commands.map(shellCall)
+    );
+    return { runs, sources };
+  };
 
   it('counts nothing when no supabase command ran', () => {
     expect(count([])).toEqual({ runs: 0, sources: [] });
@@ -167,6 +195,49 @@ describe('countGenTypesRuns', () => {
   });
 });
 
+describe('countGenTypesRuns failed runs', () => {
+  it('counts a call recorded with an empty error as failed and silent', () => {
+    expect(countCalls([SILENT_FAILED_GEN_TYPES_CALL])).toEqual({
+      runs: 1,
+      sources: ['local'],
+      failed: [{ command: SILENT_FAILED_GEN_TYPES_CALL.command, silent: true }],
+    });
+  });
+
+  it('does not count a call that returned a result as failed', () => {
+    expect(countCalls(dockerRunToolCalls())).toMatchObject({
+      runs: 2,
+      failed: [],
+    });
+  });
+
+  it('counts a call with an error message as failed but not silent', () => {
+    const call = {
+      ...SILENT_FAILED_GEN_TYPES_CALL,
+      error: 'ContainerRuntimeNotFoundError: no container runtime found',
+    };
+
+    expect(countCalls([call]).failed).toEqual([
+      { command: call.command, silent: false },
+    ]);
+  });
+
+  it('lists only the failed calls among several runs', () => {
+    expect(
+      countCalls([SILENT_FAILED_GEN_TYPES_CALL, ...dockerRunToolCalls()])
+    ).toMatchObject({
+      runs: 3,
+      failed: [{ command: SILENT_FAILED_GEN_TYPES_CALL.command, silent: true }],
+    });
+  });
+
+  it('ignores a failed call that ran no gen types', () => {
+    const start = { ...shellCall('supabase start'), error: 'boom' };
+
+    expect(countCalls([start])).toEqual({ runs: 0, sources: [], failed: [] });
+  });
+});
+
 describe('readStackLifecycle', () => {
   const lifecycle = (commands: string[]) =>
     readStackLifecycle(findSupabaseInvocations(commands));
@@ -244,7 +315,7 @@ describe('checkMetrics', () => {
 
     const check = await checkMetrics(MARKER, {
       commands,
-      genTypes: countGenTypesRuns(invocations),
+      genTypes: countGenTypesRuns(invocations, commands.map(shellCall)),
       stack: { ...STACK, relocatedHome: '/home/agent/.supabase' },
       lifecycle: NO_LIFECYCLE,
       analysis: analysisFixture({
@@ -268,6 +339,7 @@ describe('checkMetrics', () => {
         relocatedHome: '/home/agent/.supabase',
       },
       genTypesRuns: 2,
+      genTypesFailedRuns: 0,
       stackStoppedByAgent: false,
       migrationEvidence: 'probe',
       typesModules: ['src/types/supabase.ts'],
@@ -280,7 +352,7 @@ describe('checkMetrics', () => {
   it('reports the pinned channel and a null relocated home when the run had no marker and the CLI home was the default', async () => {
     const check = await checkMetrics(undefined, {
       commands: [],
-      genTypes: { runs: 0, sources: [] },
+      genTypes: NO_GEN_TYPES,
       stack: STACK,
       lifecycle: NO_LIFECYCLE,
       analysis: analysisFixture(),
@@ -305,7 +377,7 @@ describe('checkMetrics', () => {
       metricsOf(
         await checkMetrics(undefined, {
           commands: [],
-          genTypes: { runs: 0, sources: [] },
+          genTypes: NO_GEN_TYPES,
           stack: STACK,
           lifecycle,
           analysis: analysisFixture(),
@@ -325,12 +397,34 @@ describe('checkMetrics', () => {
     });
   });
 
+  it('reports genTypesFailedRuns from the gen types calls that failed', async () => {
+    const toolCalls = [SILENT_FAILED_GEN_TYPES_CALL, ...dockerRunToolCalls()];
+    const invocations = findSupabaseInvocations(
+      extractCommandEntries(toolCalls)
+    );
+
+    const check = await checkMetrics(undefined, {
+      commands: [],
+      genTypes: countGenTypesRuns(invocations, toolCalls),
+      stack: STACK,
+      lifecycle: NO_LIFECYCLE,
+      analysis: analysisFixture(),
+      cli: await readCliFacts(ctx, undefined, []),
+      migrationEvidence: 'probe',
+    });
+
+    expect(metricsOf(check)).toMatchObject({
+      genTypesRuns: 3,
+      genTypesFailedRuns: 1,
+    });
+  });
+
   it.each(['probe', 'tool-output', 'none'] as const)(
     'reports migrationEvidence %s from the facts',
     async (migrationEvidence) => {
       const check = await checkMetrics(undefined, {
         commands: [],
-        genTypes: { runs: 0, sources: [] },
+        genTypes: NO_GEN_TYPES,
         stack: STACK,
         lifecycle: NO_LIFECYCLE,
         analysis: analysisFixture(),
@@ -351,7 +445,7 @@ describe('checkMetrics', () => {
 
     const check = await checkMetrics(undefined, {
       commands: [],
-      genTypes: { runs: 0, sources: [] },
+      genTypes: NO_GEN_TYPES,
       stack: { ok: false, notes: 'none' },
       lifecycle: NO_LIFECYCLE,
       analysis: { ok: false, notes: 'src directory is missing' },
@@ -384,7 +478,7 @@ describe('checkMetrics', () => {
 
     const check = await checkMetrics(MARKER, {
       commands,
-      genTypes: countGenTypesRuns(invocations),
+      genTypes: countGenTypesRuns(invocations, commands.map(shellCall)),
       stack: STACK,
       lifecycle: NO_LIFECYCLE,
       analysis: analysisFixture(),
@@ -404,7 +498,7 @@ describe('checkMetrics', () => {
     const commands = ['supabase gen types typescript --local'];
     const invocations = findSupabaseInvocations(commands);
     const cli = await readCliFacts(ctx, MARKER, invocations);
-    const genTypes = countGenTypesRuns(invocations);
+    const genTypes = countGenTypesRuns(invocations, commands.map(shellCall));
 
     const hostileCommands = await checkMetrics(MARKER, {
       commands: throwing([] as string[]),
@@ -425,7 +519,7 @@ describe('checkMetrics', () => {
 
     const hostileGenTypes = await checkMetrics(MARKER, {
       commands,
-      genTypes: throwing({ runs: 1, sources: ['local'] }),
+      genTypes: throwing({ runs: 1, sources: ['local'], failed: [] }),
       stack: STACK,
       lifecycle: NO_LIFECYCLE,
       analysis: analysisFixture(),
@@ -435,6 +529,7 @@ describe('checkMetrics', () => {
     expect(hostileGenTypes.passed).toBe(true);
     expect(metricsOf(hostileGenTypes)).toMatchObject({
       genTypesRuns: null,
+      genTypesFailedRuns: null,
       genTypesSources: null,
       cliDetours: 0,
       diagnostics: 0,

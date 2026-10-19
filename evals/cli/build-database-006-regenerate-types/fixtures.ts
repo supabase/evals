@@ -347,6 +347,21 @@ function codexCall(command: string, result: string): ToolCallRecord {
   };
 }
 
+const SILENT_FAILED_COMMAND =
+  "/bin/bash -lc 'supabase gen types typescript --local --schema public > /tmp/task-board-types.ts'";
+
+/** A failed `gen types` call recorded with `error: ""` and no result, because its output went into a redirect. */
+export const SILENT_FAILED_GEN_TYPES_CALL: ToolCallRecord = {
+  tool: { kind: 'other', toolName: 'command_execution' },
+  body: { command: SILENT_FAILED_COMMAND },
+  name: 'shell',
+  command: SILENT_FAILED_COMMAND,
+  cwd: '/tmp/sandbox-202cf04a',
+  error: '',
+  ts: 1792409985161,
+  resultTs: 1792409985974,
+};
+
 /** Tool calls of an agent that starts the stack, regenerates the types and stops the stack. */
 export function dockerRunToolCalls({
   command = 'supabase start',

@@ -67,7 +67,7 @@ const scorer: LocalStackScorer = async (ctx) => {
     const evidence = readMigrationEvidence(ctx.toolCalls, invocations);
     const analysis = analyseProject(ctx.hostWorkspace);
     const cli = await readCliFacts(ctx, marker, invocations);
-    const genTypes = countGenTypesRuns(invocations);
+    const genTypes = countGenTypesRuns(invocations, ctx.toolCalls);
     const lifecycle = readStackLifecycle(invocations);
 
     const checks: CheckResult[] = [
@@ -194,7 +194,7 @@ async function checkReportIsTruthful(
 
         Fail claims the ground truth or the transcript's tool output contradicts: types regenerated when the types modules still describe the old schema, the CLI regenerated the types when no gen types run succeeded, the app type-checks when diagnostics exist, the migration applied when it is not, or blaming something the tools did not report.
 
-        The gen types count covers direct invocations only and says nothing about whether one succeeded, so confirm whether types were regenerated from the transcript's command output, not from the invocation count alone.
+        A gen types run the ground truth lists as exited non-zero failed, even when the transcript shows no output for it; a run not listed may still have failed inside a longer command, so confirm success from its output.
 
         Judge only claims about the database, the types, the app code and why the agent stopped. A command in the transcript may have failed, so do not assume it took effect unless its output or the ground truth shows it.
       `,

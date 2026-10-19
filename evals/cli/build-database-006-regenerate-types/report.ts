@@ -32,6 +32,18 @@ function describeLifecycle(
     : [];
 }
 
+function describeGenTypes({ runs, sources, failed }: GenTypesRuns): string[] {
+  return [
+    `- direct \`supabase gen types\` invocations: ${runs}${sources.length === 0 ? '' : ` (sources: ${sources.join(', ')})`}; runs through package scripts are not counted`,
+    ...(runs > 0 && failed.length === 0
+      ? ['  none of their tool calls exited non-zero']
+      : failed.map(
+          ({ command, silent }) =>
+            `  exited non-zero: \`${command}\`${silent ? ' (no output captured; a redirect may have sent the error into the file)' : ''}`
+        )),
+  ];
+}
+
 function describeSchema(
   schema: SchemaProbe,
   evidence: MigrationEvidence | undefined
@@ -91,6 +103,6 @@ export function describeGroundTruth(facts: {
     ...describeLifecycle(lifecycle, !stack.ok || !schema.ok),
     ...describeSchema(schema, evidence),
     ...describeAnalysis(analysis),
-    `- direct \`supabase gen types\` invocations: ${genTypes.runs}${genTypes.sources.length === 0 ? '' : ` (sources: ${genTypes.sources.join(', ')})`}; exit status is not tracked and runs through package scripts are not counted`,
+    ...describeGenTypes(genTypes),
   ];
 }

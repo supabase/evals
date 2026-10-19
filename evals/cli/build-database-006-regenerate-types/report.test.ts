@@ -1,7 +1,7 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/build-database-006-regenerate-types
 import { describe, expect, it } from 'vitest';
 import type { StackProbe } from '../lib/stack.js';
-import { analysisFixture } from './fixtures.js';
+import { analysisFixture, SILENT_FAILED_GEN_TYPES_CALL } from './fixtures.js';
 import type { CliFacts, GenTypesRuns, StackLifecycle } from './metrics.js';
 import { describeGroundTruth } from './report.js';
 import type { SchemaProbe } from './schema.js';
@@ -25,7 +25,7 @@ const MIGRATED: SchemaProbe = {
   },
 };
 
-const NO_RUNS: GenTypesRuns = { runs: 0, sources: [] };
+const NO_RUNS: GenTypesRuns = { runs: 0, sources: [], failed: [] };
 const CLI: CliFacts = { versions: { cliVersion: '2.117.0' }, cliOverride: [] };
 const NO_LIFECYCLE: StackLifecycle = {
   lastCommand: null,
@@ -65,7 +65,7 @@ describe('describeGroundTruth', () => {
         suppressions: ['src/tasks.ts:12 @ts-ignore'],
         missingExports: ['label'],
       }),
-      genTypes: { runs: 1, sources: ['local'] },
+      genTypes: { runs: 1, sources: ['local'], failed: [] },
     });
 
     expect(lines.length).toBeGreaterThan(0);
@@ -356,7 +356,9 @@ describe('describeGroundTruth', () => {
   describe('gen types runs', () => {
     it('gives the run count and the distinct sources', () => {
       const line = lineFor(
-        describe_({ genTypes: { runs: 3, sources: ['local', 'db-url'] } }),
+        describe_({
+          genTypes: { runs: 3, sources: ['local', 'db-url'], failed: [] },
+        }),
         /gen types/i
       );
 
@@ -369,15 +371,89 @@ describe('describeGroundTruth', () => {
       expect(lineFor(describe_(), /gen types/i)).toMatch(/(?<!\d)0(?!\d)/);
     });
 
-    it('states only what is known: direct invocations, no exit status, no package scripts', () => {
+    it('states what is counted: direct invocations, no package scripts', () => {
       const line = lineFor(
-        describe_({ genTypes: { runs: 1, sources: ['local'] } }),
+        describe_({ genTypes: { runs: 1, sources: ['local'], failed: [] } }),
         /gen types/i
       );
 
       expect(line).toContain('direct');
-      expect(line).toContain('exit status is not tracked');
       expect(line).toContain('package scripts are not counted');
+      expect(line).not.toContain('exit status is not tracked');
+    });
+
+    it('says none of the runs exited non-zero when none failed', () => {
+      const line = lineFor(
+        describe_({ genTypes: { runs: 2, sources: ['local'], failed: [] } }),
+        /gen types/i
+      );
+
+      expect(line).toContain('none of their tool calls exited non-zero');
+      expect(line).not.toContain('exited non-zero:');
+    });
+
+    it('says nothing about exit status when there were no runs', () => {
+      const line = lineFor(
+        describe_({ genTypes: { runs: 0, sources: [], failed: [] } }),
+        /gen types/i
+      );
+
+      expect(line).not.toContain('none of their tool calls');
+    });
+
+    it('names a silent failure with its command and says no output was captured', () => {
+      const { command = '' } = SILENT_FAILED_GEN_TYPES_CALL;
+      const line = lineFor(
+        describe_({
+          genTypes: {
+            runs: 1,
+            sources: ['local'],
+            failed: [{ command, silent: true }],
+          },
+        }),
+        /gen types/i
+      );
+
+      expect(line).toContain(
+        `  exited non-zero: \`${command}\` (no output captured; a redirect may have sent the error into the file)`
+      );
+      expect(line).not.toContain('none of their tool calls');
+    });
+
+    it('names a failure that had output by its command alone', () => {
+      const line = lineFor(
+        describe_({
+          genTypes: {
+            runs: 1,
+            sources: ['local'],
+            failed: [{ command: 'supabase gen types --local', silent: false }],
+          },
+        }),
+        /gen types/i
+      );
+
+      expect(line).toContain('  exited non-zero: `supabase gen types --local`');
+      expect(line).not.toContain('no output captured');
+    });
+
+    it('lists every failed run on its own indented line', () => {
+      const lines = describe_({
+        genTypes: {
+          runs: 2,
+          sources: ['local'],
+          failed: [
+            { command: 'first', silent: true },
+            { command: 'second', silent: false },
+          ],
+        },
+      });
+
+      expect(lines.filter((line) => line.includes('exited non-zero:'))).toEqual(
+        [
+          '  exited non-zero: `first` (no output captured; a redirect may have sent the error into the file)',
+          '  exited non-zero: `second`',
+        ]
+      );
     });
   });
 

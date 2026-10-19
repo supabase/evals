@@ -25,6 +25,7 @@ import {
   makeWorkspace,
   regeneratedWorkspace,
   removeWorkspaces,
+  SILENT_FAILED_GEN_TYPES_CALL,
   STALE_QUERIES_IN_DECLARER,
   STALE_TASKS,
   TASKS_IMPLEMENTED_OUTSIDE_SRC,
@@ -829,6 +830,41 @@ describe('report judge input', () => {
       .find((call) => judgeKind(call) === 'report');
     expect(args?.input).toContain('supabase gen types typescript --local');
     expect(args?.input).toContain('supabase start is not running.');
+  });
+});
+
+describe('failed gen types runs', () => {
+  const reportInput = (judge: ReturnType<typeof fakeCtx>['judge']) =>
+    judge.mock.calls
+      .map(([args]) => args)
+      .find((args) => judgeKind(args) === 'report')?.input ?? '';
+
+  it('tells the report judge a silent gen types call exited non-zero and records it in the metrics', async () => {
+    const { ctx, judge } = fakeCtx({
+      workspace: WORKSPACES.fixed,
+      toolCalls: [SILENT_FAILED_GEN_TYPES_CALL],
+    });
+    const result = await scorer(ctx);
+
+    expect(reportInput(judge)).toContain(
+      `exited non-zero: \`${SILENT_FAILED_GEN_TYPES_CALL.command}\` (no output captured; a redirect may have sent the error into the file)`
+    );
+    expect(JSON.parse(checkNamed(result, METRICS)?.notes ?? '')).toMatchObject({
+      genTypesRuns: 1,
+      genTypesFailedRuns: 1,
+    });
+  });
+
+  it('tells the report judge no gen types call exited non-zero when none did', async () => {
+    const { ctx, judge } = fakeCtx({ workspace: WORKSPACES.fixed });
+    const result = await scorer(ctx);
+
+    expect(reportInput(judge)).toContain(
+      'none of their tool calls exited non-zero'
+    );
+    expect(JSON.parse(checkNamed(result, METRICS)?.notes ?? '')).toMatchObject({
+      genTypesFailedRuns: 0,
+    });
   });
 });
 
