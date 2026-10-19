@@ -21,6 +21,7 @@ import {
   SEEDED_TYPES,
   STALE_QUERIES_IN_DECLARER,
   STALE_TASKS,
+  TASKS_IMPLEMENTED_OUTSIDE_SRC,
   withoutFunction,
 } from './fixtures.js';
 import {
@@ -1038,7 +1039,7 @@ describe('types modules found through the checker', () => {
     expectAllChecksPass(analysis);
   });
 
-  it('follows an export * barrel outside src to the file that declares Database', () => {
+  it('follows an export * barrel outside src to the file that declares Database and keeps the barrel an app file', () => {
     const analysis = analyse(
       makeWorkspace({
         'src/database.types.ts': null,
@@ -1049,7 +1050,11 @@ describe('types modules found through the checker', () => {
     );
 
     expectCleanAnalysis(analysis, 'types/database.ts');
-    expect(analysis.appFiles).toEqual(['src/supabase.ts', 'src/tasks.ts']);
+    expect(analysis.appFiles).toEqual([
+      'src/supabase.ts',
+      'src/tasks.ts',
+      'types/index.ts',
+    ]);
     expectAllChecksPass(analysis);
   });
 
@@ -1108,6 +1113,141 @@ describe('types modules found through the checker', () => {
 
     expectCleanAnalysis(analysis, 'src/database.types.ts');
     expectAllChecksPass(analysis);
+  });
+});
+
+describe('app code the app imports from outside src or from a module declaration', () => {
+  const ANY_CLIENT_ALIAS = `import type { SupabaseClient } from '@supabase/supabase-js';
+
+export type Client = SupabaseClient<any>;
+`;
+  const connectVia = (
+    specifier: string
+  ) => `import { createClient } from '@supabase/supabase-js';
+import type { Database } from './database.types';
+import type { Client } from '${specifier}';
+
+export type { Client };
+
+export function connect(url: string, key: string): Client {
+  return createClient<Database>(url, key);
+}
+`;
+
+  it.each([
+    ['a module declaration file', 'src/db.d.ts', './db', []],
+    ['a file outside src', 'types/db.ts', '../types/db', ['types/db.ts']],
+  ])(
+    'scans an any client alias in %s',
+    (_label, file, specifier, extraAppFiles) => {
+      const analysis = analyse(
+        regeneratedWorkspace({
+          [file]: ANY_CLIENT_ALIAS,
+          'src/supabase.ts': connectVia(specifier),
+          'src/tasks.ts': fixedTasks(['list', 'add', 'complete']),
+        })
+      );
+
+      expect(analysis.diagnostics).toEqual([]);
+      expect(analysis.suppressions).toEqual([`${file}:3 any`]);
+      expect(analysis.appFiles).toEqual(
+        ['src/supabase.ts', 'src/tasks.ts', ...extraAppFiles].sort()
+      );
+      const check = checkAppNotSilenced(analysis);
+      expect(check).toMatchObject({ name: SILENCED_CHECK, passed: false });
+      expect(check.notes).toContain(`${file}:3 any`);
+    }
+  );
+
+  it('type-checks and hands the behaviour judge a stale implementation that a src file re-exports from outside src', () => {
+    const analysis = analyse(
+      regeneratedWorkspace(TASKS_IMPLEMENTED_OUTSIDE_SRC)
+    );
+
+    expect(analysis.diagnostics.length).toBeGreaterThan(0);
+    for (const diagnostic of analysis.diagnostics) {
+      expect(diagnostic).toMatch(/^lib\/tasks\.ts:\d+ /);
+    }
+    expect(
+      analysis.diagnostics.some((diagnostic) =>
+        diagnostic.includes('is_complete')
+      )
+    ).toBe(true);
+    expect(analysis.appFiles).toEqual([
+      'lib/tasks.ts',
+      'src/supabase.ts',
+      'src/tasks.ts',
+    ]);
+    expect(analysis.missingExports).toEqual([]);
+    expect(checkAppTypeChecks(analysis)).toMatchObject({
+      name: TYPECHECK_CHECK,
+      passed: false,
+    });
+  });
+
+  it('scans a suppression in an implementation outside src', () => {
+    const analysis = analyse(
+      regeneratedWorkspace({
+        ...TASKS_IMPLEMENTED_OUTSIDE_SRC,
+        'lib/tasks.ts': `// @ts-nocheck\n${TASKS_IMPLEMENTED_OUTSIDE_SRC['lib/tasks.ts']}`,
+      })
+    );
+
+    expect(analysis.diagnostics).toEqual([]);
+    expect(analysis.suppressions).toEqual(['lib/tasks.ts:1 @ts-nocheck']);
+    expect(checkAppNotSilenced(analysis).passed).toBe(false);
+  });
+
+  it('does not scan a global declaration file the app references', () => {
+    const analysis = analyse(
+      regeneratedWorkspace({
+        'src/env.d.ts': 'declare const __DEV__: any;\n',
+        'src/supabase.ts': `/// <reference path="./env.d.ts" />\n${SEEDED_SUPABASE}`,
+      })
+    );
+
+    expect(analysis.suppressions).toEqual([]);
+    expect(analysis.appFiles).toEqual(['src/supabase.ts', 'src/tasks.ts']);
+    expectAllChecksPass(analysis);
+  });
+
+  it('never reads files in node_modules the app imports', () => {
+    const analysis = analyse(
+      regeneratedWorkspace({
+        'node_modules/dep-types/package.json': JSON.stringify({
+          name: 'dep-types',
+          version: '0.0.0',
+          types: './index.d.ts',
+        }),
+        'node_modules/dep-types/index.d.ts':
+          'export declare const loose: any;\n',
+        'node_modules/dep-src/index.ts':
+          "export const broken: any = 'x' as never;\nexport const wrong: number = 'x';\n",
+        'src/uses-deps.ts': `import { loose } from 'dep-types';
+import { broken } from 'dep-src';
+
+export const both = [loose, broken];
+`,
+      })
+    );
+
+    expect(analysis.diagnostics).toEqual([]);
+    expect(analysis.suppressions).toEqual([]);
+    expect(analysis.appFiles).toEqual([
+      'src/supabase.ts',
+      'src/tasks.ts',
+      'src/uses-deps.ts',
+    ]);
+    expectAllChecksPass(analysis);
+  });
+
+  it('keeps the probe files out of the diagnostics, the scan and the judge files', () => {
+    const analysis = analyse(makeWorkspace());
+
+    expect(analysis.typesModules[0].problems).not.toEqual([]);
+    expect(analysis.diagnostics).toEqual([]);
+    expect(analysis.suppressions).toEqual([]);
+    expect(analysis.appFiles).toEqual(['src/supabase.ts', 'src/tasks.ts']);
   });
 });
 

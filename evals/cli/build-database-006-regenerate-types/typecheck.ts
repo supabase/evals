@@ -136,13 +136,22 @@ function loadCompilerOptions(
   };
 }
 
-function parse(file: string): ts.SourceFile {
-  return ts.createSourceFile(
-    file,
-    fs.readFileSync(file, 'utf8'),
-    ts.ScriptTarget.Latest,
-    true
-  );
+function isProjectFile(root: string, file: string): boolean {
+  const relativePath = path.relative(root, file);
+  const segments = relativePath.split(path.sep);
+  if (
+    relativePath.startsWith('..') ||
+    segments.includes('node_modules') ||
+    !TYPESCRIPT_FILE.test(file)
+  ) {
+    return false;
+  }
+  let current = root;
+  return segments.every((segment) => {
+    current = path.join(current, segment);
+    const stat = fs.lstatSync(current, { throwIfNoEntry: false });
+    return stat !== undefined && !stat.isSymbolicLink();
+  });
 }
 
 function declaresDatabase(source: ts.SourceFile): boolean {
@@ -445,7 +454,7 @@ function findCallableExports(program: ts.Program, file: string): Set<string> {
   return callable;
 }
 
-/** Compiles every `.ts`/`.tsx` file under `<root>/src`, reading the agent's tsconfig but forcing strict checking on and mapping only `@supabase/supabase-js` to the host install. */
+/** Compiles every `.ts`/`.tsx` file under `<root>/src` and the workspace files they import, reading the agent's tsconfig but forcing strict checking on and mapping only `@supabase/supabase-js` to the host install. */
 export function analyseProject(
   root: string,
   options: { supabaseJsDir?: string } = {}
@@ -462,12 +471,6 @@ export function analyseProject(
     const compilerOptions = loadCompilerOptions(root, supabaseJsDir);
     const files = listProjectFiles(srcDir);
     const relative = (file: string) => posix(path.relative(root, file));
-    const parsed = new Map<string, ts.SourceFile>();
-    const sourceOf = (file: string) => {
-      const source = parsed.get(file) ?? parse(file);
-      parsed.set(file, source);
-      return source;
-    };
 
     const probeSources = new Map<string, string>();
     const sourceFiles = new Map<string, ts.SourceFile | undefined>();
@@ -491,20 +494,29 @@ export function analyseProject(
     host.readFile = (name) =>
       probeSources.get(name) ?? readFile.call(host, name);
 
-    const databaseDeclarers = new Set(
-      files.filter((file) => declaresDatabase(sourceOf(file)))
-    );
-    const appPaths = files.filter((file) => !databaseDeclarers.has(file));
+    const inProject = (file: string) =>
+      !probeSources.has(file) && isProjectFile(root, file);
     const discovery = ts.createProgram(files, compilerOptions, host);
-    const typesFiles = findTypesFiles(
-      discovery,
-      appPaths,
-      (file) =>
-        !path.relative(root, file).startsWith('..') &&
-        !file.split(path.sep).includes('node_modules') &&
-        TYPESCRIPT_FILE.test(file) &&
-        fs.existsSync(file)
+    const projectFiles = [
+      ...new Set([
+        ...files,
+        ...discovery
+          .getSourceFiles()
+          .map(({ fileName }) => path.normalize(fileName))
+          .filter(inProject),
+      ]),
+    ].sort();
+    const codeFiles = projectFiles.filter(
+      (file) => !discovery.getSourceFile(file)?.isDeclarationFile
     );
+    const databaseDeclarers = new Set(
+      codeFiles.filter((file) => {
+        const source = discovery.getSourceFile(file);
+        return source !== undefined && declaresDatabase(source);
+      })
+    );
+    const appPaths = codeFiles.filter((file) => !databaseDeclarers.has(file));
+    const typesFiles = findTypesFiles(discovery, appPaths, inProject);
 
     const probes = typesFiles.map((file, index) => {
       const probePath = path.join(srcDir, `__scorer_probe_${index}.ts`);
@@ -548,7 +560,7 @@ export function analyseProject(
     );
 
     const diagnostics = [
-      ...files.flatMap((file) => {
+      ...codeFiles.flatMap((file) => {
         const source = program.getSourceFile(file);
         return source
           ? [
@@ -564,24 +576,22 @@ export function analyseProject(
     ].map((diagnostic) => formatDiagnostic(root, diagnostic));
 
     const checker = program.getTypeChecker();
-    const suppressions = files
-      .map(relative)
-      .sort()
-      .flatMap((file) => {
-        const source = program.getSourceFile(path.join(root, file));
-        return source
-          ? scanSuppressions(file, source, checker, supabaseJsDir)
-          : [];
-      });
+    const suppressions = projectFiles.flatMap((file) => {
+      const source = program.getSourceFile(file);
+      return source &&
+        (!source.isDeclarationFile || ts.isExternalModule(source))
+        ? scanSuppressions(relative(file), source, checker, supabaseJsDir)
+        : [];
+    });
 
     const callableByFile = new Map(
-      files.map((file) => [file, findCallableExports(program, file)])
+      codeFiles.map((file) => [file, findCallableExports(program, file)])
     );
     const callable = new Set(
       [...callableByFile.values()].flatMap((names) => [...names])
     );
     const missingExports = APP_EXPORTS.filter((name) => !callable.has(name));
-    const appFiles = files
+    const appFiles = codeFiles
       .filter(
         (file) =>
           !databaseDeclarers.has(file) ||

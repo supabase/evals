@@ -273,6 +273,12 @@ export function connect(url: string, key: string): Client {
   'src/tasks.ts': fixedTasks(['list', 'add', 'complete']),
 };
 
+export const TASKS_IMPLEMENTED_OUTSIDE_SRC = {
+  'lib/tasks.ts': STALE_TASKS.replaceAll("from './", "from '../src/"),
+  'src/tasks.ts':
+    "export { listOpenTasks, addTask, completeTask, label } from '../lib/tasks';\n",
+};
+
 export const DECLARER_ALIAS_WITH_CONNECT = {
   'src/supabase.ts': `import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Database as Generated } from './database.types';

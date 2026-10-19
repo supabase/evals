@@ -23,6 +23,7 @@ import {
   removeWorkspaces,
   STALE_QUERIES_IN_DECLARER,
   STALE_TASKS,
+  TASKS_IMPLEMENTED_OUTSIDE_SRC,
   withoutFunction,
 } from './fixtures.js';
 
@@ -189,6 +190,7 @@ const WORKSPACES = {} as Record<
   | 'staleApp'
   | 'removedExport'
   | 'nocheck'
+  | 'outsideSrc'
   | 'nothingDone'
   | 'noSrc'
   | 'missing',
@@ -205,6 +207,7 @@ beforeAll(() => {
   WORKSPACES.nocheck = regeneratedWorkspace({
     'src/tasks.ts': `// @ts-nocheck\n${STALE_TASKS}`,
   });
+  WORKSPACES.outsideSrc = regeneratedWorkspace(TASKS_IMPLEMENTED_OUTSIDE_SRC);
   WORKSPACES.nothingDone = makeWorkspace({
     'src/tasks.ts': withoutFunction(fixedTasks(), 'label'),
   });
@@ -393,6 +396,11 @@ describe('deterministic checks', () => {
     ['an app function removed', 'removedExport', [SILENCED]],
     ['stale app with @ts-nocheck', 'nocheck', [SILENCED]],
     [
+      'a stale implementation outside src that src re-exports',
+      'outsideSrc',
+      [TYPECHECK],
+    ],
+    [
       'stale types with a removed export',
       'nothingDone',
       [TYPES, TYPECHECK, SILENCED],
@@ -577,6 +585,22 @@ describe('behaviour judge input', () => {
       'src/supabase.ts',
       'src/tasks.ts',
     ]);
+  });
+
+  it('includes a stale implementation outside src that src only re-exports', async () => {
+    const { ctx, judge } = fakeCtx({ workspace: WORKSPACES.outsideSrc });
+    await scorer(ctx);
+
+    expect(finalFilePaths(behaviourInput(judge))).toEqual([
+      'lib/tasks.ts',
+      'src/supabase.ts',
+      'src/tasks.ts',
+    ]);
+    expect(
+      behaviourInput(judge).slice(
+        behaviourInput(judge).indexOf('Final app files')
+      )
+    ).toContain(LABEL_STALE);
   });
 
   it('shows the seeded sources before and the agent final sources after', async () => {
