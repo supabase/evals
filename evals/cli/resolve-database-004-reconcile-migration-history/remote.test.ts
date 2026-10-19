@@ -19,9 +19,20 @@ type FakeDb = {
   profiles: number;
   intact: number;
   profileCountsAsStrings?: boolean;
+  existsAs?: 'number' | 'string' | 'boolean';
   failOn?: string;
   failWith?: unknown;
 };
+
+function existsValue(
+  sql: string,
+  exists: boolean,
+  as: FakeDb['existsAs'] = 'number'
+) {
+  if (as === 'boolean') return exists;
+  if (!sql.includes('::int')) return exists ? 't' : 'f';
+  return as === 'string' ? String(Number(exists)) : Number(exists);
+}
 
 const SEEDED_DB: FakeDb = {
   versions: ['20240101000000', '20240115093000', '20240201000000'],
@@ -41,7 +52,9 @@ function fakeHostedQuery(db: FakeDb) {
     const num = (value: number) =>
       db.profileCountsAsStrings ? `${value}` : value;
     if (sql.includes('to_regclass')) {
-      return { rows: [{ exists: db.posts !== null }] };
+      return {
+        rows: [{ exists: existsValue(sql, db.posts !== null, db.existsAs) }],
+      };
     }
     if (sql.includes('information_schema.columns')) {
       return { rows: db.columns.map((column_name) => ({ column_name })) };
@@ -50,6 +63,9 @@ function fakeHostedQuery(db: FakeDb) {
       return { rows: db.versions.map((version) => ({ version })) };
     }
     if (sql.includes('from public.profiles')) {
+      if (db.columns.length === 0) {
+        throw new Error('relation "public.profiles" does not exist');
+      }
       if (/\bbio\b/.test(sql) && !db.columns.includes('bio')) {
         throw new Error('column "bio" does not exist');
       }
@@ -95,7 +111,7 @@ const okProbe = (overrides: Partial<RemoteState> = {}): RemoteProbe => ({
 describe('NO_HOSTED_PROJECT', () => {
   it('names the missing hosted project and what the eval needs', () => {
     expect(NO_HOSTED_PROJECT).toBe(
-      'no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one (blocked on a staging org for evals)'
+      'no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one'
     );
   });
 });
@@ -147,6 +163,50 @@ describe('readRemote', () => {
       },
     });
     expect(queries.some((sql) => /\bbio\b/.test(sql))).toBe(false);
+  });
+
+  it('skips the profiles count and reports zero rows when the profiles table is gone', async () => {
+    const { ctx, queries } = hostedCtx({ ...SEEDED_DB, columns: [] });
+    expect(await readRemote(ctx)).toEqual({
+      ok: true,
+      state: {
+        ...SEEDED_STATE,
+        profileColumns: [],
+        profileRows: 0,
+        intactBios: 0,
+      },
+    });
+    expect(queries.some((sql) => sql.includes('from public.profiles'))).toBe(
+      false
+    );
+  });
+
+  it.each(['number', 'string', 'boolean'] as const)(
+    'reads an existing posts table when the existence flag comes back as a %s',
+    async (existsAs) => {
+      const { ctx } = hostedCtx({ ...SEEDED_DB, existsAs });
+      const probe = await readRemote(ctx);
+      expect(probe.ok && probe.state.postsExists).toBe(true);
+      expect(probe.ok && probe.state.postRows).toBe(40);
+    }
+  );
+
+  it.each(['number', 'string', 'boolean'] as const)(
+    'reads a missing posts table when the existence flag comes back as a %s',
+    async (existsAs) => {
+      const { ctx } = hostedCtx({ ...SEEDED_DB, posts: null, existsAs });
+      const probe = await readRemote(ctx);
+      expect(probe.ok && probe.state.postsExists).toBe(false);
+      expect(probe.ok && probe.state.postRows).toBeNull();
+    }
+  );
+
+  it('asks for the existence flag as an integer', async () => {
+    const { ctx, queries } = hostedCtx(SEEDED_DB);
+    await readRemote(ctx);
+    expect(queries.find((sql) => sql.includes('to_regclass'))).toBe(
+      "select (to_regclass('public.posts') is not null)::int as exists"
+    );
   });
 
   it('reports a missing posts table without counting its rows', async () => {
@@ -237,7 +297,7 @@ describe('readRemote', () => {
 });
 
 describe('checkHostedProject', () => {
-  const NAME = 'linked to a hosted project';
+  const NAME = 'hosted project was provisioned for the run';
 
   it('passes when the context has a hosted query function and ref', () => {
     expect(

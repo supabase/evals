@@ -9,7 +9,6 @@ import {
 } from '../lib/cli-invocations.js';
 import {
   findCliDetourCommands,
-  leadingWord,
   unmaskedCommandSegments,
 } from '../lib/detours.js';
 import { readCliVersions, safely } from '../lib/metrics.js';
@@ -27,10 +26,26 @@ const TRACKED_COMMANDS = new Set([
   'migration fetch',
   'db push',
   'db pull',
+  'db query',
   'link',
   'login',
 ]);
 const COMMAND_GROUPS = new Set(['migration', 'db']);
+const VALUE_FLAGS = new Set([
+  '--workdir',
+  '--profile',
+  '--network-id',
+  '-o',
+  '--output',
+  '--dns-resolver',
+  '--project-ref',
+  '--db-url',
+  '-p',
+  '--password',
+  '--schema',
+  '-s',
+  '--status',
+]);
 
 const HISTORY_WRITE_RE =
   /(?:insert\s+into|update|delete\s+from|truncate(?:\s+table)?)\s+"?supabase_migrations"?\."?schema_migrations"?(?![\w$"])/i;
@@ -55,16 +70,23 @@ export async function readCliFacts(
   };
 }
 
+function subcommandWords(argv: readonly string[]): string[] {
+  const words: string[] = [];
+  for (let i = 1; i < argv.length; i++) {
+    if (!argv[i].startsWith('-')) words.push(argv[i]);
+    else if (VALUE_FLAGS.has(argv[i])) i++;
+  }
+  return words;
+}
+
 function commandKey(argv: readonly string[]): string {
-  const [first = '', second = ''] = argv
-    .slice(1)
-    .filter((word) => !word.startsWith('-'));
+  const [first = '', second = ''] = subcommandWords(argv);
   const group = first === 'migrations' ? 'migration' : first;
   const key = COMMAND_GROUPS.has(group) ? `${group} ${second}` : group;
   return TRACKED_COMMANDS.has(key) ? key : 'other';
 }
 
-/** Supabase invocations by subcommand: `migration list`, `migration repair`, `migration fetch`, `db push`, `db pull`, `link`, `login`, anything else under `other`. */
+/** Supabase invocations by subcommand: `migration list`, `migration repair`, `migration fetch`, `db push`, `db pull`, `db query`, `link`, `login`, anything else under `other`. */
 export function countCliCommands(
   invocations: readonly SupabaseInvocation[]
 ): Record<string, number> {
@@ -76,14 +98,11 @@ export function countCliCommands(
   return counts;
 }
 
-/** Commands that write `supabase_migrations.schema_migrations` with SQL outside the CLI; a diagnostic, never asserted on. */
-export function countHistoryEditsOutsideCli(
-  commands: readonly string[]
-): number {
+/** Commands that write `supabase_migrations.schema_migrations` with SQL, through psql or `supabase db query`; a diagnostic, never asserted on. */
+export function countHistorySqlWrites(commands: readonly string[]): number {
   return commands.filter((command) =>
-    unmaskedCommandSegments(command).some(
-      (segment) =>
-        HISTORY_WRITE_RE.test(segment) && leadingWord(segment) !== 'supabase'
+    unmaskedCommandSegments(command).some((segment) =>
+      HISTORY_WRITE_RE.test(segment)
     )
   ).length;
 }
@@ -116,9 +135,7 @@ export async function checkMetrics(
       remote.ok ? [...remote.state.versions] : null
     ),
     cliCommands: await safely(() => countCliCommands(invocations)),
-    historyEditsOutsideCli: await safely(() =>
-      countHistoryEditsOutsideCli(commands)
-    ),
+    historySqlWrites: await safely(() => countHistorySqlWrites(commands)),
     cliDetours: await safely(() => findCliDetourCommands(commands).length),
   };
 

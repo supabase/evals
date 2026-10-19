@@ -16,9 +16,9 @@ const MIGRATIONS_DIR = 'supabase/migrations';
 const MIGRATION_FILE_RE = /^([0-9]+)_(.*)\.sql$/;
 const KEPT_CHANGES = ['profiles', 'bio', 'avatar'] as const;
 
-/** Orders versions shorter first, then lexically. */
+/** The CLI's version order: plain lexical, so a prefix sorts before the longer version. */
 export function compareVersions(a: string, b: string): number {
-  return a.length - b.length || (a < b ? -1 : a > b ? 1 : 0);
+  return a < b ? -1 : a > b ? 1 : 0;
 }
 
 export async function readLocalMigrations(

@@ -18,7 +18,7 @@ export type RemoteProbe =
 type HostedContext = Pick<LocalStackEvalContext, 'hostedQuery' | 'hostedRef'>;
 
 export const NO_HOSTED_PROJECT =
-  'no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one (blocked on a staging org for evals)';
+  'no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one';
 
 export function hasHostedProject(ctx: HostedContext): boolean {
   return ctx.hostedQuery !== undefined && ctx.hostedRef !== undefined;
@@ -41,20 +41,25 @@ export async function readRemote(ctx: HostedContext): Promise<RemoteProbe> {
       )
     ).rows.map((row) => String(row.column_name));
     const postsExists =
-      (
-        await hostedQuery(
-          "select to_regclass('public.posts') is not null as exists"
-        )
-      ).rows[0]?.exists === true;
+      Number(
+        (
+          await hostedQuery(
+            "select (to_regclass('public.posts') is not null)::int as exists"
+          )
+        ).rows[0]?.exists
+      ) === 1;
 
     const hasBio = profileColumns.includes('bio');
-    const profiles = (
-      await hostedQuery(
-        hasBio
-          ? "select count(*)::int as total, count(*) filter (where bio = 'Bio for ' || username)::int as intact from public.profiles"
-          : 'select count(*)::int as total from public.profiles'
-      )
-    ).rows[0];
+    const profiles =
+      profileColumns.length === 0
+        ? undefined
+        : (
+            await hostedQuery(
+              hasBio
+                ? "select count(*)::int as total, count(*) filter (where bio = 'Bio for ' || username)::int as intact from public.profiles"
+                : 'select count(*)::int as total from public.profiles'
+            )
+          ).rows[0];
     const postRows = postsExists
       ? Number(
           (await hostedQuery('select count(*)::int as total from public.posts'))
@@ -68,7 +73,7 @@ export async function readRemote(ctx: HostedContext): Promise<RemoteProbe> {
         versions,
         profileColumns,
         postsExists,
-        profileRows: Number(profiles?.total),
+        profileRows: profiles === undefined ? 0 : Number(profiles.total),
         intactBios: hasBio ? Number(profiles?.intact) : 0,
         postRows,
       },
@@ -79,7 +84,7 @@ export async function readRemote(ctx: HostedContext): Promise<RemoteProbe> {
 }
 
 export function checkHostedProject(ctx: HostedContext): CheckResult {
-  const name = 'linked to a hosted project';
+  const name = 'hosted project was provisioned for the run';
   return hasHostedProject(ctx)
     ? { name, passed: true, notes: `hosted project ${ctx.hostedRef}` }
     : { name, passed: false, notes: NO_HOSTED_PROJECT };

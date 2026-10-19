@@ -13,7 +13,7 @@ import type { LocalMigrationsProbe } from './local.js';
 import {
   checkMetrics,
   countCliCommands,
-  countHistoryEditsOutsideCli,
+  countHistorySqlWrites,
   readCliFacts,
 } from './metrics.js';
 import { NO_HOSTED_PROJECT, type RemoteProbe } from './remote.js';
@@ -126,6 +126,49 @@ describe('countCliCommands', () => {
     expect(total(counts)).toBe(4);
   });
 
+  it('counts db query under its own key', () => {
+    const counts = countOf([
+      'supabase db query "select 1"',
+      'supabase db query --linked "select version from supabase_migrations.schema_migrations"',
+    ]);
+    expect(counts['db query']).toBe(2);
+    expect(counts.other).toBeUndefined();
+  });
+
+  it.each([
+    ['supabase --workdir app migration list', 'migration list'],
+    ['supabase --workdir=app migration list', 'migration list'],
+    ['supabase --profile staging db push', 'db push'],
+    ['supabase --network-id net db pull', 'db pull'],
+    ['supabase -o json migration list', 'migration list'],
+    ['supabase --output json migration list', 'migration list'],
+    ['supabase --dns-resolver https migration fetch', 'migration fetch'],
+    ['supabase db --db-url postgres://x push', 'db push'],
+    [
+      'supabase migration --project-ref abcdefghijklmnopqrst list',
+      'migration list',
+    ],
+    ['supabase db -p secret pull', 'db pull'],
+    ['supabase db --password secret pull', 'db pull'],
+    ['supabase db diff --schema public', 'other'],
+    ['supabase db -s public query "select 1"', 'db query'],
+    [
+      'supabase migration repair --status reverted 20240115093000',
+      'migration repair',
+    ],
+    [
+      'supabase migration repair --status applied 20240116120000',
+      'migration repair',
+    ],
+    [
+      'supabase --workdir app migration repair --status=reverted 20240115093000',
+      'migration repair',
+    ],
+    ['supabase --workdir app', 'other'],
+  ])('keys %s as %s', (command, key) => {
+    expect(countOf([command])).toEqual({ [key]: 1 });
+  });
+
   it('files every other subcommand under other', () => {
     const counts = countOf([
       'supabase db reset --linked',
@@ -169,7 +212,7 @@ describe('countCliCommands', () => {
   });
 });
 
-describe('countHistoryEditsOutsideCli', () => {
+describe('countHistorySqlWrites', () => {
   const edit = (sql: string, prefix = 'psql "$DB_URL" -c') =>
     `${prefix} "${sql}"`;
   const TABLE = 'supabase_migrations.schema_migrations';
@@ -197,12 +240,12 @@ describe('countHistoryEditsOutsideCli', () => {
     ],
     ['shell wrapper', `bash -lc 'psql "$DB_URL" -c "delete from ${TABLE}"'`],
   ])('counts a psql %s of the migration history', (_label, command) => {
-    expect(countHistoryEditsOutsideCli([command])).toBe(1);
+    expect(countHistorySqlWrites([command])).toBe(1);
   });
 
   it('counts a command once however many history writes it holds', () => {
     expect(
-      countHistoryEditsOutsideCli([
+      countHistorySqlWrites([
         edit(
           `delete from ${TABLE} where version = '1'; insert into ${TABLE} (version) values ('2')`
         ),
@@ -213,7 +256,7 @@ describe('countHistoryEditsOutsideCli', () => {
 
   it('counts each separate command', () => {
     expect(
-      countHistoryEditsOutsideCli([
+      countHistorySqlWrites([
         edit(`delete from ${TABLE}`),
         'ls',
         edit(`insert into ${TABLE} (version) values ('2')`),
@@ -223,24 +266,54 @@ describe('countHistoryEditsOutsideCli', () => {
 
   it('does not count supabase migration repair', () => {
     expect(
-      countHistoryEditsOutsideCli([
+      countHistorySqlWrites([
         'supabase migration repair --status reverted 20240115093000 20240201000000',
         'supabase migration repair --status applied 20240116120000',
       ])
     ).toBe(0);
   });
 
-  it('does not count a command led by supabase even when it carries history SQL', () => {
+  it.each([
+    [
+      'supabase db query',
+      `supabase db query "delete from ${TABLE} where version = '1'"`,
+    ],
+    [
+      'supabase db query --linked',
+      `supabase db query --linked "insert into ${TABLE} (version) values ('2')"`,
+    ],
+    ['npx supabase db query', `npx supabase db query "truncate ${TABLE}"`],
+    [
+      'npx with a pinned version',
+      `npx --yes supabase@2.121.0 db query "update ${TABLE} set name = 'x'"`,
+    ],
+    ['a shell wrapper', `bash -lc 'supabase db query "delete from ${TABLE}"'`],
+    ['psql -c', `psql "$DB_URL" -c "delete from ${TABLE}"`],
+    ['psql --command', `psql "$DB_URL" --command "truncate ${TABLE}"`],
+  ])('counts %s writing the migration history', (_label, command) => {
+    expect(countHistorySqlWrites([command])).toBe(1);
+  });
+
+  it('counts a command once when a supabase db query and a psql both write the history', () => {
     expect(
-      countHistoryEditsOutsideCli([
-        `supabase db query --linked "delete from ${TABLE} where version = '1'"`,
+      countHistorySqlWrites([
+        `supabase db query "delete from ${TABLE}" && ${edit(`insert into ${TABLE} (version) values ('2')`)}`,
+      ])
+    ).toBe(1);
+  });
+
+  it('does not count a supabase db query that only reads the history', () => {
+    expect(
+      countHistorySqlWrites([
+        `supabase db query --linked "select version from ${TABLE} order by version"`,
+        `npx supabase db query "select count(*) from ${TABLE}"`,
       ])
     ).toBe(0);
   });
 
   it('does not count reads of the migration history', () => {
     expect(
-      countHistoryEditsOutsideCli([
+      countHistorySqlWrites([
         edit(`select version from ${TABLE} order by version`),
         edit(`select count(*) from ${TABLE}`),
       ])
@@ -249,7 +322,7 @@ describe('countHistoryEditsOutsideCli', () => {
 
   it('does not count writes to other tables or look-alike history tables', () => {
     expect(
-      countHistoryEditsOutsideCli([
+      countHistorySqlWrites([
         edit(`delete from public.schema_migrations`),
         edit(`delete from supabase_migrations.seed_files`),
         edit(`delete from public.profiles where username = 'a'`),
@@ -261,7 +334,7 @@ describe('countHistoryEditsOutsideCli', () => {
 
   it('does not count history SQL that only appears in a shell comment', () => {
     expect(
-      countHistoryEditsOutsideCli([
+      countHistorySqlWrites([
         `# delete from ${TABLE}\nls`,
         `ls # truncate ${TABLE}`,
         `${edit('select 1')} # delete from ${TABLE}`,
@@ -270,7 +343,7 @@ describe('countHistoryEditsOutsideCli', () => {
   });
 
   it('returns zero for no commands', () => {
-    expect(countHistoryEditsOutsideCli([])).toBe(0);
+    expect(countHistorySqlWrites([])).toBe(0);
   });
 });
 
@@ -306,6 +379,7 @@ describe('checkMetrics', () => {
     'supabase link --project-ref abcdefghijklmnopqrst',
     'supabase migration list',
     'supabase migration repair --status reverted 20240115093000',
+    'supabase db query --linked "select 1"',
     'psql "$DB_URL" -c "delete from supabase_migrations.schema_migrations"',
     'sudo apt-get install docker.io',
   ];
@@ -328,7 +402,7 @@ describe('checkMetrics', () => {
       'cliDetours',
       'cliOverride',
       'cliVersion',
-      'historyEditsOutsideCli',
+      'historySqlWrites',
       'hostedProject',
       'localMigrations',
       'remoteVersions',
@@ -348,8 +422,9 @@ describe('checkMetrics', () => {
         link: 1,
         'migration list': 1,
         'migration repair': 1,
+        'db query': 1,
       },
-      historyEditsOutsideCli: 1,
+      historySqlWrites: 1,
       cliDetours: 1,
     });
   });
@@ -375,7 +450,7 @@ describe('checkMetrics', () => {
       hostedProject: false,
       localMigrations: null,
       remoteVersions: null,
-      historyEditsOutsideCli: 0,
+      historySqlWrites: 0,
       cliDetours: 0,
     });
   });
@@ -448,7 +523,7 @@ describe('checkMetrics', () => {
       localMigrations: null,
       remoteVersions: null,
       cliCommands: { 'migration list': 1 },
-      historyEditsOutsideCli: 1,
+      historySqlWrites: 1,
       cliDetours: 1,
     });
   });
@@ -465,7 +540,7 @@ describe('checkMetrics', () => {
     expect(check.passed).toBe(true);
     expect(metricsOf(check)).toMatchObject({
       cliVersion: '2.0.0',
-      historyEditsOutsideCli: 1,
+      historySqlWrites: 1,
       cliDetours: 1,
       localMigrations: [
         '20240101000000_create_profiles.sql',
@@ -487,7 +562,7 @@ describe('checkMetrics', () => {
     expect(metricsOf(check)).toMatchObject({
       cliVersion: '2.0.0',
       hostedProject: true,
-      historyEditsOutsideCli: null,
+      historySqlWrites: null,
       cliDetours: null,
     });
   });

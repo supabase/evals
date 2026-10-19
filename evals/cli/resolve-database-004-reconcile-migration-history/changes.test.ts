@@ -48,6 +48,18 @@ describe.each(COLUMNS)(
         `ALTER TABLE PUBLIC.PROFILES ADD COLUMN ${column.toUpperCase()} TEXT;`,
       ],
       [
+        'uppercase unquoted without a schema',
+        `ALTER TABLE PROFILES ADD COLUMN ${column.toUpperCase()} TEXT`,
+      ],
+      [
+        'mixed-case unquoted',
+        `Alter Table Public.Profiles Add Column ${column[0].toUpperCase()}${column.slice(1)} Text;`,
+      ],
+      [
+        'quoted lowercase table and column without a schema',
+        `alter table "profiles" add column "${column}" text;`,
+      ],
+      [
         'db pull uppercase output',
         `ALTER TABLE ONLY "public"."profiles" ADD COLUMN "${column}" text;`,
       ],
@@ -184,6 +196,26 @@ describe.each(COLUMNS)(
       [
         'prefixed profiles table',
         `alter table public.old_profiles add column ${column} text;`,
+      ],
+      [
+        'uppercase quoted column on an unquoted table',
+        `alter table profiles add column "${column.toUpperCase()}" text;`,
+      ],
+      [
+        'mixed-case quoted column',
+        `alter table public.profiles add column "${column[0].toUpperCase()}${column.slice(1)}" text;`,
+      ],
+      [
+        'uppercase quoted table',
+        `alter table "PROFILES" add column ${column} text;`,
+      ],
+      [
+        'mixed-case quoted table',
+        `alter table public."Profiles" add column ${column} text;`,
+      ],
+      [
+        'uppercase quoted schema',
+        `alter table "PUBLIC"."profiles" add column ${column} text;`,
       ],
       ['posts table', `alter table public.posts add column ${column} text;`],
       [

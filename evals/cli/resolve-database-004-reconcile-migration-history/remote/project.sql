@@ -1,15 +1,8 @@
 -- Hosted project state; read once the eval enables hostedProject.
 
-create table public.profiles (
-  id uuid primary key default gen_random_uuid(),
-  username text not null unique,
-  bio text,
-  created_at timestamptz not null default now()
-);
+create table public.profiles (id uuid primary key default gen_random_uuid(), username text not null unique, created_at timestamptz not null default now());
 
-insert into public.profiles (username, bio)
-select 'user_' || n, 'Bio for user_' || n
-from generate_series(1, 25) as n;
+alter table public.profiles add column bio text;
 
 create table public.posts (
   id bigint generated always as identity primary key,
@@ -18,6 +11,10 @@ create table public.posts (
   body text,
   created_at timestamptz not null default now()
 );
+
+insert into public.profiles (username, bio)
+select 'user_' || n, 'Bio for user_' || n
+from generate_series(1, 25) as n;
 
 insert into public.posts (author_id, title)
 select (select id from public.profiles where username = 'user_' || ((n - 1) % 25 + 1)), 'Post ' || n

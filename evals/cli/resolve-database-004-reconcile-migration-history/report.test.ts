@@ -10,7 +10,7 @@ import {
 import { describeGroundTruth } from './report.js';
 
 const NO_HOSTED_LINE =
-  "- hosted project: none was linked in this run; the workspace had no project ref and no access token, so no command could reach a remote database, and nothing about the remote's migration history, schema or data could have been observed or changed";
+  "- hosted project: the harness provisioned none for this run and supplied no access token, so no command could reach a remote database, and nothing about the remote's migration history, schema or data could have been observed or changed";
 
 const NO_CLI: CliFacts = { versions: null, cliOverride: [] };
 

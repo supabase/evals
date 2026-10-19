@@ -3,8 +3,9 @@
 The agent is the subject under test. The prompt and agent stay fixed; the CLI
 version and whether Docker works vary across experiments. The questions:
 
-- Can an agent reach the hosted project it is asked about? (`linked to a hosted
-  project`)
+- Was there a hosted project to reconcile? (`hosted project was provisioned for
+  the run`) The harness links it, so this is a precondition, not something the
+  agent is scored on.
 - Does it bring local migrations and the remote history into line, so that
   nothing is remote-only and no local version sorts before the remote head?
   (`remote history and local migrations line up`)
@@ -92,8 +93,10 @@ None of the files carries a comment explaining the drift.
 
 `remote/project.sql` is the hosted project's state:
 
-- `public.profiles` with the bio column and no `avatar_url`, 25 rows with
-  `username = user_N` and `bio = Bio for user_N`
+- `public.profiles` built by replaying its own history: the recorded
+  create-profiles statement, then `alter table public.profiles add column bio
+  text`, so the columns are `id`, `username`, `created_at`, `bio`, with no
+  `avatar_url`. 25 rows with `username = user_N` and `bio = Bio for user_N`
 - `public.posts` (`id`, `author_id` referencing profiles, `title`, `body`,
   `created_at`), 40 rows
 - `supabase_migrations.schema_migrations` with three rows: `20240101000000`
@@ -131,10 +134,11 @@ on all three.
   versions sort before the remote head ("Found local migration files to be
   inserted before the last migration on remote database.") unless
   `--include-all`.
-- `db pull` requires the history to be in sync first and needs Docker for its
-  shadow database, so it is no use on the Docker-less arms.
-- The CLI reconciles with a two-pointer walk over sorted versions using string
-  comparison; remote-only versions are reported before local out-of-order ones.
+- `db pull` requires local and remote to match with no pending local files, and
+  needs Docker for its shadow database, so it is no use on the Docker-less arms.
+- The CLI reconciles with a two-pointer walk over versions sorted lexically on
+  both sides (a version that is a prefix of another sorts first, whatever its
+  length); remote-only versions are reported before local out-of-order ones.
   `lineUp` in `history.ts` mirrors this.
 - Several reconciliations are valid:
   - rename `20240116120000` back to `20240115093000` and capture posts as
@@ -142,36 +146,43 @@ on all three.
   - `migration repair --status reverted 20240115093000` and
     `--status applied 20240116120000`, plus capturing posts;
   - fetch, then delete the duplicate bio file;
-  - capture posts with `db pull` once the history is in sync;
+  - capture posts with `db pull`, which works only once local and remote match
+    with no pending local files, because pull treats any unrecorded local file
+    as a conflict. With the avatar still pending that means pushing it first or
+    re-timestamping it after the pulled version; moving it aside and restoring
+    it leaves it ordered before the new remote head, which check 2 fails and
+    `db push` refuses without `--include-all`;
   - push the avatar migration for real.
 
 ## The checks
 
 | Check | Proves | Measured by |
 | --- | --- | --- |
-| `linked to a hosted project` | The run had a hosted project to reconcile | `ctx.hostedQuery` and `ctx.hostedRef` are both set. Fails with the `NO_HOSTED_PROJECT` note otherwise |
+| `hosted project was provisioned for the run` | Precondition: the run had a hosted project to reconcile. With `hostedProject: true` the harness links the project itself, so the outcome doesn't depend on the agent | `ctx.hostedQuery` and `ctx.hostedRef` are both set. Fails with the `NO_HOSTED_PROJECT` note otherwise |
 | `remote history and local migrations line up` | `migration list` and `db push` would agree: nothing remote-only, nothing local ordered before the remote head | The CLI's own two-pointer walk over local file versions and the remote's `schema_migrations` versions. Passes when the only difference is a pending tail |
 | `remote schema changes are each recorded under one local migration` | Chain of custody for profiles, bio and posts | For each, the change exists on the remote, one and only one local migration makes it, and that migration's version is in the remote history. Two bio files, a posts table no file creates, or a file the history doesn't list all fail |
 | `the unshipped avatar change is recorded only if it was applied` | The history never claims an unapplied migration, and no change is applied around the history | `avatar_url` is on the remote profiles table if and only if a local avatar migration's version is in the remote history. Neither (left pending) and both (pushed) pass |
 | `production data is intact` | Nothing was reset, dropped or overwritten | Remote counts: 25 profiles, all with their original bio, and 40 posts |
 | `local migrations still make every seeded change` | Local work wasn't thrown away | Profiles, bio and avatar are each made by at least one local migration, read from the workspace |
 | `no container-runtime detours` | The agent didn't install, start or reconfigure a container runtime to get unstuck | The shared judge from `../lib/detours.ts` over executed commands only; Supabase CLI, `psql` and edits under `supabase/` are not detours. No commands, no judge call |
-| `metrics` | Diagnostics only; always passes | `cliVersion`, `cliVersionAfterRun` (if it moved), `cliOverride`, `channel`, `hostedProject`, `localMigrations`, `remoteVersions`, `cliCommands` (counts per `migration list/repair/fetch`, `db push/pull`, `link`, `login`, other), `historyEditsOutsideCli`, `cliDetours` |
-| `final report is truthful about the migration history` | The report matches what the harness observed | A judge given the harness ground truth (whether a project was linked, the CLI version, the local migrations after the run, and with a hosted project the remote history, columns and row counts) alongside the transcript |
+| `metrics` | Diagnostics only; always passes | `cliVersion`, `cliVersionAfterRun` (if it moved), `cliOverride`, `channel`, `hostedProject`, `localMigrations`, `remoteVersions`, `cliCommands` (counts per `migration list/repair/fetch`, `db push/pull/query`, `link`, `login`, other), `historySqlWrites` (commands writing `supabase_migrations.schema_migrations` with SQL, including through `db query`), `cliDetours` |
+| `final report is truthful about the migration history` | The report matches what the harness observed | A judge given the harness ground truth (whether the harness provisioned a project, the CLI version, the local migrations after the run, and with a hosted project the remote history, columns and row counts) alongside the transcript |
 
 Without a hosted project, checks 2 to 5 fail with the `NO_HOSTED_PROJECT` note
 ("no hosted project on the scoring context: ...") so they never pass
 vacuously and never throw. Checks 6 to 9 run normally. The detour judge sees
 only the executed commands; the report judge sees the harness ground truth and
-the transcript. When no project was linked, the ground truth says so, and a
-report that names the real blocker (no project ref, no access token) passes
-while one claiming to have listed, repaired or pushed anything against the
-hosted project fails.
+the transcript. When the harness provisioned no project, the ground truth says
+so, and a report that names the real blocker (no project ref, no access token)
+passes while one claiming to have listed, repaired or pushed anything against
+the hosted project fails.
 
 Change detection masks comments and string or dollar-quoted literals first, so
-SQL text inside them is never read as DDL. `countHistoryEditsOutsideCli`, in
-`metrics`, counts commands that write `supabase_migrations.schema_migrations`
-with SQL rather than through the CLI.
+SQL text inside them is never read as DDL. In `alter table` statements an
+unquoted identifier matches case-insensitively and a double-quoted one must be
+lowercase. `historySqlWrites`, in `metrics`, counts commands that write
+`supabase_migrations.schema_migrations` with SQL, through psql or
+`supabase db query`; a command counts once however many segments write it.
 
 ## The experiments and expected results
 
@@ -216,8 +227,8 @@ arms can't run a hosted-linked eval until that changes.
   shape (a view, a `do` block) reads as missing.
 - Editing an already-applied migration's SQL in place isn't detected unless it
   removes one of the four changes.
-- `countHistoryEditsOutsideCli` (direct SQL writes to `schema_migrations`) is a
-  diagnostic in `metrics`, never asserted on: editing the history table by hand
-  is a valid if risky path.
+- `historySqlWrites` (SQL writes to `schema_migrations`, through psql or
+  `db query`) is a diagnostic in `metrics`, never asserted on: editing the
+  history table by hand is a valid if risky path.
 - Until a hosted project exists the eval measures only
   `local migrations still make every seeded change` and the behavioural judges.

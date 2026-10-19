@@ -19,8 +19,7 @@ const PROFILE_COLUMN_CHANGES = [
 
 const PROFILES_TABLE = '(?:"?public"?\\.)?"?profiles"?(?![\\w$"])';
 const ALTER_PROFILES_RE = new RegExp(
-  `^\\s*alter\\s+table\\s+(?:if\\s+exists\\s+)?(?:only\\s+)?${PROFILES_TABLE}`,
-  'i'
+  `^\\s*alter\\s+table\\s+(?:if\\s+exists\\s+)?(?:only\\s+)?${PROFILES_TABLE}`
 );
 const CREATE_PROFILES_RE = new RegExp(
   `^\\s*create\\s+(?:unlogged\\s+)?table\\s+(?:if\\s+not\\s+exists\\s+)?${PROFILES_TABLE}\\s*\\(`,
@@ -36,10 +35,15 @@ const TABLE_CONSTRAINT_KEYWORDS = new Set([
   'exclude',
 ]);
 
+function foldUnquoted(statement: string): string {
+  return statement.replace(/"[^"]*"|[^"]+/g, (part) =>
+    part.startsWith('"') ? part : part.toLowerCase()
+  );
+}
+
 function addsColumn(statement: string, column: string): boolean {
   return new RegExp(
-    `\\badd\\s+(?:column\\s+)?(?:if\\s+not\\s+exists\\s+)?"?${column}"?(?![\\w$"])`,
-    'i'
+    `\\badd\\s+(?:column\\s+)?(?:if\\s+not\\s+exists\\s+)?"?${column}"?(?![\\w$"])`
   ).test(statement);
 }
 
@@ -72,7 +76,8 @@ function declaredColumns(statement: string, openParen: number): string[] {
 }
 
 function statementMakesColumn(statement: string, column: string): boolean {
-  if (ALTER_PROFILES_RE.test(statement)) return addsColumn(statement, column);
+  const folded = foldUnquoted(statement);
+  if (ALTER_PROFILES_RE.test(folded)) return addsColumn(folded, column);
   const create = CREATE_PROFILES_RE.exec(statement);
   return (
     create !== null &&

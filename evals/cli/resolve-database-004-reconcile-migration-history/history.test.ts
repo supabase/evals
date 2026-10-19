@@ -158,10 +158,34 @@ describe('lineUp', () => {
     });
   });
 
-  it('orders a shorter version before a longer one', () => {
+  it('orders versions lexically, so a short version sorts after a longer one that starts lower', () => {
     expect(lineUp([V0101, '5'], ['5'])).toEqual({
+      kind: 'missing-remote',
+      versions: [V0101],
+    });
+  });
+
+  it('sorts the remote history lexically too', () => {
+    expect(lineUp(['5', V0101], ['5', V0101])).toEqual({
       kind: 'ok',
-      pending: [V0101],
+      pending: [],
+    });
+    expect(lineUp([V0101, '5'], ['5', V0101])).toEqual({
+      kind: 'ok',
+      pending: [],
+    });
+  });
+
+  it('is in line with the mixed-width tail pending in lexical order', () => {
+    expect(
+      lineUp([V0101, V0115, '20240201', '20240301000000'], [V0101, V0115])
+    ).toEqual({ kind: 'ok', pending: ['20240201', '20240301000000'] });
+  });
+
+  it('puts a version that is a prefix of another first', () => {
+    expect(lineUp(['20240201000000', '20240201'], ['20240201'])).toEqual({
+      kind: 'ok',
+      pending: ['20240201000000'],
     });
   });
 

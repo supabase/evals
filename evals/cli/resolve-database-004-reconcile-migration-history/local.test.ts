@@ -135,18 +135,32 @@ describe('readLocalMigrations', () => {
     ).toEqual(['20240101000000', '20240116120000', '20240301000000']);
   });
 
-  it('orders a shorter version before a longer one', async () => {
+  it('orders versions lexically whatever their width', async () => {
     const { ctx } = fakeCtx({
       files: {
         '20240101000000_a.sql': 'select 1;',
         '5_legacy.sql': 'select 1;',
         '20230101000000_b.sql': 'select 1;',
+        '20240201_c.sql': 'select 1;',
       },
     });
     const result = await readLocalMigrations(ctx);
     expect(
       result.ok && result.migrations.map(({ version }) => version)
-    ).toEqual(['5', '20230101000000', '20240101000000']);
+    ).toEqual(['20230101000000', '20240101000000', '20240201', '5']);
+  });
+
+  it('sorts a version before the longer version it prefixes', async () => {
+    const { ctx } = fakeCtx({
+      files: {
+        '20240201000000_a.sql': 'select 1;',
+        '20240201_b.sql': 'select 1;',
+      },
+    });
+    const result = await readLocalMigrations(ctx);
+    expect(
+      result.ok && result.migrations.map(({ version }) => version)
+    ).toEqual(['20240201', '20240201000000']);
   });
 
   it('skips files that are not version_name.sql without reading them', async () => {

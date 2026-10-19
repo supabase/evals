@@ -124,7 +124,7 @@ function fakeCtx(toolCalls: ToolCallRecord[], options: FakeOptions = {}) {
     if (remote === undefined) throw new Error('no hosted database');
     const hasBio = remote.columns.includes('bio');
     if (sql.includes('to_regclass')) {
-      return { rows: [{ exists: remote.posts !== null }] };
+      return { rows: [{ exists: remote.posts !== null ? 1 : 0 }] };
     }
     if (sql.includes('information_schema.columns')) {
       return { rows: remote.columns.map((column_name) => ({ column_name })) };
@@ -133,6 +133,9 @@ function fakeCtx(toolCalls: ToolCallRecord[], options: FakeOptions = {}) {
       return { rows: remote.versions.map((version) => ({ version })) };
     }
     if (sql.includes('from public.profiles')) {
+      if (remote.columns.length === 0) {
+        throw new Error('relation "public.profiles" does not exist');
+      }
       if (/\bbio\b/.test(sql)) {
         if (!hasBio) throw new Error('column "bio" does not exist');
         return { rows: [{ total: remote.profiles, intact: remote.intact }] };
@@ -161,7 +164,7 @@ function fakeCtx(toolCalls: ToolCallRecord[], options: FakeOptions = {}) {
 }
 
 const CHECK_NAMES = [
-  'linked to a hosted project',
+  'hosted project was provisioned for the run',
   'remote history and local migrations line up',
   'remote schema changes are each recorded under one local migration',
   'the unshipped avatar change is recorded only if it was applied',
@@ -265,7 +268,7 @@ describe('migration-history scorer without a hosted project', () => {
     const { ctx, judge } = fakeCtx(SETUP);
     await scorer(ctx);
     const input = reportCall(judge)?.input ?? '';
-    expect(input).toContain('none was linked in this run');
+    expect(input).toContain('the harness provisioned none for this run');
     expect(input).not.toContain('- hosted project: linked');
     expect(input).not.toContain('- remote migration history:');
   });
@@ -284,7 +287,7 @@ describe('migration-history scorer without a hosted project', () => {
       hostedProject: false,
       remoteVersions: null,
       localMigrations: Object.keys(SEEDED_FILES),
-      historyEditsOutsideCli: 1,
+      historySqlWrites: 1,
       cliCommands: { link: 1, 'migration list': 1, 'migration repair': 1 },
     });
   });
@@ -492,6 +495,55 @@ describe('migration-history scorer with a hosted project', () => {
     }
   );
 
+  it('still evaluates the history when the profiles table is gone from the remote', async () => {
+    const { ctx } = fakeCtx(SETUP, {
+      files: RENAMED_BACK_FILES,
+      remote: remoteWith({ columns: [], profiles: 0, intact: 0 }),
+    });
+    const checks = (await scorer(ctx)).checks ?? [];
+    expect(
+      checks.filter(({ passed }) => !passed).map(({ name }) => name)
+    ).toEqual([nameOf(3), nameOf(5)]);
+    expect(checks.find(({ name }) => name === nameOf(2))?.notes).toContain(
+      'pending: ["20240301000000"]'
+    );
+    expect(checks.find(({ name }) => name === nameOf(3))?.notes).toContain(
+      'profiles: table missing on the remote'
+    );
+    expect(checks.find(({ name }) => name === nameOf(5))?.notes).toBe(
+      'profiles 0 (0 with their original bio), posts 40'
+    );
+  });
+
+  it('passes the avatar check when avatar_url was applied with psql and the avatar version then recorded with repair', async () => {
+    const { ctx } = fakeCtx(
+      [
+        ...SETUP,
+        call(
+          `psql "$DB_URL" -c "alter table public.profiles add column avatar_url text"`
+        ),
+        call('supabase migration repair --status applied 20240301000000'),
+      ],
+      {
+        files: RENAMED_BACK_FILES,
+        remote: remoteWith({
+          versions: [
+            '20240101000000',
+            '20240115093000',
+            '20240201000000',
+            '20240301000000',
+          ],
+          columns: WITH_AVATAR_COLUMN,
+        }),
+      }
+    );
+    expect(await checkNamed(ctx, nameOf(4))).toMatchObject({
+      passed: true,
+      notes: 'applied and recorded under 20240301000000_add_profile_avatar.sql',
+    });
+    expect(await failedNames(ctx)).toEqual([]);
+  });
+
   it('tells the report judge the hosted ground truth', async () => {
     const { ctx, judge } = fakeCtx(SETUP, {
       files: RENAMED_BACK_FILES,
@@ -504,7 +556,7 @@ describe('migration-history scorer with a hosted project', () => {
     expect(input).toContain(
       '- remote rows: profiles 25 (25 with their original bio), posts 40'
     );
-    expect(input).not.toContain('none was linked in this run');
+    expect(input).not.toContain('the harness provisioned none for this run');
   });
 
   it('reports hostedProject true and the remote versions in the metrics', async () => {

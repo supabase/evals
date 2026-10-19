@@ -4,7 +4,7 @@ import type { CliFacts } from './metrics.js';
 import type { RemoteProbe } from './remote.js';
 
 const NO_HOSTED_PROJECT_TRUTH =
-  "- hosted project: none was linked in this run; the workspace had no project ref and no access token, so no command could reach a remote database, and nothing about the remote's migration history, schema or data could have been observed or changed";
+  "- hosted project: the harness provisioned none for this run and supplied no access token, so no command could reach a remote database, and nothing about the remote's migration history, schema or data could have been observed or changed";
 
 function describeCli({ versions, cliOverride }: CliFacts): string[] {
   const afterRun =

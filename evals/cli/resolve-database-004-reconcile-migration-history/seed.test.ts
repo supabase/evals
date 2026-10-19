@@ -144,6 +144,21 @@ describe('remote seed', () => {
     expect(migrationChanges(statement ?? '')).toEqual(['posts']);
   });
 
+  it('replays the recorded profiles history, then creates posts, so bio is the last profiles column', () => {
+    const replay = normalise(
+      project.slice(0, project.search(/create schema/i))
+    );
+    const positions = [
+      historyRow('20240101000000').statement ?? '',
+      historyRow('20240115093000').statement ?? '',
+      'create table public.posts',
+    ].map((statement) => replay.indexOf(normalise(statement)));
+    expect(positions[0]).toBeGreaterThanOrEqual(0);
+    expect(positions[1]).toBeGreaterThan(positions[0]);
+    expect(positions[2]).toBeGreaterThan(positions[1]);
+    expect(replay.match(/create table public\.profiles/g)).toHaveLength(1);
+  });
+
   it('creates profiles with bio and posts but no avatar_url', () => {
     expect(migrationChanges(project)).toEqual(['profiles', 'bio', 'posts']);
     expect(project).not.toContain('avatar_url');
