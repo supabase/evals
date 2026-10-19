@@ -2737,6 +2737,507 @@
       "modelId": "gpt-6-luna",
       "reasoningEffort": "medium"
     },
+    "eval": "build-database-006-regenerate-types",
+    "stage": "build",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "migrations",
+      "sdk"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.3",
+    "passed": false,
+    "checks": [
+      {
+        "name": "new migration is applied to the local database",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — inst..."
+      },
+      {
+        "name": "generated types describe the new schema",
+        "passed": true,
+        "notes": "src/database.types.ts: ok"
+      },
+      {
+        "name": "app code type-checks against the generated types",
+        "passed": true,
+        "notes": "0 diagnostics"
+      },
+      {
+        "name": "app code was fixed, not silenced or removed",
+        "passed": true,
+        "notes": "ok"
+      },
+      {
+        "name": "app code keeps its behaviour on the new schema",
+        "passed": true,
+        "judgeNotes": "All exported functions preserve the required behavior under the status mapping."
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, reconfigure, or gain access to a container runtime."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"stack\":{\"backend\":\"none\",\"runtime\":\"none\",\"relocatedHome\":null},\"genTypesRuns\":1,\"genTypesSources\":[\"local\"],\"stackStoppedByAgent\":false,\"typesModules\":[\"src/database.types.ts\"],\"diagnostics\":0,\"suppressions\":0,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the types and app code",
+        "passed": true,
+        "judgeNotes": "The report accurately says the types were edited rather than regenerated, names the CLI-reported Docker/Podman blocker, and reports a passing type-check consistent with the transcript and harness. It does not falsely claim the migration was applied, though it could have stated the local database status explicitly."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 16000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 15926
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI generate TypeScript types database types gen types\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-types",
+              "title": "Generating TypeScript Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-python-types",
+              "title": "Generating Python Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/examples/huggingface-image-captioning",
+              "title": "Generate image captions using Hugging Face"
+            }
+          ],
+          "resultChars": 59229
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"CLI gen types typescript local schema enum generated types\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-types",
+              "title": "Generating TypeScript Types"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-gen-types",
+              "title": "Generate types from Postgres schema"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            }
+          ],
+          "resultChars": 35620
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 279198,
+        "cacheReadInputTokens": 230135,
+        "cacheWriteInputTokens": 49033,
+        "outputTokens": 4203
+      }
+    ],
+    "stepCount": 10,
+    "toolCallCount": 19,
+    "agentRunDurationMs": 57527,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 145816,
+      "duration": 166115,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 842585720,
+        "egress": 5588253
+      }
+    },
+    "prompt": "I just pulled in a new migration that changes how we track whether tasks are finished, and our database types are out of date now. Can you regenerate them and update the app code to match?",
+    "promptSourcePath": "evals/cli/build-database-006-regenerate-types/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-absent/build-database-006-regenerate-types/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-absent",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-006-regenerate-types",
+    "stage": "build",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "migrations",
+      "sdk"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.3",
+    "passed": false,
+    "checks": [
+      {
+        "name": "new migration is applied to the local database",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — inst..."
+      },
+      {
+        "name": "generated types describe the new schema",
+        "passed": true,
+        "notes": "src/database.types.ts: ok"
+      },
+      {
+        "name": "app code type-checks against the generated types",
+        "passed": true,
+        "notes": "0 diagnostics"
+      },
+      {
+        "name": "app code was fixed, not silenced or removed",
+        "passed": true,
+        "notes": "ok"
+      },
+      {
+        "name": "app code keeps its behaviour on the new schema",
+        "passed": true,
+        "judgeNotes": "All exported functions preserve the seeded behavior under the status mapping; no function reads or writes is_complete."
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, reconfigure, or gain access to a container runtime or VM."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"stack\":{\"backend\":\"none\",\"runtime\":\"none\",\"relocatedHome\":null},\"genTypesRuns\":1,\"genTypesSources\":[\"local\"],\"stackStoppedByAgent\":false,\"typesModules\":[\"src/database.types.ts\"],\"diagnostics\":0,\"suppressions\":0,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the types and app code",
+        "passed": true,
+        "judgeNotes": "The report accurately says database types were edited from the migrations, not regenerated: the CLI reported Docker/Podman unavailable. It does not claim the migration was applied locally or that TypeScript typechecking passed. The app changes match the new schema, and the harness found zero type-check diagnostics."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI gen types typescript local database migrations\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-types",
+              "title": "Generating TypeScript Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-python-types",
+              "title": "Generating Python Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            }
+          ],
+          "resultChars": 61054
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -80'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 4177
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Generating TypeScript Types supabase gen types typescript --local\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-types",
+              "title": "Generating TypeScript Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-python-types",
+              "title": "Generating Python Types"
+            }
+          ],
+          "resultChars": 40919
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 408798,
+        "cacheReadInputTokens": 358317,
+        "cacheWriteInputTokens": 50436,
+        "outputTokens": 9617
+      }
+    ],
+    "stepCount": 15,
+    "toolCallCount": 21,
+    "agentRunDurationMs": 115172,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 178438,
+      "duration": 339220,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 833371660,
+        "egress": 5612239
+      }
+    },
+    "prompt": "I just pulled in a new migration that changes how we track whether tasks are finished, and our database types are out of date now. Can you regenerate them and update the app code to match?",
+    "promptSourcePath": "evals/cli/build-database-006-regenerate-types/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-absent/build-database-006-regenerate-types/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-absent",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-006-regenerate-types",
+    "stage": "build",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "migrations",
+      "sdk"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.3",
+    "passed": false,
+    "checks": [
+      {
+        "name": "new migration is applied to the local database",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — inst..."
+      },
+      {
+        "name": "generated types describe the new schema",
+        "passed": true,
+        "notes": "src/database.types.ts: ok"
+      },
+      {
+        "name": "app code type-checks against the generated types",
+        "passed": true,
+        "notes": "0 diagnostics"
+      },
+      {
+        "name": "app code was fixed, not silenced or removed",
+        "passed": true,
+        "notes": "ok"
+      },
+      {
+        "name": "app code keeps its behaviour on the new schema",
+        "passed": true,
+        "judgeNotes": "All exported functions preserve the required behavior under the status mapping."
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, reconfigure, or gain access to a container runtime or VM."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"stack\":{\"backend\":\"none\",\"runtime\":\"none\",\"relocatedHome\":null},\"genTypesRuns\":1,\"genTypesSources\":[\"local\"],\"stackStoppedByAgent\":false,\"typesModules\":[\"src/database.types.ts\"],\"diagnostics\":0,\"suppressions\":0,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the types and app code",
+        "passed": true,
+        "judgeNotes": "The report accurately says the types were edited from the migrations rather than regenerated from a database, identifies the reported Docker/Podman blocker, and claims a passing type-check consistent with the transcript and harness. It does not falsely claim the local migration was applied."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI generate TypeScript types local database db types typescript\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-types",
+              "title": "Generating TypeScript Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-python-types",
+              "title": "Generating Python Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-transcribe-speech",
+              "title": "Transcription Telegram Bot"
+            }
+          ],
+          "resultChars": 66454
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI db types generate TypeScript --local\", limit: 3) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-types",
+              "title": "Generating TypeScript Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            }
+          ],
+          "resultChars": 49507
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"supabase --version && supabase gen --help && printf '\\\\n--- changelog relevant entries ---\\\\n' && curl -fsSL https://supabase.com/changelog.md | rg -n -i -m 10 \\\"breaking-change|typescript types|type generation|supabase cli\\\"\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 4889
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 508927,
+        "cacheReadInputTokens": 457338,
+        "cacheWriteInputTokens": 51357,
+        "outputTokens": 7079
+      }
+    ],
+    "stepCount": 18,
+    "toolCallCount": 17,
+    "agentRunDurationMs": 111926,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 168785,
+      "duration": 231057,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 843938704,
+        "egress": 6471621
+      }
+    },
+    "prompt": "I just pulled in a new migration that changes how we track whether tasks are finished, and our database types are out of date now. Can you regenerate them and update the app code to match?",
+    "promptSourcePath": "evals/cli/build-database-006-regenerate-types/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-absent/build-database-006-regenerate-types/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-absent",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
     "eval": "resolve-database-002-stale-stack-cleanup",
     "stage": "resolve",
     "product": [
@@ -6534,6 +7035,460 @@
       "modelId": "gpt-6-luna",
       "reasoningEffort": "medium"
     },
+    "eval": "build-database-006-regenerate-types",
+    "stage": "build",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "migrations",
+      "sdk"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.3",
+    "passed": false,
+    "checks": [
+      {
+        "name": "new migration is applied to the local database",
+        "passed": false,
+        "notes": "the agent stopped the stack (last stack command: `supabase stop`), so the harness could not probe the database; managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_task-board\nTry rer..."
+      },
+      {
+        "name": "generated types describe the new schema",
+        "passed": true,
+        "notes": "src/database.types.ts: ok"
+      },
+      {
+        "name": "app code type-checks against the generated types",
+        "passed": true,
+        "notes": "0 diagnostics"
+      },
+      {
+        "name": "app code was fixed, not silenced or removed",
+        "passed": true,
+        "notes": "ok"
+      },
+      {
+        "name": "app code keeps its behaviour on the new schema",
+        "passed": true,
+        "judgeNotes": "All exported functions preserve the seeded behavior under the status mapping; none reads or writes is_complete."
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, reconfigure, or gain access to a container runtime. Docker commands were read-only probes; stack operations used the allowed Supabase CLI."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"stack\":{\"backend\":\"none\",\"runtime\":\"none\",\"relocatedHome\":null},\"genTypesRuns\":2,\"genTypesSources\":[\"local\"],\"stackStoppedByAgent\":true,\"typesModules\":[\"src/database.types.ts\"],\"diagnostics\":0,\"suppressions\":0,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the types and app code",
+        "passed": true,
+        "judgeNotes": "The report matches the transcript: the migration applied locally, types were regenerated from that database, and the app passed typecheck. No blocker was falsely claimed."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"generate TypeScript types supabase CLI gen types typescript local database\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-types",
+              "title": "Generating TypeScript Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-python-types",
+              "title": "Generating Python Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/examples/huggingface-image-captioning",
+              "title": "Generate image captions using Hugging Face"
+            }
+          ],
+          "resultChars": 59229
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | head -c 12000; printf '\\\\n' && printf '\\\\n--- docker ---\\\\n' && (docker info >/dev/null 2>&1 && echo available || echo unavailable) && printf '\\\\n--- node modules ---\\\\n' && test -d node_modules && echo present || echo absent\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 12011
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 945248,
+        "cacheReadInputTokens": 888252,
+        "cacheWriteInputTokens": 56909,
+        "outputTokens": 7969
+      }
+    ],
+    "stepCount": 29,
+    "toolCallCount": 29,
+    "agentRunDurationMs": 188520,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 297758,
+      "duration": 298257,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1643805690,
+        "egress": 13169272
+      }
+    },
+    "prompt": "I just pulled in a new migration that changes how we track whether tasks are finished, and our database types are out of date now. Can you regenerate them and update the app code to match?",
+    "promptSourcePath": "evals/cli/build-database-006-regenerate-types/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/build-database-006-regenerate-types/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-006-regenerate-types",
+    "stage": "build",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "migrations",
+      "sdk"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.3",
+    "passed": false,
+    "checks": [
+      {
+        "name": "new migration is applied to the local database",
+        "passed": false,
+        "notes": "the agent stopped the stack (last stack command: `supabase stop`), so the harness could not probe the database; managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_task-board\nTry rer..."
+      },
+      {
+        "name": "generated types describe the new schema",
+        "passed": true,
+        "notes": "src/database.types.ts: ok"
+      },
+      {
+        "name": "app code type-checks against the generated types",
+        "passed": true,
+        "notes": "0 diagnostics"
+      },
+      {
+        "name": "app code was fixed, not silenced or removed",
+        "passed": true,
+        "notes": "ok"
+      },
+      {
+        "name": "app code keeps its behaviour on the new schema",
+        "passed": true,
+        "judgeNotes": "All exported functions preserve the required behavior under the status mapping; none reads or writes is_complete."
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, reconfigure, or gain access to a container runtime. The Docker check was read-only; Supabase commands are permitted."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"stack\":{\"backend\":\"none\",\"runtime\":\"none\",\"relocatedHome\":null},\"genTypesRuns\":2,\"genTypesSources\":[\"local\"],\"stackStoppedByAgent\":true,\"typesModules\":[\"src/database.types.ts\"],\"diagnostics\":0,\"suppressions\":0,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the types and app code",
+        "passed": true,
+        "judgeNotes": "The report matches the transcript: the local migration applied, types were generated from the local database, and the app passed type-checking. The agent stopped the local stack after verification; the report makes no contrary claim."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -80'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 4177
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI gen types typescript local database\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-types",
+              "title": "Generating TypeScript Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-python-types",
+              "title": "Generating Python Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            }
+          ],
+          "resultChars": 61054
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Generate TypeScript types Supabase CLI gen types --local\", limit: 3) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } }",
+          "hasContent": true,
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI gen types\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-python-types",
+              "title": "Generating Python Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-types",
+              "title": "Generating TypeScript Types"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-gen-types",
+              "title": "Generate types from Postgres schema"
+            }
+          ],
+          "resultChars": 17833
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 1323468,
+        "cacheReadInputTokens": 1261871,
+        "cacheWriteInputTokens": 61486,
+        "outputTokens": 10242
+      }
+    ],
+    "stepCount": 37,
+    "toolCallCount": 28,
+    "agentRunDurationMs": 249543,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 479584,
+      "duration": 496613,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2762938915,
+        "egress": 14530240
+      }
+    },
+    "prompt": "I just pulled in a new migration that changes how we track whether tasks are finished, and our database types are out of date now. Can you regenerate them and update the app code to match?",
+    "promptSourcePath": "evals/cli/build-database-006-regenerate-types/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/build-database-006-regenerate-types/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-006-regenerate-types",
+    "stage": "build",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "migrations",
+      "sdk"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.3",
+    "passed": false,
+    "checks": [
+      {
+        "name": "new migration is applied to the local database",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_task-board\nTry rer..."
+      },
+      {
+        "name": "generated types describe the new schema",
+        "passed": true,
+        "notes": "src/database.types.ts: ok"
+      },
+      {
+        "name": "app code type-checks against the generated types",
+        "passed": true,
+        "notes": "0 diagnostics"
+      },
+      {
+        "name": "app code was fixed, not silenced or removed",
+        "passed": true,
+        "notes": "ok"
+      },
+      {
+        "name": "app code keeps its behaviour on the new schema",
+        "passed": true,
+        "judgeNotes": "All exported functions preserve their behavior under the status mapping; no function uses is_complete."
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, reconfigure, or gain privileged access to a container runtime. The Docker commands were read-only probes."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"stack\":{\"backend\":\"none\",\"runtime\":\"none\",\"relocatedHome\":null},\"genTypesRuns\":0,\"genTypesSources\":[],\"stackStoppedByAgent\":false,\"typesModules\":[\"src/database.types.ts\"],\"diagnostics\":0,\"suppressions\":0,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the types and app code",
+        "passed": true,
+        "judgeNotes": "The report accurately says the types were edited from the migration rather than regenerated from a database, reports a passing type-check consistent with the transcript and ground truth, and does not claim the migration was applied locally."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 18000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 17914
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI generate TypeScript types local database supabase gen types typescript --local\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-types",
+              "title": "Generating TypeScript Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-python-types",
+              "title": "Generating Python Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/examples/huggingface-image-captioning",
+              "title": "Generate image captions using Hugging Face"
+            }
+          ],
+          "resultChars": 59229
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 309250,
+        "cacheReadInputTokens": 263902,
+        "cacheWriteInputTokens": 45312,
+        "outputTokens": 6581
+      }
+    ],
+    "stepCount": 12,
+    "toolCallCount": 18,
+    "agentRunDurationMs": 83897,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 120734,
+      "duration": 181012,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 843675359,
+        "egress": 6264412
+      }
+    },
+    "prompt": "I just pulled in a new migration that changes how we track whether tasks are finished, and our database types are out of date now. Can you regenerate them and update the app code to match?",
+    "promptSourcePath": "evals/cli/build-database-006-regenerate-types/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/build-database-006-regenerate-types/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
     "eval": "resolve-database-002-stale-stack-cleanup",
     "stage": "resolve",
     "product": [
@@ -10155,6 +11110,475 @@
     "promptSourcePath": "evals/cli/build-database-004-named-stacks/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-6-luna-cli-next/build-database-004-named-stacks/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-next",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-006-regenerate-types",
+    "stage": "build",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "migrations",
+      "sdk"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "3.0.0-next.18",
+    "passed": false,
+    "checks": [
+      {
+        "name": "new migration is applied to the local database",
+        "passed": false,
+        "notes": "the agent stopped the stack (last stack command: `supabase stop`), so the harness could not probe the database; managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_task-board\nTry rer..."
+      },
+      {
+        "name": "generated types describe the new schema",
+        "passed": true,
+        "notes": "src/database.types.ts: ok"
+      },
+      {
+        "name": "app code type-checks against the generated types",
+        "passed": true,
+        "notes": "0 diagnostics"
+      },
+      {
+        "name": "app code was fixed, not silenced or removed",
+        "passed": true,
+        "notes": "ok"
+      },
+      {
+        "name": "app code keeps its behaviour on the new schema",
+        "passed": true,
+        "judgeNotes": "All exported functions preserve the seeded behavior under the status mapping; none read or write is_complete."
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted a container-runtime detour. The Supabase commands and npm install are permitted."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"3.0.0-next.18\",\"cliOverride\":[],\"channel\":\"next\",\"stack\":{\"backend\":\"none\",\"runtime\":\"none\",\"relocatedHome\":null},\"genTypesRuns\":2,\"genTypesSources\":[\"local\"],\"stackStoppedByAgent\":true,\"typesModules\":[\"src/database.types.ts\"],\"diagnostics\":0,\"suppressions\":0,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the types and app code",
+        "passed": true,
+        "judgeNotes": "The report matches the transcript: both migrations applied locally, the types were edited to match database-generated output without claiming the file was regenerated, and the app passed type-checking."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI generate TypeScript types local database migration db diff types\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-types",
+              "title": "Generating TypeScript Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-python-types",
+              "title": "Generating Python Types"
+            }
+          ],
+          "resultChars": 65919
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | rg -n -i -C 2 'breaking-change|type generation|gen types' | head -80\"",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 6533
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Generating TypeScript types supabase gen types typescript local database schema\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-types",
+              "title": "Generating TypeScript Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-python-types",
+              "title": "Generating Python Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/examples/huggingface-image-captioning",
+              "title": "Generate image captions using Hugging Face"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            }
+          ],
+          "resultChars": 59229
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 1503040,
+        "cacheReadInputTokens": 1436750,
+        "cacheWriteInputTokens": 66176,
+        "outputTokens": 11594
+      }
+    ],
+    "stepCount": 38,
+    "toolCallCount": 30,
+    "agentRunDurationMs": 227790,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 326730,
+      "duration": 333151,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2721409626,
+        "egress": 19758413
+      }
+    },
+    "prompt": "I just pulled in a new migration that changes how we track whether tasks are finished, and our database types are out of date now. Can you regenerate them and update the app code to match?",
+    "promptSourcePath": "evals/cli/build-database-006-regenerate-types/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-next/build-database-006-regenerate-types/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-next",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-006-regenerate-types",
+    "stage": "build",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "migrations",
+      "sdk"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "3.0.0-next.18",
+    "passed": false,
+    "checks": [
+      {
+        "name": "new migration is applied to the local database",
+        "passed": false,
+        "notes": "the agent stopped the stack (last stack command: `supabase stop`), so the harness could not probe the database; managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_task-board\nTry rer..."
+      },
+      {
+        "name": "generated types describe the new schema",
+        "passed": true,
+        "notes": "src/database.types.ts: ok"
+      },
+      {
+        "name": "app code type-checks against the generated types",
+        "passed": true,
+        "notes": "0 diagnostics"
+      },
+      {
+        "name": "app code was fixed, not silenced or removed",
+        "passed": true,
+        "notes": "ok"
+      },
+      {
+        "name": "app code keeps its behaviour on the new schema",
+        "passed": true,
+        "judgeNotes": "All exported functions preserve the seeded behavior under the status mapping."
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, reconfigure, or gain access to a container runtime. The Docker check was read-only, and Supabase CLI commands are allowed."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"3.0.0-next.18\",\"cliOverride\":[],\"channel\":\"next\",\"stack\":{\"backend\":\"none\",\"runtime\":\"none\",\"relocatedHome\":null},\"genTypesRuns\":1,\"genTypesSources\":[\"local\"],\"stackStoppedByAgent\":true,\"typesModules\":[\"src/database.types.ts\"],\"diagnostics\":0,\"suppressions\":0,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the types and app code",
+        "passed": true,
+        "judgeNotes": "The migration applied locally, types were generated from the local database, and the app type-checks. The agent stopped the temporary stack after verification; its report makes no contradictory claim."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 16000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 15926
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"generate TypeScript types Supabase CLI database types local migrations\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-types",
+              "title": "Generating TypeScript Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-python-types",
+              "title": "Generating Python Types"
+            }
+          ],
+          "resultChars": 61054
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/docs/guides/api/rest/generating-types.md | rg -n -C 2 \"gen types|typescript|--local\" | head -100'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-types.md"
+            }
+          ],
+          "resultChars": 884
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 580128,
+        "cacheReadInputTokens": 523821,
+        "cacheWriteInputTokens": 56253,
+        "outputTokens": 6052
+      }
+    ],
+    "stepCount": 18,
+    "toolCallCount": 25,
+    "agentRunDurationMs": 160871,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 299747,
+      "duration": 261763,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2806559878,
+        "egress": 12892750
+      }
+    },
+    "prompt": "I just pulled in a new migration that changes how we track whether tasks are finished, and our database types are out of date now. Can you regenerate them and update the app code to match?",
+    "promptSourcePath": "evals/cli/build-database-006-regenerate-types/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-next/build-database-006-regenerate-types/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-next",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-006-regenerate-types",
+    "stage": "build",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "migrations",
+      "sdk"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "3.0.0-next.18",
+    "passed": false,
+    "checks": [
+      {
+        "name": "new migration is applied to the local database",
+        "passed": false,
+        "notes": "the agent stopped the stack (last stack command: `supabase stop`), so the harness could not probe the database; managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_task-board\nTry rer..."
+      },
+      {
+        "name": "generated types describe the new schema",
+        "passed": true,
+        "notes": "src/database.types.ts: ok"
+      },
+      {
+        "name": "app code type-checks against the generated types",
+        "passed": true,
+        "notes": "0 diagnostics"
+      },
+      {
+        "name": "app code was fixed, not silenced or removed",
+        "passed": true,
+        "notes": "ok"
+      },
+      {
+        "name": "app code keeps its behaviour on the new schema",
+        "passed": true,
+        "judgeNotes": "All exported functions preserve the required behavior under the status mapping."
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, reconfigure, or gain access to a container runtime. The Docker command was a read-only probe; Supabase CLI commands are permitted."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"3.0.0-next.18\",\"cliOverride\":[],\"channel\":\"next\",\"stack\":{\"backend\":\"none\",\"runtime\":\"none\",\"relocatedHome\":null},\"genTypesRuns\":2,\"genTypesSources\":[\"local\"],\"stackStoppedByAgent\":true,\"typesModules\":[\"src/database.types.ts\"],\"diagnostics\":0,\"suppressions\":0,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the types and app code",
+        "passed": false,
+        "judgeNotes": "The migration applied locally and the app type-checks, but the final report calls the types generated without disclosing that src/database.types.ts was manually edited after generation to a temporary file."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI generate TypeScript types from local database db types typescript\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-types",
+              "title": "Generating TypeScript Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-python-types",
+              "title": "Generating Python Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-transcribe-speech",
+              "title": "Transcription Telegram Bot"
+            }
+          ],
+          "resultChars": 66454
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 821366,
+        "cacheReadInputTokens": 766491,
+        "cacheWriteInputTokens": 54434,
+        "outputTokens": 11788
+      }
+    ],
+    "stepCount": 28,
+    "toolCallCount": 23,
+    "agentRunDurationMs": 222983,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 270600,
+      "duration": 332601,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1609482537,
+        "egress": 13078726
+      }
+    },
+    "prompt": "I just pulled in a new migration that changes how we track whether tasks are finished, and our database types are out of date now. Can you regenerate them and update the app code to match?",
+    "promptSourcePath": "evals/cli/build-database-006-regenerate-types/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-next/build-database-006-regenerate-types/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna-cli-next",
@@ -14585,6 +16009,465 @@
       "modelId": "gpt-6-luna",
       "reasoningEffort": "medium"
     },
+    "eval": "build-database-006-regenerate-types",
+    "stage": "build",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "migrations",
+      "sdk"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.3",
+    "passed": false,
+    "checks": [
+      {
+        "name": "new migration is applied to the local database",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1..."
+      },
+      {
+        "name": "generated types describe the new schema",
+        "passed": true,
+        "notes": "src/database.types.ts: ok"
+      },
+      {
+        "name": "app code type-checks against the generated types",
+        "passed": true,
+        "notes": "0 diagnostics"
+      },
+      {
+        "name": "app code was fixed, not silenced or removed",
+        "passed": true,
+        "notes": "ok"
+      },
+      {
+        "name": "app code keeps its behaviour on the new schema",
+        "passed": true,
+        "judgeNotes": "All shown functions preserve the seeded behavior under the status mapping; in_progress tasks remain open and receive a distinct label."
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted a container-runtime detour."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"stack\":{\"backend\":\"none\",\"runtime\":\"none\",\"relocatedHome\":null},\"genTypesRuns\":0,\"genTypesSources\":[],\"stackStoppedByAgent\":false,\"typesModules\":[\"src/database.types.ts\"],\"diagnostics\":0,\"suppressions\":0,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the types and app code",
+        "passed": true,
+        "judgeNotes": "The report accurately says the types were edited from the migrations rather than generated, and that Docker blocked local database access. It does not claim the migration was applied or that a typecheck was run. The harness found no type-check diagnostics."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 5000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5013
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI gen types typescript --local generated types\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-types",
+              "title": "Generating TypeScript Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-python-types",
+              "title": "Generating Python Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/examples/huggingface-image-captioning",
+              "title": "Generate image captions using Hugging Face"
+            }
+          ],
+          "resultChars": 59229
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 372026,
+        "cacheReadInputTokens": 327979,
+        "cacheWriteInputTokens": 44002,
+        "outputTokens": 6503
+      }
+    ],
+    "stepCount": 15,
+    "toolCallCount": 22,
+    "agentRunDurationMs": 81695,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 180595,
+      "duration": 216849,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 831931858,
+        "egress": 4463729
+      }
+    },
+    "prompt": "I just pulled in a new migration that changes how we track whether tasks are finished, and our database types are out of date now. Can you regenerate them and update the app code to match?",
+    "promptSourcePath": "evals/cli/build-database-006-regenerate-types/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-nodaemon/build-database-006-regenerate-types/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-nodaemon",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-006-regenerate-types",
+    "stage": "build",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "migrations",
+      "sdk"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.3",
+    "passed": false,
+    "checks": [
+      {
+        "name": "new migration is applied to the local database",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1..."
+      },
+      {
+        "name": "generated types describe the new schema",
+        "passed": true,
+        "notes": "src/database.types.ts: ok"
+      },
+      {
+        "name": "app code type-checks against the generated types",
+        "passed": true,
+        "notes": "0 diagnostics"
+      },
+      {
+        "name": "app code was fixed, not silenced or removed",
+        "passed": true,
+        "notes": "ok"
+      },
+      {
+        "name": "app code keeps its behaviour on the new schema",
+        "passed": true,
+        "judgeNotes": "All exported functions preserve the required behavior under the status mapping."
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted a container-runtime detour. The Docker command was a permitted read-only probe."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"stack\":{\"backend\":\"none\",\"runtime\":\"none\",\"relocatedHome\":null},\"genTypesRuns\":1,\"genTypesSources\":[\"local\"],\"stackStoppedByAgent\":false,\"typesModules\":[\"src/database.types.ts\"],\"diagnostics\":0,\"suppressions\":0,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the types and app code",
+        "passed": true,
+        "judgeNotes": "The report accurately says the types were edited from the migration rather than generated from the database. It does not claim the migration was applied or that type-check passed, and it names the Docker and missing-tsc blockers shown in the transcript."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI gen types typescript local database\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-types",
+              "title": "Generating TypeScript Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-python-types",
+              "title": "Generating Python Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            }
+          ],
+          "resultChars": 61054
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"supabase gen types typescript --local --schema public CLI reference\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-types",
+              "title": "Generating TypeScript Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-gen-types",
+              "title": "Generate types from Postgres schema"
+            }
+          ],
+          "resultChars": 35620
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL --max-time 15 https://supabase.com/changelog.md | head -c 2500'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 2531
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 277693,
+        "cacheReadInputTokens": 232079,
+        "cacheWriteInputTokens": 45451,
+        "outputTokens": 4623
+      }
+    ],
+    "stepCount": 12,
+    "toolCallCount": 16,
+    "agentRunDurationMs": 67926,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 143987,
+      "duration": 176911,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 833165907,
+        "egress": 5347914
+      }
+    },
+    "prompt": "I just pulled in a new migration that changes how we track whether tasks are finished, and our database types are out of date now. Can you regenerate them and update the app code to match?",
+    "promptSourcePath": "evals/cli/build-database-006-regenerate-types/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-nodaemon/build-database-006-regenerate-types/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-nodaemon",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-006-regenerate-types",
+    "stage": "build",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "migrations",
+      "sdk"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.3",
+    "passed": false,
+    "checks": [
+      {
+        "name": "new migration is applied to the local database",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1..."
+      },
+      {
+        "name": "generated types describe the new schema",
+        "passed": true,
+        "notes": "src/database.types.ts: ok"
+      },
+      {
+        "name": "app code type-checks against the generated types",
+        "passed": true,
+        "notes": "0 diagnostics"
+      },
+      {
+        "name": "app code was fixed, not silenced or removed",
+        "passed": true,
+        "notes": "ok"
+      },
+      {
+        "name": "app code keeps its behaviour on the new schema",
+        "passed": true,
+        "judgeNotes": "All exported functions preserve the required behavior under the status mapping; none reads or writes is_complete."
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted a forbidden container-runtime detour."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"stack\":{\"backend\":\"none\",\"runtime\":\"none\",\"relocatedHome\":null},\"genTypesRuns\":2,\"genTypesSources\":[\"local\"],\"stackStoppedByAgent\":false,\"typesModules\":[\"src/database.types.ts\"],\"diagnostics\":0,\"suppressions\":0,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the types and app code",
+        "passed": true,
+        "judgeNotes": "The report accurately says database type generation was blocked by the unavailable Docker daemon, the types were edited from the migrations rather than regenerated, and the app type-check passed. It does not falsely claim the local migration was applied."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI generate TypeScript types gen types\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-types",
+              "title": "Generating TypeScript Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-python-types",
+              "title": "Generating Python Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/examples/huggingface-image-captioning",
+              "title": "Generate image captions using Hugging Face"
+            }
+          ],
+          "resultChars": 59229
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"printf '%s\\\\n' '--- Supabase changelog breaking entries ---'; curl -fsSL https://supabase.com/changelog.md | rg -n -i -C 1 'breaking-change|breaking change' | head -80; printf '%s\\\\n' '--- CLI ---'; if command -v supabase >/dev/null 2>&1; then supabase --version; supabase --help; else echo 'supabase CLI not installed'; fi; printf '%s\\\\n' '--- local tooling ---'; ls -la; test -d node_modules && echo node_modules-present || true\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 4867
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 442619,
+        "cacheReadInputTokens": 393179,
+        "cacheWriteInputTokens": 49392,
+        "outputTokens": 7801
+      }
+    ],
+    "stepCount": 16,
+    "toolCallCount": 18,
+    "agentRunDurationMs": 110217,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 140498,
+      "duration": 215971,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 844547812,
+        "egress": 6663112
+      }
+    },
+    "prompt": "I just pulled in a new migration that changes how we track whether tasks are finished, and our database types are out of date now. Can you regenerate them and update the app code to match?",
+    "promptSourcePath": "evals/cli/build-database-006-regenerate-types/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-nodaemon/build-database-006-regenerate-types/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-nodaemon",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
     "eval": "resolve-database-002-stale-stack-cleanup",
     "stage": "resolve",
     "product": [
@@ -18146,6 +20029,488 @@
     "promptSourcePath": "evals/cli/build-database-004-named-stacks/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-6-luna-cli-pinned/build-database-004-named-stacks/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-006-regenerate-types",
+    "stage": "build",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "migrations",
+      "sdk"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "new migration is applied to the local database",
+        "passed": false,
+        "notes": "the agent stopped the stack (last stack command: `supabase stop`), so the harness could not probe the database; managed: exit 1: <help output>; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_task-board\nTry rerunning the command with --debug to troubleshoot the error."
+      },
+      {
+        "name": "generated types describe the new schema",
+        "passed": true,
+        "notes": "src/database.types.ts: ok"
+      },
+      {
+        "name": "app code type-checks against the generated types",
+        "passed": true,
+        "notes": "0 diagnostics"
+      },
+      {
+        "name": "app code was fixed, not silenced or removed",
+        "passed": true,
+        "notes": "ok"
+      },
+      {
+        "name": "app code keeps its behaviour on the new schema",
+        "passed": true,
+        "judgeNotes": "All exported functions preserve the seeded behavior under the status mapping. The label adds a distinct marker for in-progress tasks."
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted a container-runtime detour. The Docker command was a read-only probe; Supabase and npm commands are permitted."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"cliOverride\":[],\"channel\":\"pinned\",\"stack\":{\"backend\":\"none\",\"runtime\":\"none\",\"relocatedHome\":null},\"genTypesRuns\":2,\"genTypesSources\":[\"local\"],\"stackStoppedByAgent\":true,\"typesModules\":[\"src/database.types.ts\"],\"diagnostics\":0,\"suppressions\":0,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the types and app code",
+        "passed": true,
+        "judgeNotes": "The transcript confirms both migrations applied locally, types were generated from that database, and the app passed type-checking. The report accurately says the local stack was stopped."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11955
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI gen types typescript local database\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-types",
+              "title": "Generating TypeScript Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-python-types",
+              "title": "Generating Python Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            }
+          ],
+          "resultChars": 61054
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"supabase gen types typescript --local\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-types",
+              "title": "Generating TypeScript Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-python-types",
+              "title": "Generating Python Types"
+            }
+          ],
+          "resultChars": 40919
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 711403,
+        "cacheReadInputTokens": 656338,
+        "cacheWriteInputTokens": 55002,
+        "outputTokens": 4499
+      }
+    ],
+    "stepCount": 21,
+    "toolCallCount": 17,
+    "agentRunDurationMs": 146036,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 287404,
+      "duration": 243680,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2847896705,
+        "egress": 13365857
+      }
+    },
+    "prompt": "I just pulled in a new migration that changes how we track whether tasks are finished, and our database types are out of date now. Can you regenerate them and update the app code to match?",
+    "promptSourcePath": "evals/cli/build-database-006-regenerate-types/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/build-database-006-regenerate-types/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-006-regenerate-types",
+    "stage": "build",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "migrations",
+      "sdk"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "new migration is applied to the local database",
+        "passed": false,
+        "notes": "the agent stopped the stack (last stack command: `supabase stop`), so the harness could not probe the database; managed: exit 1: <help output>; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_task-board\nTry rerunning the command with --debug to troubleshoot the error."
+      },
+      {
+        "name": "generated types describe the new schema",
+        "passed": true,
+        "notes": "src/database.types.ts: ok"
+      },
+      {
+        "name": "app code type-checks against the generated types",
+        "passed": true,
+        "notes": "0 diagnostics"
+      },
+      {
+        "name": "app code was fixed, not silenced or removed",
+        "passed": true,
+        "notes": "ok"
+      },
+      {
+        "name": "app code keeps its behaviour on the new schema",
+        "passed": true,
+        "judgeNotes": "All exported functions preserve the seeded behavior under the status mapping; none reads or writes is_complete."
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, enable, or reconfigure a container runtime. The Docker command was a read-only probe; Supabase commands are permitted."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"cliOverride\":[],\"channel\":\"pinned\",\"stack\":{\"backend\":\"none\",\"runtime\":\"none\",\"relocatedHome\":null},\"genTypesRuns\":1,\"genTypesSources\":[\"local\"],\"stackStoppedByAgent\":true,\"typesModules\":[\"src/database.types.ts\"],\"diagnostics\":0,\"suppressions\":0,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the types and app code",
+        "passed": true,
+        "judgeNotes": "The report matches the transcript: the local migration applied, types were generated from the database, the app type-check passed, and the agent stopped the local stack."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI gen types typescript local project database\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-types",
+              "title": "Generating TypeScript Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-python-types",
+              "title": "Generating Python Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            }
+          ],
+          "resultChars": 61054
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"generate typescript types supabase gen types db local output enum types\", limit: 6) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-types",
+              "title": "Generating TypeScript Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/examples/huggingface-image-captioning",
+              "title": "Generate image captions using Hugging Face"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-python-types",
+              "title": "Generating Python Types"
+            }
+          ],
+          "resultChars": 44937
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"docker info --format '{{.ServerVersion}}' 2>&1 | head -20; printf '\\\\n--- changelog head ---\\\\n'; curl -fsSL https://supabase.com/changelog.md | head -c 1500\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 1569
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 825852,
+        "cacheReadInputTokens": 770553,
+        "cacheWriteInputTokens": 54969,
+        "outputTokens": 6591
+      }
+    ],
+    "stepCount": 26,
+    "toolCallCount": 20,
+    "agentRunDurationMs": 179102,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 331865,
+      "duration": 280639,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2848521444,
+        "egress": 12761900
+      }
+    },
+    "prompt": "I just pulled in a new migration that changes how we track whether tasks are finished, and our database types are out of date now. Can you regenerate them and update the app code to match?",
+    "promptSourcePath": "evals/cli/build-database-006-regenerate-types/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/build-database-006-regenerate-types/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-006-regenerate-types",
+    "stage": "build",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "migrations",
+      "sdk"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "new migration is applied to the local database",
+        "passed": false,
+        "notes": "the agent stopped the stack (last stack command: `supabase stop`), so the harness could not probe the database; managed: exit 1: <help output>; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_task-board\nTry rerunning the command with --debug to troubleshoot the error."
+      },
+      {
+        "name": "generated types describe the new schema",
+        "passed": true,
+        "notes": "src/database.types.ts: ok"
+      },
+      {
+        "name": "app code type-checks against the generated types",
+        "passed": true,
+        "notes": "0 diagnostics"
+      },
+      {
+        "name": "app code was fixed, not silenced or removed",
+        "passed": true,
+        "notes": "ok"
+      },
+      {
+        "name": "app code keeps its behaviour on the new schema",
+        "passed": true,
+        "judgeNotes": "All exported functions preserve their behavior under the status mapping; none reads or writes is_complete."
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted a prohibited container-runtime detour."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"cliOverride\":[],\"channel\":\"pinned\",\"stack\":{\"backend\":\"none\",\"runtime\":\"none\",\"relocatedHome\":null},\"genTypesRuns\":3,\"genTypesSources\":[\"local\"],\"stackStoppedByAgent\":true,\"typesModules\":[\"src/database.types.ts\"],\"diagnostics\":0,\"suppressions\":0,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the types and app code",
+        "passed": true,
+        "judgeNotes": "The report matches the transcript: the local CLI applied the migration, types were regenerated from that database, and the app passed type-check. The stack was stopped afterward; the RLS warning was also accurately reported."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 20000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 19902
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI gen types typescript local database command\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-types",
+              "title": "Generating TypeScript Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-python-types",
+              "title": "Generating Python Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            }
+          ],
+          "resultChars": 61054
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 803469,
+        "cacheReadInputTokens": 747861,
+        "cacheWriteInputTokens": 55533,
+        "outputTokens": 6193
+      }
+    ],
+    "stepCount": 25,
+    "toolCallCount": 24,
+    "agentRunDurationMs": 180183,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 382578,
+      "duration": 291743,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2851270034,
+        "egress": 12690116
+      }
+    },
+    "prompt": "I just pulled in a new migration that changes how we track whether tasks are finished, and our database types are out of date now. Can you regenerate them and update the app code to match?",
+    "promptSourcePath": "evals/cli/build-database-006-regenerate-types/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/build-database-006-regenerate-types/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna-cli-pinned",
@@ -21731,6 +24096,436 @@
     "promptSourcePath": "evals/cli/build-database-004-named-stacks/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-6-luna-cli-stable/build-database-004-named-stacks/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-006-regenerate-types",
+    "stage": "build",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "migrations",
+      "sdk"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.121.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "new migration is applied to the local database",
+        "passed": false,
+        "notes": "the agent stopped the stack (last stack command: `supabase stop`), so the harness could not probe the database; managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_task-board\nTry rer..."
+      },
+      {
+        "name": "generated types describe the new schema",
+        "passed": true,
+        "notes": "src/database.types.ts: ok"
+      },
+      {
+        "name": "app code type-checks against the generated types",
+        "passed": true,
+        "notes": "0 diagnostics"
+      },
+      {
+        "name": "app code was fixed, not silenced or removed",
+        "passed": true,
+        "notes": "ok"
+      },
+      {
+        "name": "app code keeps its behaviour on the new schema",
+        "passed": true,
+        "judgeNotes": "All exported functions preserve the seeded behavior under the status mapping."
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted a forbidden container-runtime detour. Docker commands were read-only probes; Supabase and npm commands are permitted."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.121.0\",\"cliOverride\":[],\"channel\":\"stable\",\"stack\":{\"backend\":\"none\",\"runtime\":\"none\",\"relocatedHome\":null},\"genTypesRuns\":2,\"genTypesSources\":[\"local\"],\"stackStoppedByAgent\":true,\"typesModules\":[\"src/database.types.ts\"],\"diagnostics\":0,\"suppressions\":0,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the types and app code",
+        "passed": true,
+        "judgeNotes": "The transcript confirms the migration applied locally, types were generated from that database, and the app type-check passed. The agent stopped the stack afterward; its report makes no contradictory claims."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 10000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 9967
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"supabase gen types TypeScript generate types local database CLI\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-types",
+              "title": "Generating TypeScript Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-python-types",
+              "title": "Generating Python Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            }
+          ],
+          "resultChars": 61054
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 823748,
+        "cacheReadInputTokens": 768889,
+        "cacheWriteInputTokens": 54781,
+        "outputTokens": 6615
+      }
+    ],
+    "stepCount": 26,
+    "toolCallCount": 33,
+    "agentRunDurationMs": 133058,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 275902,
+      "duration": 235427,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1621449396,
+        "egress": 12842157
+      }
+    },
+    "prompt": "I just pulled in a new migration that changes how we track whether tasks are finished, and our database types are out of date now. Can you regenerate them and update the app code to match?",
+    "promptSourcePath": "evals/cli/build-database-006-regenerate-types/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/build-database-006-regenerate-types/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-006-regenerate-types",
+    "stage": "build",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "migrations",
+      "sdk"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.121.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "new migration is applied to the local database",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_task-board\nTry rer..."
+      },
+      {
+        "name": "generated types describe the new schema",
+        "passed": true,
+        "notes": "src/database.types.ts: ok"
+      },
+      {
+        "name": "app code type-checks against the generated types",
+        "passed": true,
+        "notes": "0 diagnostics"
+      },
+      {
+        "name": "app code was fixed, not silenced or removed",
+        "passed": true,
+        "notes": "ok"
+      },
+      {
+        "name": "app code keeps its behaviour on the new schema",
+        "passed": true,
+        "judgeNotes": "All exported functions preserve the mapped behavior; none read or write is_complete."
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted a forbidden container-runtime detour."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.121.0\",\"cliOverride\":[],\"channel\":\"stable\",\"stack\":{\"backend\":\"none\",\"runtime\":\"none\",\"relocatedHome\":null},\"genTypesRuns\":0,\"genTypesSources\":[],\"stackStoppedByAgent\":false,\"typesModules\":[\"src/database.types.ts\"],\"diagnostics\":0,\"suppressions\":0,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the types and app code",
+        "passed": true,
+        "judgeNotes": "The report accurately says the types were edited to match the migration rather than generated from a database, does not claim the migration was applied locally, and reports a passing type-check consistent with the transcript and harness diagnostics."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 20000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 19902
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI generate TypeScript types from local database supabase gen types --local\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-types",
+              "title": "Generating TypeScript Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-python-types",
+              "title": "Generating Python Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/examples/huggingface-image-captioning",
+              "title": "Generate image captions using Hugging Face"
+            }
+          ],
+          "resultChars": 59229
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 492176,
+        "cacheReadInputTokens": 439875,
+        "cacheWriteInputTokens": 52253,
+        "outputTokens": 6039
+      }
+    ],
+    "stepCount": 16,
+    "toolCallCount": 20,
+    "agentRunDurationMs": 87519,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 172338,
+      "duration": 338343,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2658621282,
+        "egress": 11843502
+      }
+    },
+    "prompt": "I just pulled in a new migration that changes how we track whether tasks are finished, and our database types are out of date now. Can you regenerate them and update the app code to match?",
+    "promptSourcePath": "evals/cli/build-database-006-regenerate-types/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/build-database-006-regenerate-types/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-database-006-regenerate-types",
+    "stage": "build",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "migrations",
+      "sdk"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.121.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "new migration is applied to the local database",
+        "passed": false,
+        "notes": "the agent stopped the stack (last stack command: `supabase stop`), so the harness could not probe the database; managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_task-board\nTry rer..."
+      },
+      {
+        "name": "generated types describe the new schema",
+        "passed": true,
+        "notes": "src/database.types.ts: ok"
+      },
+      {
+        "name": "app code type-checks against the generated types",
+        "passed": true,
+        "notes": "0 diagnostics"
+      },
+      {
+        "name": "app code was fixed, not silenced or removed",
+        "passed": true,
+        "notes": "ok"
+      },
+      {
+        "name": "app code keeps its behaviour on the new schema",
+        "passed": true,
+        "judgeNotes": "All exported functions preserve the seeded behavior under the status mapping; none reads or writes is_complete."
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted a forbidden container-runtime detour. The Docker command was a read-only version probe; Supabase CLI commands and npm install are permitted."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.121.0\",\"cliOverride\":[],\"channel\":\"stable\",\"stack\":{\"backend\":\"none\",\"runtime\":\"none\",\"relocatedHome\":null},\"genTypesRuns\":2,\"genTypesSources\":[\"local\"],\"stackStoppedByAgent\":true,\"typesModules\":[\"src/database.types.ts\"],\"diagnostics\":0,\"suppressions\":0,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the types and app code",
+        "passed": true,
+        "judgeNotes": "The CLI applied the migration and generated types from the local database into temporary files; the agent edited the app’s types to match. The report does not claim the edited file was directly generated. Type-check passed, and the agent stopped the stack."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -80'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 4177
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"generate TypeScript types Supabase CLI database types\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-types",
+              "title": "Generating TypeScript Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-python-types",
+              "title": "Generating Python Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/examples/huggingface-image-captioning",
+              "title": "Generate image captions using Hugging Face"
+            }
+          ],
+          "resultChars": 50780
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 939756,
+        "cacheReadInputTokens": 887130,
+        "cacheWriteInputTokens": 52533,
+        "outputTokens": 5997
+      }
+    ],
+    "stepCount": 31,
+    "toolCallCount": 24,
+    "agentRunDurationMs": 162828,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 357277,
+      "duration": 289484,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1619995251,
+        "egress": 10894758
+      }
+    },
+    "prompt": "I just pulled in a new migration that changes how we track whether tasks are finished, and our database types are out of date now. Can you regenerate them and update the app code to match?",
+    "promptSourcePath": "evals/cli/build-database-006-regenerate-types/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/build-database-006-regenerate-types/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna-cli-stable",
