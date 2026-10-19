@@ -11,6 +11,7 @@ import {
 import { findCliDetourCommands } from '../lib/detours.js';
 import { readCliVersions, safely } from '../lib/metrics.js';
 import type { StackProbe } from '../lib/stack.js';
+import type { MigrationEvidenceSource } from './schema.js';
 import type { ProjectAnalysis } from './typecheck.js';
 
 export type GenTypesRuns = { runs: number; sources: string[] };
@@ -31,7 +32,7 @@ function genTypesSource(invocation: SupabaseInvocation): string {
 
 // `invocationVerb` is the only positional parser cli-invocations exposes, so the
 // token that made it answer the verb is dropped to read the next positional.
-function subcommand(invocation: SupabaseInvocation): string | undefined {
+export function subcommand(invocation: SupabaseInvocation): string | undefined {
   const { argv } = invocation;
   const verbAt = argv.findIndex(
     (_, index) =>
@@ -133,9 +134,11 @@ export async function checkMetrics(
     lifecycle: StackLifecycle;
     analysis: ProjectAnalysis;
     cli: CliFacts;
+    migrationEvidence: MigrationEvidenceSource;
   }
 ): Promise<CheckResult> {
-  const { commands, genTypes, stack, lifecycle, analysis } = facts;
+  const { commands, genTypes, stack, lifecycle, analysis, migrationEvidence } =
+    facts;
   const { versions, cliOverride } = facts.cli;
 
   const metrics = {
@@ -157,6 +160,7 @@ export async function checkMetrics(
     genTypesRuns: await safely(() => genTypes.runs),
     genTypesSources: await safely(() => genTypes.sources),
     stackStoppedByAgent: await safely(() => lifecycle.stoppedByAgent),
+    migrationEvidence,
     typesModules: await safely(() =>
       analysis.ok ? analysis.typesModules.map((module) => module.path) : null
     ),

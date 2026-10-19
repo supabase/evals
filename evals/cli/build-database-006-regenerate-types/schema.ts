@@ -1,7 +1,16 @@
-import type { CheckResult, LocalStackEvalContext } from '@supabase-evals/core';
+import type {
+  CheckResult,
+  LocalStackEvalContext,
+  ToolCallRecord,
+} from '@supabase-evals/core';
+import {
+  invocationVerb,
+  type SupabaseInvocation,
+} from '../lib/cli-invocations.js';
+import { commandToolCalls } from '../lib/detours.js';
 import { describeFailure, errorMessage, shellQuote } from '../lib/shell.js';
 import type { StackProbe } from '../lib/stack.js';
-import type { StackLifecycle } from './metrics.js';
+import { subcommand, type StackLifecycle } from './metrics.js';
 
 export const NEW_MIGRATION_VERSION = '20260315000000';
 
@@ -62,11 +71,94 @@ export async function readTasksSchema(
   }
 }
 
+export type MigrationEvidence = { command: string };
+
+export type MigrationEvidenceSource = 'probe' | 'tool-output' | 'none';
+
+const APPLYING_LINE = new RegExp(
+  `Applying migration ${NEW_MIGRATION_VERSION}_`,
+  'g'
+);
+const OUTPUT_FAILURE =
+  /"_tag"\s*:\s*"Error"|\berror:|error running container|Try rerunning the command with --debug/i;
+const LOCAL_APPLY_COMMANDS = new Set([
+  'start',
+  'db start',
+  'db reset',
+  'migration up',
+  'stack start',
+  'stack restart',
+]);
+const REMOTE_TARGET_FLAGS = ['--linked', '--db-url'];
+
+function appliesMigrationsLocally(invocation: SupabaseInvocation): boolean {
+  const verb = invocationVerb(invocation);
+  const command =
+    verb === 'db' || verb === 'migration'
+      ? `${verb} ${subcommand(invocation)}`
+      : verb;
+  return (
+    command !== undefined &&
+    LOCAL_APPLY_COMMANDS.has(command) &&
+    !invocation.argv.some((arg) =>
+      REMOTE_TARGET_FLAGS.some(
+        (flag) => arg === flag || arg.startsWith(`${flag}=`)
+      )
+    )
+  );
+}
+
+function appliedWithoutError(output: string): boolean {
+  const applied = [...output.matchAll(APPLYING_LINE)].at(-1);
+  return (
+    applied?.index !== undefined &&
+    !OUTPUT_FAILURE.test(output.slice(applied.index))
+  );
+}
+
+/** The last local `supabase` invocation whose successful tool output shows the new migration applied and not followed by an error. */
+export function readMigrationEvidence(
+  toolCalls: readonly ToolCallRecord[],
+  invocations: readonly SupabaseInvocation[]
+): MigrationEvidence | undefined {
+  const calls = commandToolCalls(toolCalls);
+  return invocations
+    .filter(appliesMigrationsLocally)
+    .flatMap((invocation) => {
+      const call = calls[invocation.commandIndex];
+      return call?.error === undefined &&
+        typeof call?.result === 'string' &&
+        appliedWithoutError(call.result)
+        ? [{ command: invocation.argv.join(' ') }]
+        : [];
+    })
+    .at(-1);
+}
+
+export function migrationEvidenceSource(
+  probe: SchemaProbe,
+  evidence: MigrationEvidence | undefined
+): MigrationEvidenceSource {
+  if (probe.ok) return 'probe';
+  return evidence === undefined ? 'none' : 'tool-output';
+}
+
 export function checkMigrationApplied(
   probe: SchemaProbe,
-  lifecycle?: StackLifecycle
+  lifecycle?: StackLifecycle,
+  evidence?: MigrationEvidence
 ): CheckResult {
   const name = 'new migration is applied to the local database';
+  if (!probe.ok && evidence !== undefined) {
+    const reason = lifecycle?.stoppedByAgent
+      ? `the agent stopped the stack, last stack command: \`${lifecycle.lastCommand}\``
+      : probe.notes;
+    return {
+      name,
+      passed: true,
+      notes: `applied per the output of \`${evidence.command}\`; the harness could not probe the database afterwards (${reason})`,
+    };
+  }
   if (!probe.ok) {
     return {
       name,

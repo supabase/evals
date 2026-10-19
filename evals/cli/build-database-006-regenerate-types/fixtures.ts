@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import type { ToolCallRecord } from '@supabase-evals/core';
 import type { ProjectAnalysis } from './typecheck.js';
 
 const LOCAL_DIR = fileURLToPath(new URL('./local', import.meta.url));
@@ -310,4 +311,56 @@ export function analysisFixture(
     appFiles: ['src/supabase.ts', 'src/tasks.ts'],
     ...overrides,
   };
+}
+
+export const APPLY_CREATE_TASKS =
+  'Applying migration 20260101000000_create_tasks.sql...';
+export const APPLY_TASK_STATUS =
+  'Applying migration 20260315000000_task_status.sql...';
+
+/** `supabase start` output trimmed to the migration lines and the env JSON. */
+export const DOCKER_START_OUTPUT = [
+  'Starting database...',
+  'Initialising schema...',
+  'Seeding globals from roles.sql...',
+  APPLY_CREATE_TASKS,
+  APPLY_TASK_STATUS,
+  'WARN: no files matched pattern: supabase/seed.sql',
+  '{"DB_URL":"postgresql://postgres:postgres@127.0.0.1:54322/postgres","API_URL":"http://127.0.0.1:54321","message":""}',
+  'A new version of Supabase CLI is available: v2.121.0 (currently installed v2.117.0)',
+  '',
+].join('\n');
+
+function codexCall(command: string, result: string): ToolCallRecord {
+  const wrapped = command.includes("'")
+    ? `/bin/bash -lc "${command}"`
+    : `/bin/bash -lc '${command}'`;
+  return {
+    tool: { kind: 'other', toolName: 'command_execution' },
+    body: { command: wrapped },
+    name: 'shell',
+    command: wrapped,
+    cwd: '/tmp/sandbox-6a06bb83',
+    result,
+    ts: 1792408491147,
+    resultTs: 1792408549452,
+  };
+}
+
+/** Tool calls of an agent that starts the stack, regenerates the types and stops the stack. */
+export function dockerRunToolCalls({
+  command = 'supabase start',
+  output = DOCKER_START_OUTPUT,
+}: { command?: string; output?: string } = {}): ToolCallRecord[] {
+  return [
+    codexCall(command, output),
+    codexCall(
+      'supabase gen types typescript --local --schema public > src/database.types.ts',
+      'Connecting to db 5432\n'
+    ),
+    codexCall(
+      "supabase gen types typescript --local --schema public > /tmp/task-board.database.types.ts && cmp -s src/database.types.ts /tmp/task-board.database.types.ts && echo 'Generated types match local schema.'; supabase stop",
+      'Connecting to db 5432\nGenerated types match local schema.\n{"project_id_filter":"task-board","backup":true,"message":"Stopped supabase local development setup."}\n'
+    ),
+  ];
 }

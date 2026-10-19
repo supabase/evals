@@ -1,10 +1,20 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/build-database-006-regenerate-types
-import type { CommandResult } from '@supabase-evals/core';
+import type { CommandResult, ToolCallRecord } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
+import { findSupabaseInvocations } from '../lib/cli-invocations.js';
+import { extractCommandEntries } from '../lib/detours.js';
 import type { StackProbe } from '../lib/stack.js';
 import {
+  APPLY_CREATE_TASKS,
+  APPLY_TASK_STATUS,
+  DOCKER_START_OUTPUT,
+  dockerRunToolCalls,
+} from './fixtures.js';
+import {
   checkMigrationApplied,
+  migrationEvidenceSource,
   NEW_MIGRATION_VERSION,
+  readMigrationEvidence,
   readTasksSchema,
   type SchemaProbe,
 } from './schema.js';
@@ -402,5 +412,213 @@ describe('readTasksSchema into checkMigrationApplied', () => {
     expect(check.passed).toBe(false);
     expect(check.notes).toContain('not in applied history');
     expect(check.notes).not.toContain('history query failed');
+  });
+});
+
+const evidenceOf = (toolCalls: ToolCallRecord[]) =>
+  readMigrationEvidence(
+    toolCalls,
+    findSupabaseInvocations(extractCommandEntries(toolCalls))
+  );
+
+const startedWith = (command: string, output = DOCKER_START_OUTPUT) =>
+  evidenceOf(dockerRunToolCalls({ command, output }));
+
+describe('readMigrationEvidence', () => {
+  it('finds the supabase start whose output applied the new migration', () => {
+    expect(evidenceOf(dockerRunToolCalls())).toEqual({
+      command: 'supabase start',
+    });
+  });
+
+  it.each([
+    'supabase db start',
+    'supabase stack start',
+    'supabase stack restart',
+    'supabase db reset',
+    'supabase db reset --local',
+    'supabase migration up',
+    'supabase migration up --local',
+    'supabase start --exclude gotrue,realtime,storage-api',
+  ])('accepts the applying line in the output of `%s`', (command) => {
+    expect(startedWith(command)).toEqual({ command });
+  });
+
+  it('uses the last call that applied the migration', () => {
+    const calls = [
+      ...dockerRunToolCalls({ command: 'supabase db reset' }),
+      ...dockerRunToolCalls({ command: 'supabase start' }),
+    ];
+
+    expect(evidenceOf(calls)).toEqual({ command: 'supabase start' });
+  });
+
+  it('finds nothing without tool calls', () => {
+    expect(evidenceOf([])).toBeUndefined();
+  });
+
+  it('ignores output that only applied the create_tasks migration', () => {
+    const output = DOCKER_START_OUTPUT.replace(`${APPLY_TASK_STATUS}\n`, '');
+
+    expect(output).toContain(APPLY_CREATE_TASKS);
+    expect(startedWith('supabase start', output)).toBeUndefined();
+  });
+
+  it.each([
+    [
+      'a stack backend error',
+      '{"_tag":"Error","error":{"code":"StartFailed"}}',
+    ],
+    [
+      'a migration error',
+      'ERROR: relation "tasks" does not exist (SQLSTATE 42P01)',
+    ],
+    ['a container error', 'error running container: exit 1'],
+    [
+      'the debug hint',
+      'Try rerunning the command with --debug to troubleshoot',
+    ],
+  ])('ignores output with %s after the applying line', (_label, failure) => {
+    const output = DOCKER_START_OUTPUT.replace(
+      APPLY_TASK_STATUS,
+      `${APPLY_TASK_STATUS}\n${failure}`
+    );
+
+    expect(startedWith('supabase start', output)).toBeUndefined();
+  });
+
+  it('ignores the applying line when no supabase command ran', () => {
+    expect(
+      startedWith(`echo '${APPLY_TASK_STATUS}'`, `${APPLY_TASK_STATUS}\n`)
+    ).toBeUndefined();
+  });
+
+  it.each([
+    'supabase db reset --linked',
+    'supabase db reset --db-url postgresql://postgres:postgres@db.example.com:5432/postgres',
+    'supabase migration up --linked',
+    'supabase migration up --db-url=postgresql://postgres:postgres@db.example.com:5432/postgres',
+  ])(
+    'ignores the applying line in the output of the remote `%s`',
+    (command) => {
+      expect(startedWith(command)).toBeUndefined();
+    }
+  );
+
+  it.each([
+    'supabase status',
+    'supabase stop',
+    'supabase gen types typescript --local',
+    'supabase db push --linked',
+  ])('ignores the applying line in the output of `%s`', (command) => {
+    expect(startedWith(command)).toBeUndefined();
+  });
+
+  it('ignores a call that errored, whose output is not a result', () => {
+    const [start, ...rest] = dockerRunToolCalls();
+    const { result, ...failed } = start;
+
+    expect(
+      evidenceOf([{ ...failed, error: String(result) }, ...rest])
+    ).toBeUndefined();
+  });
+});
+
+describe('migrationEvidenceSource', () => {
+  const evidence = { command: 'supabase start' };
+
+  it('is probe whenever the live probe read the schema, with or without evidence', () => {
+    const probe: SchemaProbe = { ok: true, applied: false, columns: {} };
+
+    expect(migrationEvidenceSource(probe, evidence)).toBe('probe');
+    expect(migrationEvidenceSource(probe, undefined)).toBe('probe');
+  });
+
+  it('is tool-output when the probe failed and the tool output shows the migration applied', () => {
+    expect(
+      migrationEvidenceSource({ ok: false, notes: 'no stack' }, evidence)
+    ).toBe('tool-output');
+  });
+
+  it('is none when the probe failed and there is no evidence', () => {
+    expect(
+      migrationEvidenceSource({ ok: false, notes: 'no stack' }, undefined)
+    ).toBe('none');
+  });
+});
+
+describe('checkMigrationApplied with tool output evidence', () => {
+  const evidence = { command: 'supabase start' };
+  const noProbe: SchemaProbe = {
+    ok: false,
+    notes: 'The local stack is not running.',
+  };
+
+  it('passes when the agent stopped the stack and the start output showed the migration applied', () => {
+    expect(
+      checkMigrationApplied(
+        noProbe,
+        { lastCommand: 'supabase stop', stoppedByAgent: true },
+        evidence
+      )
+    ).toEqual({
+      name: CHECK_NAME,
+      passed: true,
+      notes:
+        'applied per the output of `supabase start`; the harness could not probe the database afterwards (the agent stopped the stack, last stack command: `supabase stop`)',
+    });
+  });
+
+  it('passes with the probe notes as the reason when the agent did not stop the stack', () => {
+    expect(
+      checkMigrationApplied(
+        noProbe,
+        { lastCommand: 'supabase start', stoppedByAgent: false },
+        evidence
+      )
+    ).toEqual({
+      name: CHECK_NAME,
+      passed: true,
+      notes:
+        'applied per the output of `supabase start`; the harness could not probe the database afterwards (The local stack is not running.)',
+    });
+  });
+
+  it('fails without evidence, keeping the stop note', () => {
+    expect(
+      checkMigrationApplied(noProbe, {
+        lastCommand: 'supabase stop',
+        stoppedByAgent: true,
+      })
+    ).toMatchObject({
+      passed: false,
+      notes: expect.stringContaining('the agent stopped the stack'),
+    });
+  });
+
+  it('fails when the live probe resolved the old schema, even with evidence', () => {
+    const check = checkMigrationApplied(
+      {
+        ok: true,
+        applied: false,
+        columns: { id: 'int8', title: 'text', is_complete: 'bool' },
+      },
+      { lastCommand: 'supabase stop', stoppedByAgent: true },
+      evidence
+    );
+
+    expect(check.passed).toBe(false);
+    expect(check.notes).toContain('not in applied history');
+  });
+
+  it('reports the probe result, not the evidence, when the probe read the migrated schema', () => {
+    const check = checkMigrationApplied(
+      { ok: true, applied: true, columns: NEW_COLUMNS },
+      undefined,
+      evidence
+    );
+
+    expect(check.passed).toBe(true);
+    expect(check.notes).not.toContain('per the output');
   });
 });

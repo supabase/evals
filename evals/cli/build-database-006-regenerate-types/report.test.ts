@@ -230,6 +230,32 @@ describe('describeGroundTruth', () => {
         }).join('\n')
       ).toContain('psql: connection refused');
     });
+
+    it('says the migration applied per the tool output when the schema could not be read but the evidence shows it applied', () => {
+      const text = describe_({
+        schema: { ok: false, notes: 'The local stack is not running.' },
+        evidence: { command: 'supabase start' },
+      }).join('\n');
+
+      expect(text).toContain(
+        '- migration 20260315000000 applied: yes, per the output of `supabase start`; the stack was not running when the harness probed'
+      );
+      expect(text).not.toContain('migration state unavailable');
+    });
+
+    it('prefers the probed schema over the evidence when the schema could be read', () => {
+      const text = describe_({
+        schema: {
+          ok: true,
+          applied: false,
+          columns: { id: 'int8', is_complete: 'bool' },
+        },
+        evidence: { command: 'supabase start' },
+      }).join('\n');
+
+      expect(text).toMatch(/applied: no/);
+      expect(text).not.toContain('per the output');
+    });
   });
 
   describe('types modules', () => {

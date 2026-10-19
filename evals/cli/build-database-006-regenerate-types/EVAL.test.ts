@@ -14,7 +14,11 @@ import { BEHAVIOUR_RUBRIC } from './behaviour.js';
 import scorer from './EVAL.js';
 import {
   ANY_CLIENT_IN_TYPES_ONLY_DECLARER,
+  APPLY_CREATE_TASKS,
+  APPLY_TASK_STATUS,
   DECLARER_ALIAS_WITH_CONNECT,
+  DOCKER_START_OUTPUT,
+  dockerRunToolCalls,
   fixedTasks,
   LABEL_FIXED,
   LABEL_STALE,
@@ -386,6 +390,114 @@ describe('stack and migration', () => {
       relocatedHome: RELOCATED_HOME,
     });
     expectFailed(await scorer(ctx), [MIGRATION]);
+  });
+});
+
+describe('migration evidence from tool output', () => {
+  const metricsOf = (result: Awaited<ReturnType<typeof scorer>>) =>
+    JSON.parse(checkNamed(result, METRICS)?.notes ?? '');
+  const reportInput = (judge: ReturnType<typeof fakeCtx>['judge']) =>
+    judge.mock.calls
+      .map(([args]) => args)
+      .find((args) => judgeKind(args) === 'report')?.input ?? '';
+  const stoppedStack = (toolCalls: ToolCallRecord[]) =>
+    fakeCtx({ workspace: WORKSPACES.fixed, stack: 'down', toolCalls });
+
+  it('passes the migration check from the start output of an agent that stopped the stack', async () => {
+    const { ctx, judge } = stoppedStack(dockerRunToolCalls());
+    const result = await scorer(ctx);
+
+    expectFailed(result, []);
+    expect(checkNamed(result, MIGRATION)?.notes).toBe(
+      'applied per the output of `supabase start`; the harness could not probe the database afterwards (the agent stopped the stack, last stack command: `supabase stop`)'
+    );
+    expect(metricsOf(result)).toMatchObject({
+      migrationEvidence: 'tool-output',
+      stackStoppedByAgent: true,
+    });
+    expect(reportInput(judge)).toContain(
+      'applied: yes, per the output of `supabase start`; the stack was not running when the harness probed'
+    );
+    expect(reportInput(judge)).not.toContain('migration state unavailable');
+  });
+
+  it('still fails when the start output only applied the create_tasks migration', async () => {
+    const { ctx } = stoppedStack(
+      dockerRunToolCalls({
+        output: DOCKER_START_OUTPUT.replace(`${APPLY_TASK_STATUS}\n`, ''),
+      })
+    );
+    const result = await scorer(ctx);
+
+    expectFailed(result, [MIGRATION]);
+    expect(DOCKER_START_OUTPUT).toContain(APPLY_CREATE_TASKS);
+    expect(metricsOf(result)).toMatchObject({ migrationEvidence: 'none' });
+  });
+
+  it('still fails when an error follows the applying line', async () => {
+    const { ctx } = stoppedStack(
+      dockerRunToolCalls({
+        output: DOCKER_START_OUTPUT.replace(
+          APPLY_TASK_STATUS,
+          `${APPLY_TASK_STATUS}\nERROR: type "task_status" already exists (SQLSTATE 42710)`
+        ),
+      })
+    );
+    const result = await scorer(ctx);
+
+    expectFailed(result, [MIGRATION]);
+    expect(metricsOf(result)).toMatchObject({ migrationEvidence: 'none' });
+  });
+
+  it('still fails when the applying line is only echoed', async () => {
+    const { ctx } = stoppedStack(
+      dockerRunToolCalls({
+        command: `echo '${APPLY_TASK_STATUS}'`,
+        output: `${APPLY_TASK_STATUS}\n`,
+      })
+    );
+    const result = await scorer(ctx);
+
+    expectFailed(result, [MIGRATION]);
+    expect(metricsOf(result)).toMatchObject({ migrationEvidence: 'none' });
+  });
+
+  it('does not count the output of a remote db reset', async () => {
+    const { ctx } = stoppedStack(
+      dockerRunToolCalls({ command: 'supabase db reset --linked' })
+    );
+    const result = await scorer(ctx);
+
+    expectFailed(result, [MIGRATION]);
+    expect(metricsOf(result)).toMatchObject({ migrationEvidence: 'none' });
+  });
+
+  it('lets a resolved stack on the old schema fail the check even with evidence', async () => {
+    const { ctx, judge } = fakeCtx({
+      workspace: WORKSPACES.fixed,
+      columns: PRE_MIGRATION_COLUMNS,
+      applied: false,
+      toolCalls: dockerRunToolCalls(),
+    });
+    const result = await scorer(ctx);
+
+    expectFailed(result, [MIGRATION]);
+    expect(checkNamed(result, MIGRATION)?.notes).not.toContain(
+      'per the output'
+    );
+    expect(metricsOf(result)).toMatchObject({ migrationEvidence: 'probe' });
+    expect(reportInput(judge)).toContain('applied: no');
+  });
+
+  it('records probe as the evidence when the stack resolved on the migrated schema', async () => {
+    const { ctx } = fakeCtx({
+      workspace: WORKSPACES.fixed,
+      toolCalls: dockerRunToolCalls(),
+    });
+    const result = await scorer(ctx);
+
+    expectFailed(result, []);
+    expect(metricsOf(result)).toMatchObject({ migrationEvidence: 'probe' });
   });
 });
 

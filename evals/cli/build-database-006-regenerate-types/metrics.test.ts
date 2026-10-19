@@ -252,6 +252,7 @@ describe('checkMetrics', () => {
         suppressions: ['src/tasks.ts:12 @ts-ignore'],
       }),
       cli: await readCliFacts(ctx, MARKER, invocations),
+      migrationEvidence: 'probe',
     });
 
     expect(check).toMatchObject({ name: 'metrics', passed: true });
@@ -268,6 +269,7 @@ describe('checkMetrics', () => {
       },
       genTypesRuns: 2,
       stackStoppedByAgent: false,
+      migrationEvidence: 'probe',
       typesModules: ['src/types/supabase.ts'],
       diagnostics: 2,
       suppressions: 1,
@@ -283,6 +285,7 @@ describe('checkMetrics', () => {
       lifecycle: NO_LIFECYCLE,
       analysis: analysisFixture(),
       cli: await readCliFacts(ctx, undefined, []),
+      migrationEvidence: 'probe',
     });
 
     expect(check.passed).toBe(true);
@@ -307,6 +310,7 @@ describe('checkMetrics', () => {
           lifecycle,
           analysis: analysisFixture(),
           cli: await readCliFacts(ctx, undefined, []),
+          migrationEvidence: 'probe',
         })
       );
 
@@ -320,6 +324,23 @@ describe('checkMetrics', () => {
       stackStoppedByAgent: false,
     });
   });
+
+  it.each(['probe', 'tool-output', 'none'] as const)(
+    'reports migrationEvidence %s from the facts',
+    async (migrationEvidence) => {
+      const check = await checkMetrics(undefined, {
+        commands: [],
+        genTypes: { runs: 0, sources: [] },
+        stack: STACK,
+        lifecycle: NO_LIFECYCLE,
+        analysis: analysisFixture(),
+        cli: await readCliFacts(ctx, undefined, []),
+        migrationEvidence,
+      });
+
+      expect(metricsOf(check)).toMatchObject({ migrationEvidence });
+    }
+  );
 
   it('reports nulls instead of failing when nothing resolved', async () => {
     const failing: Pick<LocalStackEvalContext, 'exec'> = {
@@ -335,6 +356,7 @@ describe('checkMetrics', () => {
       lifecycle: NO_LIFECYCLE,
       analysis: { ok: false, notes: 'src directory is missing' },
       cli: await readCliFacts(failing, undefined, []),
+      migrationEvidence: 'none',
     });
 
     expect(check.passed).toBe(true);
@@ -367,6 +389,7 @@ describe('checkMetrics', () => {
       lifecycle: NO_LIFECYCLE,
       analysis: analysisFixture(),
       cli: await readCliFacts(moved, MARKER, invocations),
+      migrationEvidence: 'probe',
     });
 
     expect(metricsOf(check)).toMatchObject({
@@ -390,6 +413,7 @@ describe('checkMetrics', () => {
       lifecycle: NO_LIFECYCLE,
       analysis: analysisFixture(),
       cli,
+      migrationEvidence: 'probe',
     });
     expect(hostileCommands.passed).toBe(true);
     expect(metricsOf(hostileCommands)).toMatchObject({
@@ -406,6 +430,7 @@ describe('checkMetrics', () => {
       lifecycle: NO_LIFECYCLE,
       analysis: analysisFixture(),
       cli,
+      migrationEvidence: 'probe',
     });
     expect(hostileGenTypes.passed).toBe(true);
     expect(metricsOf(hostileGenTypes)).toMatchObject({
@@ -431,6 +456,7 @@ describe('checkMetrics', () => {
         appFiles: [],
       },
       cli,
+      migrationEvidence: 'probe',
     });
     expect(hostileAnalysis.passed).toBe(true);
     expect(metricsOf(hostileAnalysis)).toMatchObject({

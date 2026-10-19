@@ -1,6 +1,10 @@
 import { describeStack, type StackProbe } from '../lib/stack.js';
 import type { CliFacts, GenTypesRuns, StackLifecycle } from './metrics.js';
-import { NEW_MIGRATION_VERSION, type SchemaProbe } from './schema.js';
+import {
+  type MigrationEvidence,
+  NEW_MIGRATION_VERSION,
+  type SchemaProbe,
+} from './schema.js';
 import { MAX_LISTED_DIAGNOSTICS, type ProjectAnalysis } from './typecheck.js';
 
 function describeProbeCli({ versions, cliOverride }: CliFacts): string[] {
@@ -28,8 +32,17 @@ function describeLifecycle(
     : [];
 }
 
-function describeSchema(schema: SchemaProbe): string[] {
-  if (!schema.ok) return [`- migration state unavailable (${schema.notes})`];
+function describeSchema(
+  schema: SchemaProbe,
+  evidence: MigrationEvidence | undefined
+): string[] {
+  if (!schema.ok) {
+    return evidence === undefined
+      ? [`- migration state unavailable (${schema.notes})`]
+      : [
+          `- migration ${NEW_MIGRATION_VERSION} applied: yes, per the output of \`${evidence.command}\`; the stack was not running when the harness probed`,
+        ];
+  }
   const columns = Object.entries(schema.columns)
     .map(([column, type]) => `${column} (${type})`)
     .join(', ');
@@ -69,13 +82,14 @@ export function describeGroundTruth(facts: {
   analysis: ProjectAnalysis;
   genTypes: GenTypesRuns;
   cli: CliFacts;
+  evidence?: MigrationEvidence;
 }): string[] {
-  const { stack, lifecycle, schema, analysis, genTypes, cli } = facts;
+  const { stack, lifecycle, schema, analysis, genTypes, cli, evidence } = facts;
   return [
     ...describeProbeCli(cli),
     `- local stack: ${describeStack(stack)}`,
     ...describeLifecycle(lifecycle, !stack.ok || !schema.ok),
-    ...describeSchema(schema),
+    ...describeSchema(schema, evidence),
     ...describeAnalysis(analysis),
     `- direct \`supabase gen types\` invocations: ${genTypes.runs}${genTypes.sources.length === 0 ? '' : ` (sources: ${genTypes.sources.join(', ')})`}; exit status is not tracked and runs through package scripts are not counted`,
   ];
