@@ -37,7 +37,7 @@ const SEEDED_LOCAL: LocalMigrationsProbe = {
 };
 
 const SEEDED_LOCAL_LINE =
-  '- local migrations after the run: 20240101000000_create_profiles.sql (makes: profiles), 20240116120000_add_profile_bio.sql (makes: bio), 20240301000000_add_profile_avatar.sql (makes: avatar)';
+  '- local migrations after the run: 20240101000000_create_profiles.sql (creates table public.profiles), 20240116120000_add_profile_bio.sql (adds column public.profiles.bio), 20240301000000_add_profile_avatar.sql (adds column public.profiles.avatar_url)';
 
 const SEEDED_STATE: RemoteState = {
   versions: ['20240101000000', '20240115093000', '20240201000000'],
@@ -244,6 +244,18 @@ describe('describeGroundTruth local migrations', () => {
     );
   });
 
+  it('describes the seeded changes in schema terms, not internal labels', () => {
+    const line =
+      lineStarting(
+        describeGroundTruth(facts()),
+        '- local migrations after the run:'
+      ) ?? '';
+    expect(line).toContain('adds column public.profiles.avatar_url');
+    expect(line).not.toMatch(/\bavatar\)/);
+    expect(line).not.toContain('makes: avatar');
+    expect(line).not.toContain('makes:');
+  });
+
   it('names every change a squashed migration makes', () => {
     const line = lineStarting(
       describeGroundTruth(
@@ -254,15 +266,38 @@ describe('describeGroundTruth local migrations', () => {
               {
                 file: '20240301000001_squash.sql',
                 version: '20240301000001',
-                changes: ['profiles', 'bio', 'avatar'],
+                changes: ['profiles', 'bio', 'posts', 'avatar'],
               },
             ],
           },
         })
       ),
-      '- local migrations after the run: 20240301000001_squash.sql (makes: '
+      '- local migrations after the run:'
     );
-    expect(line).toMatch(/profiles.*bio.*avatar/);
+    expect(line).toBe(
+      '- local migrations after the run: 20240301000001_squash.sql (creates table public.profiles; adds column public.profiles.bio; creates table public.posts; adds column public.profiles.avatar_url)'
+    );
+  });
+
+  it('says a migration with no tracked change makes none', () => {
+    expect(
+      describeGroundTruth(
+        facts({
+          local: {
+            ok: true,
+            migrations: [
+              {
+                file: '20240301000001_noop.sql',
+                version: '20240301000001',
+                changes: [],
+              },
+            ],
+          },
+        })
+      )
+    ).toContain(
+      '- local migrations after the run: 20240301000001_noop.sql (makes no tracked schema change)'
+    );
   });
 });
 

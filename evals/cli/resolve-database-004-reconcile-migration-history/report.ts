@@ -1,4 +1,5 @@
 import { serializeTranscript, type TranscriptPart } from '@supabase-evals/core';
+import type { SchemaChange } from './changes.js';
 import { describeLineUp, lineUp } from './history.js';
 import type { LocalMigrationsProbe } from './local.js';
 import type { CliFacts } from './metrics.js';
@@ -20,12 +21,25 @@ function describeCli({ versions, cliOverride }: CliFacts): string[] {
   ];
 }
 
+const CHANGE_DESCRIPTIONS: Record<SchemaChange, string> = {
+  profiles: 'creates table public.profiles',
+  bio: 'adds column public.profiles.bio',
+  posts: 'creates table public.posts',
+  avatar: 'adds column public.profiles.avatar_url',
+};
+
+function describeChanges(changes: readonly SchemaChange[]): string {
+  return changes.length === 0
+    ? 'makes no tracked schema change'
+    : changes.map((change) => CHANGE_DESCRIPTIONS[change]).join('; ');
+}
+
 function describeLocal(local: LocalMigrationsProbe): string {
   const prefix = '- local migrations after the run:';
   if (!local.ok) return `${prefix} unavailable (${local.notes})`;
   if (local.migrations.length === 0) return `${prefix} none`;
   const files = local.migrations.map(
-    ({ file, changes }) => `${file} (makes: ${changes.join(', ') || 'nothing'})`
+    ({ file, changes }) => `${file} (${describeChanges(changes)})`
   );
   return `${prefix} ${files.join(', ')}`;
 }
