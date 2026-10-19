@@ -30,9 +30,8 @@ function genTypesSource(invocation: SupabaseInvocation): string {
 }
 
 // `invocationVerb` is the only positional parser cli-invocations exposes, so the
-// token that made it answer `gen` is dropped to read the next positional.
-function isGenTypes(invocation: SupabaseInvocation): boolean {
-  if (invocationVerb(invocation) !== 'gen') return false;
+// token that made it answer the verb is dropped to read the next positional.
+function subcommand(invocation: SupabaseInvocation): string | undefined {
   const { argv } = invocation;
   const verbAt = argv.findIndex(
     (_, index) =>
@@ -40,11 +39,15 @@ function isGenTypes(invocation: SupabaseInvocation): boolean {
       invocationVerb({ ...invocation, argv: argv.slice(0, index + 1) }) !==
         undefined
   );
+  return invocationVerb({
+    ...invocation,
+    argv: argv.filter((_, index) => index !== verbAt),
+  });
+}
+
+function isGenTypes(invocation: SupabaseInvocation): boolean {
   return (
-    invocationVerb({
-      ...invocation,
-      argv: argv.filter((_, index) => index !== verbAt),
-    }) === 'types'
+    invocationVerb(invocation) === 'gen' && subcommand(invocation) === 'types'
   );
 }
 
@@ -54,6 +57,44 @@ export function countGenTypesRuns(
 ): GenTypesRuns {
   const runs = invocations.filter(isGenTypes);
   return { runs: runs.length, sources: [...new Set(runs.map(genTypesSource))] };
+}
+
+export type StackLifecycle = {
+  lastCommand: string | null;
+  stoppedByAgent: boolean;
+};
+
+const STACK_START_COMMANDS = new Set([
+  'start',
+  'stack start',
+  'stack restart',
+  'db start',
+]);
+const STACK_STOP_COMMANDS = new Set(['stop', 'stack stop', 'stack destroy']);
+
+function lifecycleCommand(invocation: SupabaseInvocation): string | undefined {
+  const verb = invocationVerb(invocation);
+  if (verb === undefined) return undefined;
+  const command = verb === 'db' ? `db ${subcommand(invocation)}` : verb;
+  return STACK_START_COMMANDS.has(command) || STACK_STOP_COMMANDS.has(command)
+    ? command
+    : undefined;
+}
+
+/** The last stack start or stop command the agent ran, and whether it left the stack stopped. */
+export function readStackLifecycle(
+  invocations: readonly SupabaseInvocation[]
+): StackLifecycle {
+  const last = invocations
+    .map(lifecycleCommand)
+    .filter((command) => command !== undefined)
+    .at(-1);
+  return last === undefined
+    ? { lastCommand: null, stoppedByAgent: false }
+    : {
+        lastCommand: `supabase ${last}`,
+        stoppedByAgent: STACK_STOP_COMMANDS.has(last),
+      };
 }
 
 export type CliFacts = {
@@ -87,11 +128,12 @@ export async function checkMetrics(
     commands: readonly string[];
     genTypes: GenTypesRuns;
     stack: StackProbe;
+    lifecycle: StackLifecycle;
     analysis: ProjectAnalysis;
     cli: CliFacts;
   }
 ): Promise<CheckResult> {
-  const { commands, genTypes, stack, analysis } = facts;
+  const { commands, genTypes, stack, lifecycle, analysis } = facts;
   const { versions, cliOverride } = facts.cli;
 
   const metrics = {
@@ -112,6 +154,7 @@ export async function checkMetrics(
     ),
     genTypesRuns: await safely(() => genTypes.runs),
     genTypesSources: await safely(() => genTypes.sources),
+    stackStoppedByAgent: await safely(() => lifecycle.stoppedByAgent),
     typesModules: await safely(() =>
       analysis.ok ? analysis.typesModules.map((module) => module.path) : null
     ),

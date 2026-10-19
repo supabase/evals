@@ -1,6 +1,7 @@
 import type { CheckResult, LocalStackEvalContext } from '@supabase-evals/core';
 import { describeFailure, errorMessage, shellQuote } from '../lib/shell.js';
 import type { StackProbe } from '../lib/stack.js';
+import type { StackLifecycle } from './metrics.js';
 
 export const NEW_MIGRATION_VERSION = '20260315000000';
 
@@ -61,9 +62,20 @@ export async function readTasksSchema(
   }
 }
 
-export function checkMigrationApplied(probe: SchemaProbe): CheckResult {
+export function checkMigrationApplied(
+  probe: SchemaProbe,
+  lifecycle?: StackLifecycle
+): CheckResult {
   const name = 'new migration is applied to the local database';
-  if (!probe.ok) return { name, passed: false, notes: probe.notes };
+  if (!probe.ok) {
+    return {
+      name,
+      passed: false,
+      notes: lifecycle?.stoppedByAgent
+        ? `the agent stopped the stack (last stack command: \`${lifecycle.lastCommand}\`), so the harness could not probe the database; ${probe.notes}`
+        : probe.notes,
+    };
+  }
   const problems: string[] = [];
   if (!probe.applied) {
     problems.push(

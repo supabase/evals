@@ -9,7 +9,7 @@ topic:
   - sdk
 projectRunning: false
 needsDocker: false
-motivation: CLI-2703, https://linear.app/supabase/issue/CLI-2703/eval-regenerate-types-and-use-them-in-app-code
+motivation: CLI-2703, https://linear.app/supabase/issue/CLI-2703/eval-regenerate-types-and-use-them-in-app-code, https://github.com/supabase/cli/issues/5283
 area: type-generation
 journeyPhase: design
 ---

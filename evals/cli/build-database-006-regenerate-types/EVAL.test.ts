@@ -268,6 +268,71 @@ describe('stack and migration', () => {
     expectFailed(await scorer(ctx), []);
   });
 
+  describe('an agent that stops the stack it started', () => {
+    const STOPPED_NOTE =
+      'the agent stopped the stack (last stack command: `supabase stop`), so the harness could not probe the database; ';
+    const withStop = [
+      call('supabase start'),
+      ...SESSION,
+      call('supabase stop'),
+    ];
+
+    it('fails the migration check with a note saying the agent stopped the stack first', async () => {
+      const { ctx } = fakeCtx({
+        workspace: WORKSPACES.fixed,
+        stack: 'down',
+        toolCalls: withStop,
+      });
+      const result = await scorer(ctx);
+
+      expectFailed(result, [MIGRATION]);
+      const notes = checkNamed(result, MIGRATION)?.notes ?? '';
+      expect(notes.startsWith(STOPPED_NOTE)).toBe(true);
+      expect(notes.length).toBeGreaterThan(STOPPED_NOTE.length);
+    });
+
+    it('records stackStoppedByAgent in the metrics and tells the report judge', async () => {
+      const { ctx, judge } = fakeCtx({
+        workspace: WORKSPACES.fixed,
+        stack: 'down',
+        toolCalls: withStop,
+      });
+      const result = await scorer(ctx);
+
+      expect(
+        JSON.parse(checkNamed(result, METRICS)?.notes ?? '')
+      ).toMatchObject({ stackStoppedByAgent: true });
+      const input =
+        judge.mock.calls
+          .map(([args]) => args)
+          .find((args) => judgeKind(args) === 'report')?.input ?? '';
+      expect(input).toContain('the agent stopped the stack');
+      expect(input).toContain('`supabase stop`');
+    });
+
+    it('adds no stop note when the agent started the stack and generated types without stopping it', async () => {
+      const { ctx, judge } = fakeCtx({
+        workspace: WORKSPACES.fixed,
+        stack: 'down',
+        toolCalls: [call('supabase start'), ...SESSION],
+      });
+      const result = await scorer(ctx);
+
+      expectFailed(result, [MIGRATION]);
+      expect(checkNamed(result, MIGRATION)?.notes).not.toContain(
+        'the agent stopped the stack'
+      );
+      expect(
+        JSON.parse(checkNamed(result, METRICS)?.notes ?? '')
+      ).toMatchObject({ stackStoppedByAgent: false });
+      const input =
+        judge.mock.calls
+          .map(([args]) => args)
+          .find((args) => judgeKind(args) === 'report')?.input ?? '';
+      expect(input).not.toContain('the agent stopped the stack');
+    });
+  });
+
   it('does not find a relocated stack the agent never started under that home', async () => {
     const { ctx } = fakeCtx({
       workspace: WORKSPACES.fixed,
@@ -499,6 +564,26 @@ describe('report judge input', () => {
       .map(([call]) => call)
       .find((call) => judgeKind(call) === 'report');
     expect(args?.input).toContain('SENTINEL_TRANSCRIPT_LINE');
+  });
+
+  it('carries tool call outputs, so a failed command reaches the judge', async () => {
+    const { ctx, judge } = fakeCtx({
+      workspace: WORKSPACES.fixed,
+      transcript: [
+        {
+          type: 'tool_call',
+          name: 'shell',
+          input: { command: 'supabase gen types typescript --local' },
+          output: 'supabase start is not running.',
+        },
+      ],
+    });
+    await scorer(ctx);
+    const args = judge.mock.calls
+      .map(([call]) => call)
+      .find((call) => judgeKind(call) === 'report');
+    expect(args?.input).toContain('supabase gen types typescript --local');
+    expect(args?.input).toContain('supabase start is not running.');
   });
 });
 

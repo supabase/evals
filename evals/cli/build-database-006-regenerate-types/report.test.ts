@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import type { StackProbe } from '../lib/stack.js';
 import { analysisFixture } from './fixtures.js';
-import type { CliFacts, GenTypesRuns } from './metrics.js';
+import type { CliFacts, GenTypesRuns, StackLifecycle } from './metrics.js';
 import { describeGroundTruth } from './report.js';
 import type { SchemaProbe } from './schema.js';
 
@@ -27,11 +27,16 @@ const MIGRATED: SchemaProbe = {
 
 const NO_RUNS: GenTypesRuns = { runs: 0, sources: [] };
 const CLI: CliFacts = { versions: { cliVersion: '2.117.0' }, cliOverride: [] };
+const NO_LIFECYCLE: StackLifecycle = {
+  lastCommand: null,
+  stoppedByAgent: false,
+};
 
 type Facts = Parameters<typeof describeGroundTruth>[0];
 
 const FACTS: Facts = {
   stack: STACK,
+  lifecycle: NO_LIFECYCLE,
   schema: MIGRATED,
   analysis: analysisFixture(),
   genTypes: NO_RUNS,
@@ -129,6 +134,29 @@ describe('describeGroundTruth', () => {
           stack: { ok: false, notes: 'The local stack is not running.' },
         }).join('\n')
       ).toContain('none (The local stack is not running.)');
+    });
+
+    it('says the agent stopped the stack and names the last stack command', () => {
+      const text = describe_({
+        stack: { ok: false, notes: 'The local stack is not running.' },
+        lifecycle: { lastCommand: 'supabase stop', stoppedByAgent: true },
+      }).join('\n');
+
+      expect(text).toContain('the agent stopped the stack');
+      expect(text).toContain('`supabase stop`');
+      expect(text).toContain('could not probe the database');
+    });
+
+    it('does not mention a stop when the last stack command was a start', () => {
+      expect(
+        describe_({
+          lifecycle: { lastCommand: 'supabase start', stoppedByAgent: false },
+        }).join('\n')
+      ).not.toContain('stopped the stack');
+    });
+
+    it('does not mention a stop when the agent ran no stack command', () => {
+      expect(describe_().join('\n')).not.toContain('stopped the stack');
     });
 
     it('never carries the stack credentials', () => {

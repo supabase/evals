@@ -36,15 +36,24 @@ const SUPPRESSION_DIRECTIVES = [
   '@ts-expect-error',
   '@ts-nocheck',
 ];
-const ASSERTION_ESCAPES = new Map<ts.SyntaxKind, string>([
-  [ts.SyntaxKind.UnknownKeyword, 'unknown'],
-  [ts.SyntaxKind.NeverKeyword, 'never'],
-  [ts.SyntaxKind.AnyKeyword, 'any'],
-]);
+const UNTYPED_CLIENT = 'untyped Supabase client';
 const DEFAULT_COMPILER_OPTIONS: ts.CompilerOptions = {
   target: ts.ScriptTarget.ES2022,
 };
 const TYPESCRIPT_FILE = /\.tsx?$/;
+const STRICT_FAMILY = [
+  'strictNullChecks',
+  'noImplicitAny',
+  'strictFunctionTypes',
+  'strictBindCallApply',
+  'strictPropertyInitialization',
+  'strictBuiltinIteratorReturn',
+  'noImplicitThis',
+  'useUnknownInCatchVariables',
+  'alwaysStrict',
+] as const;
+const CONTROL_PROBLEM =
+  'type checker produced no diagnostics for a known-bad control';
 
 const STATUS_UNION = "'todo' | 'in_progress' | 'done'";
 const EXPECTED_TASKS_SHAPES = {
@@ -112,12 +121,15 @@ function loadCompilerOptions(
       ).options;
     }
   }
+  const loosened = { ...options };
+  for (const key of STRICT_FAMILY) delete loosened[key];
   return {
-    ...options,
+    ...loosened,
     module: ts.ModuleKind.ESNext,
     moduleResolution: ts.ModuleResolutionKind.Bundler,
     allowImportingTsExtensions: true,
     strict: true,
+    noCheck: false,
     noEmit: true,
     skipLibCheck: true,
     paths: { ...options.paths, [SUPABASE_JS]: [supabaseJsDir] },
@@ -133,42 +145,81 @@ function parse(file: string): ts.SourceFile {
   );
 }
 
-function exportsDatabase(source: ts.SourceFile): boolean {
-  return source.statements.some((statement) => {
-    if (
-      ts.isTypeAliasDeclaration(statement) ||
-      ts.isInterfaceDeclaration(statement)
-    ) {
-      return (
-        statement.name.text === 'Database' &&
-        (statement.modifiers?.some(
-          (modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword
-        ) ??
-          false)
-      );
-    }
-    return (
-      ts.isExportDeclaration(statement) &&
-      statement.exportClause !== undefined &&
-      ts.isNamedExports(statement.exportClause) &&
-      statement.exportClause.elements.some(
-        (element) => element.name.text === 'Database'
-      )
-    );
-  });
+function declaresDatabase(source: ts.SourceFile): boolean {
+  const declaration = source.statements.find(
+    (
+      statement
+    ): statement is ts.TypeAliasDeclaration | ts.InterfaceDeclaration =>
+      (ts.isTypeAliasDeclaration(statement) ||
+        ts.isInterfaceDeclaration(statement)) &&
+      statement.name.text === 'Database'
+  );
+  if (declaration === undefined) return false;
+  const exportedInline =
+    declaration.modifiers?.some(
+      (modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword
+    ) ?? false;
+  return (
+    exportedInline ||
+    source.statements.some(
+      (statement) =>
+        ts.isExportDeclaration(statement) &&
+        statement.moduleSpecifier === undefined &&
+        statement.exportClause !== undefined &&
+        ts.isNamedExports(statement.exportClause) &&
+        statement.exportClause.elements.some(
+          (element) => element.name.text === 'Database'
+        )
+    )
+  );
 }
 
-function moduleSpecifiers(source: ts.SourceFile): string[] {
+function moduleSpecifiers(source: ts.SourceFile): ts.Expression[] {
   return source.statements.flatMap((statement) =>
     (ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement)) &&
-    statement.moduleSpecifier !== undefined &&
-    ts.isStringLiteral(statement.moduleSpecifier)
-      ? [statement.moduleSpecifier.text]
+    statement.moduleSpecifier !== undefined
+      ? [statement.moduleSpecifier]
       : []
   );
 }
 
-type Probe = { text: string; labels: Map<number, string> };
+function findTypesFiles(
+  program: ts.Program,
+  appFiles: readonly string[],
+  isProjectFile: (file: string) => boolean
+): string[] {
+  const checker = program.getTypeChecker();
+  const seen = new Set<ts.Symbol>();
+  const found = new Set<string>();
+  for (const file of appFiles) {
+    const source = program.getSourceFile(file);
+    if (!source) continue;
+    for (const specifier of moduleSpecifiers(source)) {
+      const moduleSymbol = checker.getSymbolAtLocation(specifier);
+      if (!moduleSymbol || seen.has(moduleSymbol)) continue;
+      seen.add(moduleSymbol);
+      const exported = checker
+        .getExportsOfModule(moduleSymbol)
+        .find((symbol) => symbol.name === 'Database');
+      if (!exported) continue;
+      const target =
+        exported.flags & ts.SymbolFlags.Alias
+          ? checker.getAliasedSymbol(exported)
+          : exported;
+      for (const declaration of target.declarations ?? []) {
+        const declaring = path.normalize(declaration.getSourceFile().fileName);
+        if (isProjectFile(declaring)) found.add(declaring);
+      }
+    }
+  }
+  return [...found].sort();
+}
+
+type Probe = {
+  text: string;
+  labels: Map<number, string>;
+  controlLine: number;
+};
 
 function buildProbe(specifier: string): Probe {
   const tasks = "Database['public']['Tables']['tasks']";
@@ -192,10 +243,12 @@ function buildProbe(specifier: string): Probe {
       ...assertions.map(
         ([, type], index) => `export const check${index}: ${type} = true;`
       ),
+      'export const __control: Equals<1, 2> = true;',
     ].join('\n')}\n`,
     labels: new Map(
       assertions.map(([label], index) => [header.length + index + 1, label])
     ),
+    controlLine: header.length + assertions.length + 1,
   };
 }
 
@@ -228,6 +281,28 @@ function withoutParentheses(expression: ts.Expression): ts.Expression {
   return inner;
 }
 
+function isConstAssertion(assertion: Assertion): boolean {
+  return (
+    ts.isTypeReferenceNode(assertion.type) &&
+    ts.isIdentifier(assertion.type.typeName) &&
+    assertion.type.typeName.text === 'const'
+  );
+}
+
+function refersTo(
+  checker: ts.TypeChecker,
+  node: ts.Node,
+  name: string,
+  source: ts.SourceFile
+): boolean {
+  const symbol = checker.getSymbolAtLocation(node);
+  const target =
+    symbol && symbol.flags & ts.SymbolFlags.Alias
+      ? checker.getAliasedSymbol(symbol)
+      : symbol;
+  return (target?.name ?? node.getText(source)) === name;
+}
+
 function findDirective(
   comment: string
 ): { kind: string; offset: number } | undefined {
@@ -247,10 +322,12 @@ function findDirective(
 
 function scanSuppressions(
   relativePath: string,
-  source: ts.SourceFile
+  source: ts.SourceFile,
+  checker: ts.TypeChecker
 ): string[] {
   const found: { pos: number; line: number; kind: string }[] = [];
   const seenComments = new Set<number>();
+  const innerOfNested = new Set<ts.Node>();
   const lineAt = (pos: number) =>
     source.getLineAndCharacterOfPosition(pos).line + 1;
   const visit = (node: ts.Node) => {
@@ -270,27 +347,59 @@ function scanSuppressions(
       }
     }
     const start = node.getStart(source);
-    if (node.kind === ts.SyntaxKind.AnyKeyword) {
-      found.push({ pos: start, line: lineAt(start), kind: 'any' });
+    const report = (kind: string) =>
+      found.push({ pos: start, line: lineAt(start), kind });
+    if (node.kind === ts.SyntaxKind.AnyKeyword && !innerOfNested.has(node)) {
+      report('any');
     }
     if (isAssertion(node)) {
-      if (node.type.kind === ts.SyntaxKind.NeverKeyword) {
-        found.push({ pos: start, line: lineAt(start), kind: 'as never' });
-      }
       const inner = withoutParentheses(node.expression);
-      const escape = isAssertion(inner)
-        ? ASSERTION_ESCAPES.get(inner.type.kind)
-        : undefined;
-      if (escape !== undefined) {
-        found.push({
-          pos: start,
-          line: lineAt(start),
-          kind:
-            ts.isAsExpression(node) && ts.isAsExpression(inner)
-              ? `as ${escape} as`
-              : `double assertion through ${escape}`,
-        });
+      if (
+        isAssertion(inner) &&
+        !isConstAssertion(node) &&
+        !isConstAssertion(inner)
+      ) {
+        innerOfNested.add(inner);
+        innerOfNested.add(inner.type);
+        const middle = inner.type.getText(source).replace(/\s+/g, ' ');
+        report(
+          ts.isAsExpression(node) && ts.isAsExpression(inner)
+            ? `as ${middle} as`
+            : `double assertion through ${middle}`
+        );
+      } else if (
+        node.type.kind === ts.SyntaxKind.NeverKeyword &&
+        !innerOfNested.has(node)
+      ) {
+        report('as never');
       }
+    }
+    if (
+      ts.isTypeReferenceNode(node) &&
+      node.typeArguments === undefined &&
+      refersTo(
+        checker,
+        ts.isQualifiedName(node.typeName) ? node.typeName.right : node.typeName,
+        'SupabaseClient',
+        source
+      )
+    ) {
+      report(UNTYPED_CLIENT);
+    }
+    if (
+      ts.isCallExpression(node) &&
+      node.typeArguments === undefined &&
+      refersTo(
+        checker,
+        ts.isPropertyAccessExpression(node.expression)
+          ? node.expression.name
+          : node.expression,
+        'createClient',
+        source
+      ) &&
+      checker.getContextualType(node) === undefined
+    ) {
+      report(UNTYPED_CLIENT);
     }
     for (const child of node.getChildren(source)) visit(child);
   };
@@ -323,9 +432,7 @@ function findCallableExports(
   return callable;
 }
 
-/**
- * Compiles every `.ts` file under `<root>/src` with the scorer's own compiler options, so the agent's tsconfig and `node_modules` cannot change the verdict.
- */
+/** Compiles every `.ts`/`.tsx` file under `<root>/src`, reading the agent's tsconfig but forcing strict checking on and mapping only `@supabase/supabase-js` to the host install. */
 export function analyseProject(
   root: string,
   options: { supabaseJsDir?: string } = {}
@@ -352,75 +459,82 @@ export function analyseProject(
     };
 
     const probeSources = new Map<string, string>();
+    const sourceFiles = new Map<string, ts.SourceFile | undefined>();
     const host = ts.createCompilerHost(compilerOptions);
     const { getSourceFile, fileExists, readFile } = host;
     host.getSourceFile = (name, languageVersion, onError, shouldCreate) => {
       const probe = probeSources.get(name);
-      return probe === undefined
-        ? getSourceFile.call(host, name, languageVersion, onError, shouldCreate)
-        : ts.createSourceFile(name, probe, languageVersion);
+      if (probe !== undefined) {
+        return ts.createSourceFile(name, probe, languageVersion);
+      }
+      if (!sourceFiles.has(name)) {
+        sourceFiles.set(
+          name,
+          getSourceFile.call(host, name, languageVersion, onError, shouldCreate)
+        );
+      }
+      return sourceFiles.get(name);
     };
     host.fileExists = (name) =>
       probeSources.has(name) || fileExists.call(host, name);
     host.readFile = (name) =>
       probeSources.get(name) ?? readFile.call(host, name);
 
-    const typesFiles = new Set<string>();
-    for (const file of files) {
-      for (const specifier of moduleSpecifiers(sourceOf(file))) {
-        const resolved = ts.resolveModuleName(
-          specifier,
-          file,
-          compilerOptions,
-          host
-        ).resolvedModule?.resolvedFileName;
-        if (resolved === undefined) continue;
-        const target = path.normalize(resolved);
-        const inWorkspace =
-          !path.relative(root, target).startsWith('..') &&
-          !target.split(path.sep).includes('node_modules');
-        if (
-          inWorkspace &&
-          TYPESCRIPT_FILE.test(target) &&
-          fs.existsSync(target) &&
-          exportsDatabase(sourceOf(target))
-        ) {
-          typesFiles.add(target);
-        }
-      }
-    }
+    const databaseDeclarers = new Set(
+      files.filter((file) => declaresDatabase(sourceOf(file)))
+    );
+    const appPaths = files.filter((file) => !databaseDeclarers.has(file));
+    const discovery = ts.createProgram(files, compilerOptions, host);
+    const typesFiles = findTypesFiles(
+      discovery,
+      appPaths,
+      (file) =>
+        !path.relative(root, file).startsWith('..') &&
+        !file.split(path.sep).includes('node_modules') &&
+        TYPESCRIPT_FILE.test(file) &&
+        fs.existsSync(file)
+    );
 
-    const probes = [...typesFiles].sort().map((file, index) => {
+    const probes = typesFiles.map((file, index) => {
       const probePath = path.join(srcDir, `__scorer_probe_${index}.ts`);
       const specifier = `./${posix(path.relative(srcDir, file)).replace(/\.(?:d\.)?tsx?$/, '')}`;
       const probe = buildProbe(specifier);
       probeSources.set(probePath, probe.text);
-      return { file, probePath, labels: probe.labels };
+      return { file, probePath, ...probe };
     });
 
     const program = ts.createProgram(
       [...files, ...probes.map((probe) => probe.probePath)],
       compilerOptions,
-      host
+      host,
+      discovery
     );
 
-    const typesModules = probes.map(({ file, probePath, labels }) => {
-      const source = program.getSourceFile(probePath);
-      const problems = new Set<string>();
-      for (const diagnostic of source
-        ? [
-            ...program.getSyntacticDiagnostics(source),
-            ...program.getSemanticDiagnostics(source),
-          ]
-        : []) {
-        const line = diagnosticLine(diagnostic);
-        problems.add(
-          (line !== undefined && labels.get(line)) ||
-            `probe: ${diagnosticMessage(diagnostic)}`
-        );
+    const typesModules = probes.map(
+      ({ file, probePath, labels, controlLine }) => {
+        const source = program.getSourceFile(probePath);
+        const problems = new Set<string>();
+        let controlFlagged = false;
+        for (const diagnostic of source
+          ? [
+              ...program.getSyntacticDiagnostics(source),
+              ...program.getSemanticDiagnostics(source),
+            ]
+          : []) {
+          const line = diagnosticLine(diagnostic);
+          if (line === controlLine) {
+            controlFlagged = true;
+            continue;
+          }
+          problems.add(
+            (line !== undefined && labels.get(line)) ||
+              `probe: ${diagnosticMessage(diagnostic)}`
+          );
+        }
+        if (!controlFlagged) problems.add(CONTROL_PROBLEM);
+        return { path: relative(file), problems: [...problems] };
       }
-      return { path: relative(file), problems: [...problems] };
-    });
+    );
 
     const diagnostics = [
       ...files.flatMap((file) => {
@@ -438,16 +552,11 @@ export function analyseProject(
       ].filter((diagnostic) => !diagnostic.file),
     ].map((diagnostic) => formatDiagnostic(root, diagnostic));
 
-    const databaseExporters = new Set(
-      files.filter((file) => exportsDatabase(sourceOf(file)))
-    );
-    const appFiles = files
-      .filter((file) => !databaseExporters.has(file))
-      .map(relative)
-      .sort();
+    const appFiles = appPaths.map(relative).sort();
+    const checker = program.getTypeChecker();
     const suppressions = appFiles.flatMap((file) => {
       const source = program.getSourceFile(path.join(root, file));
-      return source ? scanSuppressions(file, source) : [];
+      return source ? scanSuppressions(file, source, checker) : [];
     });
 
     const callable = findCallableExports(program, files);
@@ -495,6 +604,9 @@ export function checkTypesDescribeSchema(
 export function checkAppTypeChecks(analysis: ProjectAnalysis): CheckResult {
   const name = 'app code type-checks against the generated types';
   if (!analysis.ok) return { name, passed: false, notes: analysis.notes };
+  if (analysis.appFiles.length === 0) {
+    return { name, passed: false, notes: 'no app files to type-check' };
+  }
   const { diagnostics } = analysis;
   return {
     name,

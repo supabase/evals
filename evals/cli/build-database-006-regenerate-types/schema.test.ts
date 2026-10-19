@@ -300,6 +300,49 @@ describe('checkMigrationApplied', () => {
     expect(check).toMatchObject({ name: CHECK_NAME, passed: false });
     expect(check.notes).toContain('no stack running');
   });
+
+  describe('when the agent stopped the stack', () => {
+    const stopped = { lastCommand: 'supabase stop', stoppedByAgent: true };
+
+    it('says so before the probe notes when the probe failed', () => {
+      const check = checkMigrationApplied(
+        { ok: false, notes: 'The local stack is not running.' },
+        stopped
+      );
+
+      expect(check).toEqual({
+        name: CHECK_NAME,
+        passed: false,
+        notes:
+          'the agent stopped the stack (last stack command: `supabase stop`), so the harness could not probe the database; The local stack is not running.',
+      });
+    });
+
+    it('names the destroy command the agent ran last', () => {
+      const check = checkMigrationApplied(
+        { ok: false, notes: 'none' },
+        { lastCommand: 'supabase stack destroy', stoppedByAgent: true }
+      );
+
+      expect(check.notes).toContain('`supabase stack destroy`');
+    });
+
+    it('adds nothing when the agent left the stack started', () => {
+      const check = checkMigrationApplied(
+        { ok: false, notes: 'no stack running' },
+        { lastCommand: 'supabase start', stoppedByAgent: false }
+      );
+
+      expect(check.notes).toBe('no stack running');
+    });
+
+    it('adds nothing when the harness could still probe the database', () => {
+      const check = checkMigrationApplied(probe(), stopped);
+
+      expect(check).toMatchObject({ passed: true });
+      expect(check.notes).not.toContain('stopped');
+    });
+  });
 });
 
 describe('readTasksSchema into checkMigrationApplied', () => {

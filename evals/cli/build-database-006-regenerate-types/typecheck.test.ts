@@ -31,7 +31,28 @@ import {
 
 vi.setConfig({ testTimeout: 60_000 });
 
-afterEach(removeWorkspaces);
+const blindChecker = vi.hoisted(() => ({ on: false }));
+
+vi.mock('typescript', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('typescript')>();
+  const real = actual.default;
+  return {
+    ...actual,
+    default: {
+      ...real,
+      createProgram: (...args: Parameters<typeof real.createProgram>) => {
+        const program = real.createProgram(...args);
+        if (blindChecker.on) program.getSemanticDiagnostics = () => [];
+        return program;
+      },
+    },
+  };
+});
+
+afterEach(() => {
+  blindChecker.on = false;
+  removeWorkspaces();
+});
 
 type OkAnalysis = Extract<ProjectAnalysis, { ok: true }>;
 
@@ -585,18 +606,166 @@ export const HINT_NOCHECK = "/* @ts-nocheck */";
     expectAllChecksPass(analysis);
   });
 
-  it('flags a double assertion through never', () => {
+  it.each([
+    ['never', 'as never as'],
+    ['any', 'as any as'],
+  ])('flags a double assertion through %s once', (middle, kind) => {
     const tasks = replaceOnce(
       staleLabel,
       LABEL_STALE,
-      "return `${(task as never as { is_complete: boolean }).is_complete ? '[x]' : '[ ]'} ${task.title}`;"
+      `return \`\${(task as ${middle} as { is_complete: boolean }).is_complete ? '[x]' : '[ ]'} \${task.title}\`;`
     );
     const analysis = analyse(regeneratedWorkspace({ 'src/tasks.ts': tasks }));
 
     expect(analysis.diagnostics).toEqual([]);
-    expect(analysis.suppressions).toContain(
-      `src/tasks.ts:${lineOf(tasks, 'as never as')} as never as`
+    expect(analysis.suppressions).toEqual([
+      `src/tasks.ts:${lineOf(tasks, kind)} ${kind}`,
+    ]);
+  });
+
+  it.each(['object', '{}', 'Record<string, unknown>', 'Task | undefined'])(
+    'flags a double assertion through %s',
+    (middle) => {
+      const tasks = replaceOnce(
+        staleLabel,
+        LABEL_STALE,
+        `return \`\${(task as ${middle} as { is_complete: boolean }).is_complete ? '[x]' : '[ ]'} \${task.title}\`;`
+      );
+      const analysis = analyse(regeneratedWorkspace({ 'src/tasks.ts': tasks }));
+      const entry = `src/tasks.ts:${lineOf(tasks, `as ${middle} as`)} as ${middle} as`;
+
+      expect(analysis.suppressions).toEqual([entry]);
+      const check = checkAppNotSilenced(analysis);
+      expect(check).toMatchObject({ name: SILENCED_CHECK, passed: false });
+      expect(check.notes).toContain(entry);
+    }
+  );
+
+  it.each([
+    ['angle brackets throughout', '<{ is_complete: boolean }><object>task'],
+    [
+      'an outer angle bracket over an as',
+      '<{ is_complete: boolean }>(task as object)',
+    ],
+    [
+      'an outer as over an angle bracket',
+      '(<object>task) as { is_complete: boolean }',
+    ],
+  ])(
+    'flags a double assertion through object written with %s',
+    (_name, expr) => {
+      const tasks = replaceOnce(
+        staleLabel,
+        LABEL_STALE,
+        `return \`\${(${expr}).is_complete ? '[x]' : '[ ]'} \${task.title}\`;`
+      );
+      const analysis = analyse(regeneratedWorkspace({ 'src/tasks.ts': tasks }));
+
+      expect(analysis.suppressions).toEqual([
+        `src/tasks.ts:${lineOf(tasks, 'object')} double assertion through object`,
+      ]);
+    }
+  );
+
+  it('does not flag a nested assertion that involves as const', () => {
+    const tasks = `${fixedTasks()}
+export const PAIR = ['a', 'b'] as const as readonly string[];
+export const TUPLE = ([1, 2] as number[]) as const;
+`;
+    const analysis = analyse(regeneratedWorkspace({ 'src/tasks.ts': tasks }));
+
+    expect(analysis.suppressions).toEqual([]);
+  });
+
+  const UNTYPED_CLIENT = (client: string) =>
+    `import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from './database.types';
+
+${client}
+`;
+
+  it.each([
+    [
+      'a SupabaseClient alias without type arguments',
+      `export type Client = SupabaseClient;
+
+export function connect(url: string, key: string): Client {
+  return createClient<Database>(url, key);
+}`,
+      'export type Client = SupabaseClient;',
+    ],
+    [
+      'a SupabaseClient alias with an untyped createClient',
+      `export type Client = SupabaseClient;
+
+export function connect(url: string, key: string): Client {
+  return createClient(url, key);
+}`,
+      'export type Client = SupabaseClient;',
+    ],
+    [
+      'a createClient call with no contextual type',
+      `export type Client = SupabaseClient<Database>;
+
+export function connect(url: string, key: string) {
+  return createClient(url, key);
+}`,
+      'return createClient(url, key);',
+    ],
+    [
+      'a const initialised from an untyped createClient',
+      `export type Client = SupabaseClient<Database>;
+
+export const db = createClient(process.env.URL ?? '', process.env.KEY ?? '');`,
+      'export const db = createClient',
+    ],
+  ])('flags an untyped Supabase client from %s', (_name, client, needle) => {
+    const supabase = UNTYPED_CLIENT(client);
+    const analysis = analyse(
+      regeneratedWorkspace({ 'src/supabase.ts': supabase })
     );
+    const entry = `src/supabase.ts:${lineOf(supabase, needle)} untyped Supabase client`;
+
+    expect(analysis.suppressions).toEqual([entry]);
+    const check = checkAppNotSilenced(analysis);
+    expect(check).toMatchObject({ name: SILENCED_CHECK, passed: false });
+    expect(check.notes).toContain(entry);
+  });
+
+  it.each([
+    [
+      'a createClient assigned to a typed const',
+      `export type Client = SupabaseClient<Database>;
+
+export function connect(url: string, key: string): Client {
+  const db: SupabaseClient<Database> = createClient(url, key);
+  return db;
+}`,
+    ],
+    [
+      'a createClient returned from a function declared to return the typed client',
+      `export type Client = SupabaseClient<Database>;
+
+export function connect(url: string, key: string): SupabaseClient<Database> {
+  return createClient(url, key);
+}`,
+    ],
+    [
+      'createClient with explicit type arguments',
+      `export type Client = SupabaseClient<Database>;
+
+export function connect(url: string, key: string) {
+  return createClient<Database>(url, key);
+}`,
+    ],
+  ])('does not flag %s', (_name, client) => {
+    const analysis = analyse(
+      regeneratedWorkspace({ 'src/supabase.ts': UNTYPED_CLIENT(client) })
+    );
+
+    expect(analysis.diagnostics).toEqual([]);
+    expect(analysis.suppressions).toEqual([]);
+    expectAllChecksPass(analysis);
   });
 
   it('does not count a block comment whose lines only mention a directive', () => {
@@ -646,6 +815,146 @@ export function attempt<T>(run: () => T): T | undefined {
 
     expect(analysis.diagnostics).toEqual([]);
     expect(analysis.suppressions).toEqual([]);
+    expectAllChecksPass(analysis);
+  });
+});
+
+describe('files that re-export Database', () => {
+  const SILENCED_CLIENT = (
+    reexport: string
+  ) => `import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from './database.types';
+${reexport}
+
+export type Client = SupabaseClient<any>;
+
+export function connect(url: string, key: string): Client {
+  // @ts-ignore
+  return createClient<Database>(url, key);
+}
+`;
+
+  it.each([
+    "export type { Database } from './database.types';",
+    "export * from './database.types';",
+    'export type { Database };',
+  ])(
+    'keeps a file with `%s` an app file, so its suppressions count',
+    (reexport) => {
+      const supabase = SILENCED_CLIENT(reexport);
+      const analysis = analyse(
+        regeneratedWorkspace({ 'src/supabase.ts': supabase })
+      );
+
+      expect(analysis.appFiles).toEqual(['src/supabase.ts', 'src/tasks.ts']);
+      expect(analysis.typesModules).toEqual([
+        { path: 'src/database.types.ts', problems: [] },
+      ]);
+      expect(analysis.suppressions).toEqual([
+        `src/supabase.ts:${lineOf(supabase, 'any')} any`,
+        `src/supabase.ts:${lineOf(supabase, '@ts-ignore')} @ts-ignore`,
+      ]);
+      expect(checkAppNotSilenced(analysis).passed).toBe(false);
+    }
+  );
+
+  it('still excludes the file that declares Database from the app files', () => {
+    const analysis = analyse(regeneratedWorkspace());
+
+    expect(analysis.appFiles).not.toContain('src/database.types.ts');
+  });
+});
+
+describe('types modules found through the checker', () => {
+  const retarget = (source: string, to: string) =>
+    replaceOnce(source, "'./database.types'", `'${to}'`);
+  const appImporting = (specifier: string) => ({
+    'src/supabase.ts': retarget(SEEDED_SUPABASE, specifier),
+    'src/tasks.ts': retarget(fixedTasks(), specifier),
+  });
+
+  it('finds regenerated types outside src imported directly', () => {
+    const analysis = analyse(
+      makeWorkspace({
+        'src/database.types.ts': null,
+        'types/database.ts': regeneratedTypes(),
+        ...appImporting('../types/database'),
+      })
+    );
+
+    expectCleanAnalysis(analysis, 'types/database.ts');
+    expectAllChecksPass(analysis);
+  });
+
+  it('follows an export * barrel outside src to the file that declares Database', () => {
+    const analysis = analyse(
+      makeWorkspace({
+        'src/database.types.ts': null,
+        'types/database.ts': regeneratedTypes(),
+        'types/index.ts': "export * from './database';\n",
+        ...appImporting('../types'),
+      })
+    );
+
+    expectCleanAnalysis(analysis, 'types/database.ts');
+    expect(analysis.appFiles).toEqual(['src/supabase.ts', 'src/tasks.ts']);
+    expectAllChecksPass(analysis);
+  });
+
+  it('fails the types check for stale types behind an export * barrel', () => {
+    const analysis = analyse(
+      makeWorkspace({
+        'src/database.types.ts': null,
+        'types/database.ts': SEEDED_TYPES,
+        'types/index.ts': "export * from './database';\n",
+        ...appImporting('../types'),
+      })
+    );
+
+    expect(analysis.typesModules.map((module) => module.path)).toEqual([
+      'types/database.ts',
+    ]);
+    expect(analysis.typesModules[0].problems).toContain('tasks Row');
+    expect(checkTypesDescribeSchema(analysis).passed).toBe(false);
+  });
+
+  it('follows a named re-export barrel inside src and keeps the barrel an app file', () => {
+    const analysis = analyse(
+      makeWorkspace({
+        'src/database.types.ts': null,
+        'src/types/database.ts': regeneratedTypes(),
+        'src/types/index.ts':
+          "export type { Database, Tables } from './database';\n",
+        ...appImporting('./types'),
+      })
+    );
+
+    expectCleanAnalysis(analysis, 'src/types/database.ts');
+    expect(analysis.appFiles).toEqual([
+      'src/supabase.ts',
+      'src/tasks.ts',
+      'src/types/index.ts',
+    ]);
+    expectAllChecksPass(analysis);
+  });
+
+  it('finds regenerated types through a tsconfig paths alias', () => {
+    const base = JSON.parse(readLocal('tsconfig.json'));
+    const analysis = analyse(
+      regeneratedWorkspace({
+        'tsconfig.json': JSON.stringify({
+          ...base,
+          compilerOptions: {
+            ...base.compilerOptions,
+            baseUrl: '.',
+            paths: { '@/*': ['src/*'] },
+          },
+        }),
+        ...appImporting('@/database.types'),
+      })
+    );
+
+    expectCleanAnalysis(analysis, 'src/database.types.ts');
     expectAllChecksPass(analysis);
   });
 });
@@ -757,6 +1066,105 @@ describe('an agent weakening the scorer inputs', () => {
       )
     ).toBe(true);
     expect(checkAppTypeChecks(analysis).passed).toBe(false);
+  });
+
+  it('fails the types and type-check checks when tsconfig sets noCheck', () => {
+    const analysis = analyse(
+      makeWorkspace({
+        'src/tasks.ts': fixedTasks(),
+        'tsconfig.json': tsconfigWith({ noCheck: true }),
+      })
+    );
+
+    expect(checkTypesDescribeSchema(analysis).passed).toBe(false);
+    expect(checkAppTypeChecks(analysis).passed).toBe(false);
+  });
+
+  it('still passes a correct workspace when tsconfig sets noCheck', () => {
+    const analysis = analyse(
+      regeneratedWorkspace({
+        'tsconfig.json': tsconfigWith({ noCheck: true }),
+      })
+    );
+
+    expectCleanAnalysis(analysis, 'src/database.types.ts');
+    expectAllChecksPass(analysis);
+  });
+
+  it.each([
+    [
+      'strictNullChecks',
+      'export const missing: string = null;\n',
+      'not assignable',
+    ],
+    [
+      'noImplicitAny',
+      'export function echo(value) {\n  return value;\n}\n',
+      'implicitly',
+    ],
+    [
+      'useUnknownInCatchVariables',
+      'export function attempt() {\n  try {\n    return 1;\n  } catch (e) {\n    return e.message;\n  }\n}\n',
+      "'unknown'",
+    ],
+    [
+      'strictPropertyInitialization',
+      'export class Holder {\n  value: string;\n}\n',
+      'no initializer',
+    ],
+  ])(
+    'enforces %s even when tsconfig turns it off',
+    (option, source, expected) => {
+      const analysis = analyse(
+        regeneratedWorkspace({
+          'tsconfig.json': tsconfigWith({ [option]: false }),
+          'src/loose.ts': source,
+        })
+      );
+
+      expect(
+        analysis.diagnostics.some(
+          (diagnostic) =>
+            diagnostic.startsWith('src/loose.ts:') &&
+            diagnostic.includes(expected)
+        )
+      ).toBe(true);
+      expect(checkAppTypeChecks(analysis).passed).toBe(false);
+    }
+  );
+
+  it('flags a non-null due_on even when tsconfig turns strictNullChecks off', () => {
+    const analysis = analyse(
+      regeneratedWorkspace({
+        'src/database.types.ts': replaceOnce(
+          regeneratedTypes(),
+          'due_on: string | null;',
+          'due_on: string;'
+        ),
+        'tsconfig.json': tsconfigWith({ strictNullChecks: false }),
+      })
+    );
+
+    expect(analysis.typesModules).toEqual([
+      { path: 'src/database.types.ts', problems: ['tasks Row'] },
+    ]);
+    expect(checkTypesDescribeSchema(analysis).passed).toBe(false);
+  });
+
+  it('fails the types check when the checker reports nothing for the known-bad control', () => {
+    blindChecker.on = true;
+
+    const analysis = analyse(regeneratedWorkspace());
+
+    expect(analysis.typesModules).toEqual([
+      {
+        path: 'src/database.types.ts',
+        problems: [
+          'type checker produced no diagnostics for a known-bad control',
+        ],
+      },
+    ]);
+    expect(checkTypesDescribeSchema(analysis).passed).toBe(false);
   });
 
   it('ignores a tsconfig path mapping that redirects @supabase/supabase-js', () => {
@@ -909,6 +1317,26 @@ export function label(task: Task): string {
     );
     expect(checkAppTypeChecks(analysis).passed).toBe(true);
     expect(checkAppNotSilenced(analysis).passed).toBe(true);
+  });
+});
+
+describe('a src with no app files', () => {
+  it('fails the type-check check instead of passing with nothing to check', () => {
+    const analysis = analyse(
+      makeWorkspace({
+        'src/database.types.ts': regeneratedTypes(),
+        'src/supabase.ts': null,
+        'src/tasks.ts': null,
+      })
+    );
+
+    expect(analysis.appFiles).toEqual([]);
+    expect(analysis.diagnostics).toEqual([]);
+    expect(checkAppTypeChecks(analysis)).toMatchObject({
+      name: TYPECHECK_CHECK,
+      passed: false,
+      notes: 'no app files to type-check',
+    });
   });
 });
 

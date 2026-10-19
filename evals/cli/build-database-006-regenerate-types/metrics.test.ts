@@ -8,7 +8,13 @@ import { describe, expect, it } from 'vitest';
 import { findSupabaseInvocations } from '../lib/cli-invocations.js';
 import type { StackProbe } from '../lib/stack.js';
 import { analysisFixture } from './fixtures.js';
-import { checkMetrics, countGenTypesRuns, readCliFacts } from './metrics.js';
+import {
+  checkMetrics,
+  countGenTypesRuns,
+  readCliFacts,
+  readStackLifecycle,
+  type StackLifecycle,
+} from './metrics.js';
 
 const DB_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
 
@@ -36,6 +42,11 @@ const STACK: StackProbe = {
   backend: 'managed',
   dbUrl: DB_URL,
   runtime: 'native',
+};
+
+const NO_LIFECYCLE: StackLifecycle = {
+  lastCommand: null,
+  stoppedByAgent: false,
 };
 
 const metricsOf = (check: { notes?: string }) =>
@@ -156,6 +167,68 @@ describe('countGenTypesRuns', () => {
   });
 });
 
+describe('readStackLifecycle', () => {
+  const lifecycle = (commands: string[]) =>
+    readStackLifecycle(findSupabaseInvocations(commands));
+
+  it.each([
+    ['no supabase command ran', [] as string[]],
+    [
+      'only non-lifecycle commands ran',
+      ['supabase gen types typescript --local', 'supabase migration up'],
+    ],
+  ])('reports no lifecycle command when %s', (_name, commands) => {
+    expect(lifecycle(commands)).toEqual(NO_LIFECYCLE);
+  });
+
+  it.each([
+    ['supabase start', 'supabase start'],
+    ['supabase stack start', 'supabase stack start'],
+    ['supabase stack restart', 'supabase stack restart'],
+    ['supabase db start', 'supabase db start'],
+  ])('treats %s as a start', (command, last) => {
+    expect(lifecycle([command])).toEqual({
+      lastCommand: last,
+      stoppedByAgent: false,
+    });
+  });
+
+  it.each([
+    ['supabase stop', 'supabase stop'],
+    ['supabase stop --no-backup', 'supabase stop'],
+    ['supabase stack stop', 'supabase stack stop'],
+    ['supabase stack destroy', 'supabase stack destroy'],
+  ])('treats %s as a stop', (command, last) => {
+    expect(lifecycle(['supabase start', command])).toEqual({
+      lastCommand: last,
+      stoppedByAgent: true,
+    });
+  });
+
+  it('uses the last lifecycle command when the agent stopped and then started again', () => {
+    expect(
+      lifecycle(['supabase start', 'supabase stop', 'supabase start'])
+    ).toEqual({ lastCommand: 'supabase start', stoppedByAgent: false });
+  });
+
+  it('ignores commands that follow the last lifecycle command', () => {
+    expect(
+      lifecycle([
+        'supabase start',
+        'supabase stop',
+        'supabase gen types typescript --local',
+      ])
+    ).toEqual({ lastCommand: 'supabase stop', stoppedByAgent: true });
+  });
+
+  it('does not count a stop that was only echoed', () => {
+    expect(lifecycle(['supabase start', 'echo "supabase stop"'])).toEqual({
+      lastCommand: 'supabase start',
+      stoppedByAgent: false,
+    });
+  });
+});
+
 describe('checkMetrics', () => {
   it('reports every documented field and always passes', async () => {
     const commands = [
@@ -169,6 +242,7 @@ describe('checkMetrics', () => {
       commands,
       genTypes: countGenTypesRuns(invocations),
       stack: { ...STACK, relocatedHome: '/home/agent/.supabase' },
+      lifecycle: NO_LIFECYCLE,
       analysis: analysisFixture({
         diagnostics: ['src/tasks.ts:10 a', 'src/tasks.ts:11 b'],
         suppressions: ['src/tasks.ts:12 @ts-ignore'],
@@ -189,6 +263,7 @@ describe('checkMetrics', () => {
         relocatedHome: '/home/agent/.supabase',
       },
       genTypesRuns: 2,
+      stackStoppedByAgent: false,
       typesModules: ['src/types/supabase.ts'],
       diagnostics: 2,
       suppressions: 1,
@@ -201,6 +276,7 @@ describe('checkMetrics', () => {
       commands: [],
       genTypes: { runs: 0, sources: [] },
       stack: STACK,
+      lifecycle: NO_LIFECYCLE,
       analysis: analysisFixture(),
       cli: await readCliFacts(ctx, undefined, []),
     });
@@ -217,6 +293,30 @@ describe('checkMetrics', () => {
     });
   });
 
+  it('reports stackStoppedByAgent from the lifecycle', async () => {
+    const run = async (lifecycle: StackLifecycle) =>
+      metricsOf(
+        await checkMetrics(undefined, {
+          commands: [],
+          genTypes: { runs: 0, sources: [] },
+          stack: STACK,
+          lifecycle,
+          analysis: analysisFixture(),
+          cli: await readCliFacts(ctx, undefined, []),
+        })
+      );
+
+    expect(
+      await run({ lastCommand: 'supabase stop', stoppedByAgent: true })
+    ).toMatchObject({ stackStoppedByAgent: true });
+    expect(
+      await run({ lastCommand: 'supabase start', stoppedByAgent: false })
+    ).toMatchObject({ stackStoppedByAgent: false });
+    expect(await run(NO_LIFECYCLE)).toMatchObject({
+      stackStoppedByAgent: false,
+    });
+  });
+
   it('reports nulls instead of failing when nothing resolved', async () => {
     const failing: Pick<LocalStackEvalContext, 'exec'> = {
       exec: async () => {
@@ -228,6 +328,7 @@ describe('checkMetrics', () => {
       commands: [],
       genTypes: { runs: 0, sources: [] },
       stack: { ok: false, notes: 'none' },
+      lifecycle: NO_LIFECYCLE,
       analysis: { ok: false, notes: 'src directory is missing' },
       cli: await readCliFacts(failing, undefined, []),
     });
@@ -259,6 +360,7 @@ describe('checkMetrics', () => {
       commands,
       genTypes: countGenTypesRuns(invocations),
       stack: STACK,
+      lifecycle: NO_LIFECYCLE,
       analysis: analysisFixture(),
       cli: await readCliFacts(moved, MARKER, invocations),
     });
@@ -281,6 +383,7 @@ describe('checkMetrics', () => {
       commands: throwing([] as string[]),
       genTypes,
       stack: STACK,
+      lifecycle: NO_LIFECYCLE,
       analysis: analysisFixture(),
       cli,
     });
@@ -296,6 +399,7 @@ describe('checkMetrics', () => {
       commands,
       genTypes: throwing({ runs: 1, sources: ['local'] }),
       stack: STACK,
+      lifecycle: NO_LIFECYCLE,
       analysis: analysisFixture(),
       cli,
     });
@@ -311,6 +415,7 @@ describe('checkMetrics', () => {
       commands,
       genTypes,
       stack: STACK,
+      lifecycle: NO_LIFECYCLE,
       analysis: {
         ok: true,
         get typesModules(): never {

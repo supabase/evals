@@ -31,6 +31,53 @@ describe('formatGroundTruthJudgeInput', () => {
     expect(formatGroundTruthJudgeInput(groundTruth, transcript)).toBe(expected);
     expect(expected).toContain('supabase start');
   });
+
+  describe('tool call outputs', () => {
+    const transcript: TranscriptPart[] = [
+      {
+        type: 'tool_call',
+        name: 'bash',
+        input: { command: 'supabase gen types --local' },
+        output: 'supabase start is not running.',
+      },
+    ];
+
+    it('leaves outputs out by default', () => {
+      const input = formatGroundTruthJudgeInput(['- fact'], transcript);
+
+      expect(input).toContain('supabase gen types --local');
+      expect(input).not.toContain('supabase start is not running.');
+    });
+
+    it('leaves outputs out when includeToolCallOutputs is false', () => {
+      expect(
+        formatGroundTruthJudgeInput(['- fact'], transcript, {
+          includeToolCallOutputs: false,
+        })
+      ).toBe(formatGroundTruthJudgeInput(['- fact'], transcript));
+    });
+
+    it('adds outputs after the inputs when includeToolCallOutputs is true', () => {
+      const input = formatGroundTruthJudgeInput(['- fact'], transcript, {
+        includeToolCallOutputs: true,
+      });
+
+      expect(input).toBe(
+        [
+          'Ground truth observed by the harness after the run:',
+          '- fact',
+          '',
+          'Transcript:',
+          serializeTranscript(transcript, {
+            includeToolCallInputs: true,
+            includeToolCallOutputs: true,
+          }),
+        ].join('\n')
+      );
+      expect(input).toContain('supabase gen types --local');
+      expect(input).toContain('supabase start is not running.');
+    });
+  });
 });
 
 describe('mentionsNumber', () => {
