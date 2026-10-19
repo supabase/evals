@@ -172,11 +172,11 @@ describe('describeGroundTruth', () => {
         ok: true,
         migrations: [NEW_MIGRATION],
         addsNeededShape: false,
-        notes: `after ${NEW_FILE}, due_date is text, not a nullable date or timestamp`,
+        notes: `after ${NEW_FILE}, due_date is text, not a date or timestamp`,
       },
     });
     expect(line(all, MIGRATION_LINE)).toBe(
-      `${MIGRATION_LINE}: ${NEW_FILE} (version 20260102000000) (after ${NEW_FILE}, due_date is text, not a nullable date or timestamp)`
+      `${MIGRATION_LINE}: ${NEW_FILE} (version 20260102000000) (after ${NEW_FILE}, due_date is text, not a date or timestamp)`
     );
     expect(line(all, RECORDED_LINE)).toBe(
       `${RECORDED_LINE}: yes (${NEW_FILE} (version 20260102000000))`

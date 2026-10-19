@@ -307,6 +307,15 @@ const fails = (notes: string, migrations: ColumnMigration[] = []) => ({
   notes,
 });
 
+const SEEDED_ONLY_NOTE = `only the seeded migration ${SEEDED_MIGRATION_FILE} adds due_date; no new migration does`;
+
+const SHAPE_NOTES = {
+  type: (shape: string) => `due_date is ${shape}, not a date or timestamp`,
+  null: (shape: string) => `due_date is not nullable (${shape})`,
+  generated: (shape: string) =>
+    `due_date is generated (${shape}), so the app can't write it`,
+};
+
 const scanSeeded = (files: Record<string, string>) =>
   findDueDateMigrations(
     fakeProject({ files: { [SEEDED_MIGRATION_FILE]: SEEDED_SQL, ...files } })
@@ -330,7 +339,7 @@ describe('findDueDateMigrations', () => {
     ).toEqual(
       passes(
         [NEW, SECOND],
-        `${NEW_FILE} adds due_date as date; then ${SECOND_FILE} change its type or nullability`
+        `${NEW_FILE} adds due_date as date; later files touching it: ${SECOND_FILE}`
       )
     );
   });
@@ -359,41 +368,99 @@ describe('findDueDateMigrations', () => {
     ).toEqual(fails('no new migration adds due_date to tasks'));
   });
 
-  it('does not count the seeded migration even when it now adds the column', async () => {
-    expect(
-      await findDueDateMigrations(
-        fakeProject({
-          files: {
-            [SEEDED_MIGRATION_FILE]: SEEDED_SQL + ADD_DUE_DATE,
-            [NEW_FILE]: ADD_DUE_DATE,
-          },
-        })
-      )
-    ).toEqual(passes([NEW], `${NEW_FILE} adds due_date as date`));
-  });
-
   it('fails when only the seeded migration was edited to add the column', async () => {
     const ctx = fakeProject({
       files: { [SEEDED_MIGRATION_FILE]: SEEDED_SQL + ADD_DUE_DATE },
     });
-    expect(await findDueDateMigrations(ctx)).toEqual(
-      fails(
-        `only the seeded migration ${SEEDED_MIGRATION_FILE} adds due_date; no new migration does`
-      )
-    );
+    expect(await findDueDateMigrations(ctx)).toEqual(fails(SEEDED_ONLY_NOTE));
   });
 
-  it('fails when the seeded create table was edited to include the column', async () => {
-    const ctx = fakeProject({
-      files: {
-        [SEEDED_MIGRATION_FILE]: SEEDED_SQL.replace(
-          'done boolean',
-          'due_date date, done boolean'
-        ),
-      },
+  describe('the seeded migration seeds the replay', () => {
+    const seededWith = (column: string) =>
+      SEEDED_SQL.replace('done boolean', `${column}, done boolean`);
+    const scan = (seeded: string, files: Record<string, string> = {}) =>
+      findDueDateMigrations(
+        fakeProject({ files: { [SEEDED_MIGRATION_FILE]: seeded, ...files } })
+      );
+    const REPEATED = `${NEW_FILE} adds due_date again without if not exists, so a reset fails`;
+
+    it.each([
+      ['a create table definition', seededWith('due_date date')],
+      ['a quoted create table definition', seededWith('"due_date" date')],
+      ['an alter appended to the seeded file', SEEDED_SQL + ADD_DUE_DATE],
+    ])(
+      'fails a plain add of a column the seeded file already has through %s',
+      async (_label, seeded) => {
+        expect(await scan(seeded, { [NEW_FILE]: ADD_DUE_DATE })).toEqual(
+          fails(REPEATED, [NEW])
+        );
+      }
+    );
+
+    it('fails an if-not-exists add that leaves the text column the seeded file defines', async () => {
+      expect(
+        await scan(seededWith('due_date text'), {
+          [NEW_FILE]:
+            'alter table public.tasks add column if not exists due_date date;\n',
+        })
+      ).toEqual(
+        fails(`after ${NEW_FILE}, due_date is text, not a date or timestamp`, [
+          NEW,
+        ])
+      );
     });
-    expect(await findDueDateMigrations(ctx)).toEqual(
-      fails('no new migration adds due_date to tasks')
+
+    it('fails an if-not-exists add of a correct column the seeded file defines, since no new file added it', async () => {
+      expect(
+        await scan(seededWith('due_date date'), {
+          [NEW_FILE]:
+            'alter table public.tasks add column if not exists due_date date;\n',
+        })
+      ).toEqual(fails(SEEDED_ONLY_NOTE, [NEW]));
+    });
+
+    it('fails when the seeded create table defines the column and no new file touches it', async () => {
+      expect(await scan(seededWith('due_date date'))).toEqual(
+        fails(SEEDED_ONLY_NOTE)
+      );
+    });
+
+    it('fails a seeded text definition that no new file touches', async () => {
+      expect(await scan(seededWith('due_date text'))).toEqual(
+        fails(SEEDED_ONLY_NOTE)
+      );
+    });
+
+    it('lets a new file repair the type of the seeded column without making it a new add', async () => {
+      expect(
+        await scan(seededWith('due_date text'), {
+          [NEW_FILE]:
+            'alter table public.tasks alter column due_date type date using due_date::date;\n',
+        })
+      ).toEqual(fails(SEEDED_ONLY_NOTE, [NEW]));
+    });
+
+    it.each([
+      ['a look-alike column', seededWith('due_date_old date')],
+      [
+        'a constraint named after the column',
+        seededWith('constraint due_date_check check (true)'),
+      ],
+      [
+        'the column on another table',
+        `${SEEDED_SQL}create table public.projects (due_date date);\n`,
+      ],
+      [
+        'a create table in a comment',
+        `-- create table public.tasks (due_date date);\n${SEEDED_SQL}`,
+      ],
+    ])(
+      'starts from a missing column when the seeded file only has %s',
+      async (_label, seeded) => {
+        expect(await scan(seeded, { [NEW_FILE]: ADD_DUE_DATE })).toEqual(
+          passes([NEW], `${NEW_FILE} adds due_date as date`)
+        );
+      }
     );
   });
 
@@ -446,32 +513,40 @@ describe('findDueDateMigrations', () => {
   describe('migrations that sort at or before the seeded one', () => {
     const NOTE = (file: string) =>
       `${file} sorts at or before ${SEEDED_VERSION}, so a reset applies it before tasks exists`;
+    const DATED: ColumnMigration = {
+      version: '20240601000000',
+      file: '20240601000000_add_due_date.sql',
+    };
+    const SHORT: ColumnMigration = {
+      version: '0001',
+      file: '0001_add_due_date.sql',
+    };
 
     it.each([
-      ['a file dated before it', '20240601000000_add_due_date.sql'],
-      ['a file with a short numeric version', '0001_add_due_date.sql'],
-    ])('fails %s', async (_label, file) => {
-      expect(await scanSeeded({ [file]: ADD_DUE_DATE })).toEqual(
-        fails(NOTE(file))
+      ['a file dated before it', DATED],
+      ['a file with a short numeric version', SHORT],
+    ])('fails %s and still lists it', async (_label, stray) => {
+      expect(await scanSeeded({ [stray.file]: ADD_DUE_DATE })).toEqual(
+        fails(NOTE(stray.file), [stray])
       );
     });
 
     it('fails the seeded migration renamed, with the column added to its end', async () => {
       const file = '20260101000000_create_tasks_table.sql';
       const ctx = fakeProject({ files: { [file]: SEEDED_SQL + ADD_DUE_DATE } });
-      expect(await findDueDateMigrations(ctx)).toEqual(fails(NOTE(file)));
+      expect(await findDueDateMigrations(ctx)).toEqual(
+        fails(NOTE(file), [{ version: SEEDED_VERSION, file }])
+      );
     });
 
-    it('names every such file', async () => {
+    it('names every such file, listing them in version order', async () => {
       expect(
         await scanSeeded({
-          '0001_add_due_date.sql': ADD_DUE_DATE,
-          '20240601000000_add_due_date.sql': ADD_DUE_DATE,
+          [DATED.file]: ADD_DUE_DATE,
+          [SHORT.file]: ADD_DUE_DATE,
         })
       ).toEqual(
-        fails(
-          `${NOTE('0001_add_due_date.sql')}; ${NOTE('20240601000000_add_due_date.sql')}`
-        )
+        fails(`${NOTE(SHORT.file)}; ${NOTE(DATED.file)}`, [SHORT, DATED])
       );
     });
 
@@ -486,10 +561,10 @@ describe('findDueDateMigrations', () => {
       async (_label, strayContent) => {
         expect(
           await scanSeeded({
-            '0001_add_due_date.sql': strayContent,
+            [SHORT.file]: strayContent,
             [NEW_FILE]: ADD_DUE_DATE,
           })
-        ).toEqual(fails(NOTE('0001_add_due_date.sql'), [NEW]));
+        ).toEqual(fails(NOTE(SHORT.file), [SHORT, NEW]));
       }
     );
 
@@ -497,12 +572,62 @@ describe('findDueDateMigrations', () => {
       const ctx = fakeProject({
         files: {
           [SEEDED_MIGRATION_FILE]: SEEDED_SQL + ADD_DUE_DATE,
-          '0001_add_due_date.sql': ADD_DUE_DATE,
+          [SHORT.file]: ADD_DUE_DATE,
         },
       });
       expect(await findDueDateMigrations(ctx)).toEqual(
-        fails(NOTE('0001_add_due_date.sql'))
+        fails(NOTE(SHORT.file), [SHORT])
       );
+    });
+
+    it.each([
+      [
+        'an index on tasks',
+        'create index tasks_due_idx on public.tasks (due_date);\n',
+      ],
+      [
+        'an unqualified alter of another column',
+        'alter table tasks add column priority int;\n',
+      ],
+      [
+        'a quoted, qualified mention',
+        'comment on table "public"."tasks" is null;\n',
+      ],
+    ])(
+      'fails an old-dated companion file with %s, without listing it',
+      async (_label, sql) => {
+        const file = '20240601000000_companion.sql';
+        expect(
+          await scanSeeded({ [file]: sql, [NEW_FILE]: ADD_DUE_DATE })
+        ).toEqual(fails(NOTE(file), [NEW]));
+      }
+    );
+
+    it.each([
+      [
+        'another table',
+        'create table public.projects (id bigint primary key);\n',
+      ],
+      [
+        'the look-alike table tasks_archive',
+        'alter table public.tasks_archive add column priority int;\n',
+      ],
+      ['tasks in another schema', 'create index on private.tasks (done);\n'],
+      [
+        'tasks only in a comment',
+        '-- tasks\ncreate table public.notes (id int);\n',
+      ],
+      [
+        'tasks only in a literal',
+        "insert into public.notes (body) values ('tasks');\n",
+      ],
+    ])('ignores an old-dated file about %s', async (_label, sql) => {
+      expect(
+        await scanSeeded({
+          '20240601000000_other.sql': sql,
+          [NEW_FILE]: ADD_DUE_DATE,
+        })
+      ).toEqual(passes([NEW], `${NEW_FILE} adds due_date as date`));
     });
   });
 
@@ -528,6 +653,10 @@ describe('findDueDateMigrations', () => {
       [
         'a check constraint that mentions not null inside parentheses',
         add('date check (due_date is not null)'),
+      ],
+      [
+        'a check constraint on the column',
+        add('date check (due_date >= created_at::date)'),
       ],
       [
         'a not-null column beside it',
@@ -562,66 +691,75 @@ describe('findDueDateMigrations', () => {
         'a not-null timestamptz with a default',
         add('timestamptz not null default now()'),
         'timestamptz not null default now()',
-        'not null',
+        'null',
       ],
-      ['text', add('text'), 'text', 'not a nullable date or timestamp'],
+      ['text', add('text'), 'text', 'type'],
       [
         'a not-null date with a default',
         add('date not null default current_date'),
         'date not null default current_date',
-        'not null',
+        'null',
       ],
       [
         'a type that only starts like a date',
         add('datetime'),
         'datetime',
-        'not a nullable date or timestamp',
+        'type',
       ],
       [
         'a time of day',
         add('time with time zone'),
         'time with time zone',
-        'not a nullable date or timestamp',
+        'type',
       ],
       [
         'a not-null date after a multi-action comma',
         'alter table public.tasks add column priority int, add column due_date date\n  not null;\n',
         'date not null',
-        'not null',
+        'null',
       ],
       [
         'not null after a default with commas in parentheses',
         add('date default coalesce(null, null) not null'),
         'date default coalesce(null, null) not null',
-        'not null',
+        'null',
       ],
-      [
-        'an array written date[]',
-        add('date[]'),
-        'date[]',
-        'not a nullable date or timestamp',
-      ],
-      [
-        'an array written date []',
-        add('date []'),
-        'date []',
-        'not a nullable date or timestamp',
-      ],
-      [
-        'an array written date array',
-        add('date array'),
-        'date array',
-        'not a nullable date or timestamp',
-      ],
+      ['an array written date[]', add('date[]'), 'date[]', 'type'],
+      ['an array written date []', add('date []'), 'date []', 'type'],
+      ['an array written date array', add('date array'), 'date array', 'type'],
       [
         'an array of timestamps with a time zone',
         add('timestamp(3) with time zone[]'),
         'timestamp(3) with time zone[]',
-        'not a nullable date or timestamp',
+        'type',
       ],
-    ])('fails %s', async (_label, sql, shape, verdict) => {
-      expect(await scanSeeded({ [NEW_FILE]: sql })).toEqual(
-        fails(`after ${NEW_FILE}, due_date is ${shape}, ${verdict}`, [NEW])
+      [
+        'a generated column',
+        add('date generated always as (created_at::date) stored'),
+        'date generated always as (created_at::date) stored',
+        'generated',
+      ],
+    ] satisfies Array<[string, string, string, keyof typeof SHAPE_NOTES]>)(
+      'fails %s',
+      async (_label, sql, shape, kind) => {
+        expect(await scanSeeded({ [NEW_FILE]: sql })).toEqual(
+          fails(`after ${NEW_FILE}, ${SHAPE_NOTES[kind](shape)}`, [NEW])
+        );
+      }
+    );
+
+    it('fails a type change that carries a generation clause', async () => {
+      expect(
+        await scanSeeded({
+          [NEW_FILE]: add('text'),
+          [SECOND_FILE]:
+            'alter table public.tasks alter column due_date type date generated always as (created_at::date) stored;\n',
+        })
+      ).toEqual(
+        fails(
+          `after ${NEW_FILE}, ${SECOND_FILE}, ${SHAPE_NOTES.generated('date generated always as (created_at::date) stored')}`,
+          [NEW, SECOND]
+        )
       );
     });
 
@@ -633,10 +771,9 @@ describe('findDueDateMigrations', () => {
             'alter table public.tasks alter column due_date set default null;',
         })
       ).toEqual(
-        fails(
-          `after ${NEW_FILE}, due_date is text, not a nullable date or timestamp`,
-          [NEW]
-        )
+        fails(`after ${NEW_FILE}, due_date is text, not a date or timestamp`, [
+          NEW,
+        ])
       );
     });
 
@@ -649,7 +786,7 @@ describe('findDueDateMigrations', () => {
         })
       ).toEqual(
         fails(
-          `after ${NEW_FILE}, due_date is date not null default current_date, not null`,
+          `after ${NEW_FILE}, due_date is not nullable (date not null default current_date)`,
           [NEW]
         )
       );
@@ -664,7 +801,7 @@ describe('findDueDateMigrations', () => {
         })
       ).toEqual(
         fails(
-          `after ${NEW_FILE}, ${SECOND_FILE}, due_date is date default current_date, not null`,
+          `after ${NEW_FILE}, ${SECOND_FILE}, due_date is not nullable (date default current_date)`,
           [NEW, SECOND]
         )
       );
@@ -679,7 +816,7 @@ describe('findDueDateMigrations', () => {
         })
       ).toEqual(
         fails(
-          `after ${NEW_FILE}, ${SECOND_FILE}, due_date is date not null default current_date, not null`,
+          `after ${NEW_FILE}, ${SECOND_FILE}, due_date is not nullable (date not null default current_date)`,
           [NEW, SECOND]
         )
       );
@@ -693,7 +830,7 @@ describe('findDueDateMigrations', () => {
         })
       ).toEqual(
         fails(
-          `after ${NEW_FILE}, due_date is date default current_date, not null`,
+          `after ${NEW_FILE}, due_date is not nullable (date default current_date)`,
           [NEW]
         )
       );
@@ -707,25 +844,24 @@ describe('findDueDateMigrations', () => {
             'alter table public.tasks alter column title drop not null;',
         })
       ).toEqual(
-        fails(
-          `after ${NEW_FILE}, due_date is text, not a nullable date or timestamp`,
-          [NEW]
-        )
+        fails(`after ${NEW_FILE}, due_date is text, not a date or timestamp`, [
+          NEW,
+        ])
       );
     });
 
-    it('fails a wrong-shape add that only the seeded file reshapes', async () => {
+    it('fails a seeded file that alters the column before anything adds it', async () => {
       const ctx = fakeProject({
         files: {
           [SEEDED_MIGRATION_FILE]:
             SEEDED_SQL +
             'alter table public.tasks alter column due_date drop not null;',
-          [NEW_FILE]: add('text'),
+          [NEW_FILE]: add('date'),
         },
       });
       expect(await findDueDateMigrations(ctx)).toEqual(
         fails(
-          `after ${NEW_FILE}, due_date is text, not a nullable date or timestamp`,
+          `${SEEDED_MIGRATION_FILE} alters due_date before any migration adds it, so a reset fails`,
           [NEW]
         )
       );
@@ -770,7 +906,7 @@ describe('findDueDateMigrations', () => {
       ).toEqual(
         passes(
           [NEW, SECOND],
-          `${NEW_FILE} adds due_date as ${clause}; then ${SECOND_FILE} change its type or nullability`
+          `${NEW_FILE} adds due_date as ${clause}; later files touching it: ${SECOND_FILE}`
         )
       );
     });
@@ -802,7 +938,7 @@ describe('findDueDateMigrations', () => {
       ).toEqual(
         passes(
           [NEW, { version: '9', file: '9_fix_type.sql' }],
-          `${NEW_FILE} adds due_date as text; then 9_fix_type.sql change its type or nullability`
+          `${NEW_FILE} adds due_date as text; later files touching it: 9_fix_type.sql`
         )
       );
     });
@@ -1045,7 +1181,7 @@ describe('checkNewMigrationAddsDueDate', () => {
   });
 
   it('fails with the files and the probe notes when the final shape is wrong', () => {
-    const notes = `after ${NEW_FILE}, due_date is text, not a nullable date or timestamp`;
+    const notes = `after ${NEW_FILE}, due_date is text, not a date or timestamp`;
     expect(checkNewMigrationAddsDueDate(fails(notes, [NEW]))).toEqual({
       name: NEW_MIGRATION_CHECK_NAME,
       passed: false,
@@ -1179,6 +1315,20 @@ describe('readRecordedMigrations', () => {
     expect(await readRecordedMigrations(ctx, STACK, ONE)).toMatchObject({
       ok: true,
       recorded: [NEW],
+    });
+  });
+
+  it('looks up a file that sorts before the seeded migration and finds it recorded', async () => {
+    const stray = {
+      version: '20240601000000',
+      file: '20240601000000_add_due_date.sql',
+    };
+    const probe = await scanSeeded({ [stray.file]: ADD_DUE_DATE });
+    const ctx = fakeHistory({ versions: [SEEDED_VERSION, stray.version] });
+    expect(await readRecordedMigrations(ctx, STACK, probe)).toEqual({
+      ok: true,
+      recorded: [stray],
+      missing: [],
     });
   });
 

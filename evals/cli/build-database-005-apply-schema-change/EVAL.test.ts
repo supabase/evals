@@ -440,7 +440,7 @@ describe('known-bad runs', () => {
         },
         history: [SEEDED_VERSION, '20240601000000'],
       },
-      [NEW_MIGRATION, RECORDED],
+      [NEW_MIGRATION],
     ],
     [
       'wrote a correct migration beside a stray one that sorts before the seeded migration',
@@ -452,7 +452,22 @@ describe('known-bad runs', () => {
           [NEW_FILE]: ADD_DUE_DATE,
         },
       },
-      [NEW_MIGRATION],
+      [NEW_MIGRATION, RECORDED],
+    ],
+    [
+      'added a column the seeded create table already defines',
+      SETUP,
+      {
+        files: {
+          [SEEDED_MIGRATION_FILE]: SEEDED_SQL.replace(
+            'done boolean',
+            'due_date date, done boolean'
+          ),
+          [NEW_FILE]: ADD_DUE_DATE,
+        },
+        history: [SEEDED_VERSION],
+      },
+      [NEW_MIGRATION, RECORDED],
     ],
     [
       'wrote a not-null date add and a later migration that only sets not null',
@@ -641,7 +656,7 @@ describe('valid alternatives', () => {
       ({ name }) => name === NEW_MIGRATION
     );
     expect(check?.notes).toContain(
-      `${NEW_FILE} adds due_date as timestamptz not null default now(); then 20260103000000_relax.sql change its type or nullability`
+      `${NEW_FILE} adds due_date as timestamptz not null default now(); later files touching it: 20260103000000_relax.sql`
     );
   });
 
@@ -848,10 +863,26 @@ describe('report judge', () => {
     await scorer(ctx);
     const input = judgeCall(judge, REPORT_RUBRIC)?.input ?? '';
     expect(input).toContain(
-      `- new migrations touching due_date: ${NEW_FILE} (version ${NEW_VERSION}) (after ${NEW_FILE}, due_date is text, not a nullable date or timestamp)`
+      `- new migrations touching due_date: ${NEW_FILE} (version ${NEW_VERSION}) (after ${NEW_FILE}, due_date is text, not a date or timestamp)`
     );
     expect(input).toContain(
       `- recorded in the local migration history: yes (${NEW_FILE} (version ${NEW_VERSION}))`
+    );
+  });
+
+  it('lists a recorded file that sorts before the seeded migration and says the history has it', async () => {
+    const stray = '20240601000000_add_due_date.sql';
+    const { ctx, judge } = fakeCtx(SETUP, {
+      files: { [SEEDED_MIGRATION_FILE]: SEEDED_SQL, [stray]: ADD_DUE_DATE },
+      history: [SEEDED_VERSION, '20240601000000'],
+    });
+    await scorer(ctx);
+    const input = judgeCall(judge, REPORT_RUBRIC)?.input ?? '';
+    expect(input).toContain(
+      `- new migrations touching due_date: ${stray} (version 20240601000000) (${stray} sorts at or before ${SEEDED_VERSION}, so a reset applies it before tasks exists)`
+    );
+    expect(input).toContain(
+      `- recorded in the local migration history: yes (${stray} (version 20240601000000))`
     );
   });
 
