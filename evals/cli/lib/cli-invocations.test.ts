@@ -5,6 +5,7 @@ import {
   invocationDirectory,
   invocationFlag,
   invocationPositionals,
+  invocationSubcommand,
   invocationTargetUnresolved,
   invocationTargets,
   invocationTargetsDir,
@@ -89,6 +90,53 @@ describe('findSupabaseInvocations', () => {
       ['supabase', 'status'],
       ['supabase', 'stop'],
     ]);
+  });
+
+  it.each([
+    'setsid supabase functions serve --env-file .env',
+    'setsid -f supabase functions serve --env-file .env',
+    'setsid --fork --wait supabase functions serve --env-file .env',
+    'setsid -w -c supabase functions serve --env-file .env',
+    'setsid --ctty supabase functions serve --env-file .env',
+    'setsid nohup supabase functions serve --env-file .env > log 2>&1 &',
+    'nohup setsid supabase functions serve --env-file .env &',
+    'stdbuf -oL supabase functions serve --env-file .env',
+    'stdbuf -o L supabase functions serve --env-file .env',
+    'stdbuf -i0 -oL -eL supabase functions serve --env-file .env',
+    'stdbuf -i 0 -o L -e L supabase functions serve --env-file .env',
+    'stdbuf --output=L --error=0 supabase functions serve --env-file .env',
+    'stdbuf --input=0 supabase functions serve --env-file .env',
+    'nohup stdbuf -oL supabase functions serve --env-file .env &',
+    'setsid stdbuf -oL timeout 30 supabase functions serve --env-file .env',
+    'setsid -fw supabase functions serve --env-file .env',
+    'setsid -- supabase functions serve --env-file .env',
+    'stdbuf --output L supabase functions serve --env-file .env',
+    'stdbuf -oL -- supabase functions serve --env-file .env',
+  ])('finds the serve behind the wrappers of %s', (command) => {
+    expect(findSupabaseInvocations([command]).map(({ argv }) => argv)).toEqual([
+      ['supabase', 'functions', 'serve', '--env-file', '.env'],
+    ]);
+  });
+
+  it('finds the invocation behind setsid and stdbuf option terminators', () => {
+    expect(
+      findSupabaseInvocations([
+        'setsid -f -- stdbuf -o L -- supabase start',
+      ]).map(({ argv }) => argv)
+    ).toEqual([['supabase', 'start']]);
+  });
+
+  it('keeps the env prefixes and working directory of a wrapped invocation', () => {
+    const [found] = findSupabaseInvocations([
+      {
+        command:
+          'SUPABASE_HOME=/tmp/sb setsid -f stdbuf -oL supabase functions serve',
+        cwd: '/home/agent/app',
+      },
+    ]);
+
+    expect(found?.env).toEqual({ SUPABASE_HOME: '/tmp/sb' });
+    expect(found?.cwd).toBe('/home/agent/app');
   });
 
   it('strips pnpm exec, yarn and yarn dlx', () => {
@@ -514,6 +562,41 @@ describe('invocationPositionals', () => {
     [['supabase'], []],
   ])('%j -> %j', (argv, expected) => {
     expect(invocationPositionals(inv(argv))).toEqual(expected);
+  });
+});
+
+describe('invocationSubcommand', () => {
+  it.each([
+    [['supabase', 'functions', 'serve'], 'serve'],
+    [['supabase', '--workdir', 'app', 'functions', 'serve'], 'serve'],
+    [['supabase', '--debug', 'functions', 'serve'], 'serve'],
+    [['supabase', 'functions', '--debug', 'serve'], 'serve'],
+    [['supabase', 'functions', '--workdir', 'app', 'serve'], 'serve'],
+    [['supabase', 'functions', '--workdir=app', 'serve'], 'serve'],
+    [['supabase', 'functions', 'serve', '--env-file', '.env'], 'serve'],
+    [['supabase', 'functions', 'serve', 'nightly-digest'], 'serve'],
+    [['supabase', 'functions', 'deploy', 'nightly-digest'], 'deploy'],
+    [['supabase', 'functions'], undefined],
+    [['supabase', 'functions', '--debug'], undefined],
+    [['supabase', 'start'], undefined],
+    [['supabase', 'stack', 'destroy', '--stack', 'x'], undefined],
+    [['supabase', 'stack', 'start', 'extra'], 'extra'],
+    [['supabase'], undefined],
+  ])('%j -> %s', (argv, subcommand) => {
+    expect(invocationSubcommand(inv(argv))).toBe(subcommand);
+  });
+
+  it.each([
+    'npx --yes supabase@2.120.0 functions serve --no-verify-jwt',
+    'bunx supabase functions serve',
+    'timeout 30 supabase --workdir app functions serve',
+    'SUPABASE_HOME=/tmp/sb supabase functions serve',
+  ])('reads the subcommand of the normalised invocation of %s', (command) => {
+    const [found] = findSupabaseInvocations([command]);
+
+    expect(found).toBeDefined();
+    expect(invocationVerb(found)).toBe('functions');
+    expect(invocationSubcommand(found)).toBe('serve');
   });
 });
 
