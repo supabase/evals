@@ -141,6 +141,17 @@ describe('checkLinkedToProject', () => {
     expect(check.notes).toContain(OTHER_REF);
   });
 
+  it('passes a hand-written ref with no trailing newline', async () => {
+    const { ctx } = fakeExec([readLinkRoute(commandResult(HOSTED_REF))]);
+
+    const link = await readWorkspaceLink(ctx);
+
+    expect(checkLinkedToProject(HOSTED_OK, link)).toMatchObject({
+      name: LINK_CHECK_NAME,
+      passed: true,
+    });
+  });
+
   it('fails a ref that only extends the hosted ref', () => {
     const check = checkLinkedToProject(HOSTED_OK, {
       ok: true,

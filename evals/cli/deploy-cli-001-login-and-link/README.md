@@ -107,14 +107,15 @@ channels unless noted.
 - `projects list` needs only a token, which is how the agent finds the ref.
 
 No CLI gap blocks the journey. The eval is red only for want of a hosted
-project.
+project, and a green run also needs the second precondition in "What turns it
+green": a hosted mode that doesn't pre-link the workspace.
 
 ## The checks
 
 | check | what it proves | how it's measured |
 | --- | --- | --- |
 | `a hosted project is available to link` | the run had a project to link | `ctx.hostedRef` and `ctx.hostedMgmt` are both set. Otherwise it fails, and the notes name CLI-2754 and say there is no hosted project in CI until the staging org lands |
-| `the repo is linked to our project` | the agent's link points this repo at the hosted project | `supabase/.temp/project-ref`, trimmed, equals the hosted ref. A missing file, an empty one, another ref, or no hosted project to compare against fails, and the notes say what the file holds. `link <ref>`, `link --project-ref`, with or without a prior `login`, and a ref found through `projects list` all pass |
+| `the repo is linked to our project` | the agent's link points this repo at the hosted project | `supabase/.temp/project-ref`, trimmed, equals the hosted ref. A missing file, an empty one, another ref, or no hosted project to compare against fails, and the notes say what the file holds. `link <ref>`, `link --project-ref`, with or without a prior `login`, and a ref found through `projects list` all pass. So does a ref written into `supabase/.temp/project-ref` by hand, without running `link`, because every CLI command resolves the ref the same way |
 | `linked CLI commands work from the repo without prompting` | a later CLI command in this repo is authenticated and linked, with no prompt | the probe command exits 0 with a hosted project available. It passes for a repo linked to any project the token can reach; the previous check pins which one. No token, no link, a ref the token can't reach, a timeout (exit 124, noted as one) or no hosted project fails, and the notes carry the probe output. A token only in the environment and a persisted login both pass |
 | `no access token written into the repo` | the token stays out of project files | a token-shaped string (`sbp_`, optional `oauth_` or `v0_`, 40 hex characters) in no file outside `.env`, `.env.local` and `.env.*.local`. A token in `config.toml`, a script, `package.json`, `.env.example` or `.env.production` fails |
 | `no container-runtime detours` | no Docker or runtime workarounds for a task that needs none | the shared detour judge from `../lib/detours.ts` over executed commands only. Supabase CLI commands and reading environment variables are not detours. With no commands it passes without a judge call |
@@ -134,7 +135,8 @@ the first signal.
 
 The token search is `grep -rIlE` for `sbp_(oauth_|v0_)?[a-f0-9]{40}` over the
 workspace, skipping `.git`, `node_modules` and files named `.env`, `.env.local`
-or `.env.*.local` (the gitignored homes for the token; committed files such as
+or `.env.*.local` (allowed by name: the seeded root `.gitignore` ignores them,
+but the check doesn't verify the file still does; committed files such as
 `.env.example` and `.env.production` are searched). A positive control, `test -f
 supabase/config.toml`, runs first: a workspace without the seed fails the check
 instead of reading as a clean search. grep exit 1 means no token, exit 0 lists
@@ -217,3 +219,8 @@ Two things, both outside this eval:
   in a shell rc file in `HOME`), isn't seen.
 - The probe uses `secrets list` as the linked command, so it depends on that
   endpoint.
+- The link check reads the project-ref file, so a hand-written ref passes it and
+  the probe. `link` also caches the pooler URL and service versions that
+  database commands like `db push` read, and the probe exercises a Management
+  API command (`secrets list`), so whether database commands work from the repo
+  isn't measured.

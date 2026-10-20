@@ -125,6 +125,21 @@ describe('login-and-link scorer', () => {
     expect(judge).toHaveBeenCalledTimes(2);
   });
 
+  it('passes the link and CLI checks for a project-ref written by hand without running link', async () => {
+    const { ctx } = fakeCtx({
+      routes: [readLinkRoute(commandResult(HOSTED_REF))],
+      toolCalls: [
+        shellCall('supabase projects list -o json'),
+        shellCall(`printf ${HOSTED_REF} > supabase/.temp/project-ref`),
+      ],
+    });
+
+    const result = await scorer(ctx);
+
+    expect(checkNamed(result, LINK_CHECK_NAME)?.passed).toBe(true);
+    expect(checkNamed(result, LINKED_CLI_CHECK_NAME)?.passed).toBe(true);
+  });
+
   it('fails the hosted, link and CLI checks without throwing when the run has no hosted project', async () => {
     const { ctx } = fakeCtx({
       hosted: false,
