@@ -11,17 +11,24 @@ import { extractCommandEntries } from '../lib/detours.js';
 import type { StackProbe } from '../lib/stack.js';
 import {
   analysisFixture,
+  CHAINED_TYPECHECK_GEN_TYPES_CALL,
   COMPOUND_GEN_TYPES_CALL,
+  CONNECT_LOCAL_DB,
   dockerRunToolCalls,
   failedCall,
+  GEN_TYPES_OUTPUT,
+  GENERATED_TYPES,
   MASKED_PIPE_GEN_TYPES_CALL,
   SILENT_FAILED_GEN_TYPES_CALL,
+  SILENT_FAILED_TYPECHECK_CALL,
   SUCCEEDED_GEN_TYPES_CALL,
+  TLS_FAILED_GEN_TYPES_CALL,
 } from './fixtures.js';
 import {
   checkMetrics,
   checkTypesRegenerated,
   countGenTypesRuns,
+  listSilentFailures,
   readCliFacts,
   readStackLifecycle,
   type GenTypesRuns,
@@ -259,7 +266,12 @@ describe('countGenTypesRuns succeeded runs', () => {
     expect(countCalls([SUCCEEDED_GEN_TYPES_CALL])).toMatchObject({
       runs: 1,
       failed: [],
-      succeeded: [SUCCEEDED_GEN_TYPES_CALL.command],
+      succeeded: [
+        {
+          command: SUCCEEDED_GEN_TYPES_CALL.command,
+          laterCommandFailed: false,
+        },
+      ],
     });
   });
 
@@ -267,7 +279,9 @@ describe('countGenTypesRuns succeeded runs', () => {
     expect(countCalls([COMPOUND_GEN_TYPES_CALL])).toMatchObject({
       runs: 1,
       failed: [],
-      succeeded: [COMPOUND_GEN_TYPES_CALL.command],
+      succeeded: [
+        { command: COMPOUND_GEN_TYPES_CALL.command, laterCommandFailed: false },
+      ],
     });
   });
 
@@ -311,8 +325,138 @@ describe('countGenTypesRuns succeeded runs', () => {
       ])
     ).toMatchObject({
       runs: 3,
-      succeeded: [SUCCEEDED_GEN_TYPES_CALL.command],
+      succeeded: [
+        {
+          command: SUCCEEDED_GEN_TYPES_CALL.command,
+          laterCommandFailed: false,
+        },
+      ],
     });
+  });
+});
+
+describe('countGenTypesRuns runs whose tool call errored after the CLI connected', () => {
+  it('counts a run whose later typecheck failed as succeeded and not failed', () => {
+    expect(countCalls([CHAINED_TYPECHECK_GEN_TYPES_CALL])).toEqual({
+      runs: 1,
+      sources: ['local'],
+      failed: [],
+      succeeded: [
+        {
+          command: CHAINED_TYPECHECK_GEN_TYPES_CALL.command,
+          laterCommandFailed: true,
+        },
+      ],
+    });
+  });
+
+  it('counts the unformatted-types notice printed to stderr as the generated types', () => {
+    const call = failedCall(
+      'supabase gen types typescript --local --schema public > src/database.types.ts && npm run typecheck',
+      `${GEN_TYPES_OUTPUT}\n> tsc --noEmit\n\nsh: 1: tsc: not found\n`
+    );
+
+    expect(countCalls([call])).toMatchObject({
+      failed: [],
+      succeeded: [{ command: call.command, laterCommandFailed: true }],
+    });
+  });
+
+  it('keeps a run that errored after only connecting as failed', () => {
+    expect(countCalls([TLS_FAILED_GEN_TYPES_CALL])).toEqual({
+      runs: 1,
+      sources: ['db-url'],
+      failed: [{ command: TLS_FAILED_GEN_TYPES_CALL.command, silent: false }],
+      succeeded: [],
+    });
+  });
+
+  it('does not count generated types printed before the connect line', () => {
+    const call = failedCall(
+      'cat src/database.types.ts && supabase gen types --local > /tmp/t.ts && npm run typecheck',
+      `${GENERATED_TYPES}${CONNECT_LOCAL_DB}`
+    );
+
+    expect(countCalls([call])).toMatchObject({
+      failed: [{ command: call.command, silent: false }],
+      succeeded: [],
+    });
+  });
+
+  it('does not count generated types in an output with no connect line', () => {
+    const call = failedCall(
+      'supabase gen types --local > /tmp/t.ts; head -150 src/database.types.ts && npm run typecheck',
+      GENERATED_TYPES
+    );
+
+    expect(countCalls([call])).toMatchObject({ failed: [{}], succeeded: [] });
+  });
+
+  it('does not count generated types after the connect line when the output holds a CLI error', () => {
+    const call = failedCall(
+      'supabase gen types --local --schema public > src/database.types.ts && head -150 src/database.types.ts && supabase db lint',
+      `${CONNECT_LOCAL_DB}${GENERATED_TYPES}{"_tag":"Error","error":{"code":"DbLintFailed"}}\n`
+    );
+
+    expect(countCalls([call])).toMatchObject({
+      failed: [{ command: call.command, silent: false }],
+      succeeded: [],
+    });
+  });
+});
+
+describe('listSilentFailures', () => {
+  const silentFailures = (toolCalls: ToolCallRecord[]) =>
+    listSilentFailures(
+      findSupabaseInvocations(extractCommandEntries(toolCalls)),
+      toolCalls
+    );
+
+  it('lists the command of a call recorded with an empty error', () => {
+    expect(silentFailures([SILENT_FAILED_TYPECHECK_CALL])).toEqual([
+      SILENT_FAILED_TYPECHECK_CALL.command,
+    ]);
+  });
+
+  it('lists each such call once, in order', () => {
+    const lint = { ...SILENT_FAILED_TYPECHECK_CALL, command: 'npm run lint' };
+
+    expect(silentFailures([SILENT_FAILED_TYPECHECK_CALL, lint, lint])).toEqual([
+      SILENT_FAILED_TYPECHECK_CALL.command,
+      'npm run lint',
+      'npm run lint',
+    ]);
+  });
+
+  it('ignores calls that succeeded or errored with output', () => {
+    expect(
+      silentFailures([
+        SUCCEEDED_GEN_TYPES_CALL,
+        failedCall('npm run typecheck', 'sh: 1: tsc: not found\n'),
+        shellCall('ls'),
+      ])
+    ).toEqual([]);
+  });
+
+  it('does not repeat a silent gen types failure', () => {
+    const compound = {
+      ...SILENT_FAILED_GEN_TYPES_CALL,
+      command: 'supabase gen types --local > /tmp/t.ts && npm run typecheck',
+    };
+
+    expect(
+      silentFailures([
+        SILENT_FAILED_GEN_TYPES_CALL,
+        compound,
+        SILENT_FAILED_TYPECHECK_CALL,
+      ])
+    ).toEqual([SILENT_FAILED_TYPECHECK_CALL.command]);
+  });
+
+  it('lists a silent failure that follows a gen types run in another call', () => {
+    expect(
+      silentFailures([SUCCEEDED_GEN_TYPES_CALL, SILENT_FAILED_TYPECHECK_CALL])
+    ).toEqual([SILENT_FAILED_TYPECHECK_CALL.command]);
   });
 });
 
@@ -344,6 +488,37 @@ describe('checkTypesRegenerated', () => {
 
     expect(check.passed).toBe(true);
     expect(check.notes).toContain(`\`${COMPOUND_GEN_TYPES_CALL.command}\``);
+  });
+
+  it('passes a run whose later command failed, saying it printed the types after connecting', () => {
+    const check = checkTypesRegenerated(
+      countCalls([CHAINED_TYPECHECK_GEN_TYPES_CALL])
+    );
+
+    expect(check).toEqual({
+      name: NAME,
+      passed: true,
+      notes: `\`${CHAINED_TYPECHECK_GEN_TYPES_CALL.command}\` printed the generated types after connecting, with no CLI error in its output; a later command in the same tool call exited non-zero`,
+    });
+  });
+
+  it('keeps the exited-zero notes for a run whose tool call exited zero', () => {
+    expect(
+      checkTypesRegenerated(countCalls([SUCCEEDED_GEN_TYPES_CALL])).notes
+    ).toBe(
+      `\`${SUCCEEDED_GEN_TYPES_CALL.command}\` exited zero with no CLI error in its output`
+    );
+  });
+
+  it('fails when the only run errored after connecting and printed nothing else', () => {
+    const check = checkTypesRegenerated(
+      countCalls([TLS_FAILED_GEN_TYPES_CALL])
+    );
+
+    expect(check.passed).toBe(false);
+    expect(check.notes).toContain(
+      `tool call errored: \`${TLS_FAILED_GEN_TYPES_CALL.command}\``
+    );
   });
 
   it('fails when the only run succeeded through a pipe while printing the CLI error', () => {

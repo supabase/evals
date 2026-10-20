@@ -362,6 +362,20 @@ export const SILENT_FAILED_GEN_TYPES_CALL: ToolCallRecord = {
   resultTs: 1792409985974,
 };
 
+const SILENT_FAILED_TYPECHECK_COMMAND = "/bin/bash -c 'npm run typecheck'";
+
+/** A non-gen-types call recorded with `error: ""` and no result. */
+export const SILENT_FAILED_TYPECHECK_CALL: ToolCallRecord = {
+  tool: { kind: 'other', toolName: 'command_execution' },
+  body: { command: SILENT_FAILED_TYPECHECK_COMMAND },
+  name: 'shell',
+  command: SILENT_FAILED_TYPECHECK_COMMAND,
+  cwd: '/tmp/sandbox-66679d15',
+  error: '',
+  ts: 1792425381015,
+  resultTs: 1792425381174,
+};
+
 export function failedCall(command: string, error: string): ToolCallRecord {
   const { result: _result, ...call } = codexCall(command, '');
   return { ...call, error };
@@ -396,6 +410,112 @@ export const COMPOUND_GEN_TYPES_CALL = codexCall(
 export const MASKED_PIPE_GEN_TYPES_CALL = codexCall(
   "ls -l /tmp/task-board-database.types.ts && supabase gen types --local --schema public 2>&1 | sed -n '1,80p'",
   '{"_tag":"Error","error":{"code":"ContainerRuntimeNotFoundError","message":"docker: command not found (podman also not found) \u2014 install Docker Desktop or Podman and ensure it is on PATH"}}\n'
+);
+
+/** The head of a types file `gen types` generated for the new schema. */
+export const GENERATED_TYPES = `export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
+
+export type Database = {
+  public: {
+    Tables: {
+      tasks: {
+        Row: {
+          due_on: string | null
+          id: number
+          inserted_at: string
+          status: Database["public"]["Enums"]["task_status"]
+          title: string
+        }
+        Insert: {
+          due_on?: string | null
+          id?: number
+          inserted_at?: string
+          status?: Database["public"]["Enums"]["task_status"]
+          title: string
+        }
+        Update: {
+          due_on?: string | null
+          id?: number
+          inserted_at?: string
+          status?: Database["public"]["Enums"]["task_status"]
+          title?: string
+        }
+        Relationships: []
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      [_ in never]: never
+    }
+    Enums: {
+      task_status: "todo" | "in_progress" | "done"
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
+}
+
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+`;
+
+export const CONNECT_LOCAL_DB = 'Connecting to db 5432\n';
+
+/** The error text of a call whose `gen types` succeeded and whose later `npm run typecheck` failed. */
+export const CHAINED_TYPECHECK_ERROR = `${CONNECT_LOCAL_DB}(node:1) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 error listeners added to [BoundPool]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+(Use \`node --trace-warnings ...\` to show where the warning was created)
+A new version of Supabase CLI is available: v2.121.0 (currently installed v2.117.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+${GENERATED_TYPES}
+--- old field references ---
+
+--- typecheck ---
+
+> typecheck
+> tsc --noEmit
+
+sh: 1: tsc: not found
+`;
+
+const CHAINED_COMMAND = String.raw`/bin/bash -lc "supabase gen types typescript --local --schema public > src/database.types.ts && head -150 src/database.types.ts && printf '\\n--- old field references ---\\n' && rg -n \"is_complete\" src || true && printf '\\n--- typecheck ---\\n' && npm run typecheck"`;
+
+/** A `gen types` that wrote the new types, in a call that errored because the `npm run typecheck` after it could not find `tsc`. */
+export const CHAINED_TYPECHECK_GEN_TYPES_CALL: ToolCallRecord = {
+  ...failedCall('', CHAINED_TYPECHECK_ERROR),
+  command: CHAINED_COMMAND,
+  body: { command: CHAINED_COMMAND },
+};
+
+/** A `gen types --db-url` whose TLS failure went into the redirected file, leaving only the connect line in the errored call's output. */
+export const TLS_FAILED_GEN_TYPES_CALL = failedCall(
+  `set -euo pipefail
+for migration in supabase/migrations/*.sql; do
+  echo "Applying $migration"
+  PGPASSWORD=typegen-only psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -p "$port" -U postgres -d postgres -f "$migration"
+done
+supabase gen types typescript --db-url "postgresql://postgres:typegen-only@127.0.0.1:$port/postgres" --schema public > /tmp/task-board.database.types.ts`,
+  `Status: Downloaded newer image for postgres:17
+127.0.0.1:32768 - accepting connections
+Applying supabase/migrations/20260101000000_create_tasks.sql
+CREATE TABLE
+Applying supabase/migrations/20260315000000_task_status.sql
+CREATE TYPE
+ALTER TABLE
+UPDATE 0
+ALTER TABLE
+ALTER TABLE
+Connecting to 127.0.0.1 32768
+`
 );
 
 export const THROWAWAY_DB_URL =

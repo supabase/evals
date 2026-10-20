@@ -7,14 +7,17 @@ import type { StackProbe } from '../lib/stack.js';
 import {
   APPLY_CREATE_TASKS,
   APPLY_TASK_STATUS,
+  CHAINED_TYPECHECK_ERROR,
   codexCall,
   dbUrlGenTypesCall,
   DOCKER_START_OUTPUT,
   dockerRunToolCalls,
+  failedCall,
   GEN_TYPES_OUTPUT,
   SUCCEEDED_GEN_TYPES_CALL,
   THROWAWAY_DB_URL,
   throwawayDbToolCalls,
+  TLS_FAILED_GEN_TYPES_CALL,
 } from './fixtures.js';
 import {
   checkMigrationApplied,
@@ -505,6 +508,24 @@ describe('readMigrationEvidence', () => {
       expect(evidenceOf([failedAttempt, secondFailedAttempt])).toBeUndefined();
     });
 
+    it('is evidence when the call errored on a later command after printing the generated types', () => {
+      expect(
+        evidenceOf([
+          failedCall(
+            `supabase gen types typescript --db-url "${DB_URL}" --schema public > src/database.types.ts && head -150 src/database.types.ts && npm run typecheck`,
+            CHAINED_TYPECHECK_ERROR
+          ),
+        ])
+      ).toEqual({
+        command: `supabase gen types typescript --db-url ${DB_URL} --schema public`,
+        via: 'gen-types-db-url',
+      });
+    });
+
+    it('is not evidence when the call errored after only connecting', () => {
+      expect(evidenceOf([TLS_FAILED_GEN_TYPES_CALL])).toBeUndefined();
+    });
+
     it('is not evidence when its output holds the CLI error', () => {
       expect(
         evidenceOf([
@@ -563,8 +584,8 @@ describe('readMigrationEvidence', () => {
     });
 
     it.each([
-      'postgresql://postgres:postgres@db.abcdefghijklmnop.supabase.co:5432/postgres',
-      'postgresql://postgres.abcdefghijklmnop:pw@aws-0-eu-west-1.pooler.supabase.com:6543/postgres',
+      'postgresql://postgres@db.abcdefghijklmnop.supabase.co:5432/postgres',
+      'postgresql://postgres.abcdefghijklmnop@aws-0-eu-west-1.pooler.supabase.com:6543/postgres',
       'postgresql://postgres:postgres@10.0.0.5:5432/postgres',
       'postgresql://postgres:postgres@localhost.example.com:5432/postgres',
       'postgresql://postgres:postgres@127.0.0.1.example.com:5432/postgres',

@@ -41,16 +41,16 @@ function describeGenTypes({
   return [
     `- direct \`supabase gen types\` invocations: ${runs}${sources.length === 0 ? '' : ` (sources: ${sources.join(', ')})`}; runs through package scripts are not counted`,
     ...(runs > 0 && failed.length === 0
-      ? ['  none of their tool calls exited non-zero']
+      ? ['  failed: none']
       : failed.map(
           ({ command, silent }) =>
-            `  exited non-zero: \`${command}\`${silent ? ' (no output captured; a redirect may have sent the error into the file)' : ''}`
+            `  failed (tool call exited non-zero): \`${command}\`${silent ? ' (no output captured; a redirect may have sent the error into the file)' : ''}`
         )),
     ...(succeeded.length === 0
       ? ['  succeeded: none']
       : succeeded.map(
-          (command) =>
-            `  succeeded (tool call exited zero with no CLI error in its output): \`${command}\``
+          ({ command }) =>
+            `  succeeded (no CLI error in its tool call's output; the call exited zero, or printed the generated types after gen types connected and a later command failed): \`${command}\``
         )),
   ];
 }
@@ -109,10 +109,20 @@ export function describeGroundTruth(facts: {
   schema: SchemaProbe;
   analysis: ProjectAnalysis;
   genTypes: GenTypesRuns;
+  silentFailures: readonly string[];
   cli: CliFacts;
   evidence?: MigrationEvidence;
 }): string[] {
-  const { stack, lifecycle, schema, analysis, genTypes, cli, evidence } = facts;
+  const {
+    stack,
+    lifecycle,
+    schema,
+    analysis,
+    genTypes,
+    silentFailures,
+    cli,
+    evidence,
+  } = facts;
   return [
     ...describeProbeCli(cli),
     `- local stack: ${describeStack(stack)}`,
@@ -120,5 +130,11 @@ export function describeGroundTruth(facts: {
     ...describeSchema(schema, evidence),
     ...describeAnalysis(analysis),
     ...describeGenTypes(genTypes),
+    ...(silentFailures.length === 0
+      ? []
+      : [
+          '- other tool calls that exited non-zero with no output captured:',
+          ...silentFailures.map((command) => `  \`${command}\``),
+        ]),
   ];
 }

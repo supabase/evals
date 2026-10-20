@@ -24,8 +24,10 @@ import {
   regeneratedWorkspace,
   removeWorkspaces,
   SILENT_FAILED_GEN_TYPES_CALL,
+  SILENT_FAILED_TYPECHECK_CALL,
   STALE_QUERIES_IN_DECLARER,
   STALE_TASKS,
+  SUCCEEDED_GEN_TYPES_CALL,
   TASKS_IMPLEMENTED_OUTSIDE_SRC,
   withoutFunction,
 } from './fixtures.js';
@@ -784,7 +786,7 @@ describe('failed gen types runs', () => {
     const result = await scorer(ctx);
 
     expect(reportInput(judge)).toContain(
-      `exited non-zero: \`${SILENT_FAILED_GEN_TYPES_CALL.command}\` (no output captured; a redirect may have sent the error into the file)`
+      `failed (tool call exited non-zero): \`${SILENT_FAILED_GEN_TYPES_CALL.command}\` (no output captured; a redirect may have sent the error into the file)`
     );
     expect(JSON.parse(checkNamed(result, METRICS)?.notes ?? '')).toMatchObject({
       genTypesRuns: 1,
@@ -793,20 +795,36 @@ describe('failed gen types runs', () => {
     });
   });
 
-  it('tells the report judge no gen types call exited non-zero when none did', async () => {
+  it('tells the report judge no gen types run failed when none did', async () => {
     const { ctx, judge } = fakeCtx({ workspace: WORKSPACES.fixed });
     const result = await scorer(ctx);
 
+    expect(reportInput(judge)).toContain('  failed: none');
     expect(reportInput(judge)).toContain(
-      'none of their tool calls exited non-zero'
-    );
-    expect(reportInput(judge)).toContain(
-      `succeeded (tool call exited zero with no CLI error in its output): \`${GEN_TYPES_COMMAND}\``
+      `succeeded (no CLI error in its tool call's output; the call exited zero, or printed the generated types after gen types connected and a later command failed): \`${GEN_TYPES_COMMAND}\``
     );
     expect(JSON.parse(checkNamed(result, METRICS)?.notes ?? '')).toMatchObject({
       genTypesFailedRuns: 0,
       genTypesSucceededRuns: 1,
     });
+  });
+});
+
+describe('silent tool call failures', () => {
+  it('tells the report judge a call that failed with no output captured', async () => {
+    const { ctx, judge } = fakeCtx({
+      workspace: WORKSPACES.fixed,
+      toolCalls: [SUCCEEDED_GEN_TYPES_CALL, SILENT_FAILED_TYPECHECK_CALL],
+    });
+    await scorer(ctx);
+    const input =
+      judge.mock.calls
+        .map(([args]) => args)
+        .find((args) => judgeKind(args) === 'report')?.input ?? '';
+
+    expect(input).toContain(
+      `- other tool calls that exited non-zero with no output captured:\n  \`${SILENT_FAILED_TYPECHECK_CALL.command}\``
+    );
   });
 });
 

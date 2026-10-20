@@ -23,7 +23,7 @@ export const OUTPUT_FAILURE =
   /"_tag"\s*:\s*"Error"|\berror:|error running container|Try rerunning the command with --debug/i;
 
 /** Whether the tool call exited zero and its output holds no CLI error. */
-export function toolCallSucceeded(call: ToolCallRecord | undefined): boolean {
+function toolCallSucceeded(call: ToolCallRecord | undefined): boolean {
   return (
     call?.error === undefined &&
     typeof call?.result === 'string' &&
@@ -31,13 +31,36 @@ export function toolCallSucceeded(call: ToolCallRecord | undefined): boolean {
   );
 }
 
+const CONNECT_LINE = /^Connecting to /m;
+const GENERATED_TYPES =
+  /Generated TypeScript is unformatted|export type Database/;
+
+function printedTypesAfterConnecting(error: string): boolean {
+  const connected = error.search(CONNECT_LINE);
+  return (
+    connected !== -1 &&
+    !OUTPUT_FAILURE.test(error) &&
+    GENERATED_TYPES.test(error.slice(connected))
+  );
+}
+
+/** Whether a gen types run succeeded: its tool call exited zero, or errored on a later command after the output shows the generated types. */
+export function genTypesRunSucceeded(
+  call: ToolCallRecord | undefined
+): boolean {
+  return (
+    toolCallSucceeded(call) ||
+    (typeof call?.error === 'string' && printedTypesAfterConnecting(call.error))
+  );
+}
+
 export type GenTypesRuns = {
   runs: number;
   sources: string[];
-  /** Runs whose tool call errored; `silent` means the error text was empty. */
+  /** Runs whose tool call errored without showing the generated types; `silent` means the error text was empty. */
   failed: Array<{ command: string; silent: boolean }>;
-  /** Commands of the runs whose tool call exited zero with no CLI error in its output. */
-  succeeded: string[];
+  /** Runs that succeeded; `laterCommandFailed` means the tool call errored on a command after gen types. */
+  succeeded: Array<{ command: string; laterCommandFailed: boolean }>;
 };
 
 const GEN_TYPES_SOURCE_FLAGS = [
@@ -88,22 +111,44 @@ export function countGenTypesRuns(
     runs: runs.length,
     sources: [...new Set(runs.map(genTypesSource))],
     failed: runs.flatMap(({ commandIndex }) => {
-      const error = records[commandIndex]?.error;
-      return error === undefined
+      const call = records[commandIndex];
+      return call?.error === undefined || genTypesRunSucceeded(call)
         ? []
         : [
             {
               command: entries[commandIndex]?.command ?? '',
-              silent: error === '',
+              silent: call.error === '',
             },
           ];
     }),
-    succeeded: runs.flatMap(({ commandIndex }) =>
-      toolCallSucceeded(records[commandIndex])
-        ? [entries[commandIndex]?.command ?? '']
-        : []
-    ),
+    succeeded: runs.flatMap(({ commandIndex }) => {
+      const call = records[commandIndex];
+      return genTypesRunSucceeded(call)
+        ? [
+            {
+              command: entries[commandIndex]?.command ?? '',
+              laterCommandFailed: call?.error !== undefined,
+            },
+          ]
+        : [];
+    }),
   };
+}
+
+/** Commands of the tool calls recorded with an empty error, which the transcript shows as no output, leaving out the gen types runs `countGenTypesRuns` already lists. */
+export function listSilentFailures(
+  invocations: readonly SupabaseInvocation[],
+  toolCalls: readonly ToolCallRecord[]
+): string[] {
+  const genTypesCalls = new Set(
+    invocations.filter(isGenTypes).map(({ commandIndex }) => commandIndex)
+  );
+  const entries = extractCommandEntries(toolCalls);
+  return commandToolCalls(toolCalls).flatMap((call, index) =>
+    call.error === '' && !genTypesCalls.has(index)
+      ? [entries[index]?.command ?? '']
+      : []
+  );
 }
 
 export function checkTypesRegenerated({
@@ -117,7 +162,9 @@ export function checkTypesRegenerated({
     return {
       name,
       passed: true,
-      notes: `\`${last}\` exited zero with no CLI error in its output`,
+      notes: last.laterCommandFailed
+        ? `\`${last.command}\` printed the generated types after connecting, with no CLI error in its output; a later command in the same tool call exited non-zero`
+        : `\`${last.command}\` exited zero with no CLI error in its output`,
     };
   }
   if (runs === 0) {

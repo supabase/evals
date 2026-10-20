@@ -12,10 +12,10 @@ import { commandToolCalls } from '../lib/detours.js';
 import { describeFailure, errorMessage, shellQuote } from '../lib/shell.js';
 import type { StackProbe } from '../lib/stack.js';
 import {
+  genTypesRunSucceeded,
   isGenTypes,
   OUTPUT_FAILURE,
   subcommand,
-  toolCallSucceeded,
   type StackLifecycle,
 } from './metrics.js';
 
@@ -178,7 +178,7 @@ export function readMigrationEvidence(
         isGenTypes(invocation) &&
         url !== undefined &&
         isLocalDbUrl(url) &&
-        toolCallSucceeded(call)
+        genTypesRunSucceeded(call)
       );
     })
   );

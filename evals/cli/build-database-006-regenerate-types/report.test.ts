@@ -1,8 +1,22 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/build-database-006-regenerate-types
+import type { ToolCallRecord } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
 import type { StackProbe } from '../lib/stack.js';
-import { analysisFixture, SILENT_FAILED_GEN_TYPES_CALL } from './fixtures.js';
-import type { CliFacts, GenTypesRuns, StackLifecycle } from './metrics.js';
+import { findSupabaseInvocations } from '../lib/cli-invocations.js';
+import { extractCommandEntries } from '../lib/detours.js';
+import {
+  analysisFixture,
+  CHAINED_TYPECHECK_GEN_TYPES_CALL,
+  SILENT_FAILED_GEN_TYPES_CALL,
+  SILENT_FAILED_TYPECHECK_CALL,
+} from './fixtures.js';
+import {
+  countGenTypesRuns,
+  listSilentFailures,
+  type CliFacts,
+  type GenTypesRuns,
+  type StackLifecycle,
+} from './metrics.js';
 import { describeGroundTruth } from './report.js';
 import type { SchemaProbe } from './schema.js';
 
@@ -37,6 +51,9 @@ const NO_LIFECYCLE: StackLifecycle = {
   stoppedByAgent: false,
 };
 
+const SUCCEEDED_WORDING =
+  "no CLI error in its tool call's output; the call exited zero, or printed the generated types after gen types connected and a later command failed";
+
 type Facts = Parameters<typeof describeGroundTruth>[0];
 
 const FACTS: Facts = {
@@ -45,6 +62,7 @@ const FACTS: Facts = {
   schema: MIGRATED,
   analysis: analysisFixture(),
   genTypes: NO_RUNS,
+  silentFailures: [],
   cli: CLI,
 };
 
@@ -420,7 +438,7 @@ describe('describeGroundTruth', () => {
       expect(line).not.toContain('exit status is not tracked');
     });
 
-    it('says none of the runs exited non-zero when none failed', () => {
+    it('says none of the runs failed when none did', () => {
       const line = lineFor(
         describe_({
           genTypes: { runs: 2, sources: ['local'], failed: [], succeeded: [] },
@@ -428,11 +446,11 @@ describe('describeGroundTruth', () => {
         /gen types/i
       );
 
-      expect(line).toContain('none of their tool calls exited non-zero');
-      expect(line).not.toContain('exited non-zero:');
+      expect(line).toContain('  failed: none');
+      expect(line).not.toContain('failed (tool call');
     });
 
-    it('says nothing about exit status when there were no runs', () => {
+    it('says nothing about failures when there were no runs', () => {
       const line = lineFor(
         describe_({
           genTypes: { runs: 0, sources: [], failed: [], succeeded: [] },
@@ -440,7 +458,7 @@ describe('describeGroundTruth', () => {
         /gen types/i
       );
 
-      expect(line).not.toContain('none of their tool calls');
+      expect(line).not.toContain('failed: none');
     });
 
     it('names a silent failure with its command and says no output was captured', () => {
@@ -458,9 +476,9 @@ describe('describeGroundTruth', () => {
       );
 
       expect(line).toContain(
-        `  exited non-zero: \`${command}\` (no output captured; a redirect may have sent the error into the file)`
+        `  failed (tool call exited non-zero): \`${command}\` (no output captured; a redirect may have sent the error into the file)`
       );
-      expect(line).not.toContain('none of their tool calls');
+      expect(line).not.toContain('failed: none');
     });
 
     it('names a failure that had output by its command alone', () => {
@@ -476,7 +494,9 @@ describe('describeGroundTruth', () => {
         /gen types/i
       );
 
-      expect(line).toContain('  exited non-zero: `supabase gen types --local`');
+      expect(line).toContain(
+        '  failed (tool call exited non-zero): `supabase gen types --local`'
+      );
       expect(line).not.toContain('no output captured');
     });
 
@@ -493,12 +513,10 @@ describe('describeGroundTruth', () => {
         },
       });
 
-      expect(lines.filter((line) => line.includes('exited non-zero:'))).toEqual(
-        [
-          '  exited non-zero: `first` (no output captured; a redirect may have sent the error into the file)',
-          '  exited non-zero: `second`',
-        ]
-      );
+      expect(lines.filter((line) => line.includes('failed ('))).toEqual([
+        '  failed (tool call exited non-zero): `first` (no output captured; a redirect may have sent the error into the file)',
+        '  failed (tool call exited non-zero): `second`',
+      ]);
     });
 
     it('names each run that succeeded on its own indented line', () => {
@@ -507,18 +525,34 @@ describe('describeGroundTruth', () => {
           runs: 3,
           sources: ['local'],
           failed: [{ command: 'first', silent: true }],
-          succeeded: ['second', 'third'],
+          succeeded: [
+            { command: 'second', laterCommandFailed: false },
+            { command: 'third', laterCommandFailed: true },
+          ],
         },
       });
 
-      expect(
-        lines.filter((line) =>
-          line.includes('succeeded (tool call exited zero')
-        )
-      ).toEqual([
-        '  succeeded (tool call exited zero with no CLI error in its output): `second`',
-        '  succeeded (tool call exited zero with no CLI error in its output): `third`',
+      expect(lines.filter((line) => line.includes('succeeded ('))).toEqual([
+        `  succeeded (${SUCCEEDED_WORDING}): \`second\``,
+        `  succeeded (${SUCCEEDED_WORDING}): \`third\``,
       ]);
+    });
+
+    it('lists a run whose later command failed under succeeded and says no run failed', () => {
+      const toolCalls = [CHAINED_TYPECHECK_GEN_TYPES_CALL];
+      const lines = describe_({
+        genTypes: countGenTypesRuns(
+          findSupabaseInvocations(extractCommandEntries(toolCalls)),
+          toolCalls
+        ),
+      });
+      const { command = '' } = CHAINED_TYPECHECK_GEN_TYPES_CALL;
+
+      expect(lines).toContain(
+        `  succeeded (${SUCCEEDED_WORDING}): \`${command}\``
+      );
+      expect(lines).toContain('  failed: none');
+      expect(lines.join('\n')).not.toContain('failed (tool call');
     });
 
     it('says none succeeded when every run failed or printed a CLI error', () => {
@@ -535,7 +569,62 @@ describe('describeGroundTruth', () => {
       );
 
       expect(line).toContain('  succeeded: none');
-      expect(line).not.toContain('succeeded (tool call');
+      expect(line).not.toContain('succeeded (');
+    });
+  });
+
+  describe('tool calls that failed with no output captured', () => {
+    const OTHER_CALLS = /other tool calls that exited non-zero/;
+    const factsFor = (toolCalls: ToolCallRecord[]) => {
+      const invocations = findSupabaseInvocations(
+        extractCommandEntries(toolCalls)
+      );
+      return {
+        genTypes: countGenTypesRuns(invocations, toolCalls),
+        silentFailures: listSilentFailures(invocations, toolCalls),
+      };
+    };
+
+    it('lists a silent failure that is not a gen types run', () => {
+      const { command = '' } = SILENT_FAILED_TYPECHECK_CALL;
+
+      expect(
+        lineFor(
+          describe_(factsFor([SILENT_FAILED_TYPECHECK_CALL])),
+          OTHER_CALLS
+        )
+      ).toBe(
+        `- other tool calls that exited non-zero with no output captured:\n  \`${command}\``
+      );
+    });
+
+    it('leaves the line out when no call failed silently', () => {
+      expect(
+        describe_(factsFor([CHAINED_TYPECHECK_GEN_TYPES_CALL])).some((line) =>
+          OTHER_CALLS.test(line)
+        )
+      ).toBe(false);
+    });
+
+    it('does not repeat a silent gen types failure on it', () => {
+      const lines = describe_(
+        factsFor([SILENT_FAILED_GEN_TYPES_CALL, SILENT_FAILED_TYPECHECK_CALL])
+      );
+      const { command: genTypes = '' } = SILENT_FAILED_GEN_TYPES_CALL;
+      const { command: typecheck = '' } = SILENT_FAILED_TYPECHECK_CALL;
+
+      expect(lineFor(lines, OTHER_CALLS)).toBe(
+        `- other tool calls that exited non-zero with no output captured:\n  \`${typecheck}\``
+      );
+      expect(lines.filter((line) => line.includes(genTypes))).toHaveLength(1);
+    });
+
+    it('lists each silent failure on its own indented line', () => {
+      expect(
+        lineFor(describe_({ silentFailures: ['first', 'second'] }), OTHER_CALLS)
+      ).toBe(
+        '- other tool calls that exited non-zero with no output captured:\n  `first`\n  `second`'
+      );
     });
   });
 
