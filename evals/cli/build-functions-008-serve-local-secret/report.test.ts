@@ -35,6 +35,7 @@ const attempt = (
 
 const PROBE: FunctionProbe = {
   url: `${API_URL}/functions/v1/${FUNCTION_NAME}`,
+  harnessServe: false,
   live: [attempt('none', 200, '{"queued":true}')],
   replay: NOT_RUN,
   accepted: {
@@ -81,6 +82,7 @@ const lineFor = (lines: string[], pattern: RegExp) => {
 
 const REPLAYED: FunctionProbe = {
   url: PROBE.url,
+  harnessServe: false,
   live: [
     attempt('none', 401, 'Invalid JWT'),
     attempt('anon', 401, 'Invalid JWT'),
@@ -90,6 +92,7 @@ const REPLAYED: FunctionProbe = {
     command: 'supabase functions serve --env-file .env',
     attempts: [attempt('none', 401, 'bad'), attempt('publishable', 200, 'ok')],
     log: 'Serving functions',
+    stoppedServers: 0,
   },
   accepted: {
     servedBy: 'replay',
@@ -102,12 +105,14 @@ const REPLAYED: FunctionProbe = {
 
 const REJECTED: FunctionProbe = {
   url: PROBE.url,
+  harnessServe: false,
   live: [attempt('none', 401), attempt('publishable', 404)],
   replay: NOT_RUN,
 };
 
 const NO_STACK_PROBE: FunctionProbe = {
   stackNotes: 'The local stack is not running.',
+  harnessServe: false,
   live: [],
   replay: { ran: false, reason: 'no local stack to serve the function' },
 };
@@ -193,6 +198,24 @@ describe('describeGroundTruth', () => {
       const line = lineFor(describe_(), /serve invocations/i);
 
       expect(mentionsNumber(line, 0)).toBe(true);
+    });
+  });
+
+  describe('harness serve', () => {
+    it('says the harness restarted the edge runtime with a plain serve, without --env-file', () => {
+      const line = lineFor(
+        describe_({ probe: { ...PROBE, harnessServe: true } }),
+        /harness/i
+      );
+
+      expect(line).toMatch(/^- the harness restarted the edge runtime/);
+      expect(line).toContain('`supabase functions serve`');
+      expect(line).toContain('no `--env-file`');
+      expect(line).toMatch(/before probing/);
+    });
+
+    it('says nothing about the harness when it started no serve', () => {
+      expect(describe_().join('\n')).not.toMatch(/harness/i);
     });
   });
 
@@ -370,12 +393,14 @@ describe('describeGroundTruth', () => {
       const text = describe_({
         probe: {
           url: PROBE.url,
+          harnessServe: true,
           live: [attempt('none', 401, echo)],
           replay: {
             ran: true,
             command: `DIGEST_SECRET=${DIGEST_SECRET} supabase functions serve`,
             attempts: [attempt('none', 200, echo)],
             log: `loaded DIGEST_SECRET=${DIGEST_SECRET}`,
+            stoppedServers: 0,
           },
           accepted: {
             servedBy: 'replay',

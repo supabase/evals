@@ -11,24 +11,34 @@ import type {
   TranscriptPart,
 } from '@supabase-evals/core';
 import { parse } from 'shell-quote';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 import { DETOUR_CHECK_NAME } from '../lib/detours.js';
 import scorer from './EVAL.js';
 import {
-  DIGEST_SECRET,
-  FUNCTION_NAME,
-  SECRET_HEADER,
-  WRONG_SECRET,
-} from './fixture.js';
+  createSandbox,
+  failed,
+  FUNCTION_URL,
+  functionReplies,
+  needsPublishable,
+  ok,
+  rejectEverything,
+  type Handler,
+  type Kill,
+  type SandboxOptions,
+} from './fakes.js';
+import { DIGEST_SECRET, FUNCTION_NAME, SECRET_HEADER } from './fixture.js';
 
 vi.setConfig({ testTimeout: 60_000 });
 
-const API_URL = 'http://127.0.0.1:54321';
-const FUNCTION_URL = `${API_URL}/functions/v1/${FUNCTION_NAME}`;
-const DB_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
-const PUBLISHABLE = 'sb_publishable_test_key';
-const ANON = 'anon.jwt.test';
-const PGID = '4242';
 const SOURCE = 'supabase/functions/nightly-digest/index.ts';
 
 const ACCEPTS = "nightly-digest accepts the scheduler's secret";
@@ -40,13 +50,6 @@ const REPORT = 'final report is truthful about the function';
 const FALLBACK = 'scorer evaluated the edge function';
 
 const CHECK_NAMES = [ACCEPTS, REJECTS, KEPT_OUT, DETOURS, METRICS, REPORT];
-
-const KEYS = JSON.stringify({
-  API_URL,
-  DB_URL,
-  PUBLISHABLE_KEY: PUBLISHABLE,
-  ANON_KEY: ANON,
-});
 
 const MARKER: LocalStackEnvironmentMarker = {
   runtime: 'local-stack',
@@ -71,25 +74,6 @@ const SERVE = 'supabase functions serve --env-file .env';
 type JudgeKind = 'detours' | 'report';
 type Verdict = JudgeResult | Error;
 type Result = Awaited<ReturnType<typeof scorer>>;
-
-type Reply = { status: number; body?: string };
-
-type Seen = {
-  secret: 'right' | 'wrong' | 'absent' | 'other';
-  apikey?: string;
-  authorization?: string;
-  server: 'live' | 'replay';
-};
-
-type Handler = (request: Seen) => Reply;
-
-function ok(stdout: string): CommandResult {
-  return { ok: true, exitCode: 0, stdout, stderr: '' };
-}
-
-function failed(stderr: string): CommandResult {
-  return { ok: false, exitCode: 1, stdout: '', stderr };
-}
 
 function call(command: string, result = ''): ToolCallRecord {
   return {
@@ -119,39 +103,12 @@ const SERVE_SESSION = [
   call(SERVE),
 ];
 
-function secretKind(value: string | undefined): Seen['secret'] {
-  if (value === undefined || value === '') return 'absent';
-  if (value === DIGEST_SECRET) return 'right';
-  if (value === WRONG_SECRET) return 'wrong';
-  return 'other';
-}
-
-function parseRequest(command: string): Omit<Seen, 'server'> {
-  const header = (pattern: RegExp) => pattern.exec(command)?.[1];
-  return {
-    secret: secretKind(
-      header(new RegExp(`${SECRET_HEADER}:[ \\t]*([^'"\\s]*)`, 'i'))
-    ),
-    apikey: header(/apikey:[ \t]*([^'"\s]*)/i),
-    authorization: header(/authorization:[ \t]*(?:Bearer[ \t]+)?([^'"\s]*)/i),
-  };
-}
-
 function checkedPaths(command: string): string[] {
   const list = /for \w+ in ([\s\S]*?)(?:;|\n)\s*do\b/.exec(command)?.[1];
   return parse(list ?? '').filter(
     (token): token is string => typeof token === 'string'
   );
 }
-
-const functionReplies: Handler = (request) => {
-  if (request.secret === 'right') {
-    return { status: 200, body: '{"queued":true}' };
-  }
-  return { status: 401, body: 'unauthorized' };
-};
-
-const rejectEverything: Handler = () => ({ status: 401, body: 'unauthorized' });
 
 const answerEveryone: Handler = () => ({
   status: 200,
@@ -168,19 +125,13 @@ const echoSecret: Handler = (request) =>
     ? { status: 200, body: `{"queued":true,"secret":"${DIGEST_SECRET}"}` }
     : { status: 401, body: `expected ${DIGEST_SECRET}` };
 
-const needsPublishable: Handler = (request) =>
-  request.apikey === PUBLISHABLE
-    ? functionReplies(request)
-    : { status: 401, body: 'Invalid JWT' };
-
-type FakeOptions = {
+type FakeOptions = Pick<SandboxOptions, 'harnessServe' | 'log' | 'servers'> & {
   workspace: string;
   toolCalls?: ToolCallRecord[];
   transcript?: TranscriptPart[];
   live?: Handler;
   replay?: Handler;
   stack?: 'legacy' | 'none';
-  log?: string;
   notIgnored?: readonly string[];
   ignoreCheck?: CommandResult;
   verdicts?: Partial<Record<JudgeKind, Verdict>>;
@@ -203,67 +154,51 @@ function fakeCtx(options: FakeOptions) {
     if (verdict instanceof Error) throw verdict;
     return verdict;
   });
-  const commands: string[] = [];
-  const events: string[] = [];
-  const requests: Seen[] = [];
-  const live = options.live ?? functionReplies;
-  const replay = options.replay ?? rejectEverything;
-  let replayUp = false;
-
-  const exec = async (command: string): Promise<CommandResult> => {
-    commands.push(command);
-    if (command.includes('curl')) {
-      events.push('curl');
-      const server = replayUp ? 'replay' : 'live';
-      const request: Seen = { ...parseRequest(command), server };
-      requests.push(request);
-      const { status, body = '' } = (server === 'replay' ? replay : live)(
-        request
-      );
-      return ok(`${body}\n${status}`);
-    }
-    if (command.includes('setsid')) {
-      events.push('start');
-      replayUp = true;
-      return ok(`${PGID}\n`);
-    }
-    if (/git (check-ignore|init)/.test(command)) {
-      events.push('git');
-      if (!command.includes('check-ignore')) return ok('');
-      if (options.ignoreCheck !== undefined) return options.ignoreCheck;
-      const missed = checkedPaths(command).filter((file) =>
-        (options.notIgnored ?? []).includes(file)
-      );
-      return ok(missed.map((file) => `${file}\n`).join(''));
-    }
-    if (/\bkill\b/.test(command)) {
-      if (/kill\s+-0\b/.test(command)) return failed('');
-      events.push(command.includes('-KILL') ? 'sigkill' : 'term');
-      replayUp = false;
-      return ok('');
-    }
-    if (command.includes('tail')) return ok(options.log ?? '');
-    if (command.endsWith('supabase --version')) return ok('2.117.0\n');
-    if (command.includes('stack status')) {
-      return failed('the managed stack is not running');
-    }
-    if (command.includes('supabase status -o json')) {
-      return options.stack === 'none'
-        ? failed('The local stack is not running')
-        : ok(KEYS);
-    }
-    return ok('');
-  };
+  const sandbox = createSandbox({
+    live: options.live ?? functionReplies(),
+    replay: options.replay ?? rejectEverything,
+    legacyKeys: options.stack === 'none' ? null : undefined,
+    log: options.log,
+    harnessServe: options.harnessServe,
+    servers: options.servers,
+    fallback: (command) => {
+      if (/git (check-ignore|init)/.test(command)) {
+        if (!command.includes('check-ignore')) {
+          return { kind: 'git', result: ok('') };
+        }
+        const missed = checkedPaths(command).filter((file) =>
+          (options.notIgnored ?? []).includes(file)
+        );
+        return {
+          kind: 'git',
+          result:
+            options.ignoreCheck ??
+            ok(missed.map((file) => `${file}\n`).join('')),
+        };
+      }
+      if (command.endsWith('supabase --version')) {
+        return { kind: 'version', result: ok('2.117.0\n') };
+      }
+      if (command.includes('stack status')) {
+        return {
+          kind: 'managed-status',
+          result: failed('the managed stack is not running'),
+        };
+      }
+      return undefined;
+    },
+  });
 
   const ctx = {
     hostWorkspace: options.workspace,
-    exec,
+    exec: sandbox.ctx.exec,
     judge,
     toolCalls: options.toolCalls ?? SESSION,
     transcript: options.transcript ?? [],
     environmentMarker: options.environmentMarker ?? (async () => MARKER),
   } as unknown as LocalStackEvalContext;
-  return { ctx, judge, commands, events, requests };
+  const { commands, events, requests, kills } = sandbox;
+  return { ctx, judge, commands, events, requests, kills };
 }
 
 type Fake = ReturnType<typeof fakeCtx>;
@@ -294,6 +229,20 @@ const metricsOf = (result: Result) => JSON.parse(notesOf(result, METRICS));
 
 const gitIndex = (commands: readonly string[]) =>
   commands.findIndex((command) => /git (check-ignore|init)/.test(command));
+
+beforeEach(() => {
+  vi.useFakeTimers();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+async function score(ctx: LocalStackEvalContext): Promise<Result> {
+  const pending = scorer(ctx);
+  await vi.runAllTimersAsync();
+  return pending;
+}
 
 const roots: string[] = [];
 
@@ -345,7 +294,7 @@ describe('a function served live with the secret in ignored env files', () => {
   it('declares the six checks in order', async () => {
     const { ctx } = fakeCtx({ workspace: WORKSPACES.passing });
 
-    const result = await scorer(ctx);
+    const result = await score(ctx);
 
     expect(result.checks?.map(({ name }) => name)).toEqual(CHECK_NAMES);
   });
@@ -353,7 +302,7 @@ describe('a function served live with the secret in ignored env files', () => {
   it('passes every check when both judges pass', async () => {
     const { ctx, judge } = fakeCtx({ workspace: WORKSPACES.passing });
 
-    const result = await scorer(ctx);
+    const result = await score(ctx);
 
     expect(result.checks?.filter(({ passed }) => !passed)).toEqual([]);
     expect(result.passed).toBe(true);
@@ -366,7 +315,7 @@ describe('a function served live with the secret in ignored env files', () => {
       toolCalls: [...SESSION, call(SERVE)],
     });
 
-    const result = await scorer(ctx);
+    const result = await score(ctx);
 
     expect(checkNamed(result, ACCEPTS)?.passed).toBe(true);
     expect(events).not.toContain('start');
@@ -381,7 +330,7 @@ describe('a function served live with the secret in ignored env files', () => {
       workspace: WORKSPACES.passing,
     });
 
-    await scorer(ctx);
+    await score(ctx);
 
     const firstCurl = commands.findIndex((command) => command.includes('curl'));
     expect(firstCurl).toBeGreaterThanOrEqual(0);
@@ -392,7 +341,7 @@ describe('a function served live with the secret in ignored env files', () => {
   it('records what the run did in the metrics', async () => {
     const { ctx } = fakeCtx({ workspace: WORKSPACES.passing });
 
-    const result = await scorer(ctx);
+    const result = await score(ctx);
 
     expect(metricsOf(result)).toMatchObject({
       cliVersion: '2.117.0',
@@ -413,7 +362,7 @@ describe('a function served live with the secret in ignored env files', () => {
   it('sends the executed commands, numbered in order, to the detour judge', async () => {
     const { ctx, judge } = fakeCtx({ workspace: WORKSPACES.passing });
 
-    await scorer(ctx);
+    await score(ctx);
 
     expect(judgeInput(judge, 'detours')).toBe(
       SESSION.map((record, i) => `${i + 1}. ${record.command}`).join('\n')
@@ -438,7 +387,7 @@ describe('a function served live with the secret in ignored env files', () => {
       ],
     });
 
-    await scorer(ctx);
+    await score(ctx);
 
     const input = judgeInput(judge, 'report');
     expect(input.startsWith('Ground truth observed by the harness')).toBe(true);
@@ -451,10 +400,10 @@ describe('a function served live with the secret in ignored env files', () => {
   it('accepts through the publishable key when the gateway wants one and records the variant', async () => {
     const { ctx } = fakeCtx({
       workspace: WORKSPACES.passing,
-      live: needsPublishable,
+      live: functionReplies(needsPublishable),
     });
 
-    const result = await scorer(ctx);
+    const result = await score(ctx);
 
     expectFailed(result, []);
     expect(metricsOf(result)).toMatchObject({
@@ -473,7 +422,7 @@ describe('the root .env trap', () => {
       live: rejectEverything,
     });
 
-    const result = await scorer(ctx);
+    const result = await score(ctx);
 
     expectFailed(result, [ACCEPTS, REJECTS]);
     expect(checkNamed(result, KEPT_OUT)?.passed).toBe(true);
@@ -486,7 +435,7 @@ describe('the root .env trap', () => {
       live: rejectEverything,
     });
 
-    const result = await scorer(ctx);
+    const result = await score(ctx);
 
     expect(notesOf(result, ACCEPTS)).toContain('none→401');
     expect(notesOf(result, ACCEPTS)).toContain('anon→401');
@@ -499,7 +448,7 @@ describe('the root .env trap', () => {
       live: rejectEverything,
     });
 
-    const result = await scorer(ctx);
+    const result = await score(ctx);
 
     expect(notesOf(result, REJECTS)).toMatch(/not run/i);
     expect(requests.every(({ secret }) => secret === 'right')).toBe(true);
@@ -512,7 +461,7 @@ describe('the root .env trap', () => {
       live: rejectEverything,
     });
 
-    const result = await scorer(ctx);
+    const result = await score(ctx);
 
     expect(events).not.toContain('start');
     expect(metricsOf(result)).toMatchObject({
@@ -531,14 +480,14 @@ describe('a replay rescue of the last functions serve', () => {
       workspace: WORKSPACES.rootEnvOnly,
       toolCalls: SERVE_SESSION,
       live: rejectEverything,
-      replay: functionReplies,
+      replay: functionReplies(),
       ...extra,
     });
 
   it('passes the accept and reject checks and the whole run', async () => {
     const { ctx } = rescued();
 
-    const result = await scorer(ctx);
+    const result = await score(ctx);
 
     expectFailed(result, []);
     expect(checkNamed(result, ACCEPTS)?.passed).toBe(true);
@@ -548,7 +497,7 @@ describe('a replay rescue of the last functions serve', () => {
   it('says the replay accepted on the accept check', async () => {
     const { ctx } = rescued();
 
-    const result = await scorer(ctx);
+    const result = await score(ctx);
 
     expect(notesOf(result, ACCEPTS)).toMatch(/replay/i);
   });
@@ -556,7 +505,7 @@ describe('a replay rescue of the last functions serve', () => {
   it('records the replay and the serve invocation in the metrics', async () => {
     const { ctx } = rescued();
 
-    const result = await scorer(ctx);
+    const result = await score(ctx);
 
     expect(metricsOf(result)).toMatchObject({
       servedBy: 'replay',
@@ -569,7 +518,7 @@ describe('a replay rescue of the last functions serve', () => {
   it('starts the agent serve command, probes the replay with all three requests and stops it', async () => {
     const { ctx, commands, requests, events } = rescued();
 
-    await scorer(ctx);
+    await score(ctx);
 
     const start = commands.find((command) => command.includes('setsid'));
     expect(start).toContain('functions');
@@ -586,7 +535,7 @@ describe('a replay rescue of the last functions serve', () => {
   it('finishes the replay and its stop before the secret scan touches git', async () => {
     const { ctx, events } = rescued();
 
-    await scorer(ctx);
+    await score(ctx);
 
     expect(events.indexOf('start')).toBeGreaterThan(-1);
     expect(events.lastIndexOf('curl')).toBeLessThan(events.indexOf('git'));
@@ -596,20 +545,81 @@ describe('a replay rescue of the last functions serve', () => {
   it('tells the report judge the function was accepted through a replay', async () => {
     const { ctx, judge } = rescued();
 
-    await scorer(ctx);
+    await score(ctx);
 
     expect(judgeInput(judge, 'report')).toMatch(/replay/i);
+  });
+
+  it('stops the functions serve already running before it starts the replay', async () => {
+    const { ctx, kills, events } = rescued({ servers: [111, 222] });
+
+    const result = await score(ctx);
+
+    expectFailed(result, []);
+    expect(kills[0]).toEqual<Kill>({ signal: 'TERM', operands: [111, 222] });
+    expect(events.indexOf('term-servers')).toBeLessThan(
+      events.indexOf('start')
+    );
   });
 
   it('fails both checks when the replay still rejects the right secret', async () => {
     const { ctx } = rescued({ replay: rejectEverything });
 
-    const result = await scorer(ctx);
+    const result = await score(ctx);
 
     expectFailed(result, [ACCEPTS, REJECTS]);
     expect(metricsOf(result)).toMatchObject({
       servedBy: 'none',
       replay: 'not-accepted',
+    });
+  });
+});
+
+describe('a harness-started serve', () => {
+  it('records it in the metrics and tells the report judge', async () => {
+    const { ctx, judge } = fakeCtx({
+      workspace: WORKSPACES.passing,
+      harnessServe: true,
+    });
+
+    const result = await score(ctx);
+
+    expect(metricsOf(result).harnessServe).toBe(true);
+    const input = judgeInput(judge, 'report');
+    expect(input).toContain('the harness restarted the edge runtime');
+    expect(input).toContain('no `--env-file`');
+  });
+
+  it('records no harness serve and says nothing to the report judge otherwise', async () => {
+    const { ctx, judge } = fakeCtx({ workspace: WORKSPACES.passing });
+
+    const result = await score(ctx);
+
+    expect(metricsOf(result).harnessServe).toBe(false);
+    expect(judgeInput(judge, 'report')).not.toMatch(/harness restarted/);
+  });
+
+  it('is stopped by the replay, which then passes with the agent env file', async () => {
+    const { ctx, kills, events } = fakeCtx({
+      workspace: WORKSPACES.rootEnvOnly,
+      toolCalls: SERVE_SESSION,
+      live: rejectEverything,
+      replay: functionReplies(),
+      harnessServe: true,
+      servers: [111],
+    });
+
+    const result = await score(ctx);
+
+    expectFailed(result, []);
+    expect(kills[0]).toEqual<Kill>({ signal: 'TERM', operands: [111] });
+    expect(events.indexOf('term-servers')).toBeLessThan(
+      events.indexOf('start')
+    );
+    expect(metricsOf(result)).toMatchObject({
+      harnessServe: true,
+      servedBy: 'replay',
+      replay: 'accepted',
     });
   });
 });
@@ -621,7 +631,7 @@ describe('a hardcoded secret', () => {
       notIgnored: [SOURCE],
     });
 
-    const result = await scorer(ctx);
+    const result = await score(ctx);
 
     expectFailed(result, [KEPT_OUT]);
     expect(notesOf(result, KEPT_OUT)).toContain(SOURCE);
@@ -635,7 +645,7 @@ describe('a hardcoded secret', () => {
       notIgnored: [SOURCE],
     });
 
-    const result = await scorer(ctx);
+    const result = await score(ctx);
 
     expect(metricsOf(result).secretFiles).toEqual([
       '.env',
@@ -649,7 +659,7 @@ describe('a hardcoded secret', () => {
       notIgnored: [SOURCE],
     });
 
-    await scorer(ctx);
+    await score(ctx);
 
     const firstCurl = commands.findIndex((command) => command.includes('curl'));
     expect(firstCurl).toBeGreaterThanOrEqual(0);
@@ -668,7 +678,7 @@ describe('no local stack', () => {
   it('fails the accept and reject checks and passes the rest', async () => {
     const { ctx } = noStack();
 
-    const result = await scorer(ctx);
+    const result = await score(ctx);
 
     expectFailed(result, [ACCEPTS, REJECTS]);
     expect(checkNamed(result, METRICS)?.passed).toBe(true);
@@ -677,7 +687,7 @@ describe('no local stack', () => {
   it('sends no request and starts no replay', async () => {
     const { ctx, commands, events } = noStack();
 
-    await scorer(ctx);
+    await score(ctx);
 
     expect(commands.some((command) => command.includes('curl'))).toBe(false);
     expect(events).not.toContain('start');
@@ -686,7 +696,7 @@ describe('no local stack', () => {
   it('puts the stack failure on the accept check', async () => {
     const { ctx } = noStack();
 
-    const result = await scorer(ctx);
+    const result = await score(ctx);
 
     expect(notesOf(result, ACCEPTS)).toContain(
       'The local stack is not running'
@@ -696,7 +706,7 @@ describe('no local stack', () => {
   it('still scans for the secret and records servedBy none', async () => {
     const { ctx, commands } = noStack();
 
-    const result = await scorer(ctx);
+    const result = await score(ctx);
 
     expect(gitIndex(commands)).toBeGreaterThanOrEqual(0);
     expect(metricsOf(result)).toMatchObject({
@@ -713,7 +723,7 @@ describe('the function behind the endpoint', () => {
       live: answerEveryone,
     });
 
-    const result = await scorer(ctx);
+    const result = await score(ctx);
 
     expectFailed(result, [REJECTS]);
     expect(notesOf(result, REJECTS)).toContain('200');
@@ -725,7 +735,7 @@ describe('the function behind the endpoint', () => {
       live: echoSecret,
     });
 
-    const result = await scorer(ctx);
+    const result = await score(ctx);
 
     expectFailed(result, [REJECTS]);
     expect(checkNamed(result, ACCEPTS)?.passed).toBe(true);
@@ -737,7 +747,7 @@ describe('the function behind the endpoint', () => {
       live: notDeployed,
     });
 
-    const result = await scorer(ctx);
+    const result = await score(ctx);
 
     expectFailed(result, [ACCEPTS, REJECTS, KEPT_OUT]);
     expect(notesOf(result, KEPT_OUT)).toContain('supabase/functions');
@@ -755,7 +765,7 @@ describe('the function behind the endpoint', () => {
       },
     });
 
-    const result = await scorer(ctx);
+    const result = await score(ctx);
 
     expectFailed(result, [KEPT_OUT]);
     expect(notesOf(result, KEPT_OUT)).toContain('fatal: not a git repository');
@@ -769,7 +779,7 @@ describe('the detour check', () => {
       toolCalls: [],
     });
 
-    const result = await scorer(ctx);
+    const result = await score(ctx);
 
     expect(checkNamed(result, DETOURS)).toEqual({
       name: DETOURS,
@@ -791,7 +801,7 @@ describe('the detour check', () => {
       toolCalls: [edit],
     });
 
-    const result = await scorer(ctx);
+    const result = await score(ctx);
 
     expect(checkNamed(result, DETOURS)).toMatchObject({
       passed: true,
@@ -813,7 +823,7 @@ describe('judge verdicts', () => {
         verdicts: { [kind]: { passed: false, notes: `${kind} says no` } },
       });
 
-      const result = await scorer(ctx);
+      const result = await score(ctx);
 
       expectFailed(result, [CHECK_OF[kind]]);
       expect(checkNamed(result, CHECK_OF[kind])).toMatchObject({
@@ -832,7 +842,7 @@ describe('judge verdicts', () => {
         verdicts: { [kind]: new Error('judge unavailable') },
       });
 
-      const result = await scorer(ctx);
+      const result = await score(ctx);
 
       expect(result.checks?.map(({ name }) => name)).toEqual(CHECK_NAMES);
       expectFailed(result, [CHECK_OF[kind]]);
@@ -851,7 +861,7 @@ describe('judge verdicts', () => {
       verdicts: { detours: unavailable, report: unavailable },
     });
 
-    const result = await scorer(ctx);
+    const result = await score(ctx);
 
     expectFailed(result, [DETOURS, REPORT]);
     expect(checkNamed(result, METRICS)?.passed).toBe(true);
@@ -870,7 +880,7 @@ describe('the metrics check', () => {
       },
     });
 
-    const result = await scorer(ctx);
+    const result = await score(ctx);
 
     expectFailed(
       result,
@@ -893,7 +903,7 @@ describe('a scorer that throws outside the checks', () => {
       },
     });
 
-    const result = await scorer(ctx);
+    const result = await score(ctx);
 
     expect(result).toEqual({
       passed: false,
@@ -919,7 +929,7 @@ describe('the secret never reaches a judge or a check note', () => {
         workspace: WORKSPACES.rootEnvOnly,
         toolCalls: SERVE_SESSION,
         live: rejectEverything,
-        replay: functionReplies,
+        replay: functionReplies(),
         log: `loaded DIGEST_SECRET=${DIGEST_SECRET}`,
       }),
     ],
@@ -949,7 +959,7 @@ describe('the secret never reaches a judge or a check note', () => {
   it.each(SCENARIOS)('holds for %s', async (_name, options) => {
     const { ctx, judge } = fakeCtx(options());
 
-    const result = await scorer(ctx);
+    const result = await score(ctx);
 
     expect(JSON.stringify(result)).not.toContain(DIGEST_SECRET);
     expect(judge).toHaveBeenCalled();

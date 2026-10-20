@@ -9,7 +9,7 @@ import type {
 import { afterEach, describe, expect, it } from 'vitest';
 import { findSupabaseInvocations } from '../lib/cli-invocations.js';
 import type { StackProbe } from '../lib/stack.js';
-import { FUNCTION_NAME } from './fixture.js';
+import { DIGEST_SECRET, FUNCTION_NAME } from './fixture.js';
 import {
   checkMetrics,
   countAgentCalls,
@@ -56,6 +56,7 @@ const NOT_RUN = {
 
 const ACCEPTED_LIVE: FunctionProbe = {
   url: FUNCTION_URL,
+  harnessServe: false,
   live: [{ variant: 'none', response: { status: 200, body: '' } }],
   replay: NOT_RUN,
   accepted: {
@@ -69,6 +70,7 @@ const ACCEPTED_LIVE: FunctionProbe = {
 
 const NOTHING_ACCEPTED: FunctionProbe = {
   url: FUNCTION_URL,
+  harnessServe: false,
   live: [{ variant: 'none', response: { status: 401, body: '' } }],
   replay: NOT_RUN,
 };
@@ -235,6 +237,7 @@ describe('checkMetrics', () => {
       stack: { ...STACK, relocatedHome: '/home/agent/.supabase' },
       probe: {
         url: FUNCTION_URL,
+        harnessServe: true,
         live: [{ variant: 'none', response: { status: 401, body: '' } }],
         replay: {
           ran: true,
@@ -246,6 +249,7 @@ describe('checkMetrics', () => {
             },
           ],
           log: '',
+          stoppedServers: 1,
         },
         accepted: {
           servedBy: 'replay',
@@ -286,6 +290,7 @@ describe('checkMetrics', () => {
       openWithoutKeys: false,
       serveInvocations: 2,
       lastServe: 'functions serve --env-file .env',
+      harnessServe: true,
       replay: 'accepted',
       secretFiles: [
         '.env',
@@ -309,6 +314,7 @@ describe('checkMetrics', () => {
       authVariant: 'none',
       serveInvocations: 0,
       lastServe: null,
+      harnessServe: false,
       replay: 'not-run',
       secretFiles: ['.env'],
       functionDirs: [FUNCTION_NAME],
@@ -368,6 +374,7 @@ describe('checkMetrics', () => {
           command: 'supabase functions serve',
           attempts: [{ variant: 'none', response: { status: 401, body: '' } }],
           log: '',
+          stoppedServers: 0,
         },
       },
     });
@@ -399,6 +406,35 @@ describe('checkMetrics', () => {
     });
   });
 
+  it.each([true, false])(
+    'reports whether the harness started its own serve as %s',
+    async (harnessServe) => {
+      const check = await checkMetrics(undefined, {
+        ...(await baseFacts()),
+        probe: { ...ACCEPTED_LIVE, harnessServe },
+      });
+
+      expect(metricsOf(check).harnessServe).toBe(harnessServe);
+    }
+  );
+
+  it('masks the secret in the last serve invocation', async () => {
+    const commands = [
+      `supabase functions serve --env-file .env --import-map ${DIGEST_SECRET}.json`,
+    ];
+
+    const check = await checkMetrics(undefined, {
+      ...(await baseFacts()),
+      commands,
+      invocations: findSupabaseInvocations(commands),
+    });
+
+    expect(check.notes).not.toContain(DIGEST_SECRET);
+    expect(metricsOf(check).lastServe).toBe(
+      'functions serve --env-file .env --import-map <DIGEST_SECRET>.json'
+    );
+  });
+
   it('marks only the hits that would be committed', async () => {
     const check = await checkMetrics(undefined, {
       ...(await baseFacts()),
@@ -426,6 +462,7 @@ describe('checkMetrics', () => {
       stack: { ok: false, notes: 'The local stack is not running.' },
       probe: {
         stackNotes: 'The local stack is not running.',
+        harnessServe: false,
         live: [],
         replay: { ran: false, reason: 'no local stack to serve the function' },
       },
@@ -531,6 +568,7 @@ describe('checkMetrics', () => {
     expect(metricsOf(hostileProbe)).toMatchObject({
       servedBy: null,
       authVariant: null,
+      harnessServe: null,
       secretFiles: ['.env'],
       agentCalls: 0,
     });

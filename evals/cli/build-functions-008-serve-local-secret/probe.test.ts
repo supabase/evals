@@ -1,13 +1,10 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import type {
-  CommandResult,
-  LocalStackEvalContext,
-} from '@supabase-evals/core';
+import type { CommandResult } from '@supabase-evals/core';
 import { parse } from 'shell-quote';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import {
   findSupabaseInvocations,
   type CommandEntry,
@@ -15,40 +12,48 @@ import {
 } from '../lib/cli-invocations.js';
 import type { StackProbe } from '../lib/stack.js';
 import {
-  DIGEST_SECRET,
-  FUNCTION_NAME,
-  SECRET_HEADER,
-  WRONG_SECRET,
-} from './fixture.js';
+  ANON,
+  API_URL,
+  createSandbox,
+  DB_URL,
+  FUNCTION_URL,
+  failed,
+  functionReplies,
+  HARNESS_LOG,
+  KEYS,
+  MANAGED_KEYS,
+  needsAnonBearer,
+  needsPublishable,
+  ok,
+  PGID,
+  PUBLISHABLE,
+  REPLAY_LOG,
+  rejectEverything,
+  SECRET_KEY,
+  SERVICE_ROLE,
+  type Handler,
+  type Reply,
+} from './fakes.js';
+import { DIGEST_SECRET, SECRET_HEADER, WRONG_SECRET } from './fixture.js';
 import {
   authVariants,
   checkAcceptsSecret,
   checkRejectsWrongSecret,
+  groupMembers,
   isFunctionsServe,
   isStillBooting,
   lastServeInvocation,
+  parseProcessTable,
   probeFunction,
+  PROCESS_TABLE_SCRIPT,
   replayCommand,
+  runningServers,
   type AuthVariant,
   type FunctionProbe,
   type HttpResponse,
   type ProbeAttempt,
+  type ProcessRow,
 } from './probe.js';
-
-const API_URL = 'http://127.0.0.1:54321';
-const FUNCTION_URL = `${API_URL}/functions/v1/${FUNCTION_NAME}`;
-const PUBLISHABLE = 'sb_publishable_test_key';
-const ANON = 'anon.jwt.test';
-const PGID = '4242';
-const LOG_PATH = '/tmp/eval-serve-replay.log';
-const DB_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
-
-const KEYS = JSON.stringify({
-  API_URL,
-  DB_URL,
-  PUBLISHABLE_KEY: PUBLISHABLE,
-  ANON_KEY: ANON,
-});
 
 const LEGACY: StackProbe = {
   ok: true,
@@ -67,190 +72,6 @@ const MANAGED: StackProbe = {
 };
 
 const SERVE = ['supabase functions serve --env-file .env'];
-
-type Reply = { status: number; body?: string } | 'throw';
-
-type Seen = {
-  secret: 'right' | 'wrong' | 'absent' | 'other';
-  apikey?: string;
-  authorization?: string;
-  server: 'live' | 'replay';
-};
-
-type Handler = (request: Seen, attempt: number) => Reply;
-
-type WorldOptions = {
-  live: Handler;
-  replay?: Handler;
-  keys?: string | null;
-  log?: string;
-  survivesTerm?: boolean;
-  trailingNewline?: boolean;
-};
-
-const ok = (stdout: string): CommandResult => ({
-  ok: true,
-  exitCode: 0,
-  stdout,
-  stderr: '',
-});
-
-function headerValue(command: string, pattern: RegExp): string | undefined {
-  return pattern.exec(command)?.[1];
-}
-
-function secretKind(value: string | undefined): Seen['secret'] {
-  if (value === undefined || value === '') return 'absent';
-  if (value === DIGEST_SECRET) return 'right';
-  if (value === WRONG_SECRET) return 'wrong';
-  return 'other';
-}
-
-function parseRequest(command: string): Omit<Seen, 'server'> {
-  return {
-    secret: secretKind(
-      headerValue(
-        command,
-        new RegExp(`${SECRET_HEADER}:[ \\t]*([^'"\\s]*)`, 'i')
-      )
-    ),
-    apikey: headerValue(command, /apikey:[ \t]*([^'"\s]*)/i),
-    authorization: headerValue(
-      command,
-      /authorization:[ \t]*(?:Bearer[ \t]+)?([^'"\s]*)/i
-    ),
-  };
-}
-
-function curlResult(reply: Reply, trailingNewline: boolean): CommandResult {
-  if (reply === 'throw') throw new Error('sandbox gone');
-  const { status, body = '' } = reply;
-  if (status === 0) {
-    return { ok: false, exitCode: 7, stdout: '\n000', stderr: body };
-  }
-  return ok(`${body}\n${status}${trailingNewline ? '\n' : ''}`);
-}
-
-function createWorld(options: WorldOptions) {
-  const commands: string[] = [];
-  const events: string[] = [];
-  const requests: Seen[] = [];
-  const served = { live: 0, replay: 0 };
-  let replayUp = false;
-  let alive = false;
-
-  const exec = async (command: string): Promise<CommandResult> => {
-    commands.push(command);
-    if (command.includes('curl')) {
-      events.push('curl');
-      const server = replayUp ? 'replay' : 'live';
-      const request: Seen = { ...parseRequest(command), server };
-      requests.push(request);
-      const handler =
-        server === 'replay'
-          ? (options.replay ?? (() => ({ status: 0, body: 'refused' })))
-          : options.live;
-      return curlResult(
-        handler(request, served[server]++),
-        options.trailingNewline === true
-      );
-    }
-    if (command.includes('setsid')) {
-      events.push('start');
-      replayUp = true;
-      alive = true;
-      return ok(`${PGID}\n`);
-    }
-    if (/\bkill\b/.test(command)) {
-      if (/kill\s+-0\b/.test(command)) {
-        events.push('check');
-        return alive
-          ? ok('')
-          : { ok: false, exitCode: 1, stdout: '', stderr: '' };
-      }
-      if (command.includes('-KILL')) {
-        events.push('sigkill');
-        alive = false;
-      } else {
-        events.push('term');
-        alive = options.survivesTerm === true;
-      }
-      replayUp = alive;
-      return ok('');
-    }
-    if (command.includes('tail')) {
-      events.push('tail');
-      return ok(command.includes(LOG_PATH) ? (options.log ?? '') : '');
-    }
-    if (
-      command.includes('supabase status -o json') ||
-      command.includes('stack status --env')
-    ) {
-      events.push('keys');
-      return options.keys === null
-        ? {
-            ok: false,
-            exitCode: 1,
-            stdout: '',
-            stderr: 'The local stack is not running',
-          }
-        : ok(options.keys ?? KEYS);
-    }
-    events.push('other');
-    return ok('');
-  };
-
-  const sleep = async (ms: number) => {
-    events.push(`sleep ${ms}`);
-    vi.advanceTimersByTime(ms);
-  };
-
-  const sleeps = () =>
-    events
-      .filter((event) => event.startsWith('sleep '))
-      .map((event) => Number(event.slice('sleep '.length)));
-
-  const sleptBetween = (from: string, to: string) =>
-    events
-      .slice(events.indexOf(from), events.indexOf(to))
-      .filter((event) => event.startsWith('sleep '))
-      .reduce((total, event) => total + Number(event.slice(6)), 0);
-
-  return {
-    ctx: { exec } as unknown as LocalStackEvalContext,
-    commands,
-    events,
-    requests,
-    sleep,
-    sleeps,
-    sleptBetween,
-  };
-}
-
-function functionReplies(gate?: (request: Seen) => Reply | undefined): Handler {
-  return (request) => {
-    const blocked = gate?.(request);
-    if (blocked !== undefined) return blocked;
-    if (request.secret === 'right') {
-      return { status: 200, body: '{"queued":true}' };
-    }
-    return request.secret === 'wrong'
-      ? { status: 401, body: 'wrong secret' }
-      : { status: 401, body: 'missing secret' };
-  };
-}
-
-const needsAnonBearer = (request: Seen): Reply | undefined =>
-  request.authorization === ANON
-    ? undefined
-    : { status: 401, body: 'Invalid JWT' };
-
-const needsPublishable = (request: Seen): Reply | undefined =>
-  request.apikey === PUBLISHABLE
-    ? undefined
-    : { status: 401, body: 'Invalid JWT' };
-
-const rejectEverything: Handler = () => ({ status: 401, body: 'unauthorized' });
 
 const outcomes = (attempts: ProbeAttempt[]) =>
   attempts.map(({ variant, response }) => [variant, response.status]);
@@ -588,23 +409,15 @@ describe('authVariants', () => {
 });
 
 describe('probeFunction', () => {
-  beforeEach(() => {
-    vi.useFakeTimers({ toFake: ['Date'] });
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
   describe('served live', () => {
     it('accepts on the first variant and neither replays nor probes further variants', async () => {
-      const world = createWorld({ live: functionReplies() });
+      const world = createSandbox({ live: functionReplies() });
 
       const probe = await probeFunction(
         world.ctx,
         LEGACY,
         findSupabaseInvocations(SERVE),
-        { sleep: world.sleep }
+        world.clock
       );
 
       expect(probe.url).toBe(FUNCTION_URL);
@@ -625,13 +438,13 @@ describe('probeFunction', () => {
     });
 
     it('probes the wrong secret and the missing header against the same server', async () => {
-      const world = createWorld({ live: functionReplies() });
+      const world = createSandbox({ live: functionReplies() });
 
       const probe = await probeFunction(
         world.ctx,
         LEGACY,
         findSupabaseInvocations(SERVE),
-        { sleep: world.sleep }
+        world.clock
       );
 
       expect(probe.wrongSecret).toEqual({ status: 401, body: 'wrong secret' });
@@ -642,9 +455,9 @@ describe('probeFunction', () => {
     });
 
     it('posts the scheduler payload as JSON to the function url with curl', async () => {
-      const world = createWorld({ live: functionReplies() });
+      const world = createSandbox({ live: functionReplies() });
 
-      await probeFunction(world.ctx, LEGACY, [], { sleep: world.sleep });
+      await probeFunction(world.ctx, LEGACY, [], world.clock);
 
       const command = world.commands.find((entry) => entry.includes('curl'));
       expect(command).toBeDefined();
@@ -652,23 +465,22 @@ describe('probeFunction', () => {
       expect(tokens).toContain(FUNCTION_URL);
       expect(tokens).toContain(`${SECRET_HEADER}: ${DIGEST_SECRET}`);
       expect(tokens).toContain('{"run":"nightly"}');
-      expect(tokens[tokens.indexOf('--max-time') + 1]).toBe('60');
+      expect(tokens[tokens.indexOf('--connect-timeout') + 1]).toBe('5');
+      expect(tokens[tokens.indexOf('--max-time') + 1]).toBe('30');
       expect(command).toMatch(/(?:-X|--request)\s+'?POST/);
       expect(command).toMatch(/content-type:\s*application\/json/i);
       expect(command).toContain('%{http_code}');
     });
 
     it.each([200, 202, 204])('accepts a %i answer', async (status) => {
-      const world = createWorld({
+      const world = createSandbox({
         live: (request, attempt) =>
           request.secret === 'right'
             ? { status, body: status === 204 ? '' : 'done' }
             : functionReplies()(request, attempt),
       });
 
-      const probe = await probeFunction(world.ctx, LEGACY, [], {
-        sleep: world.sleep,
-      });
+      const probe = await probeFunction(world.ctx, LEGACY, [], world.clock);
 
       expect(probe.accepted).toEqual({
         servedBy: 'live',
@@ -678,7 +490,7 @@ describe('probeFunction', () => {
     });
 
     it('keeps a multi-line body whole and tolerates a newline after the status code', async () => {
-      const world = createWorld({
+      const world = createSandbox({
         live: (request, attempt) =>
           request.secret === 'right'
             ? { status: 200, body: 'line one\nline two' }
@@ -686,9 +498,7 @@ describe('probeFunction', () => {
         trailingNewline: true,
       });
 
-      const probe = await probeFunction(world.ctx, LEGACY, [], {
-        sleep: world.sleep,
-      });
+      const probe = await probeFunction(world.ctx, LEGACY, [], world.clock);
 
       expect(probe.accepted?.response).toEqual({
         status: 200,
@@ -697,11 +507,9 @@ describe('probeFunction', () => {
     });
 
     it('moves past a gateway 401 to the variant the gateway lets through', async () => {
-      const world = createWorld({ live: functionReplies(needsAnonBearer) });
+      const world = createSandbox({ live: functionReplies(needsAnonBearer) });
 
-      const probe = await probeFunction(world.ctx, LEGACY, [], {
-        sleep: world.sleep,
-      });
+      const probe = await probeFunction(world.ctx, LEGACY, [], world.clock);
 
       expect(outcomes(probe.live)).toEqual([
         ['none', 401],
@@ -717,11 +525,9 @@ describe('probeFunction', () => {
     });
 
     it('probes the wrong secret and the missing header with the accepted variant headers', async () => {
-      const world = createWorld({ live: functionReplies(needsAnonBearer) });
+      const world = createSandbox({ live: functionReplies(needsAnonBearer) });
 
-      const probe = await probeFunction(world.ctx, LEGACY, [], {
-        sleep: world.sleep,
-      });
+      const probe = await probeFunction(world.ctx, LEGACY, [], world.clock);
 
       expect(probe.wrongSecret).toEqual({ status: 401, body: 'wrong secret' });
       expect(probe.missingHeader).toEqual({
@@ -742,11 +548,9 @@ describe('probeFunction', () => {
     });
 
     it('sends the exact header sets of every variant when each one is rejected', async () => {
-      const world = createWorld({ live: rejectEverything });
+      const world = createSandbox({ live: rejectEverything });
 
-      const probe = await probeFunction(world.ctx, LEGACY, [], {
-        sleep: world.sleep,
-      });
+      const probe = await probeFunction(world.ctx, LEGACY, [], world.clock);
 
       expect(outcomes(probe.live)).toEqual([
         ['none', 401],
@@ -770,11 +574,9 @@ describe('probeFunction', () => {
 
   describe('keys', () => {
     it('reads the keys of a legacy stack with the experimental stack switched off', async () => {
-      const world = createWorld({ live: functionReplies(needsPublishable) });
+      const world = createSandbox({ live: functionReplies(needsPublishable) });
 
-      const probe = await probeFunction(world.ctx, LEGACY, [], {
-        sleep: world.sleep,
-      });
+      const probe = await probeFunction(world.ctx, LEGACY, [], world.clock);
 
       expect(probe.accepted?.variant).toBe('publishable');
       const command = world.commands.find((entry) =>
@@ -784,51 +586,124 @@ describe('probeFunction', () => {
       expect(command).toContain('SUPABASE_EXPERIMENTAL_STACK=0');
     });
 
-    it('reads the keys of a managed stack under the relocated CLI home through noisy output', async () => {
-      const world = createWorld({
-        live: functionReplies(needsPublishable),
-        keys: `[task] Resolving stack\n${KEYS}\n`,
+    it('reads a managed stack through [task] noise and sends only the publishable and anon keys', async () => {
+      const world = createSandbox({
+        live: rejectEverything,
+        managedKeys: MANAGED_KEYS,
       });
 
-      const probe = await probeFunction(
-        world.ctx,
-        { ...MANAGED, relocatedHome: '/home/agent/.supabase' },
-        [],
-        { sleep: world.sleep }
-      );
+      const probe = await probeFunction(world.ctx, MANAGED, [], world.clock);
 
-      expect(probe.accepted?.variant).toBe('publishable');
+      expect(outcomes(probe.live)).toEqual([
+        ['none', 401],
+        ['publishable', 401],
+        ['publishable+anon-bearer', 401],
+        ['anon', 401],
+      ]);
       const command = world.commands.find((entry) =>
         entry.includes('stack status')
       );
-      expect(command).toContain('stack status --env');
+      expect(command).toContain('stack status --env --output-format json');
       expect(command).toContain('SUPABASE_EXPERIMENTAL_STACK=1');
-      expect(command).toContain('/home/agent/.supabase');
       expect(
         world.commands.some((entry) => entry.includes('supabase status -o'))
       ).toBe(false);
+      const curls = world.commands.filter((entry) => entry.includes('curl'));
+      expect(curls.length).toBeGreaterThan(0);
+      for (const curl of curls) {
+        expect(curl).not.toContain(SECRET_KEY);
+        expect(curl).not.toContain(SERVICE_ROLE);
+      }
+    });
+
+    describe('under a relocated CLI home', () => {
+      const RELOCATED = {
+        ...MANAGED,
+        relocatedHome: '/home/agent/.supabase',
+      } as const;
+
+      const keysTokens = async (
+        commands: string[],
+        stack: StackProbe = RELOCATED
+      ) => {
+        const world = createSandbox({
+          live: functionReplies(needsPublishable),
+          managedKeys: MANAGED_KEYS,
+        });
+        const probe = await probeFunction(
+          world.ctx,
+          stack,
+          findSupabaseInvocations(commands),
+          world.clock
+        );
+        const command = world.commands.find((entry) =>
+          entry.includes('stack status')
+        );
+        return { probe, tokens: parse(command ?? '', {}) };
+      };
+
+      it('falls back to SUPABASE_HOME when no start invocation set that home', async () => {
+        const { probe, tokens } = await keysTokens([]);
+
+        expect(probe.accepted?.variant).toBe('publishable');
+        expect(tokens).toContain('SUPABASE_HOME=/home/agent/.supabase');
+      });
+
+      it('carries both HOME and TMPDIR of the start that created the home', async () => {
+        const { probe, tokens } = await keysTokens([
+          'HOME=/home/agent TMPDIR=/home/agent/tmp supabase start',
+        ]);
+
+        expect(probe.accepted?.variant).toBe('publishable');
+        expect(tokens).toContain('HOME=/home/agent');
+        expect(tokens).toContain('TMPDIR=/home/agent/tmp');
+        expect(
+          tokens.some((token) => String(token).startsWith('SUPABASE_HOME'))
+        ).toBe(false);
+      });
+
+      it('carries SUPABASE_HOME, HOME and TMPDIR when the start set all three', async () => {
+        const { tokens } = await keysTokens(
+          [
+            'SUPABASE_HOME=/data/sb HOME=/home/agent TMPDIR=/home/agent/tmp supabase start',
+          ],
+          { ...MANAGED, relocatedHome: '/data/sb' }
+        );
+
+        expect(tokens).toContain('SUPABASE_HOME=/data/sb');
+        expect(tokens).toContain('HOME=/home/agent');
+        expect(tokens).toContain('TMPDIR=/home/agent/tmp');
+      });
+
+      it('picks the start whose home root is the one the stack was found under', async () => {
+        const { tokens } = await keysTokens([
+          'HOME=/home/agent TMPDIR=/home/agent/tmp supabase start',
+          'HOME=/home/other TMPDIR=/home/other/tmp supabase start',
+        ]);
+
+        expect(tokens).toContain('HOME=/home/agent');
+        expect(tokens).toContain('TMPDIR=/home/agent/tmp');
+        expect(tokens).not.toContain('HOME=/home/other');
+        expect(tokens).not.toContain('TMPDIR=/home/other/tmp');
+      });
     });
 
     it('probes only without credentials when the keys cannot be read', async () => {
-      const world = createWorld({ live: rejectEverything, keys: null });
+      const world = createSandbox({ live: rejectEverything, legacyKeys: null });
 
-      const probe = await probeFunction(world.ctx, LEGACY, [], {
-        sleep: world.sleep,
-      });
+      const probe = await probeFunction(world.ctx, LEGACY, [], world.clock);
 
       expect(outcomes(probe.live)).toEqual([['none', 401]]);
       expect(probe.accepted).toBeUndefined();
     });
 
     it('probes the variants whose keys exist when only the publishable key is known', async () => {
-      const world = createWorld({
+      const world = createSandbox({
         live: rejectEverything,
-        keys: JSON.stringify({ API_URL, PUBLISHABLE_KEY: PUBLISHABLE }),
+        legacyKeys: JSON.stringify({ API_URL, PUBLISHABLE_KEY: PUBLISHABLE }),
       });
 
-      const probe = await probeFunction(world.ctx, LEGACY, [], {
-        sleep: world.sleep,
-      });
+      const probe = await probeFunction(world.ctx, LEGACY, [], world.clock);
 
       expect(outcomes(probe.live)).toEqual([
         ['none', 401],
@@ -838,12 +713,12 @@ describe('probeFunction', () => {
 
     it('keeps a key full of shell metacharacters inside one curl header argument', async () => {
       const hostile = `evil'"; touch /tmp/pwned; echo "$(id)'`;
-      const world = createWorld({
+      const world = createSandbox({
         live: rejectEverything,
-        keys: JSON.stringify({ API_URL, PUBLISHABLE_KEY: hostile }),
+        legacyKeys: JSON.stringify({ API_URL, PUBLISHABLE_KEY: hostile }),
       });
 
-      await probeFunction(world.ctx, LEGACY, [], { sleep: world.sleep });
+      await probeFunction(world.ctx, LEGACY, [], world.clock);
 
       const tokens = world.commands
         .filter((entry) => entry.includes('curl'))
@@ -856,47 +731,112 @@ describe('probeFunction', () => {
 
   describe('no local stack', () => {
     it('issues no request and carries the stack notes', async () => {
-      const world = createWorld({ live: functionReplies() });
+      const world = createSandbox({ live: functionReplies() });
 
       const probe = await probeFunction(
         world.ctx,
         { ok: false, notes: 'The local stack is not running.' },
         findSupabaseInvocations(SERVE),
-        { sleep: world.sleep }
+        world.clock
       );
 
       expect(probe).toEqual({
         stackNotes: 'The local stack is not running.',
+        harnessServe: false,
         live: [],
         replay: { ran: false, reason: 'no local stack to serve the function' },
       });
-      expect(world.commands.some((entry) => entry.includes('curl'))).toBe(
-        false
-      );
-      expect(world.events).not.toContain('start');
+      expect(world.commands).toEqual([]);
     });
 
     it('explains a stack that resolved without an API url and issues no request', async () => {
-      const world = createWorld({ live: functionReplies() });
+      const world = createSandbox({ live: functionReplies() });
 
       const probe = await probeFunction(
         world.ctx,
         { ...LEGACY, apiUrl: undefined },
         findSupabaseInvocations(SERVE),
-        { sleep: world.sleep }
+        world.clock
       );
 
       expect(probe.url).toBeUndefined();
       expect(probe.stackNotes).toMatch(/\S/);
       expect(probe.live).toEqual([]);
+      expect(probe.harnessServe).toBe(false);
       expect(probe.replay).toEqual({
         ran: false,
         reason: 'no local stack to serve the function',
       });
-      expect(world.commands.some((entry) => entry.includes('curl'))).toBe(
-        false
+      expect(world.commands).toEqual([]);
+    });
+  });
+
+  describe('the harness serve', () => {
+    it('is recorded when the harness left its serve log behind and checked before any request', async () => {
+      const world = createSandbox({
+        live: functionReplies(),
+        harnessServe: true,
+      });
+
+      const probe = await probeFunction(world.ctx, LEGACY, [], world.clock);
+
+      expect(probe.harnessServe).toBe(true);
+      expect(world.events.indexOf('harness')).toBeGreaterThanOrEqual(0);
+      expect(world.events.indexOf('harness')).toBeLessThan(
+        world.events.indexOf('curl')
       );
-      expect(world.events).not.toContain('start');
+      expect(
+        world.commands.find((entry) => entry.includes(HARNESS_LOG))
+      ).toMatch(/^test -e /);
+    });
+
+    it('is false when there is no harness serve log', async () => {
+      const world = createSandbox({ live: functionReplies() });
+
+      const probe = await probeFunction(world.ctx, LEGACY, [], world.clock);
+
+      expect(probe.harnessServe).toBe(false);
+    });
+
+    it('is false, and the probe goes on, when the check cannot run', async () => {
+      const world = createSandbox({
+        live: functionReplies(),
+        harnessServe: true,
+        intercept: (kind) => (kind === 'harness' ? 'throw' : undefined),
+      });
+
+      const probe = await probeFunction(world.ctx, LEGACY, [], world.clock);
+
+      expect(probe.harnessServe).toBe(false);
+      expect(probe.accepted?.servedBy).toBe('live');
+    });
+
+    it('is carried on a probe that replays and on one that never could', async () => {
+      const replaying = createSandbox({
+        live: rejectEverything,
+        replay: functionReplies(),
+        harnessServe: true,
+      });
+      const never = createSandbox({
+        live: rejectEverything,
+        harnessServe: true,
+      });
+
+      const replayed = await probeFunction(
+        replaying.ctx,
+        LEGACY,
+        findSupabaseInvocations(SERVE),
+        replaying.clock
+      );
+      const unreplayed = await probeFunction(
+        never.ctx,
+        LEGACY,
+        [],
+        never.clock
+      );
+
+      expect(replayed.harnessServe).toBe(true);
+      expect(unreplayed.harnessServe).toBe(true);
     });
   });
 
@@ -913,14 +853,12 @@ describe('probeFunction', () => {
     ])(
       'waits through a %s before the function answers and sleeps 2 s once',
       async (_name, booting) => {
-        const world = createWorld({
+        const world = createSandbox({
           live: (request, attempt) =>
             attempt < 1 ? booting : functionReplies()(request, attempt),
         });
 
-        const probe = await probeFunction(world.ctx, LEGACY, [], {
-          sleep: world.sleep,
-        });
+        const probe = await probeFunction(world.ctx, LEGACY, [], world.clock);
 
         expect(probe.accepted).toEqual({
           servedBy: 'live',
@@ -932,51 +870,93 @@ describe('probeFunction', () => {
     );
 
     it('polls twice before accepting when the runtime answers 502 twice', async () => {
-      const world = createWorld({
+      const world = createSandbox({
         live: (request, attempt) =>
           attempt < 2
             ? { status: 502, body: '' }
             : functionReplies()(request, attempt),
       });
 
-      const probe = await probeFunction(world.ctx, LEGACY, [], {
-        sleep: world.sleep,
-      });
+      const probe = await probeFunction(world.ctx, LEGACY, [], world.clock);
 
       expect(probe.accepted?.response.status).toBe(200);
       expect(world.sleeps()).toEqual([2000, 2000]);
       expect(probe.wrongSecret).toEqual({ status: 401, body: 'wrong secret' });
     });
 
-    it('stops after five attempts at the first variant when the server never comes up', async () => {
-      const world = createWorld({ live: () => ({ status: 502, body: '' }) });
+    it('keeps polling the first variant until a request would no longer fit in the 60 s budget', async () => {
+      const world = createSandbox({ live: () => ({ status: 502, body: '' }) });
 
-      const probe = await probeFunction(world.ctx, LEGACY, [], {
-        sleep: world.sleep,
-      });
+      const probe = await probeFunction(world.ctx, LEGACY, [], world.clock);
 
       expect(probe.accepted).toBeUndefined();
-      expect(world.requests).toHaveLength(5);
+      expect(world.requests).toHaveLength(16);
       expect(
         world.requests.every(
           ({ secret, apikey }) => secret === 'right' && apikey === undefined
         )
       ).toBe(true);
-      expect(world.sleeps().length).toBeGreaterThanOrEqual(4);
-      expect(world.sleeps().every((ms) => ms === 2000)).toBe(true);
+      expect(world.requests.map(({ at }) => at)).toEqual(
+        Array.from({ length: 16 }, (_, index) => index * 2_000)
+      );
+      expect(world.sleeps()).toEqual(Array(15).fill(2000));
       expect(probe.replay.ran).toBe(false);
+    });
+
+    it('starts no attempt with less than one 30 s request left of the budget', async () => {
+      const world = createSandbox({
+        live: () => ({ status: 504, body: '', takesMs: 10_000 }),
+      });
+
+      const probe = await probeFunction(world.ctx, LEGACY, [], world.clock);
+
+      expect(world.requests.map(({ at }) => at)).toEqual([0, 12_000, 24_000]);
+      expect(world.sleeps()).toEqual([2000, 2000]);
+      expect(outcomes(probe.live)).toEqual([['none', 504]]);
+    });
+
+    it.each([
+      ['a connect timeout', 'curl: (28) Connection timed out after 5001 ms'],
+      ['a refused connection', 'curl: (7) Failed to connect'],
+    ])('keeps %s as booting and polls on', async (_name, body) => {
+      const world = createSandbox({
+        live: (request, attempt) =>
+          attempt < 2
+            ? { status: 0, body, takesMs: 5_000 }
+            : functionReplies()(request, attempt),
+      });
+
+      const probe = await probeFunction(world.ctx, LEGACY, [], world.clock);
+
+      expect(probe.accepted?.servedBy).toBe('live');
+      expect(world.sleeps()).toEqual([2000, 2000]);
+    });
+
+    it('stops after a request that ran the whole 30 s timeout since no second one would fit', async () => {
+      const world = createSandbox({
+        live: () => ({
+          status: 0,
+          body: 'curl: (28) Operation timed out after 30001 milliseconds',
+          takesMs: 30_000,
+        }),
+      });
+
+      const probe = await probeFunction(world.ctx, LEGACY, [], world.clock);
+
+      expect(world.requests).toHaveLength(1);
+      expect(outcomes(probe.live)).toEqual([['none', 0]]);
+      expect(probe.accepted).toBeUndefined();
+      expect(world.sleeps()).toEqual([]);
     });
 
     it('records a transport failure as status 0 with the curl error as the body', async () => {
       const refused =
         "curl: (7) Failed to connect to 127.0.0.1 port 54321 after 0 ms: Couldn't connect to server";
-      const world = createWorld({
+      const world = createSandbox({
         live: () => ({ status: 0, body: refused }),
       });
 
-      const probe = await probeFunction(world.ctx, LEGACY, [], {
-        sleep: world.sleep,
-      });
+      const probe = await probeFunction(world.ctx, LEGACY, [], world.clock);
 
       expect(probe.live[0]).toEqual({
         variant: 'none',
@@ -985,11 +965,9 @@ describe('probeFunction', () => {
     });
 
     it('records a thrown exec as status 0 carrying the error message', async () => {
-      const world = createWorld({ live: () => 'throw' });
+      const world = createSandbox({ live: () => 'throw' });
 
-      const probe = await probeFunction(world.ctx, LEGACY, [], {
-        sleep: world.sleep,
-      });
+      const probe = await probeFunction(world.ctx, LEGACY, [], world.clock);
 
       expect(probe.live[0]?.response.status).toBe(0);
       expect(probe.live[0]?.response.body).toContain('sandbox gone');
@@ -1010,16 +988,20 @@ describe('probeFunction', () => {
         },
       ]);
 
+    const probeWithServes = (world: ReturnType<typeof createSandbox>) =>
+      probeFunction(world.ctx, LEGACY, invocations(), world.clock);
+
+    const replayRequests = (world: ReturnType<typeof createSandbox>) =>
+      world.requests.filter(({ server }) => server === 'replay');
+
     it('replays the last serve when every live variant answers 401 and accepts through it', async () => {
-      const world = createWorld({
+      const world = createSandbox({
         live: rejectEverything,
         replay: functionReplies(),
         log: 'Serving functions on http://127.0.0.1:54321/functions/v1/<function-name>',
       });
 
-      const probe = await probeFunction(world.ctx, LEGACY, invocations(), {
-        sleep: world.sleep,
-      });
+      const probe = await probeWithServes(world);
 
       expect(outcomes(probe.live)).toEqual([
         ['none', 401],
@@ -1036,34 +1018,31 @@ describe('probeFunction', () => {
       expect(replay.command).toContain('--env-file');
       expect(outcomes(replay.attempts)).toEqual([['none', 200]]);
       expect(replay.log).toContain('Serving functions on');
+      expect(replay.stoppedServers).toBe(0);
     });
 
     it('starts the last serve invocation in its own process group logging to the replay log', async () => {
-      const world = createWorld({
+      const world = createSandbox({
         live: rejectEverything,
         replay: functionReplies(),
       });
 
-      await probeFunction(world.ctx, LEGACY, invocations(), {
-        sleep: world.sleep,
-      });
+      await probeWithServes(world);
 
       const start = world.commands.find((entry) => entry.includes('setsid'));
       expect(start).toContain('--env-file');
       expect(start).not.toContain('--no-verify-jwt');
       expect(start).toContain('functions');
-      expect(start).toContain(LOG_PATH);
+      expect(start).toContain(REPLAY_LOG);
     });
 
     it('probes the wrong secret and the missing header against the replay, not the dead live server', async () => {
-      const world = createWorld({
+      const world = createSandbox({
         live: rejectEverything,
         replay: functionReplies(),
       });
 
-      const probe = await probeFunction(world.ctx, LEGACY, invocations(), {
-        sleep: world.sleep,
-      });
+      const probe = await probeWithServes(world);
 
       expect(probe.wrongSecret).toEqual({ status: 401, body: 'wrong secret' });
       expect(probe.missingHeader).toEqual({
@@ -1071,22 +1050,19 @@ describe('probeFunction', () => {
         body: 'missing secret',
       });
       expect(
-        world.requests
-          .filter(({ server }) => server === 'replay')
+        replayRequests(world)
           .map(({ secret }) => secret)
           .sort()
       ).toEqual(['absent', 'right', 'wrong']);
     });
 
     it('stops the replay process group after every probe has run', async () => {
-      const world = createWorld({
+      const world = createSandbox({
         live: rejectEverything,
         replay: functionReplies(),
       });
 
-      await probeFunction(world.ctx, LEGACY, invocations(), {
-        sleep: world.sleep,
-      });
+      await probeWithServes(world);
 
       expect(world.events.indexOf('start')).toBeLessThan(
         world.events.indexOf('curl', world.events.indexOf('start'))
@@ -1094,33 +1070,41 @@ describe('probeFunction', () => {
       expect(world.events.indexOf('term')).toBeGreaterThan(
         world.events.lastIndexOf('curl')
       );
-      const term = world.commands.find((entry) => /kill\s+-TERM/.test(entry));
-      expect(term).toContain(`-${PGID}`);
-      expect(world.events).not.toContain('sigkill');
+      expect(world.kills).toEqual([{ signal: 'TERM', operands: [-PGID] }]);
     });
 
     it('escalates to kill -KILL within 15 s when the group survives the TERM', async () => {
-      const world = createWorld({
+      const world = createSandbox({
         live: rejectEverything,
         replay: functionReplies(),
         survivesTerm: true,
       });
 
-      await probeFunction(world.ctx, LEGACY, invocations(), {
-        sleep: world.sleep,
+      await probeWithServes(world);
+
+      expect(world.kills).toEqual([
+        { signal: 'TERM', operands: [-PGID] },
+        { signal: 'KILL', operands: [-PGID] },
+      ]);
+      expect(world.sleptBetween('term', 'sigkill')).toBe(15_000);
+    });
+
+    it('does not wait out the grace period for a group that only leaves zombies behind', async () => {
+      const world = createSandbox({
+        live: rejectEverything,
+        replay: functionReplies(),
+        leavesZombies: true,
       });
 
-      expect(world.events.indexOf('sigkill')).toBeGreaterThan(
-        world.events.indexOf('term')
-      );
-      expect(world.sleptBetween('term', 'sigkill')).toBeGreaterThan(0);
-      expect(world.sleptBetween('term', 'sigkill')).toBeLessThanOrEqual(15_000);
-      const kill = world.commands.find((entry) => entry.includes('-KILL'));
-      expect(kill).toContain(`-${PGID}`);
+      const probe = await probeWithServes(world);
+
+      expect(probe.accepted?.servedBy).toBe('replay');
+      expect(world.kills).toEqual([{ signal: 'TERM', operands: [-PGID] }]);
+      expect(world.sleptAfter('term')).toBe(0);
     });
 
     it('replays a serve when nothing listens live and accepts through it', async () => {
-      const world = createWorld({
+      const world = createSandbox({
         live: () => ({ status: 0, body: 'refused' }),
         replay: functionReplies(),
       });
@@ -1129,7 +1113,7 @@ describe('probeFunction', () => {
         world.ctx,
         LEGACY,
         findSupabaseInvocations(SERVE),
-        { sleep: world.sleep }
+        world.clock
       );
 
       expect(new Set(probe.live.map(({ variant }) => variant))).toEqual(
@@ -1142,8 +1126,8 @@ describe('probeFunction', () => {
       expect(probe.replay.ran).toBe(true);
     });
 
-    it('waits through a booting replay before probing', async () => {
-      const world = createWorld({
+    it('waits through a booting replay, sweeping again every 3 s', async () => {
+      const world = createSandbox({
         live: rejectEverything,
         replay: (request, attempt) =>
           attempt < 3
@@ -1155,7 +1139,7 @@ describe('probeFunction', () => {
         world.ctx,
         LEGACY,
         findSupabaseInvocations(SERVE),
-        { sleep: world.sleep }
+        world.clock
       );
 
       expect(probe.accepted).toMatchObject({
@@ -1163,11 +1147,11 @@ describe('probeFunction', () => {
         variant: 'none',
         response: { status: 200 },
       });
-      expect(world.sleptBetween('start', 'term')).toBeGreaterThan(0);
+      expect(world.sleptBetween('start', 'term')).toBe(9_000);
     });
 
     it('moves past a gateway 401 to the variant the gateway lets through on the replay too', async () => {
-      const world = createWorld({
+      const world = createSandbox({
         live: rejectEverything,
         replay: functionReplies(needsAnonBearer),
       });
@@ -1176,7 +1160,7 @@ describe('probeFunction', () => {
         world.ctx,
         LEGACY,
         findSupabaseInvocations(SERVE),
-        { sleep: world.sleep }
+        world.clock
       );
 
       expect(probe.accepted?.servedBy).toBe('replay');
@@ -1193,8 +1177,47 @@ describe('probeFunction', () => {
       ]);
     });
 
-    it('does not accept a replay that is still rejecting the right secret and still stops it', async () => {
-      const world = createWorld({
+    it('sweeps every variant again while an old server still answers 401, then accepts the replay', async () => {
+      const world = createSandbox({
+        live: rejectEverything,
+        replay: (request, attempt) =>
+          attempt < 8
+            ? { status: 401, body: 'old configuration' }
+            : functionReplies()(request, attempt),
+      });
+
+      const probe = await probeWithServes(world);
+
+      expect(probe.accepted).toEqual({
+        servedBy: 'replay',
+        variant: 'none',
+        response: { status: 200, body: '{"queued":true}' },
+      });
+      expect(probe.wrongSecret).toEqual({ status: 401, body: 'wrong secret' });
+      expect(probe.missingHeader).toEqual({
+        status: 401,
+        body: 'missing secret',
+      });
+      expect(outcomes(replayOf(probe).attempts)).toEqual([['none', 200]]);
+      expect(
+        replayRequests(world)
+          .slice(0, 8)
+          .map(({ apikey, authorization }) => [apikey, authorization])
+      ).toEqual([
+        [undefined, undefined],
+        [PUBLISHABLE, undefined],
+        [PUBLISHABLE, ANON],
+        [ANON, ANON],
+        [undefined, undefined],
+        [PUBLISHABLE, undefined],
+        [PUBLISHABLE, ANON],
+        [ANON, ANON],
+      ]);
+      expect(world.sleptBetween('start', 'term')).toBe(6_000);
+    });
+
+    it('does not accept a replay that keeps rejecting the right secret, sweeps until the deadline and still stops it', async () => {
+      const world = createSandbox({
         live: rejectEverything,
         replay: rejectEverything,
         log: 'Error: DIGEST_SECRET is not set',
@@ -1204,7 +1227,7 @@ describe('probeFunction', () => {
         world.ctx,
         LEGACY,
         findSupabaseInvocations(SERVE),
-        { sleep: world.sleep }
+        world.clock
       );
 
       expect(probe.accepted).toBeUndefined();
@@ -1219,10 +1242,13 @@ describe('probeFunction', () => {
       ]);
       expect(replay.log).toContain('DIGEST_SECRET is not set');
       expect(world.events).toContain('term');
+      const times = replayRequests(world).map(({ at }) => at);
+      expect(times.at(-1)).toBe(90_000);
+      expect(world.sleptBetween('start', 'term')).toBe(90_000);
     });
 
-    it('gives a replay that never answers at most 90 s to boot, then stops it', async () => {
-      const world = createWorld({
+    it('gives a replay that never answers 120 s minus one request to boot, then stops it', async () => {
+      const world = createSandbox({
         live: rejectEverything,
         replay: () => ({ status: 502, body: '' }),
       });
@@ -1231,19 +1257,88 @@ describe('probeFunction', () => {
         world.ctx,
         LEGACY,
         findSupabaseInvocations(SERVE),
-        { sleep: world.sleep }
+        world.clock
       );
 
       expect(probe.accepted).toBeUndefined();
       expect(probe.replay.ran).toBe(true);
       expect(world.events).toContain('term');
-      const boot = world.sleptBetween('start', 'term');
-      expect(boot).toBeGreaterThan(0);
-      expect(boot).toBeLessThanOrEqual(93_000);
+      const [first, ...rest] = replayRequests(world).map(({ at }) => at);
+      expect(rest.at(-1)).toBe((first ?? 0) + 90_000);
+      expect(replayRequests(world)).toHaveLength(31);
+    });
+
+    it('starts no replay sweep with less than one 30 s request left of its 120 s', async () => {
+      const world = createSandbox({
+        live: rejectEverything,
+        replay: () => ({
+          status: 0,
+          body: 'curl: (28) Operation timed out after 30001 milliseconds',
+          takesMs: 30_000,
+        }),
+      });
+
+      const probe = await probeWithServes(world);
+
+      expect(replayRequests(world).map(({ at }) => at)).toEqual([
+        0, 33_000, 66_000,
+      ]);
+      expect(probe.accepted).toBeUndefined();
+      expect(replayOf(probe).attempts).toHaveLength(1);
+    });
+
+    it('stops sweeping at once and keeps the log when the replay group dies immediately', async () => {
+      const world = createSandbox({
+        live: rejectEverything,
+        replayDies: true,
+        log: 'Error: address already in use',
+      });
+
+      const probe = await probeWithServes(world);
+
+      const replay = replayOf(probe);
+      expect(probe.accepted).toBeUndefined();
+      expect(replay.log).toBe('Error: address already in use');
+      expect(outcomes(replay.attempts)).toEqual([['none', 0]]);
+      expect(replayRequests(world)).toHaveLength(1);
+      expect(world.sleptBetween('start', 'term')).toBe(0);
+      expect(world.kills).toEqual([{ signal: 'TERM', operands: [-PGID] }]);
+    });
+
+    it('stops sweeping once the replay group has died partway through', async () => {
+      const world = createSandbox({
+        live: rejectEverything,
+        replay: rejectEverything,
+        replayDiesAfter: 4,
+        log: 'exited after a bad flag',
+      });
+
+      const probe = await probeWithServes(world);
+
+      expect(probe.accepted).toBeUndefined();
+      expect(replayRequests(world)).toHaveLength(4);
+      expect(world.sleptBetween('start', 'term')).toBe(0);
+      expect(replayOf(probe).log).toBe('exited after a bad flag');
+    });
+
+    it('keeps sweeping when the scan of the replay group fails', async () => {
+      const world = createSandbox({
+        live: rejectEverything,
+        replay: (request, attempt) =>
+          attempt < 8
+            ? { status: 401, body: 'old configuration' }
+            : functionReplies()(request, attempt),
+        intercept: (kind, call) =>
+          kind === 'scan' && call >= 1 ? 'throw' : undefined,
+      });
+
+      const probe = await probeWithServes(world);
+
+      expect(probe.accepted?.servedBy).toBe('replay');
     });
 
     it('does not replay when the agent never ran functions serve', async () => {
-      const world = createWorld({ live: rejectEverything });
+      const world = createSandbox({ live: rejectEverything });
 
       const probe = await probeFunction(
         world.ctx,
@@ -1252,7 +1347,7 @@ describe('probeFunction', () => {
           'supabase start',
           'supabase functions new nightly-digest',
         ]),
-        { sleep: world.sleep }
+        world.clock
       );
 
       expect(probe.accepted).toBeUndefined();
@@ -1263,10 +1358,382 @@ describe('probeFunction', () => {
       expect(probe.wrongSecret).toBeUndefined();
       expect(probe.missingHeader).toBeUndefined();
       expect(world.events).not.toContain('start');
+      expect(world.events).not.toContain('scan');
       expect(world.requests.every(({ secret }) => secret === 'right')).toBe(
         true
       );
     });
+
+    describe('taking over from the servers already running', () => {
+      it('scans, terminates the functions serve processes it found, and only then starts the replay', async () => {
+        const world = createSandbox({
+          live: rejectEverything,
+          replay: functionReplies(),
+          servers: [111, 222],
+        });
+
+        const probe = await probeWithServes(world);
+
+        expect(world.kills[0]).toEqual({
+          signal: 'TERM',
+          operands: [111, 222],
+        });
+        expect(world.kills).not.toContainEqual({
+          signal: 'KILL',
+          operands: [111, 222],
+        });
+        const scan = world.events.indexOf('scan');
+        const term = world.events.indexOf('term-servers');
+        const start = world.events.indexOf('start');
+        expect(scan).toBeGreaterThanOrEqual(0);
+        expect(scan).toBeLessThan(term);
+        expect(term).toBeLessThan(start);
+        expect(world.events.slice(term, start)).toContain('scan');
+        expect(replayOf(probe).stoppedServers).toBe(2);
+        expect(probe.accepted?.servedBy).toBe('replay');
+      });
+
+      it('does not touch a process that is no functions serve or already a zombie', async () => {
+        const world = createSandbox({
+          live: rejectEverything,
+          replay: functionReplies(),
+          servers: [111],
+          zombieServers: [222],
+        });
+
+        const probe = await probeWithServes(world);
+
+        expect(world.kills[0]).toEqual({ signal: 'TERM', operands: [111] });
+        expect(replayOf(probe).stoppedServers).toBe(1);
+      });
+
+      it('sends no signal when nothing is serving', async () => {
+        const world = createSandbox({
+          live: rejectEverything,
+          replay: functionReplies(),
+        });
+
+        const probe = await probeWithServes(world);
+
+        expect(world.events).toContain('scan');
+        expect(world.events).not.toContain('term-servers');
+        expect(replayOf(probe).stoppedServers).toBe(0);
+      });
+
+      it('kills the servers that survive the TERM within the grace period, before the replay starts', async () => {
+        const world = createSandbox({
+          live: rejectEverything,
+          replay: functionReplies(),
+          servers: [111, 222],
+          serversSurviveTerm: true,
+        });
+
+        await probeWithServes(world);
+
+        expect(world.kills.slice(0, 2)).toEqual([
+          { signal: 'TERM', operands: [111, 222] },
+          { signal: 'KILL', operands: [111, 222] },
+        ]);
+        expect(world.sleptBetween('term-servers', 'kill-servers')).toBe(15_000);
+        expect(world.events.indexOf('kill-servers')).toBeLessThan(
+          world.events.indexOf('start')
+        );
+      });
+
+      it('does not wait for servers that only linger as zombies after the TERM', async () => {
+        const world = createSandbox({
+          live: rejectEverything,
+          replay: functionReplies(),
+          servers: [111],
+          leavesZombies: true,
+        });
+
+        await probeWithServes(world);
+
+        expect(world.sleptBetween('term-servers', 'start')).toBe(0);
+        expect(world.events).not.toContain('kill-servers');
+      });
+
+      it('kills only the survivors', async () => {
+        const world = createSandbox({
+          live: rejectEverything,
+          replay: functionReplies(),
+          servers: [111, 222],
+          stubbornServers: [222],
+        });
+
+        await probeWithServes(world);
+
+        expect(world.kills.slice(0, 2)).toEqual([
+          { signal: 'TERM', operands: [111, 222] },
+          { signal: 'KILL', operands: [222] },
+        ]);
+      });
+    });
+
+    describe('when the sandbox misbehaves', () => {
+      const notReplayed = (probe: FunctionProbe) => {
+        expect(probe.replay.ran).toBe(false);
+        expect(probe.accepted).toBeUndefined();
+        expect(probe.wrongSecret).toBeUndefined();
+        expect(probe.missingHeader).toBeUndefined();
+        return probe.replay.ran ? '' : probe.replay.reason;
+      };
+
+      it.each<[string, CommandResult | 'throw', string]>([
+        ['throws', 'throw', 'sandbox gone'],
+        [
+          'exits non-zero',
+          failed('setsid: command not found', 127),
+          'exit 127: setsid: command not found',
+        ],
+        ['prints nothing', ok(''), 'no process id in ""'],
+        ['prints only a newline', ok('\n'), 'no process id in ""'],
+        ['prints garbage', ok('abc\n'), 'no process id in "abc"'],
+        ['prints zero', ok('0\n'), 'no process id in "0"'],
+        ['prints a negative number', ok('-5\n'), 'no process id in "-5"'],
+        ['prints a number and more', ok('4242 x\n'), 'no process id'],
+      ])(
+        'returns a replay that did not run when the start %s',
+        async (_name, reply, detail) => {
+          const world = createSandbox({
+            live: rejectEverything,
+            replay: functionReplies(),
+            intercept: (kind) => (kind === 'start' ? reply : undefined),
+          });
+
+          const probe = await probeWithServes(world);
+
+          const reason = notReplayed(probe);
+          expect(reason).toContain('could not start the replay');
+          expect(reason).toContain(detail);
+          expect(replayRequests(world)).toEqual([]);
+          expect(world.events).not.toContain('term');
+        }
+      );
+
+      it('keeps the verdict when stopping the replay throws', async () => {
+        const world = createSandbox({
+          live: rejectEverything,
+          replay: functionReplies(),
+          intercept: (kind) => (kind === 'term' ? 'throw' : undefined),
+        });
+
+        const probe = await probeWithServes(world);
+
+        expect(probe.accepted?.servedBy).toBe('replay');
+        expect(probe.wrongSecret).toEqual({
+          status: 401,
+          body: 'wrong secret',
+        });
+        expect(replayOf(probe).attempts).toHaveLength(1);
+      });
+
+      it('keeps the verdict, and still escalates to KILL, when the scan that waits for the stop fails', async () => {
+        const world = createSandbox({
+          live: rejectEverything,
+          replay: functionReplies(),
+          intercept: (kind, call) =>
+            kind === 'scan' && call >= 1 ? 'throw' : undefined,
+        });
+
+        const probe = await probeWithServes(world);
+
+        expect(probe.accepted?.servedBy).toBe('replay');
+        expect(world.kills).toEqual([
+          { signal: 'TERM', operands: [-PGID] },
+          { signal: 'KILL', operands: [-PGID] },
+        ]);
+        expect(world.sleptBetween('term', 'sigkill')).toBe(15_000);
+      });
+
+      it('keeps the verdict and an empty log when reading the log throws', async () => {
+        const world = createSandbox({
+          live: rejectEverything,
+          replay: functionReplies(),
+          log: 'unreachable',
+          intercept: (kind) => (kind === 'tail' ? 'throw' : undefined),
+        });
+
+        const probe = await probeWithServes(world);
+
+        expect(probe.accepted?.servedBy).toBe('replay');
+        expect(replayOf(probe).log).toBe('');
+      });
+
+      it.each<[string, CommandResult | 'throw', string]>([
+        ['throws', 'throw', 'sandbox gone'],
+        [
+          'exits non-zero',
+          failed('bash: mapfile: command not found', 127),
+          'exit 127: bash: mapfile: command not found',
+        ],
+        ['lists no process', ok(''), 'process scan failed'],
+        ['lists only garbage', ok('not a table\n'), 'process scan failed'],
+      ])(
+        'does not replay when the scan for running servers %s',
+        async (_name, reply, detail) => {
+          const world = createSandbox({
+            live: rejectEverything,
+            replay: functionReplies(),
+            intercept: (kind) => (kind === 'scan' ? reply : undefined),
+          });
+
+          const probe = await probeWithServes(world);
+
+          const reason = notReplayed(probe);
+          expect(reason).toContain(
+            'could not stop the running functions serve'
+          );
+          expect(reason).toContain(detail);
+          expect(world.events).not.toContain('start');
+        }
+      );
+
+      it('does not replay when terminating the running servers throws', async () => {
+        const world = createSandbox({
+          live: rejectEverything,
+          replay: functionReplies(),
+          servers: [111],
+          intercept: (kind) => (kind === 'term-servers' ? 'throw' : undefined),
+        });
+
+        const probe = await probeWithServes(world);
+
+        expect(notReplayed(probe)).toContain(
+          'could not stop the running functions serve: sandbox gone'
+        );
+        expect(world.events).not.toContain('start');
+      });
+
+      it('does not replay when killing the surviving servers throws', async () => {
+        const world = createSandbox({
+          live: rejectEverything,
+          replay: functionReplies(),
+          servers: [111],
+          serversSurviveTerm: true,
+          intercept: (kind) => (kind === 'kill-servers' ? 'throw' : undefined),
+        });
+
+        const probe = await probeWithServes(world);
+
+        expect(notReplayed(probe)).toContain('sandbox gone');
+        expect(world.events).not.toContain('start');
+      });
+    });
+  });
+});
+
+describe('the process table', () => {
+  it('reads the pid, group, liveness and serve flag of each row and skips lines that are not rows', () => {
+    expect(
+      parseProcessTable(
+        '1 1 S 0\n 4242 4242 R 1 \nnoise\n12 abc S 0\n7 7 Z 1\n\n'
+      )
+    ).toEqual([
+      { pid: 1, pgid: 1, live: true, serves: false },
+      { pid: 4242, pgid: 4242, live: true, serves: true },
+      { pid: 7, pgid: 7, live: false, serves: true },
+    ]);
+  });
+
+  it('counts a group whose only members are zombies as gone', () => {
+    const rows = parseProcessTable('1 1 S 0\n4242 4242 Z 0\n4243 4242 Z 1\n');
+
+    expect(groupMembers(rows, 4242)).toEqual([]);
+    expect(runningServers(rows)).toEqual([]);
+  });
+
+  it('counts only the live members of a group that also holds zombies', () => {
+    const rows = parseProcessTable(
+      '1 1 S 0\n4242 4242 Z 0\n4243 4242 S 1\n4300 4300 S 0\n'
+    );
+
+    expect(groupMembers(rows, 4242)).toEqual([4243]);
+    expect(runningServers(rows)).toEqual([4243]);
+  });
+
+  describe('run by a real shell', () => {
+    const children: ChildProcess[] = [];
+
+    afterEach(() => {
+      for (const child of children.splice(0)) {
+        try {
+          process.kill(-(child.pid ?? 0), 'SIGKILL');
+        } catch {
+          // already gone
+        }
+      }
+    });
+
+    const launch = (script: string, ...args: string[]) => {
+      const child = spawn('bash', ['-c', script, ...args], {
+        stdio: ['ignore', 'pipe', 'ignore'],
+        detached: true,
+      });
+      children.push(child);
+      return child;
+    };
+
+    const scan = () =>
+      parseProcessTable(
+        execFileSync(
+          'bash',
+          ['-c', PROCESS_TABLE_SCRIPT, 'functions', 'serve'],
+          {
+            encoding: 'utf8',
+          }
+        )
+      );
+
+    const scanUntil = async (found: (rows: ProcessRow[]) => boolean) => {
+      for (let tries = 0; tries < 100; tries++) {
+        const rows = scan();
+        if (found(rows)) return rows;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      throw new Error('the process table never showed the expected state');
+    };
+
+    it.runIf(process.platform === 'linux')(
+      'lists only processes with the serve tokens in a row, and never the scan itself',
+      async () => {
+        const serving = launch('sleep 30; :', 'functions', 'serve');
+        const apart = launch('sleep 30; :', 'functions', '--debug', 'serve');
+        const reversed = launch('sleep 30; :', 'serve', 'functions');
+
+        const rows = await scanUntil((table) =>
+          [serving, apart, reversed].every((child) =>
+            table.some(({ pid }) => pid === child.pid)
+          )
+        );
+
+        expect(runningServers(rows)).toEqual([serving.pid]);
+        expect(rows.find(({ pid }) => pid === apart.pid)?.serves).toBe(false);
+        expect(rows.find(({ pid }) => pid === reversed.pid)?.serves).toBe(
+          false
+        );
+      }
+    );
+
+    it.runIf(process.platform === 'linux')(
+      'reports an unreaped child as not live and leaves it out of its group',
+      async () => {
+        const holder = launch('bash -c "exit 0" & echo $!; exec sleep 30');
+        const zombie = await new Promise<number>((resolve) =>
+          holder.stdout?.once('data', (chunk) =>
+            resolve(Number(String(chunk).trim()))
+          )
+        );
+
+        const rows = await scanUntil((table) =>
+          table.some(({ pid, live }) => pid === zombie && !live)
+        );
+
+        expect(rows.find(({ pid }) => pid === zombie)?.pgid).toBe(holder.pid);
+        expect(groupMembers(rows, holder.pid ?? 0)).toEqual([holder.pid]);
+      }
+    );
   });
 });
 
@@ -1288,6 +1755,7 @@ const NOT_RUN = {
 
 const ACCEPTED: FunctionProbe = {
   url: FUNCTION_URL,
+  harnessServe: false,
   live: [probeAttempt('none', 200, '{"queued":true}')],
   replay: NOT_RUN,
   accepted: {
@@ -1301,6 +1769,7 @@ const ACCEPTED: FunctionProbe = {
 
 const REJECTED: FunctionProbe = {
   url: FUNCTION_URL,
+  harnessServe: false,
   live: [
     probeAttempt('none', 401, 'Invalid JWT'),
     probeAttempt('publishable', 404, 'not found'),
@@ -1366,6 +1835,7 @@ describe('checkAcceptsSecret', () => {
           probeAttempt('publishable+anon-bearer', 500),
         ],
         log: '',
+        stoppedServers: 0,
       },
     });
 
@@ -1380,6 +1850,7 @@ describe('checkAcceptsSecret', () => {
   it('fails with the stack notes when there is no function url', () => {
     const check = checkAcceptsSecret({
       stackNotes: 'The local stack is not running.',
+      harnessServe: false,
       live: [],
       replay: {
         ran: false,
@@ -1401,6 +1872,7 @@ describe('checkAcceptsSecret', () => {
         command: 'supabase functions serve --env-file .env',
         attempts: [probeAttempt('none', 401, echo)],
         log: echo,
+        stoppedServers: 0,
       },
     });
     const passing = checkAcceptsSecret({
@@ -1506,6 +1978,22 @@ describe('checkRejectsWrongSecret', () => {
       expect(check.notes).not.toContain(DIGEST_SECRET);
     }
   );
+
+  it('fails when the accepted response echoes the secret, without printing it', () => {
+    const check = checkRejectsWrongSecret({
+      ...ACCEPTED,
+      accepted: {
+        servedBy: 'live',
+        variant: 'none',
+        response: response(200, `received ${DIGEST_SECRET}`),
+      },
+    });
+
+    expect(check).toMatchObject({ name: NAME, passed: false });
+    expect(check.notes).toMatch(/accepted/i);
+    expect(check.notes).toMatch(/echoes/i);
+    expect(check.notes).not.toContain(DIGEST_SECRET);
+  });
 
   it('fails with not-run wording when nothing was accepted', () => {
     const check = checkRejectsWrongSecret(REJECTED);

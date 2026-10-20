@@ -1,22 +1,15 @@
 import { truncate } from '../lib/shell.js';
 import { describeStack, type StackProbe } from '../lib/stack.js';
-import type { FunctionProbe, ProbeAttempt } from './probe.js';
+import { describeAttempts, oneLine, type FunctionProbe } from './probe.js';
 import { maskSecret, type SecretScan } from './secret.js';
 
 const BODY_PREVIEW_CHARS = 160;
-
-const oneLine = (text: string) => text.replace(/\s+/g, ' ').trim();
+const REPORT_ARROW = ' → ';
+const HARNESS_SERVE_LINE =
+  '- the harness restarted the edge runtime with a plain `supabase functions serve` (no `--env-file`) before probing, so a live answer may come from it';
 
 const preview = (text: string) =>
   truncate(oneLine(maskSecret(text)), BODY_PREVIEW_CHARS);
-
-function describeAttempts(attempts: readonly ProbeAttempt[]): string {
-  return attempts.length === 0
-    ? 'none'
-    : attempts
-        .map(({ variant, response }) => `${variant} → ${response.status}`)
-        .join(', ');
-}
 
 function describeServes(serveCommands: readonly string[]): string {
   const last = serveCommands.at(-1);
@@ -29,7 +22,7 @@ function describeReplay({ replay }: FunctionProbe): string[] {
   return replay.ran
     ? [
         `- replay of the agent's last serve: \`${oneLine(replay.command)}\``,
-        `  ${describeAttempts(replay.attempts)}`,
+        `  ${describeAttempts(replay.attempts, REPORT_ARROW)}`,
         `  log: ${preview(replay.log)}`,
       ]
     : [`- replay: not run (${replay.reason})`];
@@ -84,7 +77,8 @@ export function describeGroundTruth(facts: {
     `- local stack: ${describeStack(stack)}`,
     `- function directories: ${functionDirs.length === 0 ? 'none' : functionDirs.join(', ')}`,
     describeServes(serveCommands),
-    `- live probe: ${describeAttempts(probe.live)}`,
+    ...(probe.harnessServe ? [HARNESS_SERVE_LINE] : []),
+    `- live probe: ${describeAttempts(probe.live, REPORT_ARROW)}`,
     ...describeReplay(probe),
     ...describeVerdict(probe),
     ...describeScan(scan),

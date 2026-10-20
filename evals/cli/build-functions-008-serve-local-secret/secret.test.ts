@@ -1,6 +1,8 @@
+import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type {
   CommandResult,
   LocalStackEvalContext,
@@ -12,12 +14,16 @@ import {
   checkSecretKeptOut,
   findFunctionSources,
   findSecretFiles,
+  listNotIgnoredScript,
   scanSecret,
   type SecretHit,
   type SecretScan,
 } from './secret.js';
 
 const SOURCE = 'supabase/functions/nightly-digest/index.ts';
+const LOCAL_FIXTURE = fileURLToPath(new URL('./local', import.meta.url));
+const CANNOT_DENY_ACCESS =
+  process.platform === 'win32' || process.getuid?.() === 0;
 
 const roots: string[] = [];
 
@@ -314,6 +320,56 @@ describe('scanSecret', () => {
     expect(!scan.ok && scan.notes).toContain('sandbox gone');
   });
 
+  it('fails with the git exit code when the ignore check exits 2', async () => {
+    const root = workspace({ '.env': withSecret, [SOURCE]: '' });
+
+    const scan = await scanSecret(
+      ctxFor(root, [], { ok: false, exitCode: 2, stdout: '', stderr: '' }).ctx
+    );
+
+    expect(scan).toEqual({
+      ok: false,
+      notes: 'could not read ignore rules: exit 2',
+    });
+  });
+
+  it('fails instead of throwing when the workspace path is unusable', async () => {
+    const scan = await scanSecret(
+      ctxFor(undefined as unknown as string, []).ctx
+    );
+
+    expect(scan.ok).toBe(false);
+    expect(!scan.ok && scan.notes).toContain('could not read ignore rules');
+  });
+
+  it.skipIf(CANNOT_DENY_ACCESS)(
+    'skips directories it cannot read and still scans the rest',
+    async () => {
+      const root = workspace({
+        '.env': withSecret,
+        [SOURCE]: '',
+        'supabase/functions/locked/index.ts': '',
+        'locked/hidden.env': withSecret,
+      });
+      const locked = ['supabase/functions/locked', 'locked'].map((dir) =>
+        path.join(root, dir)
+      );
+      for (const dir of locked) fs.chmodSync(dir, 0o000);
+
+      try {
+        const scan = await scanSecret(ctxFor(root, []).ctx);
+
+        expect(scan).toEqual({
+          ok: true,
+          functionSources: [SOURCE],
+          hits: [{ file: '.env', ignored: true }],
+        });
+      } finally {
+        for (const dir of locked) fs.chmodSync(dir, 0o755);
+      }
+    }
+  );
+
   it('does not treat a config.toml that only references env(DIGEST_SECRET) as a hit', async () => {
     const root = workspace({
       '.env': withSecret,
@@ -340,6 +396,68 @@ describe('scanSecret', () => {
     const check = checkSecretKeptOut(scan);
     expect(check.passed).toBe(false);
     expect(check.notes).toContain('supabase/config.toml');
+  });
+});
+
+describe('listNotIgnoredScript with a real git', () => {
+  const gitEnv = {
+    ...process.env,
+    GIT_CONFIG_GLOBAL: os.devNull,
+    GIT_CONFIG_NOSYSTEM: '1',
+  };
+
+  const run = (root: string, files: readonly string[]) =>
+    spawnSync('/bin/sh', ['-c', listNotIgnoredScript(files)], {
+      cwd: root,
+      encoding: 'utf8',
+      env: gitEnv,
+    });
+
+  function seeded(): string {
+    const root = workspace({
+      '.env.example': `DIGEST_SECRET=${DIGEST_SECRET}`,
+      'supabase/functions/.env': withSecret,
+      'supabase/functions/nightly-digest/.env': withSecret,
+    });
+    fs.cpSync(LOCAL_FIXTURE, root, { recursive: true });
+    return root;
+  }
+
+  it('prints only the hits git would commit and exits 0', () => {
+    const root = seeded();
+    execFileSync('git', ['init', '-q'], { cwd: root, env: gitEnv });
+    const files = findSecretFiles(root, DIGEST_SECRET);
+
+    const { status, stdout } = run(root, files);
+
+    expect(files).toEqual([
+      '.env',
+      '.env.example',
+      'supabase/functions/.env',
+      'supabase/functions/nightly-digest/.env',
+    ]);
+    expect(status).toBe(0);
+    expect(stdout.trim().split('\n')).toEqual(['.env.example']);
+  });
+
+  it('initialises a repository when the workspace has none', () => {
+    const root = seeded();
+
+    const { status, stdout } = run(root, findSecretFiles(root, DIGEST_SECRET));
+
+    expect(status).toBe(0);
+    expect(stdout.trim().split('\n')).toEqual(['.env.example']);
+    expect(fs.existsSync(path.join(root, '.git'))).toBe(true);
+  });
+
+  it('exits 2 and prints nothing when git itself fails', () => {
+    const root = seeded();
+    fs.writeFileSync(path.join(root, '.git'), 'not a gitfile');
+
+    const { status, stdout } = run(root, ['.env', '.env.example']);
+
+    expect(status).toBe(2);
+    expect(stdout).toBe('');
   });
 });
 

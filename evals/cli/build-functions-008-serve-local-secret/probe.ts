@@ -4,17 +4,22 @@ import type {
   LocalStackEvalContext,
 } from '@supabase-evals/core';
 import {
+  invocationSubcommand,
   invocationVerb,
+  type InvocationEnv,
   type SupabaseInvocation,
 } from '../lib/cli-invocations.js';
 import { safely } from '../lib/metrics.js';
 import {
+  describeFailure,
   errorMessage,
   inProjectDir,
   shellQuote,
   truncate,
 } from '../lib/shell.js';
 import {
+  candidateHomes,
+  effectiveRoot,
   parseJsonObject,
   type ResolvedStack,
   type StackProbe,
@@ -42,11 +47,18 @@ export type ServedBy = 'live' | 'replay';
 
 export type ReplayOutcome =
   | { ran: false; reason: string }
-  | { ran: true; command: string; attempts: ProbeAttempt[]; log: string };
+  | {
+      ran: true;
+      command: string;
+      attempts: ProbeAttempt[];
+      log: string;
+      stoppedServers: number;
+    };
 
 export type FunctionProbe = {
   url?: string;
   stackNotes?: string;
+  harnessServe: boolean;
   live: ProbeAttempt[];
   replay: ReplayOutcome;
   accepted?: {
@@ -59,6 +71,8 @@ export type FunctionProbe = {
 };
 
 type Sleep = (ms: number) => Promise<void>;
+type Clock = { sleep: Sleep; now: () => number };
+export type ProbeOptions = Partial<Clock>;
 type ApiKeys = { publishable?: string; anon?: string };
 type VariantRequest = { variant: AuthVariant; headers: Record<string, string> };
 type Send = (
@@ -70,52 +84,64 @@ type Verdict = Pick<
   'accepted' | 'wrongSecret' | 'missingHeader'
 >;
 type ServerProbe = Verdict & { attempts: ProbeAttempt[] };
-type Patience = {
-  retryMs: number;
-  canRetry: (attemptsMade: number) => boolean;
+type Settle = (attempt: () => Promise<HttpResponse>) => Promise<HttpResponse>;
+export type ProcessRow = {
+  pid: number;
+  pgid: number;
+  live: boolean;
+  serves: boolean;
 };
 
 export const FUNCTIONS_PATH = '/functions/v1/';
 
 const PAYLOAD = '{"run":"nightly"}';
-const REQUEST_TIMEOUT_SECONDS = 60;
-const LIVE_ATTEMPTS = 5;
+const CONNECT_TIMEOUT_SECONDS = 5;
+const REQUEST_TIMEOUT_SECONDS = 30;
+const REQUEST_BUDGET_MS = REQUEST_TIMEOUT_SECONDS * 1_000;
+const LIVE_BOOT_BUDGET_MS = 60_000;
 const LIVE_RETRY_MS = 2_000;
-const REPLAY_BOOT_BUDGET_MS = 90_000;
+const REPLAY_BOOT_BUDGET_MS = 120_000;
 const REPLAY_POLL_MS = 3_000;
 const STOP_GRACE_MS = 15_000;
 const STOP_POLL_MS = 1_000;
 const REPLAY_LOG = '/tmp/eval-serve-replay.log';
+const HARNESS_SERVE_LOG = '/tmp/functions-serve.log';
 const REPLAY_LOG_TAIL_BYTES = 500;
 const NOTE_BODY_CHARS = 200;
 const NO_STACK_REASON = 'no local stack to serve the function';
-const REPLAY_ENV_VARS = ['SUPABASE_HOME', 'HOME', 'TMPDIR'] as const;
+const HOME_VARIABLES = ['SUPABASE_HOME', 'HOME', 'TMPDIR'] as const;
+// A cold worker can spend a whole request timeout fetching modules for its first call.
 const BOOTING_STATUSES = new Set([0, 502, 503, 504]);
 const INSPECT_FLAG_PREFIX = '--inspect';
 const INSPECT_MODE_FLAG = '--inspect-mode';
+const SERVE_TOKENS = ['functions', 'serve'] as const;
+const PROCESS_ROW = /^(\d+) (\d+) (\S) ([01])$/;
+const ZOMBIE_STATE = 'Z';
+
+/** Prints `pid pgid state serves` per process, `serves` being 1 when its argv has the serve tokens in a row; they sit in variables so this shell's own argv never matches. */
+export const PROCESS_TABLE_SCRIPT = [
+  `a=${SERVE_TOKENS[0]}`,
+  `b=${SERVE_TOKENS[1]}`,
+  'for d in /proc/[0-9]*; do',
+  '  pid=${d#/proc/}',
+  '  [ "$pid" = "$$" ] && continue',
+  '  read -r stat 2>/dev/null < "$d/stat" || continue',
+  '  read -r state _ pgid _ <<< "${stat##*) }"',
+  `  mapfile -d '' -t argv 2>/dev/null < "$d/cmdline" || continue`,
+  '  serves=0',
+  '  for ((i = 0; i + 1 < ${#argv[@]}; i++)); do',
+  '    if [ "${argv[i]}" = "$a" ] && [ "${argv[i + 1]}" = "$b" ]; then serves=1; break; fi',
+  '  done',
+  '  echo "$pid $pgid $state $serves"',
+  'done',
+].join('\n');
 
 const wait: Sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-// `invocationVerb` is the only positional parser cli-invocations exposes, so the
-// token that made it answer the verb is dropped to read the next positional.
-function subcommand(invocation: SupabaseInvocation): string | undefined {
-  const { argv } = invocation;
-  const verbAt = argv.findIndex(
-    (_, index) =>
-      index > 0 &&
-      invocationVerb({ ...invocation, argv: argv.slice(0, index + 1) }) !==
-        undefined
-  );
-  return invocationVerb({
-    ...invocation,
-    argv: argv.filter((_, index) => index !== verbAt),
-  });
-}
 
 export function isFunctionsServe(invocation: SupabaseInvocation): boolean {
   return (
     invocationVerb(invocation) === 'functions' &&
-    subcommand(invocation) === 'serve'
+    invocationSubcommand(invocation) === 'serve'
   );
 }
 
@@ -135,13 +161,17 @@ function withoutInspectorFlags(args: readonly string[]): string[] {
   );
 }
 
+function homeAssignments(env: InvocationEnv | undefined): string[] {
+  return HOME_VARIABLES.flatMap((name) => {
+    const value = env?.[name];
+    return value === undefined ? [] : [`${name}=${shellQuote(value)}`];
+  });
+}
+
 /** A shell command that reruns the invocation from its directory, with its CLI homes, workdir and experimental flag, minus any debugger flags that would block on attach. */
 export function replayCommand(invocation: SupabaseInvocation): string {
   const assignments = [
-    ...REPLAY_ENV_VARS.flatMap((name) => {
-      const value = invocation.env?.[name];
-      return value === undefined ? [] : [`${name}=${shellQuote(value)}`];
-    }),
+    ...homeAssignments(invocation.env),
     ...(invocation.workdir === undefined
       ? []
       : [`SUPABASE_WORKDIR=${shellQuote(invocation.workdir)}`]),
@@ -185,12 +215,17 @@ export function authVariants({ publishable, anon }: ApiKeys): VariantRequest[] {
   return variants;
 }
 
-const oneLine = (text: string) => text.replace(/\s+/g, ' ').trim();
+export const oneLine = (text: string) => text.replace(/\s+/g, ' ').trim();
 
-function describeAttempts(attempts: readonly ProbeAttempt[]): string {
-  return attempts
-    .map(({ variant, response }) => `${variant}→${response.status}`)
-    .join(', ');
+export function describeAttempts(
+  attempts: readonly ProbeAttempt[],
+  arrow = '→'
+): string {
+  return attempts.length === 0
+    ? 'none'
+    : attempts
+        .map(({ variant, response }) => `${variant}${arrow}${response.status}`)
+        .join(', ');
 }
 
 function lastBodyPreview({ live, replay }: FunctionProbe): string {
@@ -232,12 +267,15 @@ export function checkAcceptsSecret(probe: FunctionProbe): CheckResult {
   };
 }
 
+const describeEcho = (label: string, { body }: HttpResponse): string[] =>
+  body.includes(DIGEST_SECRET)
+    ? [`the ${label} response echoes the secret`]
+    : [];
+
 function describeProblems(label: string, response: HttpResponse): string[] {
   return [
     ...(isRejected(response) ? [] : [`${label} got ${response.status}`]),
-    ...(response.body.includes(DIGEST_SECRET)
-      ? [`the ${label} response echoes the secret`]
-      : []),
+    ...describeEcho(label, response),
   ];
 }
 
@@ -252,6 +290,7 @@ export function checkRejectsWrongSecret(probe: FunctionProbe): CheckResult {
     };
   }
   const problems = [
+    ...describeEcho('accepted', accepted.response),
     ...describeProblems('wrong secret', wrongSecret),
     ...describeProblems('missing header', missingHeader),
   ];
@@ -264,15 +303,29 @@ export function checkRejectsWrongSecret(probe: FunctionProbe): CheckResult {
       };
 }
 
-function keysCommand(stack: ResolvedStack): string {
+function managedHomePrefix(
+  { relocatedHome }: ResolvedStack,
+  invocations: readonly SupabaseInvocation[]
+): string {
+  if (relocatedHome === undefined) return '';
+  const home = candidateHomes(invocations, { kind: 'root' }).find(
+    (candidate) => effectiveRoot(candidate) === relocatedHome
+  );
+  const assignments =
+    home === undefined
+      ? [`SUPABASE_HOME=${shellQuote(relocatedHome)}`]
+      : homeAssignments(home);
+  return `${assignments.join(' ')} `;
+}
+
+function keysCommand(
+  stack: ResolvedStack,
+  invocations: readonly SupabaseInvocation[]
+): string {
   if (stack.backend === 'legacy') {
     return 'SUPABASE_EXPERIMENTAL_STACK=0 supabase status -o json';
   }
-  const home =
-    stack.relocatedHome === undefined
-      ? ''
-      : `SUPABASE_HOME=${shellQuote(stack.relocatedHome)} `;
-  return `${home}SUPABASE_EXPERIMENTAL_STACK=1 supabase stack status --env --output-format json`;
+  return `${managedHomePrefix(stack, invocations)}SUPABASE_EXPERIMENTAL_STACK=1 supabase stack status --env --output-format json`;
 }
 
 const nonEmptyString = (value: unknown) =>
@@ -280,9 +333,10 @@ const nonEmptyString = (value: unknown) =>
 
 async function readKeys(
   ctx: LocalStackEvalContext,
-  stack: ResolvedStack
+  stack: ResolvedStack,
+  invocations: readonly SupabaseInvocation[]
 ): Promise<ApiKeys> {
-  const result = await safely(() => ctx.exec(keysCommand(stack)));
+  const result = await safely(() => ctx.exec(keysCommand(stack, invocations)));
   const keys = parseJsonObject(result?.stdout ?? '');
   return {
     publishable: nonEmptyString(keys?.PUBLISHABLE_KEY),
@@ -296,6 +350,7 @@ function curlCommand(url: string, headers: Record<string, string>): string {
   );
   return [
     'curl -sS -X POST',
+    `--connect-timeout ${CONNECT_TIMEOUT_SECONDS}`,
     `--max-time ${REQUEST_TIMEOUT_SECONDS}`,
     ...headerFlags,
     `-d ${shellQuote(PAYLOAD)}`,
@@ -329,33 +384,38 @@ function sender(ctx: LocalStackEvalContext, url: string): Send {
   };
 }
 
+// Another attempt after `waitMs` must still have one full request's time left.
+const hasTimeFor = (deadline: number, waitMs: number, { now }: Clock) =>
+  deadline - now() - waitMs >= REQUEST_BUDGET_MS;
+
 async function pollWhileBooting(
   attempt: () => Promise<HttpResponse>,
-  { retryMs, canRetry }: Patience,
-  sleep: Sleep
+  deadline: number,
+  clock: Clock
 ): Promise<HttpResponse> {
-  let response = await attempt();
-  for (let made = 1; isStillBooting(response) && canRetry(made); made++) {
-    await sleep(retryMs);
-    response = await attempt();
+  for (;;) {
+    const response = await attempt();
+    if (
+      !isStillBooting(response) ||
+      !hasTimeFor(deadline, LIVE_RETRY_MS, clock)
+    ) {
+      return response;
+    }
+    await clock.sleep(LIVE_RETRY_MS);
   }
-  return response;
 }
 
-async function probeServer(
+async function sweep(
   send: Send,
   variants: readonly VariantRequest[],
   servedBy: ServedBy,
-  patience: Patience,
-  sleep: Sleep
+  settleFirst: Settle
 ): Promise<ServerProbe> {
   const attempts: ProbeAttempt[] = [];
   for (const [index, { variant, headers }] of variants.entries()) {
     const attempt = () => send(headers, DIGEST_SECRET);
     const first = index === 0;
-    const response = first
-      ? await pollWhileBooting(attempt, patience, sleep)
-      : await attempt();
+    const response = first ? await settleFirst(attempt) : await attempt();
     attempts.push({ variant, response });
     if (isAccepted(response)) {
       return {
@@ -370,29 +430,153 @@ async function probeServer(
   return { attempts };
 }
 
-const livePatience: Patience = {
-  retryMs: LIVE_RETRY_MS,
-  canRetry: (attemptsMade) => attemptsMade < LIVE_ATTEMPTS,
-};
-
-function replayPatience(): Patience {
-  const deadline = Date.now() + REPLAY_BOOT_BUDGET_MS;
-  return { retryMs: REPLAY_POLL_MS, canRetry: () => Date.now() < deadline };
+export function parseProcessTable(stdout: string): ProcessRow[] {
+  return stdout.split('\n').flatMap((line) => {
+    const match = PROCESS_ROW.exec(line.trim());
+    return match === null
+      ? []
+      : [
+          {
+            pid: Number(match[1]),
+            pgid: Number(match[2]),
+            live: match[3] !== ZOMBIE_STATE,
+            serves: match[4] === '1',
+          },
+        ];
+  });
 }
 
-async function stopProcessGroup(
+async function listProcesses(
+  ctx: LocalStackEvalContext
+): Promise<ProcessRow[]> {
+  const result = await ctx.exec(PROCESS_TABLE_SCRIPT);
+  const rows = parseProcessTable(result.stdout);
+  if (!result.ok || rows.length === 0) {
+    throw new Error(`process scan failed: ${describeFailure(result)}`);
+  }
+  return rows;
+}
+
+export const runningServers = (rows: readonly ProcessRow[]) =>
+  rows.filter(({ live, serves }) => live && serves).map(({ pid }) => pid);
+
+export const groupMembers = (rows: readonly ProcessRow[], pgid: number) =>
+  rows.filter((row) => row.live && row.pgid === pgid).map(({ pid }) => pid);
+
+const stillRunning = (rows: readonly ProcessRow[], pids: readonly number[]) =>
+  rows
+    .filter((row) => row.live && pids.includes(row.pid))
+    .map(({ pid }) => pid);
+
+// A scan that fails reads as "still running", so the grace period runs out and the KILL still goes out.
+async function awaitGone(
+  running: () => Promise<number[]>,
+  clock: Clock
+): Promise<number[]> {
+  const deadline = clock.now() + STOP_GRACE_MS;
+  for (let found = await running(); found.length > 0; found = await running()) {
+    if (clock.now() >= deadline) return found;
+    await clock.sleep(STOP_POLL_MS);
+  }
+  return [];
+}
+
+async function stopServers(
+  ctx: LocalStackEvalContext,
+  pids: readonly number[],
+  clock: Clock
+): Promise<void> {
+  await ctx.exec(`kill -TERM -- ${pids.join(' ')}`);
+  const survivors = await awaitGone(
+    async () =>
+      (await safely(async () =>
+        stillRunning(await listProcesses(ctx), pids)
+      )) ?? [...pids],
+    clock
+  );
+  if (survivors.length > 0) {
+    await ctx.exec(`kill -KILL -- ${survivors.join(' ')}`);
+  }
+}
+
+async function stopGroup(
   ctx: LocalStackEvalContext,
   pgid: number,
-  sleep: Sleep
+  clock: Clock
 ): Promise<void> {
   await ctx.exec(`kill -TERM -- -${pgid}`);
-  const deadline = Date.now() + STOP_GRACE_MS;
-  while ((await ctx.exec(`kill -0 -- -${pgid}`)).ok) {
-    if (Date.now() >= deadline) {
-      await ctx.exec(`kill -KILL -- -${pgid}`);
-      return;
+  const survivors = await awaitGone(
+    async () =>
+      (await safely(async () =>
+        groupMembers(await listProcesses(ctx), pgid)
+      )) ?? [pgid],
+    clock
+  );
+  if (survivors.length > 0) await ctx.exec(`kill -KILL -- -${pgid}`);
+}
+
+async function stopRunningServers(
+  ctx: LocalStackEvalContext,
+  clock: Clock
+): Promise<{ stopped: number } | { reason: string }> {
+  try {
+    const pids = runningServers(await listProcesses(ctx));
+    if (pids.length > 0) await stopServers(ctx, pids, clock);
+    return { stopped: pids.length };
+  } catch (error) {
+    return {
+      reason: `could not stop the running functions serve: ${errorMessage(error)}`,
+    };
+  }
+}
+
+async function startReplay(
+  ctx: LocalStackEvalContext,
+  command: string
+): Promise<{ pgid: number } | { reason: string }> {
+  const fail = (detail: string) => ({
+    reason: `could not start the replay: ${detail}`,
+  });
+  try {
+    const started = await ctx.exec(
+      `setsid nohup sh -c ${shellQuote(command)} > ${REPLAY_LOG} 2>&1 < /dev/null & echo $!`
+    );
+    if (!started.ok) return fail(describeFailure(started));
+    const pgid = Number(started.stdout.trim());
+    return Number.isInteger(pgid) && pgid > 0
+      ? { pgid }
+      : fail(`no process id in ${JSON.stringify(started.stdout.trim())}`);
+  } catch (error) {
+    return fail(errorMessage(error));
+  }
+}
+
+async function groupAlive(
+  ctx: LocalStackEvalContext,
+  pgid: number
+): Promise<boolean> {
+  const rows = await safely(() => listProcesses(ctx));
+  return rows === null || groupMembers(rows, pgid).length > 0;
+}
+
+async function probeReplay(
+  ctx: LocalStackEvalContext,
+  pgid: number,
+  send: Send,
+  variants: readonly VariantRequest[],
+  clock: Clock
+): Promise<ServerProbe> {
+  const deadline = clock.now() + REPLAY_BOOT_BUDGET_MS;
+  for (;;) {
+    const probe = await sweep(send, variants, 'replay', (attempt) => attempt());
+    if (
+      probe.accepted !== undefined ||
+      !hasTimeFor(deadline, REPLAY_POLL_MS, clock) ||
+      !(await groupAlive(ctx, pgid))
+    ) {
+      return probe;
     }
-    await sleep(STOP_POLL_MS);
+    await clock.sleep(REPLAY_POLL_MS);
   }
 }
 
@@ -401,66 +585,83 @@ async function replayServe(
   serve: SupabaseInvocation,
   send: Send,
   variants: readonly VariantRequest[],
-  sleep: Sleep
+  clock: Clock
 ): Promise<Verdict & { replay: ReplayOutcome }> {
   const command = replayCommand(serve);
-  const started = await ctx.exec(
-    `setsid nohup sh -c ${shellQuote(command)} > ${REPLAY_LOG} 2>&1 < /dev/null & echo $!`
-  );
-  const pgid = Number.parseInt(started.stdout, 10);
+  const takeover = await stopRunningServers(ctx, clock);
+  if ('reason' in takeover) return { replay: { ran: false, ...takeover } };
+  const started = await startReplay(ctx, command);
+  if ('reason' in started) return { replay: { ran: false, ...started } };
   try {
-    const { attempts, ...verdict } = await probeServer(
+    const { attempts, ...verdict } = await probeReplay(
+      ctx,
+      started.pgid,
       send,
       variants,
-      'replay',
-      replayPatience(),
-      sleep
+      clock
     );
-    const tail = await ctx.exec(
-      `tail -c ${REPLAY_LOG_TAIL_BYTES} ${REPLAY_LOG}`
+    const tail = await safely(() =>
+      ctx.exec(`tail -c ${REPLAY_LOG_TAIL_BYTES} ${REPLAY_LOG}`)
     );
     return {
       ...verdict,
-      replay: { ran: true, command, attempts, log: tail.stdout.trim() },
+      replay: {
+        ran: true,
+        command,
+        attempts,
+        log: tail?.stdout.trim() ?? '',
+        stoppedServers: takeover.stopped,
+      },
     };
   } finally {
-    await stopProcessGroup(ctx, pgid, sleep);
+    await safely(() => stopGroup(ctx, started.pgid, clock));
   }
 }
 
+async function detectHarnessServe(
+  ctx: LocalStackEvalContext
+): Promise<boolean> {
+  const result = await safely(() => ctx.exec(`test -e ${HARNESS_SERVE_LOG}`));
+  return result?.ok === true;
+}
+
 /**
- * POSTs the scheduler's call to the local function and, when nothing accepts the secret live, replays the agent's last
- * `functions serve` long enough to probe it.
+ * POSTs the scheduler's call to the local function and, when nothing accepts the secret live, takes over from any running
+ * `functions serve` and replays the agent's last one long enough to probe it.
  */
 export async function probeFunction(
   ctx: LocalStackEvalContext,
   stack: StackProbe,
   invocations: readonly SupabaseInvocation[],
-  { sleep = wait }: { sleep?: Sleep } = {}
+  { sleep = wait, now = Date.now }: ProbeOptions = {}
 ): Promise<FunctionProbe> {
   if (!stack.ok || !stack.apiUrl) {
     return {
       stackNotes: stack.ok
         ? 'the stack resolved without an API URL'
         : stack.notes,
+      harnessServe: false,
       live: [],
       replay: { ran: false, reason: NO_STACK_REASON },
     };
   }
+  const clock: Clock = { sleep, now };
+  const harnessServe = await detectHarnessServe(ctx);
   const url = `${stack.apiUrl}${FUNCTIONS_PATH}${FUNCTION_NAME}`;
   const send = sender(ctx, url);
-  const variants = authVariants(await readKeys(ctx, stack));
+  const variants = authVariants(await readKeys(ctx, stack, invocations));
 
-  const { attempts: live, ...liveVerdict } = await probeServer(
+  const liveDeadline = clock.now() + LIVE_BOOT_BUDGET_MS;
+  const { attempts: live, ...liveVerdict } = await sweep(
     send,
     variants,
     'live',
-    livePatience,
-    sleep
+    (attempt) => pollWhileBooting(attempt, liveDeadline, clock)
   );
   if (liveVerdict.accepted !== undefined) {
     return {
       url,
+      harnessServe,
       live,
       replay: { ran: false, reason: 'the live server accepted the secret' },
       ...liveVerdict,
@@ -470,6 +671,7 @@ export async function probeFunction(
   if (serve === undefined) {
     return {
       url,
+      harnessServe,
       live,
       replay: {
         ran: false,
@@ -479,7 +681,8 @@ export async function probeFunction(
   }
   return {
     url,
+    harnessServe,
     live,
-    ...(await replayServe(ctx, serve, send, variants, sleep)),
+    ...(await replayServe(ctx, serve, send, variants, clock)),
   };
 }

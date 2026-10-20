@@ -596,6 +596,14 @@ export function invocationVerb(inv: SupabaseInvocation): string | undefined {
   return first;
 }
 
+/** The positional after the verb, e.g. `serve` for `functions serve`. */
+export function invocationSubcommand(
+  inv: SupabaseInvocation
+): string | undefined {
+  const [first, second, third] = positionals(inv.argv);
+  return first === 'stack' && second !== undefined ? third : second;
+}
+
 // Only `stop` takes `--project-id` as a local stack name; elsewhere it is a remote ref or unsupported.
 function stopProjectId(inv: SupabaseInvocation): string | undefined {
   return invocationVerb(inv) === 'stop'

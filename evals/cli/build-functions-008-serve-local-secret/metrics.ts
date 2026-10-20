@@ -18,7 +18,7 @@ import {
   lastServeInvocation,
   type FunctionProbe,
 } from './probe.js';
-import type { SecretScan } from './secret.js';
+import { maskSecret, type SecretScan } from './secret.js';
 
 export type CliFacts = {
   versions: Awaited<ReturnType<typeof readCliVersions>> | null;
@@ -118,9 +118,11 @@ export async function checkMetrics(
     serveInvocations: await safely(
       () => invocations.filter(isFunctionsServe).length
     ),
-    lastServe: await safely(
-      () => lastServeInvocation(invocations)?.argv.slice(1).join(' ') ?? null
-    ),
+    lastServe: await safely(() => {
+      const last = lastServeInvocation(invocations)?.argv.slice(1).join(' ');
+      return last === undefined ? null : maskSecret(last);
+    }),
+    harnessServe: await safely(() => probe.harnessServe),
     replay: await safely(() => describeReplay(probe)),
     secretFiles: await safely(() => listSecretFiles(scan)),
     functionDirs,

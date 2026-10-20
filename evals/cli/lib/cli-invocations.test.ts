@@ -4,6 +4,7 @@ import {
   findSupabaseInvocations,
   invocationDirectory,
   invocationFlag,
+  invocationSubcommand,
   invocationTargetUnresolved,
   invocationTargets,
   invocationTargetsDir,
@@ -485,6 +486,41 @@ describe('invocationVerb', () => {
     [['supabase'], undefined],
   ])('%j -> %s', (argv, verb) => {
     expect(invocationVerb(inv(argv))).toBe(verb);
+  });
+});
+
+describe('invocationSubcommand', () => {
+  it.each([
+    [['supabase', 'functions', 'serve'], 'serve'],
+    [['supabase', '--workdir', 'app', 'functions', 'serve'], 'serve'],
+    [['supabase', '--debug', 'functions', 'serve'], 'serve'],
+    [['supabase', 'functions', '--debug', 'serve'], 'serve'],
+    [['supabase', 'functions', '--workdir', 'app', 'serve'], 'serve'],
+    [['supabase', 'functions', '--workdir=app', 'serve'], 'serve'],
+    [['supabase', 'functions', 'serve', '--env-file', '.env'], 'serve'],
+    [['supabase', 'functions', 'serve', 'nightly-digest'], 'serve'],
+    [['supabase', 'functions', 'deploy', 'nightly-digest'], 'deploy'],
+    [['supabase', 'functions'], undefined],
+    [['supabase', 'functions', '--debug'], undefined],
+    [['supabase', 'start'], undefined],
+    [['supabase', 'stack', 'destroy', '--stack', 'x'], undefined],
+    [['supabase', 'stack', 'start', 'extra'], 'extra'],
+    [['supabase'], undefined],
+  ])('%j -> %s', (argv, subcommand) => {
+    expect(invocationSubcommand(inv(argv))).toBe(subcommand);
+  });
+
+  it.each([
+    'npx --yes supabase@2.120.0 functions serve --no-verify-jwt',
+    'bunx supabase functions serve',
+    'timeout 30 supabase --workdir app functions serve',
+    'SUPABASE_HOME=/tmp/sb supabase functions serve',
+  ])('reads the subcommand of the normalised invocation of %s', (command) => {
+    const [found] = findSupabaseInvocations([command]);
+
+    expect(found).toBeDefined();
+    expect(invocationVerb(found)).toBe('functions');
+    expect(invocationSubcommand(found)).toBe('serve');
   });
 });
 

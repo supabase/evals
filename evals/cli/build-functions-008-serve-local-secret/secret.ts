@@ -23,9 +23,14 @@ export function maskSecret(text: string): string {
 
 // Dirent reports a symlink as neither a file nor a directory, so none is followed.
 function listFiles(root: string, relativeDir: string): string[] {
-  const entries = fs.readdirSync(path.join(root, relativeDir), {
-    withFileTypes: true,
-  });
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(path.join(root, relativeDir), {
+      withFileTypes: true,
+    });
+  } catch {
+    return [];
+  }
   return entries.flatMap((entry) => {
     const relative = path.posix.join(relativeDir, entry.name);
     if (entry.isDirectory()) {
@@ -38,10 +43,14 @@ function listFiles(root: string, relativeDir: string): string[] {
 }
 
 function holdsSecret(file: string, secret: string): boolean {
-  return (
-    fs.statSync(file).size <= MAX_SCANNED_BYTES &&
-    fs.readFileSync(file).includes(secret)
-  );
+  try {
+    return (
+      fs.statSync(file).size <= MAX_SCANNED_BYTES &&
+      fs.readFileSync(file).includes(secret)
+    );
+  } catch {
+    return false;
+  }
 }
 
 /** Files under `root` that contain `secret`, as sorted relative posix paths. */
@@ -59,10 +68,11 @@ export function findFunctionSources(root: string): string[] {
     .sort();
 }
 
-function listNotIgnoredScript(files: readonly string[]): string {
+/** Prints the files git would commit; exits 2 when git itself fails, since `check-ignore` exits 1 for a file it does not ignore. */
+export function listNotIgnoredScript(files: readonly string[]): string {
   return [
     'git rev-parse --git-dir >/dev/null 2>&1 || git init -q',
-    `for f in ${files.map(shellQuote).join(' ')}; do git check-ignore -q "$f" || echo "$f"; done`,
+    `for f in ${files.map(shellQuote).join(' ')}; do git check-ignore -q -- "$f"; case $? in 0) ;; 1) echo "$f" ;; *) exit 2 ;; esac; done`,
   ].join('\n');
 }
 
@@ -70,9 +80,9 @@ function listNotIgnoredScript(files: readonly string[]): string {
 export async function scanSecret(
   ctx: LocalStackEvalContext
 ): Promise<SecretScan> {
-  const functionSources = findFunctionSources(ctx.hostWorkspace);
-  const files = findSecretFiles(ctx.hostWorkspace, DIGEST_SECRET);
   try {
+    const functionSources = findFunctionSources(ctx.hostWorkspace);
+    const files = findSecretFiles(ctx.hostWorkspace, DIGEST_SECRET);
     const result = await ctx.exec(listNotIgnoredScript(files));
     if (!result.ok) {
       return {
