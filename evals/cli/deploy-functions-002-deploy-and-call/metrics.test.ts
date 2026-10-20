@@ -76,6 +76,8 @@ describe('countCliCommands', () => {
       'supabase projects list',
       'supabase projects api-keys --project-ref abcdefghijklmnopqrst',
       'supabase secrets list',
+      'supabase start',
+      'supabase status',
     ]);
     expect(counts).toEqual({
       'functions deploy': 2,
@@ -88,7 +90,22 @@ describe('countCliCommands', () => {
       'projects list': 1,
       'projects api-keys': 1,
       secrets: 1,
+      start: 1,
+      status: 1,
     });
+  });
+
+  it('counts the local-stack commands start and status under their own keys, not other', () => {
+    const counts = countOf([
+      'supabase start',
+      'supabase start -x gotrue,imgproxy',
+      'supabase --workdir app start',
+      'supabase status',
+      'supabase status -o env',
+      'supabase --debug status',
+      'supabase stop',
+    ]);
+    expect(counts).toEqual({ start: 3, status: 3, other: 1 });
   });
 
   it('files every secrets subcommand under secrets', () => {
@@ -105,10 +122,10 @@ describe('countCliCommands', () => {
       'supabase functions delete shipping-quote',
       'supabase functions',
       'supabase projects create demo',
-      'supabase start',
       'supabase db push',
       'supabase migration list',
       'supabase stack list',
+      'supabase stop',
       'supabase',
     ]);
     expect(counts).toEqual({ other: 8 });

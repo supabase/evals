@@ -9,7 +9,7 @@ export type DeployedFunction = {
 };
 
 export type DeploymentProbe =
-  | { ok: true; deployed: DeployedFunction | null }
+  | { ok: true; deployed: DeployedFunction | null; notFound?: string }
   | { ok: false; notes: string };
 
 type HostedContext = Pick<LocalStackEvalContext, 'hostedMgmt' | 'hostedRef'>;
@@ -40,7 +40,18 @@ export async function readDeployment(
       '/v1/projects/{ref}/functions/{function_slug}',
       { params: { path: { ref: hostedRef, function_slug: FUNCTION_SLUG } } }
     );
-    if (res.response.status === 404) return { ok: true, deployed: null };
+    if (res.response.status === 404) {
+      const message = (res.error as { message?: unknown } | null | undefined)
+        ?.message;
+      return {
+        ok: true,
+        deployed: null,
+        notFound:
+          typeof message === 'string' && message !== ''
+            ? `404: ${message}`
+            : '404',
+      };
+    }
     if (res.error || !res.data) {
       return {
         ok: false,
@@ -70,7 +81,7 @@ export function checkFunctionDeployed(
     return {
       name,
       passed: false,
-      notes: `not deployed: the project has no ${FUNCTION_SLUG} function`,
+      notes: `not deployed: the project has no ${FUNCTION_SLUG} function${notFoundSuffix(deployment)}`,
     };
   }
   return {
@@ -98,20 +109,29 @@ export function checkJwtVerificationKept(
   };
 }
 
+function notFoundSuffix(deployment: DeploymentProbe): string {
+  return deployment.ok && deployment.notFound
+    ? ` (${deployment.notFound})`
+    : '';
+}
+
 /** The `- deployment:` and `- JWT verification` ground-truth lines the judge inputs share. */
 export function describeDeployment(deployment: DeploymentProbe): string[] {
   const deployed = deployment.ok ? deployment.deployed : null;
   const summary = !deployment.ok
     ? `unavailable (${deployment.notes})`
     : deployed === null
-      ? 'not deployed'
+      ? `not deployed${notFoundSuffix(deployment)}`
       : `${deployed.status}${deployed.version === undefined ? '' : ` v${deployed.version}`}`;
-  const jwt =
-    deployed?.verifyJwt === undefined
-      ? 'unknown'
-      : deployed.verifyJwt
-        ? 'on'
-        : 'off';
+  const jwt = !deployment.ok
+    ? 'n/a (deployment unavailable)'
+    : deployed === null
+      ? 'n/a (not deployed)'
+      : deployed.verifyJwt === undefined
+        ? 'unknown'
+        : deployed.verifyJwt
+          ? 'on'
+          : 'off';
   return [
     `- deployment: ${summary}`,
     `- JWT verification on the deployed function: ${jwt}`,

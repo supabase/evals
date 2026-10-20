@@ -23,7 +23,7 @@ const deployed = (
 
 const REF_LINE = `- hosted project ref: ${REF}`;
 const URL_LINE =
-  "- the deployed function is reachable at /functions/v1/shipping-quote on that project's host";
+  "- the deployed function's path on the project's host is /functions/v1/shipping-quote";
 
 describe('describeVerificationFacts', () => {
   it('states the ref, where the function lives, the deployment and the JWT setting', () => {
@@ -35,6 +35,15 @@ describe('describeVerificationFacts', () => {
       '- deployment: ACTIVE v3',
       '- JWT verification on the deployed function: on',
     ]);
+  });
+
+  it('states the function path without claiming the harness checked reachability', () => {
+    const lines = describeVerificationFacts({
+      ref: REF,
+      deployment: deployed(),
+    });
+    expect(lines[1]).toBe(URL_LINE);
+    expect(lines.join('\n')).not.toContain('reachable');
   });
 
   it('says JWT verification is off when the deployed function has it off', () => {
@@ -71,7 +80,7 @@ describe('describeVerificationFacts', () => {
     expect(lines[2]).toBe('- deployment: ACTIVE');
   });
 
-  it('says not deployed, with JWT verification unknown, when the project has no function', () => {
+  it('says not deployed, with JWT verification n/a, when the project has no function', () => {
     expect(
       describeVerificationFacts({
         ref: REF,
@@ -81,7 +90,7 @@ describe('describeVerificationFacts', () => {
       REF_LINE,
       URL_LINE,
       '- deployment: not deployed',
-      '- JWT verification on the deployed function: unknown',
+      '- JWT verification on the deployed function: n/a (not deployed)',
     ]);
   });
 
@@ -95,7 +104,7 @@ describe('describeVerificationFacts', () => {
       REF_LINE,
       URL_LINE,
       '- deployment: unavailable (connection reset)',
-      '- JWT verification on the deployed function: unknown',
+      '- JWT verification on the deployed function: n/a (deployment unavailable)',
     ]);
   });
 

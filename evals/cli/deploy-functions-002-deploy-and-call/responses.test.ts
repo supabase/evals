@@ -187,28 +187,56 @@ describe('probeQuotes', () => {
     );
   });
 
-  it('falls back to a publishable key when there is no anon key', async () => {
+  it('never presents a publishable key, even alongside the anon key', async () => {
+    const { ctx, invoke } = fakeCtx({
+      keys: [
+        {
+          name: 'publishable',
+          api_key: 'sb_publishable_x',
+          type: 'publishable',
+        },
+        ...KEYS,
+      ],
+    });
+    await probeQuotes(ctx);
+    expect(invoke).toHaveBeenCalledTimes(QUOTE_PROBES.length);
+    for (const [input] of invoke.mock.calls) {
+      expect(JSON.stringify(input)).not.toContain('sb_publishable_x');
+    }
+  });
+
+  it('fails without invoking anything for a publishable-only project, since a publishable key is not a JWT', async () => {
     const { ctx, invoke } = fakeCtx({
       keys: [
         { name: 'service_role', api_key: 'srv', type: 'legacy' },
         { name: 'default', api_key: 'sb_publishable_x', type: 'publishable' },
       ],
     });
-    expect(outcomesOf(await probeQuotes(ctx)).every((o) => o.passed)).toBe(
-      true
-    );
-    expect(invoke.mock.calls[0][0].headers?.authorization).toBe(
-      'Bearer sb_publishable_x'
-    );
+    expect(await probeQuotes(ctx)).toEqual({
+      ok: false,
+      notes: 'no anon API key on the project',
+    });
+    expect(invoke).not.toHaveBeenCalled();
   });
 
-  it('fails without invoking anything when the project has no usable key', async () => {
+  it('fails without invoking anything when the project has no anon key', async () => {
     const { ctx, invoke } = fakeCtx({
       keys: [{ name: 'service_role', api_key: 'srv', type: 'legacy' }],
     });
     expect(await probeQuotes(ctx)).toEqual({
       ok: false,
-      notes: 'no anon or publishable API key on the project',
+      notes: 'no anon API key on the project',
+    });
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it('fails without invoking anything when the anon key has no value', async () => {
+    const { ctx, invoke } = fakeCtx({
+      keys: [{ name: 'anon', type: 'legacy' }],
+    });
+    expect(await probeQuotes(ctx)).toEqual({
+      ok: false,
+      notes: 'no anon API key on the project',
     });
     expect(invoke).not.toHaveBeenCalled();
   });
@@ -217,7 +245,7 @@ describe('probeQuotes', () => {
     const { ctx, invoke } = fakeCtx({ keys: [] });
     expect(await probeQuotes(ctx)).toEqual({
       ok: false,
-      notes: 'no anon or publishable API key on the project',
+      notes: 'no anon API key on the project',
     });
     expect(invoke).not.toHaveBeenCalled();
   });

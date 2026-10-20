@@ -27,6 +27,8 @@ const TRACKED_COMMANDS = new Set([
   'projects list',
   'projects api-keys',
   'secrets',
+  'start',
+  'status',
 ]);
 const COMMAND_GROUPS = new Set(['functions', 'projects']);
 const VALUE_FLAGS = new Set([

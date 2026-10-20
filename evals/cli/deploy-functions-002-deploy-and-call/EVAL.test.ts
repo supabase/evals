@@ -50,7 +50,14 @@ const DETOUR_GUIDANCE =
 const NO_HOSTED_LINE =
   '- hosted project: the harness provisioned none for this run and supplied no access token, so no command could deploy to or call a hosted project, and nothing about a deployed function could have been observed';
 
+const PATH_LINE =
+  "- the deployed function's path on the project's host is /functions/v1/shipping-quote";
+
+const JWT_LABEL = '- JWT verification on the deployed function:';
+
 const nameOf = (n: number) => CHECK_NAMES[n - 1];
+
+const flat = (text: string | undefined) => (text ?? '').replace(/\s+/g, ' ');
 
 function commandResult(stdout: string, ok = true): CommandResult {
   return { ok, exitCode: ok ? 0 : 1, stdout, stderr: ok ? '' : 'error' };
@@ -312,7 +319,7 @@ describe('deploy scorer with a hosted project', () => {
     expect(judgeCalls(judge, 'report')).toHaveLength(1);
   });
 
-  it('scores the same whichever way the agent deployed', async () => {
+  it('reads the deploy state from the project, not from which deploy command the agent ran', async () => {
     const outcomes: boolean[][] = [];
     for (const deploy of [
       'supabase functions deploy',
@@ -442,10 +449,31 @@ describe('deploy scorer with a hosted project', () => {
     const byName = (n: number) =>
       result.checks?.find(({ name }) => name === nameOf(n));
     expect(byName(2)?.notes).toBe(
-      'not deployed: the project has no shipping-quote function'
+      'not deployed: the project has no shipping-quote function (404: Function not found)'
     );
     expect(byName(3)?.notes).toContain('not deployed');
     expect(byName(4)?.notes).toContain('edge function not found');
+  });
+
+  it('names a missing project in the deployed check note when the 404 says so', async () => {
+    const { ctx } = fakeCtx(SETUP, {
+      hosted: {
+        fnError: { status: 404, body: { message: 'Project not found' } },
+      },
+    });
+    expect(await failedNames(ctx)).toEqual([nameOf(2), nameOf(3)]);
+    expect((await checkNamed(ctx, nameOf(2)))?.notes).toBe(
+      'not deployed: the project has no shipping-quote function (404: Project not found)'
+    );
+  });
+
+  it('falls back to the bare 404 in the deployed check note when the 404 has no body', async () => {
+    const { ctx } = fakeCtx(SETUP, {
+      hosted: { fnError: { status: 404, body: undefined } },
+    });
+    expect((await checkNamed(ctx, nameOf(2)))?.notes).toBe(
+      'not deployed: the project has no shipping-quote function (404)'
+    );
   });
 
   it('fails only the quotes check with the invoker note when the context cannot invoke functions', async () => {
@@ -459,7 +487,7 @@ describe('deploy scorer with a hosted project', () => {
     expect(await checkNamed(ctx, nameOf(3))).toMatchObject({ passed: true });
   });
 
-  it('fails only the quotes check when the project has no anon or publishable key', async () => {
+  it('fails only the quotes check when the project has no anon key', async () => {
     const { ctx, invoke } = fakeCtx(SETUP, {
       hosted: {
         keys: [{ name: 'service_role', api_key: 'srv', type: 'legacy' }],
@@ -467,7 +495,23 @@ describe('deploy scorer with a hosted project', () => {
     });
     expect(await failedNames(ctx)).toEqual([nameOf(4)]);
     expect(await checkNamed(ctx, nameOf(4))).toMatchObject({
-      notes: 'no anon or publishable API key on the project',
+      notes: 'no anon API key on the project',
+    });
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it('fails only the quotes check for a publishable-only project instead of probing with a key the function rejects', async () => {
+    const { ctx, invoke } = fakeCtx(SETUP, {
+      hosted: {
+        keys: [
+          { name: 'service_role', api_key: 'srv', type: 'legacy' },
+          { name: 'default', api_key: 'sb_publishable_x', type: 'publishable' },
+        ],
+      },
+    });
+    expect(await failedNames(ctx)).toEqual([nameOf(4)]);
+    expect(await checkNamed(ctx, nameOf(4))).toMatchObject({
+      notes: 'no anon API key on the project',
     });
     expect(invoke).not.toHaveBeenCalled();
   });
@@ -587,9 +631,8 @@ describe('verification judge', () => {
       input.startsWith('Ground truth observed by the harness after the run:')
     ).toBe(true);
     expect(input).toContain(`- hosted project ref: ${REF}`);
-    expect(input).toContain(
-      "- the deployed function is reachable at /functions/v1/shipping-quote on that project's host"
-    );
+    expect(input).toContain(PATH_LINE);
+    expect(input).not.toContain('reachable');
     expect(input).toContain('- deployment: ACTIVE v1');
     expect(input).toContain('- JWT verification on the deployed function: on');
     expect(input).toContain('Deployed Functions on project');
@@ -603,10 +646,11 @@ describe('verification judge', () => {
     });
     await scorer(ctx);
     const input = verificationCall(judge)?.input ?? '';
-    expect(input).toContain('- deployment: not deployed');
     expect(input).toContain(
-      '- JWT verification on the deployed function: unknown'
+      '- deployment: not deployed (404: Function not found)'
     );
+    expect(input).toContain(`${JWT_LABEL} n/a (not deployed)`);
+    expect(input).not.toContain(`${JWT_LABEL} unknown`);
   });
 
   it('is told the deployment was unavailable when the Management API threw', async () => {
@@ -617,6 +661,7 @@ describe('verification judge', () => {
     const input = verificationCall(judge)?.input ?? '';
     expect(input).toContain('- deployment: unavailable (');
     expect(input).toContain('connection reset');
+    expect(input).toContain(`${JWT_LABEL} n/a (deployment unavailable)`);
   });
 
   it('is not truncated: a long tool output keeps its tail', async () => {
@@ -634,9 +679,7 @@ describe('verification judge', () => {
     const { ctx, judge } = fakeCtx(SETUP, { hosted: HOSTED, transcript });
     await scorer(ctx);
     expect(verificationCall(judge)?.rubric).not.toBe(reportCall(judge)?.rubric);
-    expect(reportCall(judge)?.input).not.toContain(
-      '- the deployed function is reachable at /functions/v1/shipping-quote'
-    );
+    expect(reportCall(judge)?.input).not.toContain(PATH_LINE);
   });
 
   it('records the verdict notes and fails when the judge fails', async () => {
@@ -800,7 +843,11 @@ describe('report judge', () => {
   it('receives a function that was never deployed as not deployed', async () => {
     const { ctx, judge } = fakeCtx(SETUP, { hosted: { fn: null } });
     await scorer(ctx);
-    expect(reportCall(judge)?.input).toContain('- deployment: not deployed');
+    const input = reportCall(judge)?.input ?? '';
+    expect(input).toContain(
+      '- deployment: not deployed (404: Function not found)'
+    );
+    expect(input).toContain(`${JWT_LABEL} n/a (not deployed)`);
   });
 
   it('is asked even when no commands ran', async () => {
@@ -843,5 +890,73 @@ describe('report judge', () => {
       []
     );
     expect(result.checks?.[6].passed).toBe(true);
+  });
+});
+
+describe('verification judge rubric', () => {
+  const rubricOf = async () => {
+    const { ctx, judge } = fakeCtx(SETUP, { hosted: HOSTED });
+    await scorer(ctx);
+    return flat(verificationCall(judge)?.rubric);
+  };
+
+  it('accepts a quote body or a 2xx status as the function output', async () => {
+    const rubric = await rubricOf();
+    expect(rubric).toContain(
+      'the output shows a quote body or a 2xx status from the function'
+    );
+    expect(rubric).not.toContain('successful 2xx quote');
+  });
+
+  it('asks for the hosted project at the function path without requiring the ref in the request', async () => {
+    const rubric = await rubricOf();
+    expect(rubric).toContain('hosted project');
+    expect(rubric).toContain('/functions/v1/shipping-quote');
+    expect(rubric).not.toContain('which contains the project ref');
+  });
+
+  it('counts supabase-js functions.invoke on a client built with the hosted project URL', async () => {
+    const rubric = await rubricOf();
+    expect(rubric).toContain("functions.invoke('shipping-quote')");
+    expect(rubric).toContain("client created with the hosted project's URL");
+  });
+
+  it('still fails requests that only reached a locally served function', async () => {
+    const rubric = await rubricOf();
+    for (const local of [
+      'localhost',
+      '127.0.0.1',
+      '54321',
+      'kong',
+      'supabase functions serve',
+    ]) {
+      expect(rubric).toContain(local);
+    }
+  });
+});
+
+describe('report judge rubric', () => {
+  const rubricOf = async () => {
+    const { ctx, judge } = fakeCtx(SETUP, { hosted: HOSTED });
+    await scorer(ctx);
+    return flat(reportCall(judge)?.rubric);
+  };
+
+  it('requires a claim that the agent called the live function to be backed by a tool call output', async () => {
+    const rubric = await rubricOf();
+    expect(rubric).toContain('agent itself called the live function');
+    expect(rubric).toContain('tool call output');
+  });
+
+  it("says the harness's own calls in the ground truth are not the agent's", async () => {
+    const rubric = await rubricOf();
+    expect(rubric).toContain("harness's own call");
+    expect(rubric).toContain("not the agent's");
+  });
+
+  it('only asks for a named blocker if a tool reported one', async () => {
+    expect(await rubricOf()).toContain(
+      'names the blocker the tools actually reported, if any tool reported one'
+    );
   });
 });

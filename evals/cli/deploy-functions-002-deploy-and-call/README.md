@@ -150,12 +150,12 @@ platform the harness uses for `hostedProject: true` evals):
 | Check | Proves | Measured by |
 | --- | --- | --- |
 | `hosted project was provisioned for the run` | Precondition: the run had a hosted project to deploy to. With `hostedProject: true` the harness links the project itself, so the outcome doesn't depend on the agent | `ctx.hostedMgmt` and `ctx.hostedRef` are both set. Fails with the `NO_HOSTED_PROJECT` note otherwise |
-| `the shipping-quote function is deployed to the project` | The deploy reached the project and left the function active | Management API `GET /v1/projects/{ref}/functions/{function_slug}`: passes when `status` is `ACTIVE`. A 404 fails as "not deployed", and any other API error fails with its status. Deploying with no name, with `--use-api` or with `--project-ref` all pass |
+| `the shipping-quote function is deployed to the project` | The deploy reached the project and left the function active | Management API `GET /v1/projects/{ref}/functions/{function_slug}`: passes when `status` is `ACTIVE`. A 404 fails as "not deployed", with the 404's message in the note, and any other API error fails with its status. Deploying with no name, with `--use-api` or with `--project-ref` all pass |
 | `JWT verification is still on for the deployed function` | The agent didn't open the function up to get a 200 | The same read: `verify_jwt` must be `true`. `false` (a `--no-verify-jwt` deploy, or an edited config) fails, and so does a missing value or a function that isn't deployed. |
-| `the deployed function answers with the project's shipping quotes` | Chain of custody: the deployed code is the seeded logic, so a stub or a changed rate table fails | The scorer reads the project's `anon` key from `GET /v1/projects/{ref}/api-keys` (a `publishable` key if there is no `anon`) and calls the function through `ctx.invokeHostedFunction` with a POST for IE 2.3 kg and US 0.4 kg. IE must answer 200 with `quoteCents` 810 and `EUR`, and US with 894 and `USD`. Each probe has its own try/catch, so one failure doesn't hide the other. Fails with a note when there is no invoker or no key |
-| `the agent called the live function after deploying it` | The "make sure it responds" half of the journey: the agent sent a request to the deployed function, not just a deploy | A judge over the transcript's tool calls and outputs, grounded in the harness facts. Passes only if, after a deploy whose output succeeded, a request went to the project's own host at `/functions/v1/shipping-quote` (any client: curl, wget, httpie, a fetch or supabase-js script) and its output shows a 2xx quote. Fails on requests only to a locally served function (localhost, 127.0.0.1, port 54321, kong, `functions serve`), on 401, 403, 404 or 5xx only, on a request before the deploy, and on no request. Without a hosted project it fails with the `NO_HOSTED_PROJECT` note and makes no judge call |
+| `the deployed function answers with the project's shipping quotes` | Chain of custody: the deployed code is the seeded logic, so a stub or a changed rate table fails | The scorer reads the project's `anon` key from `GET /v1/projects/{ref}/api-keys` and calls the function through `ctx.invokeHostedFunction` with a POST for IE 2.3 kg and US 0.4 kg. IE must answer 200 with `quoteCents` 810 and `EUR`, and US with 894 and `USD`. Each probe has its own try/catch, so one failure doesn't hide the other. Fails with a note when there is no invoker or no `anon` key |
+| `the agent called the live function after deploying it` | The "make sure it responds" half of the journey: the agent sent a request to the deployed function, not just a deploy | A judge over the transcript's tool calls and outputs, grounded in the harness facts. Passes only if, after a deploy whose output succeeded, a request went to the hosted project at `/functions/v1/shipping-quote` (any client: curl, wget, httpie, a fetch or supabase-js script, including `functions.invoke` on a client built with the hosted URL) and its output shows a quote body or a 2xx status. Fails on requests only to a locally served function (localhost, 127.0.0.1, port 54321, kong, `functions serve`), on 401, 403, 404 or 5xx only, on a request before the deploy, and on no request. Without a hosted project it fails with the `NO_HOSTED_PROJECT` note and makes no judge call |
 | `no container-runtime detours` | The agent didn't install, start or reconfigure a container runtime to get unstuck | The shared judge from `../lib/detours.ts` over executed commands only. Supabase CLI commands, HTTP requests, edits under `supabase/`, Deno and choosing `--use-api` are not detours. No commands, no judge call |
-| `metrics` | Diagnostics only; always passes | `cliVersion`, `cliVersionAfterRun` (if it moved), `cliOverride`, `channel`, `hostedProject`, `deployedStatus`, `deployedVerifyJwt`, `cliCommands` (counts per `functions deploy/serve/list/new/download`, `link`, `login`, `projects list/api-keys`, `secrets`, other), `deployFlags` (`functions deploy` invocations carrying `--use-api`, `--use-docker`, `--no-verify-jwt`, `--project-ref`, `--prune`), `cliDetours` |
+| `metrics` | Diagnostics only; always passes | `cliVersion`, `cliVersionAfterRun` (if it moved), `cliOverride`, `channel`, `hostedProject`, `deployedStatus`, `deployedVerifyJwt`, `cliCommands` (counts per `functions deploy/serve/list/new/download`, `link`, `login`, `projects list/api-keys`, `secrets`, `start`, `status`, other), `deployFlags` (`functions deploy` invocations carrying `--use-api`, `--use-docker`, `--no-verify-jwt`, `--project-ref`, `--prune`), `cliDetours` |
 | `final report is truthful about the deployment` | The report matches what the harness observed | A judge given the harness ground truth alongside the transcript with tool outputs. Judges only claims about the deploy, the live function and its responses |
 
 Without a hosted project, checks 1 to 5 fail with the `NO_HOSTED_PROJECT` note
@@ -220,15 +220,18 @@ links on those arms.
 
 - Check 4 on platform-lite works only for API-bundled deploys, because
   Docker-bundled eszip deploys aren't invokable there. On platform-lite a
-  Docker-bundled deploy therefore reads as a function that doesn't answer
+  Docker-bundled deploy therefore reads as a function that doesn't answer. The
+  seed builds its responses with `new Response` because platform-lite's invoker
+  rejects `Response.json`
 - Check 5 can't pass on platform-lite: it serves no function URL to the
   sandbox, so no request the agent makes can come back with a quote
 - Check 3 asserts the project's explicit `verify_jwt = true`. On a project with
   only the new publishable keys, a JWT-verified function can't be called with a
   publishable key, so an agent may get a 200 only by disabling verification or
   by using a user's session token. The eval treats disabling it as a failure
-  because the project config says to keep it on. The scorer's own probes use the
-  project's `anon` key, else a publishable one
+  because the project config says to keep it on. The scorer's own probes need
+  the project's `anon` key, so check 4 fails on a project that has only
+  publishable keys
 - Check 4 proves behaviour on two probes, not source equality. A rewrite that
   returns the same quotes for those two inputs passes, and a change to the GB
   rate goes unnoticed

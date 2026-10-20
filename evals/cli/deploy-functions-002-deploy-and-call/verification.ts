@@ -9,7 +9,7 @@ export function describeVerificationFacts(facts: {
 }): string[] {
   return [
     `- hosted project ref: ${facts.ref}`,
-    `- the deployed function is reachable at /functions/v1/${FUNCTION_SLUG} on that project's host`,
+    `- the deployed function's path on the project's host is /functions/v1/${FUNCTION_SLUG}`,
     ...describeDeployment(facts.deployment),
   ];
 }

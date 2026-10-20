@@ -2,7 +2,11 @@
 import type { TranscriptPart } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
 import { formatGroundTruthJudgeInput } from '../lib/report.js';
-import { type DeploymentProbe, NO_HOSTED_PROJECT } from './hosted.js';
+import {
+  type DeploymentProbe,
+  NO_HOSTED_PROJECT,
+  readDeployment,
+} from './hosted.js';
 import type { CliFacts } from './metrics.js';
 import { describeGroundTruth, formatReportJudgeInput } from './report.js';
 import type { ProbeOutcome, ResponsesProbe } from './responses.js';
@@ -175,16 +179,40 @@ describe('describeGroundTruth with a hosted project', () => {
     ).toContain('- deployment: ACTIVE');
   });
 
-  it('says the function is not deployed when the project has none', () => {
+  it('says the function is not deployed, with JWT verification n/a, when the project has none', () => {
     const lines = describeGroundTruth(
       facts({ deployment: { ok: true, deployed: null } })
     );
     expect(lines).toContain('- deployment: not deployed');
     expect(lines).toContain(
-      '- JWT verification on the deployed function: unknown'
+      '- JWT verification on the deployed function: n/a (not deployed)'
     );
     expect(lines).not.toContain('- deployment: ACTIVE v3');
   });
+
+  it.each([
+    ['function', 'Function not found'],
+    ['project', 'Project not found'],
+  ])(
+    'carries the Management API 404 for a missing %s into the deployment line',
+    async (_label, message) => {
+      const deployment = await readDeployment({
+        hostedRef: 'abcdefghijklmnopqrst',
+        hostedMgmt: {
+          GET: async () => ({
+            data: undefined,
+            error: { message },
+            response: { status: 404 },
+          }),
+        } as never,
+      });
+      const lines = describeGroundTruth(facts({ deployment }));
+      expect(lines).toContain(`- deployment: not deployed (404: ${message})`);
+      expect(lines).toContain(
+        '- JWT verification on the deployed function: n/a (not deployed)'
+      );
+    }
+  );
 
   it('says the deployment is unavailable and why when the probe failed', () => {
     const lines = describeGroundTruth(
@@ -192,7 +220,7 @@ describe('describeGroundTruth with a hosted project', () => {
     );
     expect(lines).toContain('- deployment: unavailable (connection reset)');
     expect(lines).toContain(
-      '- JWT verification on the deployed function: unknown'
+      '- JWT verification on the deployed function: n/a (deployment unavailable)'
     );
   });
 });

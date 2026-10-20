@@ -5,6 +5,7 @@ import {
   checkHostedProject,
   checkJwtVerificationKept,
   type DeploymentProbe,
+  describeDeployment,
   hasHostedProject,
   NO_HOSTED_PROJECT,
   readDeployment,
@@ -49,6 +50,22 @@ const notFound: GetResult = {
   error: { message: 'Function not found' },
   response: { status: 404 },
 };
+
+const projectNotFound: GetResult = {
+  data: undefined,
+  error: { message: 'Project not found' },
+  response: { status: 404 },
+};
+
+const notFoundWith = (error: unknown): GetResult => ({
+  data: undefined,
+  error,
+  response: { status: 404 },
+});
+
+const NOT_DEPLOYED_NOTE =
+  'not deployed: the project has no shipping-quote function';
+const JWT_LABEL = '- JWT verification on the deployed function:';
 
 const deployed = (
   overrides: Partial<{
@@ -161,8 +178,55 @@ describe('readDeployment', () => {
 
   it('treats a 404 as a function that was never deployed', async () => {
     const { ctx } = hostedCtx(async () => notFound);
-    expect(await readDeployment(ctx)).toEqual({ ok: true, deployed: null });
+    expect(await readDeployment(ctx)).toMatchObject({
+      ok: true,
+      deployed: null,
+    });
   });
+
+  it('carries the 404 message into the not-deployed check note and the deployment line', async () => {
+    const { ctx } = hostedCtx(async () => notFound);
+    const probe = await readDeployment(ctx);
+    expect(checkFunctionDeployed(probe).notes).toBe(
+      `${NOT_DEPLOYED_NOTE} (404: Function not found)`
+    );
+    expect(describeDeployment(probe)[0]).toBe(
+      '- deployment: not deployed (404: Function not found)'
+    );
+  });
+
+  it('tells a missing project from a missing function by the 404 message', async () => {
+    const { ctx } = hostedCtx(async () => projectNotFound);
+    const probe = await readDeployment(ctx);
+    expect(probe).toMatchObject({ ok: true, deployed: null });
+    expect(checkFunctionDeployed(probe).notes).toBe(
+      `${NOT_DEPLOYED_NOTE} (404: Project not found)`
+    );
+    expect(describeDeployment(probe)[0]).toBe(
+      '- deployment: not deployed (404: Project not found)'
+    );
+  });
+
+  it.each([
+    ['no error body', undefined],
+    ['a null error body', null],
+    ['an empty error object', {}],
+    ['a non-string message', { message: 42 }],
+    ['an empty message', { message: '' }],
+  ])(
+    'falls back to the bare 404 when the 404 has %s',
+    async (_label, error) => {
+      const { ctx } = hostedCtx(async () => notFoundWith(error));
+      const probe = await readDeployment(ctx);
+      expect(probe).toMatchObject({ ok: true, deployed: null });
+      expect(checkFunctionDeployed(probe).notes).toBe(
+        `${NOT_DEPLOYED_NOTE} (404)`
+      );
+      expect(describeDeployment(probe)[0]).toBe(
+        '- deployment: not deployed (404)'
+      );
+    }
+  );
 
   it('fails with the status and the error body on any other API error', async () => {
     const { ctx } = hostedCtx(async () => ({
@@ -326,5 +390,57 @@ describe('checkJwtVerificationKept', () => {
       passed: false,
       notes: NO_HOSTED_PROJECT,
     });
+  });
+});
+
+describe('describeDeployment', () => {
+  it('reports the status, version and JWT setting of a deployed function', () => {
+    expect(describeDeployment(deployed())).toEqual([
+      '- deployment: ACTIVE v3',
+      `${JWT_LABEL} on`,
+    ]);
+    expect(describeDeployment(deployed({ verifyJwt: false }))[1]).toBe(
+      `${JWT_LABEL} off`
+    );
+  });
+
+  it('says unknown only for a deployed function whose verify_jwt is undefined', () => {
+    expect(describeDeployment(deployed({ verifyJwt: undefined }))).toEqual([
+      '- deployment: ACTIVE v3',
+      `${JWT_LABEL} unknown`,
+    ]);
+  });
+
+  it('says the JWT setting is n/a, not unknown, when nothing is deployed', () => {
+    expect(describeDeployment(NOT_DEPLOYED)).toEqual([
+      '- deployment: not deployed',
+      `${JWT_LABEL} n/a (not deployed)`,
+    ]);
+  });
+
+  it('says the JWT setting is n/a, not unknown, when the deployment is unavailable', () => {
+    expect(describeDeployment(UNAVAILABLE)).toEqual([
+      `- deployment: unavailable (${NO_HOSTED_PROJECT})`,
+      `${JWT_LABEL} n/a (deployment unavailable)`,
+    ]);
+  });
+
+  it('says the deployment is unavailable, with the API error, when the function read failed', async () => {
+    const { ctx } = hostedCtx(async () => ({
+      data: undefined,
+      error: { message: 'upstream exploded' },
+      response: { status: 500 },
+    }));
+    const [summary, jwt] = describeDeployment(await readDeployment(ctx));
+    expect(summary).toContain('- deployment: unavailable (');
+    expect(summary).toContain('upstream exploded');
+    expect(jwt).toBe(`${JWT_LABEL} n/a (deployment unavailable)`);
+  });
+
+  it('keeps the 404 message out of the JWT line', async () => {
+    const { ctx } = hostedCtx(async () => projectNotFound);
+    expect(describeDeployment(await readDeployment(ctx))[1]).toBe(
+      `${JWT_LABEL} n/a (not deployed)`
+    );
   });
 });
