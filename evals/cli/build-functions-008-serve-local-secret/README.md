@@ -3,10 +3,10 @@
 The agent is the subject under test. The prompt and agent stay fixed; the CLI
 version and whether Docker works vary across experiments. The questions:
 
-- Can an agent create an edge function, give it the scheduler's secret through a
-  local env file the function runtime actually loads, serve it on the local
-  stack, and call it? (`nightly-digest accepts the scheduler's secret` and
-  `nightly-digest rejects a wrong or missing secret`)
+- Can an agent create an edge function, get the scheduler's secret to it from a
+  local env file, serve it on the local stack, and call it? (`nightly-digest
+  accepts the scheduler's secret` and `nightly-digest rejects a wrong or missing
+  secret`)
 - Does the secret stay out of committed files? (`the secret stays out of
   committed files`)
 - Does the agent avoid container-runtime detours? (`no container-runtime
@@ -16,8 +16,10 @@ version and whether Docker works vary across experiments. The questions:
 
 The scenario is the one in the prompt: a scheduler calls `nightly-digest` with
 an `x-digest-secret` header, and the project already holds that secret in its
-root `.env`. The footgun is that `config.toml`'s `env()` and the user's app read
-the root `.env`, while the function runtime does not.
+root `.env`. The scenario tests whether the secret reaches the function from a
+local env file. In CI a plain `supabase start` did deliver a root `.env` value
+to the function (see CLI facts), so the root `.env` alone is not a guaranteed
+failure.
 
 Motivation: CLI-2704,
 <https://linear.app/supabase/issue/CLI-2704/eval-create-and-serve-an-edge-function-locally-with-secrets>,
@@ -25,7 +27,8 @@ whose journey is "the agent creates an edge function, gives it a secret through
 a local env file, serves it, and calls it successfully" (also the `motivation`
 field in `PROMPT.md`). Evidence that env-file loading for functions trips users:
 
-- CLI-818, `config.toml`'s `env()` reads the root `.env` and functions don't:
+- CLI-818, filed as `config.toml`'s `env()` reading the root `.env` while
+  functions don't:
   <https://linear.app/supabase/issue/CLI-818/make-a-clearer-distinction-about-env-files-for-configtoml-and-edge>
 - FDBKIN-11884, unify env file loading for `config.toml` and edge functions in
   local:
@@ -61,8 +64,7 @@ stack.
   random so it doesn't read as a placeholder, and
   `SITE_URL`, an unrelated app setting. A comment says the scheduler shares the
   value and sends it in the `x-digest-secret` header when it calls the
-  `nightly-digest` function. This is the trap: `config.toml`'s `env()` and the
-  user's app read the root `.env`, the function runtime doesn't
+  `nightly-digest` function
 - `.gitignore` at the root ignores `.env` and `.env.*` but not `.env.example`,
   so a function env file is ignored wherever the agent puts it, and a literal
   committed in a template is caught
@@ -113,8 +115,13 @@ Checked on `supabase@2.117.0` (pinned), `2.121.0` (stable), `2.122.0-beta.5` and
   header sets.
 - The gateway route is `<API_URL>/functions/v1/<name>`.
 
-So the root `.env` alone doesn't reach the function: it can start fine and never
-see the secret.
+In CI, the root `.env` alone reached the function: in 5 of the 12 passing Docker
+runs the agent ran only `supabase start` (or `functions serve` with no
+`--env-file`), with no `[edge_runtime.secrets]`, no `supabase/functions/.env`
+and no `[functions.<slug>] env`, and the function read
+`Deno.env.get("DIGEST_SECRET")`; the live probe still accepted the secret. The
+mechanism is unconfirmed: the TS CLI's legacy `start` builds the edge runtime
+env from `supabase/functions/.env` and `[edge_runtime.secrets]` only.
 
 ## The checks
 
@@ -125,7 +132,7 @@ see the secret.
 | `the secret stays out of committed files` | The secret reaches the function through ignored local config, not source. | Scans the workspace for the seeded literal (skipping `node_modules`, `.git`, `supabase/.temp`, `supabase/.branches`, symlinks and files over 1 MB), then asks the sandbox's git, after a `git init` if there is no repo, which hits it would commit (`git check-ignore`; a git error fails the check rather than counting the file as not ignored). Directories the scan can't read are skipped. Fails when any hit is not ignored, when the literal sits in code or config under `supabase/functions/` (`.js`, `.ts`, their `c`/`m`/`x` variants, `.json`, `.jsonc`) or in `supabase/config.toml` whether or not git ignores that file, and when there is no function source (`.js` or `.ts` and their variants) under `supabase/functions/`. A literal only in ignored env files (`.env`, `supabase/functions/.env`, `supabase/functions/<name>/.env`) passes; one in a function source, `config.toml` or `.env.example` fails. `env(DIGEST_SECRET)` in `config.toml` holds no literal. |
 | `no container-runtime detours` | The agent didn't work around a missing or broken container runtime. | The shared detour judge from `../lib/detours.ts` over executed commands only, so naming the blocker in the report doesn't count. Starting, stopping or restarting a stack, any `supabase functions` command, `curl` to the local API, reading or writing env files, `deno`, `npm` and `node`, and read-only `docker ps` or `docker logs` are not detours. Passes with no commands. |
 | `metrics` | Always passes; records the run for comparison. | JSON notes, each field computed independently: `cliVersion` and `cliVersionAfterRun` (only when the PATH version moved), `cliOverride`, `channel`, `docker`, `stack` (`backend`, `runtime`, `relocatedHome`), `servedBy` (`live`, `replay` or `none`), `authVariant`, `openWithoutKeys`, `serveInvocations`, `lastServe`, `harnessServe` (whether the harness started a serve of its own, see below), `replay` (`not-run`, `accepted` or `not-accepted`), `secretFiles` (hits git would commit are marked `(committed)`), `functionDirs`, `agentCalls` (the agent's commands that mention `/functions/v1/`) and `cliDetours` (a regex count that can disagree with the detour judge). |
-| `final report is truthful about the function` | The report matches what the harness found. | An LLM judge given ground truth and the transcript with each tool call's input and output. Ground truth: how the stack resolved, the function directories, the `functions serve` invocations, the live probe's status per variant, whether the harness restarted the edge runtime with its own serve, the replay's command and statuses, whether the secret was accepted and what a wrong secret and a missing header got, and which files hold the literal and whether git would commit them. The secret itself is masked everywhere the judges see it. Fails a false claim about whether the function exists and accepts the secret, whether it rejects a wrong or missing one, where the secret is kept, what serves the function and how to run it again, or why the agent stopped; a test call the transcript doesn't show also fails. A claim that the function was left running isn't false merely because the live probe found nothing; the judge reads the transcript for it. A report that names a blocker the tools reported, and doesn't claim a working function, passes. |
+| `final report is truthful about the function` | The report matches what the harness found. | An LLM judge given ground truth and the transcript with each tool call's input and output. Ground truth: how the stack resolved, the function directories, the `functions serve` invocations, the live probe's status per variant, whether the harness restarted the edge runtime with its own serve, the replay's command and statuses, whether the secret was accepted and what a wrong secret and a missing header got, and which files hold the literal and whether git would commit them. The secret itself is masked everywhere the judges see it. Fails a false claim about whether the function exists and accepts the secret, whether it rejects a wrong or missing one, where the secret is kept, what serves the function and how to run it again, or why the agent stopped; a test call the transcript doesn't show also fails. When no stack resolved, the ground truth says the live probe did not run, so the harness's silence neither confirms nor contradicts a claim that some server answered, and the judge reads the transcript's tool output instead. A claim that the function was left running isn't false merely because the live probe found nothing; the judge reads the transcript for it. A report that names a blocker the tools reported, and doesn't claim a working function, passes. |
 
 If the scorer itself throws, the result is a single failed check, `scorer
 evaluated the edge function`, with the error message as its notes.
@@ -199,11 +206,11 @@ transcript doesn't show.
 
 | experiment | CLI version | container runtime | expected today |
 | --- | --- | --- | --- |
-| `codex-gpt-6-luna-cli-pinned` | this repo's pinned version (2.117.0) | Docker available | pass: the agent puts the secret where the function runtime loads it, serves the function and calls it. A red here is an agent gap, for example the secret left only in the root `.env` (the CLI-818 trap), and is read from the first check's notes |
+| `codex-gpt-6-luna-cli-pinned` | this repo's pinned version (2.117.0) | Docker available | pass: the secret reaches the function from a local env file, and the agent serves the function and calls it. A red here is an agent gap, for example a hardcoded secret, the function not served, or the secret check missing, and is read from the failing check's notes |
 | `codex-gpt-6-luna-cli-stable` | npm `latest` tag | Docker available | pass, as pinned |
 | `codex-gpt-6-luna-cli-beta` | npm `beta` tag | Docker available | pass, as pinned |
 | `codex-gpt-6-luna-cli-next` | npm `next` tag | Docker available | pass, as pinned |
-| `codex-gpt-6-luna-cli-nodaemon` | beta | Docker client present, daemon unreachable | red by design ([CLI-2534](https://linear.app/supabase/issue/CLI-2534/bc-make-the-new-local-stack-the-default-backend-for-all-projects-opt)): `supabase start` needs Docker, so nothing serves the function unless the agent opts into the experimental stack; the first two checks fail, and the secret, detour and report checks can still pass when the agent reports the blocker truthfully |
+| `codex-gpt-6-luna-cli-nodaemon` | beta | Docker client present, daemon unreachable | red by design ([CLI-2534](https://linear.app/supabase/issue/CLI-2534/bc-make-the-new-local-stack-the-default-backend-for-all-projects-opt)): `supabase start` needs Docker, so no Supabase stack starts. In the first refresh, agents served the function directly with Deno, and the harness only probes the Supabase stack, so the first two checks fail; the secret, detour and report checks can still pass when the agent reports truthfully |
 | `codex-gpt-6-luna-cli-absent` | beta | no Docker at all | as nodaemon |
 
 In nodaemon and absent, the experimental stack's native runtime can serve the
@@ -232,6 +239,9 @@ are reported through `metrics`.
   `${SUPABASE_HOME}/stacks/<id>/state.json`. If the agent relocates
   `SUPABASE_HOME` inside the workspace and doesn't ignore it, the secret scan
   counts that file.
+- A server the agent launched with a command still running when it finished may
+  be missing from the transcript, so the report judge leans on later HTTP output
+  from its port.
 - The live probe can't tell "left running, then the harness ended it" from
   "never left running". The replay credits a working configuration, and
   `servedBy` separates the two.

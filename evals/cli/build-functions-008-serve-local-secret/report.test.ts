@@ -226,6 +226,7 @@ describe('describeGroundTruth', () => {
         /live probe/i
       );
 
+      expect(line).toMatch(/^- live probe \(last sweep\): /);
       expect(line).toContain('none → 401');
       expect(line).toContain('publishable → 404');
       expect(line.indexOf('none → 401')).toBeLessThan(
@@ -233,17 +234,17 @@ describe('describeGroundTruth', () => {
       );
     });
 
-    it('lists no attempt when there is no stack to probe', () => {
-      const line = lineFor(
-        describe_({
-          stack: { ok: false, notes: 'The local stack is not running.' },
-          probe: NO_STACK_PROBE,
-        }),
-        /live probe/i
-      );
+    it('says the probe did not run, not that it found nothing, when no stack resolved', () => {
+      const text = describe_({
+        stack: { ok: false, notes: 'The local stack is not running.' },
+        probe: NO_STACK_PROBE,
+      }).join('\n');
 
-      expect(line).toMatch(/live probe/i);
-      expect(line).not.toContain('→');
+      expect(text).toContain(
+        '- live probe: not run (no local stack resolved for the project, so the harness sent no request)'
+      );
+      expect(text).not.toContain('live probe (last sweep)');
+      expect(text).not.toContain('→');
     });
   });
 

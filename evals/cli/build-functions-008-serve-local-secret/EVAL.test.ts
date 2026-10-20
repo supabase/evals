@@ -735,6 +735,16 @@ describe('no local stack', () => {
     );
   });
 
+  it('tells the report judge the live probe did not run', async () => {
+    const { ctx, judge } = noStack();
+
+    await score(ctx);
+
+    const input = judgeInput(judge, 'report');
+    expect(input).toContain('- live probe: not run');
+    expect(input).not.toContain('live probe (last sweep)');
+  });
+
   it('still scans for the secret and records servedBy none', async () => {
     const { ctx, commands } = noStack();
 

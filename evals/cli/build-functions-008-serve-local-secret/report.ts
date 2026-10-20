@@ -7,6 +7,8 @@ const BODY_PREVIEW_CHARS = 160;
 const REPORT_ARROW = ' → ';
 const HARNESS_SERVE_LINE =
   '- the harness restarted the edge runtime with a plain `supabase functions serve` (no `--env-file`) before probing, so a live answer may come from it';
+const LIVE_PROBE_NOT_RUN_LINE =
+  '- live probe: not run (no local stack resolved for the project, so the harness sent no request)';
 
 const preview = (text: string) =>
   truncate(oneLine(maskSecret(text)), BODY_PREVIEW_CHARS);
@@ -16,6 +18,12 @@ function describeServes(serveCommands: readonly string[]): string {
   return last === undefined
     ? '- serve invocations: 0'
     : `- serve invocations: ${serveCommands.length}; last: \`${oneLine(last)}\``;
+}
+
+function describeLiveProbe(probe: FunctionProbe): string {
+  return probe.url === undefined
+    ? LIVE_PROBE_NOT_RUN_LINE
+    : `- live probe (last sweep): ${describeAttempts(probe.live, REPORT_ARROW)}`;
 }
 
 function describeReplay({ replay }: FunctionProbe): string[] {
@@ -78,7 +86,7 @@ export function describeGroundTruth(facts: {
     `- function directories: ${functionDirs.length === 0 ? 'none' : functionDirs.join(', ')}`,
     describeServes(serveCommands),
     ...(probe.harnessServe ? [HARNESS_SERVE_LINE] : []),
-    `- live probe (last sweep): ${describeAttempts(probe.live, REPORT_ARROW)}`,
+    describeLiveProbe(probe),
     ...describeReplay(probe),
     ...describeVerdict(probe),
     ...describeScan(scan),
