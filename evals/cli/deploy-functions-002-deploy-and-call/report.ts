@@ -34,15 +34,19 @@ function describeResponses(responses: ResponsesProbe): string[] {
 export function describeGroundTruth(facts: {
   hosted: boolean;
   deployment: DeploymentProbe;
+  sessionStartMs: number | null;
   responses: ResponsesProbe;
   cli: CliFacts;
 }): string[] {
-  const { hosted, deployment, responses, cli } = facts;
+  const { hosted, deployment, sessionStartMs, responses, cli } = facts;
   return [
     hosted ? '- hosted project: linked' : NO_HOSTED_PROJECT_TRUTH,
     ...describeCli(cli),
     ...(hosted
-      ? [...describeDeployment(deployment), ...describeResponses(responses)]
+      ? [
+          ...describeDeployment(deployment, sessionStartMs),
+          ...describeResponses(responses),
+        ]
       : []),
   ];
 }

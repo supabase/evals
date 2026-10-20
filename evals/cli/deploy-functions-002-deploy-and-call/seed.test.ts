@@ -46,7 +46,7 @@ describe('seed constants', () => {
     expect(FUNCTION_SLUG).toBe('shipping-quote');
   });
 
-  it('probes an Irish and a US shipment with the seeded rates', () => {
+  it('probes an Irish, a US and a British shipment with the seeded rates', () => {
     expect([...QUOTE_PROBES]).toEqual([
       {
         request: { country: 'IE', weightKg: 2.3 },
@@ -56,7 +56,21 @@ describe('seed constants', () => {
         request: { country: 'US', weightKg: 0.4 },
         expected: { quoteCents: 894, currency: 'USD' },
       },
+      {
+        request: { country: 'GB', weightKg: 1.5 },
+        expected: { quoteCents: 615, currency: 'GBP' },
+      },
     ]);
+  });
+
+  it('probes every country the seeded rate table ships to', () => {
+    const seeded = [
+      ...FUNCTION_SOURCE.matchAll(/^\s+([A-Z]{2}): \{ currency:/gm),
+    ].map((match) => match[1]);
+    expect(seeded.length).toBeGreaterThan(0);
+    expect(QUOTE_PROBES.map(({ request }) => request.country).sort()).toEqual(
+      [...seeded].sort()
+    );
   });
 });
 
@@ -92,6 +106,7 @@ describe('seeded shipping-quote function', () => {
     expect(await quote('IE', 2)).toBe(690);
     expect(await quote('IE', 2.01)).toBe(810);
     expect(await quote('GB', 1)).toBe(505);
+    expect(await quote('GB', 1.5)).toBe(615);
     expect(await quote('US', 0.01)).toBe(894);
   });
 

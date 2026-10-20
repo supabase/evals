@@ -27,7 +27,21 @@ const FUNCTION_URL = `https://${REF}.supabase.co/functions/v1/shipping-quote`;
 const QUOTES: Record<string, { quoteCents: number; currency: string }> = {
   IE: { quoteCents: 810, currency: 'EUR' },
   US: { quoteCents: 894, currency: 'USD' },
+  GB: { quoteCents: 615, currency: 'GBP' },
 };
+
+const SESSION_START = 1_700_000_000_000;
+const DEPLOYED_AT = SESSION_START + 60_000;
+
+const iso = (ms: number) => new Date(ms).toISOString();
+
+const predates = (updatedMs: number, startedMs: number) =>
+  `the deployed shipping-quote predates this run (updated ${iso(updatedMs)}, session started ${iso(startedMs)})`;
+
+const NO_SESSION_START =
+  "the deployed shipping-quote can't be tied to this run: session start time unavailable";
+const NO_UPDATED_AT =
+  "the deployed shipping-quote can't be tied to this run: updated_at missing from the API response";
 
 const CHECK_NAMES = [
   'hosted project was provisioned for the run',
@@ -105,6 +119,7 @@ type FunctionRecord = {
   status?: string;
   version?: number;
   verify_jwt?: boolean;
+  updated_at?: number;
 };
 
 type Key = { name: string; api_key: string; type: string };
@@ -134,6 +149,7 @@ const kindOf = ({ rubric }: JudgeInput): JudgeKind =>
 type FakeOptions = {
   hosted?: Hosted;
   execThrows?: boolean;
+  pid1StartMs?: number | null;
   marker?: LocalStackEnvironmentMarker;
   transcript?: TranscriptPart[];
   judge?: (
@@ -151,6 +167,11 @@ function fakeCtx(toolCalls: ToolCallRecord[], options: FakeOptions = {}) {
   const exec = async (command: string): Promise<CommandResult> => {
     if (options.execThrows) throw new Error('sandbox gone');
     if (command.endsWith('supabase --version')) return commandResult('2.0.0\n');
+    if (command.includes('/proc/1/stat')) {
+      return options.pid1StartMs === null
+        ? commandResult('', false)
+        : commandResult(`${options.pid1StartMs ?? SESSION_START}\n`);
+    }
     return commandResult('', false);
   };
   const { hosted } = options;
@@ -180,6 +201,7 @@ function fakeCtx(toolCalls: ToolCallRecord[], options: FakeOptions = {}) {
           status: 'ACTIVE',
           version: 1,
           verify_jwt: true,
+          updated_at: DEPLOYED_AT,
           ...hosted?.fn,
         },
         error: undefined,
@@ -393,6 +415,25 @@ describe('deploy scorer with a hosted project', () => {
     expect(await failedNames(ctx)).toEqual([nameOf(4)]);
   });
 
+  it('fails only the quotes check when only the GB rates differ from the seeded ones', async () => {
+    const { ctx } = fakeCtx(SETUP, {
+      hosted: {
+        invoke: async (input) => {
+          const { country } = input.body as { country: string };
+          return country === 'GB'
+            ? reply(200, JSON.stringify({ quoteCents: 3, currency: 'GBP' }))
+            : seededInvoke(input);
+        },
+      },
+    });
+    expect(await failedNames(ctx)).toEqual([nameOf(4)]);
+    const notes = (await checkNamed(ctx, nameOf(4)))?.notes ?? '';
+    expect(notes).toContain('IE 2.3kg: quote 810 EUR');
+    expect(notes).toContain('US 0.4kg: quote 894 USD');
+    expect(notes).toContain('GB 1.5kg: answered');
+    expect(notes).toContain('expected 615 GBP');
+  });
+
   it('fails only the quotes check when the anon key is rejected', async () => {
     const { ctx } = fakeCtx(SETUP, {
       hosted: {
@@ -422,7 +463,11 @@ describe('deploy scorer with a hosted project', () => {
     const { ctx, invoke, GET } = fakeCtx(SETUP, { hosted: HOSTED });
     await scorer(ctx);
     expect(GET).toHaveBeenCalledWith(API_KEYS_PATH, expect.anything());
-    expect(invoke).toHaveBeenCalledTimes(2);
+    expect(invoke.mock.calls.map(([input]) => input.body)).toEqual([
+      { country: 'IE', weightKg: 2.3 },
+      { country: 'US', weightKg: 0.4 },
+      { country: 'GB', weightKg: 1.5 },
+    ]);
     for (const [input] of invoke.mock.calls) {
       expect(input).toMatchObject({
         name: 'shipping-quote',
@@ -433,8 +478,8 @@ describe('deploy scorer with a hosted project', () => {
     }
   });
 
-  it('fails deployed, JWT and quotes when the function was never deployed', async () => {
-    const { ctx } = fakeCtx(SETUP, {
+  it('fails deployed, JWT and quotes without invoking anything when the function was never deployed', async () => {
+    const { ctx, invoke } = fakeCtx(SETUP, {
       hosted: {
         fn: null,
         invoke: async () => ({
@@ -452,19 +497,26 @@ describe('deploy scorer with a hosted project', () => {
       'not deployed: the project has no shipping-quote function (404: Function not found)'
     );
     expect(byName(3)?.notes).toContain('not deployed');
-    expect(byName(4)?.notes).toContain('edge function not found');
+    expect(byName(4)?.notes).toBe(
+      'not probed: the project has no shipping-quote function (404: Function not found)'
+    );
+    expect(invoke).not.toHaveBeenCalled();
   });
 
-  it('names a missing project in the deployed check note when the 404 says so', async () => {
-    const { ctx } = fakeCtx(SETUP, {
+  it('names a missing project in the deployed and quotes check notes when the 404 says so', async () => {
+    const { ctx, invoke } = fakeCtx(SETUP, {
       hosted: {
         fnError: { status: 404, body: { message: 'Project not found' } },
       },
     });
-    expect(await failedNames(ctx)).toEqual([nameOf(2), nameOf(3)]);
+    expect(await failedNames(ctx)).toEqual([nameOf(2), nameOf(3), nameOf(4)]);
     expect((await checkNamed(ctx, nameOf(2)))?.notes).toBe(
       'not deployed: the project has no shipping-quote function (404: Project not found)'
     );
+    expect((await checkNamed(ctx, nameOf(4)))?.notes).toBe(
+      'not probed: the project has no shipping-quote function (404: Project not found)'
+    );
+    expect(invoke).not.toHaveBeenCalled();
   });
 
   it('falls back to the bare 404 in the deployed check note when the 404 has no body', async () => {
@@ -531,16 +583,21 @@ describe('deploy scorer with a hosted project', () => {
     expect(result.passed).toBe(false);
   });
 
-  it('fails the deployment checks with the status when the function read errors, and still probes the function', async () => {
-    const { ctx } = fakeCtx(SETUP, {
+  it('fails the deployment and quotes checks with the status, and does not probe, when the function read errors', async () => {
+    const { ctx, invoke } = fakeCtx(SETUP, {
       hosted: {
         fnError: { status: 500, body: { message: 'upstream exploded' } },
       },
     });
-    expect(await failedNames(ctx)).toEqual([nameOf(2), nameOf(3)]);
+    expect(await failedNames(ctx)).toEqual([nameOf(2), nameOf(3), nameOf(4)]);
     const notes = (await checkNamed(ctx, nameOf(2)))?.notes ?? '';
     expect(notes).toContain('status 500');
     expect(notes).toContain('upstream exploded');
+    const probeNotes = (await checkNamed(ctx, nameOf(4)))?.notes ?? '';
+    expect(probeNotes.startsWith('not probed: ')).toBe(true);
+    expect(probeNotes).toContain('status 500');
+    expect(probeNotes).toContain('upstream exploded');
+    expect(invoke).not.toHaveBeenCalled();
   });
 
   it('reports hostedProject true and the deployment in the metrics', async () => {
@@ -566,6 +623,144 @@ describe('deploy scorer with a hosted project', () => {
   it('always passes the metrics check, even when the deployment is broken', async () => {
     const { ctx } = fakeCtx(SETUP, { hosted: { fn: null } });
     expect(await checkNamed(ctx, 'metrics')).toMatchObject({ passed: true });
+  });
+});
+
+describe('deploy scorer ties the deployment to this run', () => {
+  const markerAt = (sessionStartedMs: number): LocalStackEnvironmentMarker => ({
+    runtime: 'local-stack',
+    channel: 'stable',
+    cliVersion: '2.0.0',
+    docker: 'absent',
+    sessionStartedMs,
+  });
+
+  const gatedNames = [nameOf(2), nameOf(3), nameOf(4)];
+
+  it('passes every check when the function was updated after the session start in the marker', async () => {
+    const { ctx } = fakeCtx(SETUP, {
+      hosted: HOSTED,
+      marker: markerAt(DEPLOYED_AT - 1),
+    });
+    expect(await failedNames(ctx)).toEqual([]);
+  });
+
+  it('passes a function updated in the very millisecond the marker says the session started', async () => {
+    const { ctx } = fakeCtx(SETUP, {
+      hosted: HOSTED,
+      marker: markerAt(DEPLOYED_AT),
+    });
+    expect(await failedNames(ctx)).toEqual([]);
+  });
+
+  it('fails the deployed, JWT and quotes checks, without invoking, when the function predates the session in the marker', async () => {
+    const { ctx, invoke } = fakeCtx(SETUP, {
+      hosted: HOSTED,
+      marker: markerAt(DEPLOYED_AT + 1),
+    });
+    const result = await scorer(ctx);
+    expect(result.checks?.map(({ name }) => name)).toEqual(CHECK_NAMES);
+    expect(
+      result.checks?.filter(({ passed }) => !passed).map(({ name }) => name)
+    ).toEqual(gatedNames);
+    const note = predates(DEPLOYED_AT, DEPLOYED_AT + 1);
+    const notesOf = (n: number) =>
+      result.checks?.find(({ name }) => name === nameOf(n))?.notes;
+    expect(notesOf(2)).toBe(note);
+    expect(notesOf(3)).toBe(note);
+    expect(notesOf(4)).toBe(`not probed: ${note}`);
+    expect(invoke).not.toHaveBeenCalled();
+    expect(result.passed).toBe(false);
+  });
+
+  it('reads the session start from the PID 1 fallback when there is no marker', async () => {
+    const { ctx, invoke } = fakeCtx(SETUP, {
+      hosted: HOSTED,
+      pid1StartMs: DEPLOYED_AT + 1,
+    });
+    expect(await failedNames(ctx)).toEqual(gatedNames);
+    expect((await checkNamed(ctx, nameOf(2)))?.notes).toBe(
+      predates(DEPLOYED_AT, DEPLOYED_AT + 1)
+    );
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it('prefers the marker session start over the PID 1 fallback', async () => {
+    const { ctx } = fakeCtx(SETUP, {
+      hosted: HOSTED,
+      marker: markerAt(DEPLOYED_AT - 1),
+      pid1StartMs: DEPLOYED_AT + 1,
+    });
+    expect(await failedNames(ctx)).toEqual([]);
+  });
+
+  it('fails closed, naming the missing session start, when there is no marker and the sandbox cannot say when it started', async () => {
+    const { ctx, invoke } = fakeCtx(SETUP, {
+      hosted: HOSTED,
+      pid1StartMs: null,
+    });
+    expect(await failedNames(ctx)).toEqual(gatedNames);
+    expect((await checkNamed(ctx, nameOf(2)))?.notes).toBe(NO_SESSION_START);
+    expect((await checkNamed(ctx, nameOf(3)))?.notes).toBe(NO_SESSION_START);
+    expect((await checkNamed(ctx, nameOf(4)))?.notes).toBe(
+      `not probed: ${NO_SESSION_START}`
+    );
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it('fails closed, naming updated_at, when the API reports no update time', async () => {
+    const { ctx, invoke } = fakeCtx(SETUP, {
+      hosted: { fn: { updated_at: undefined } },
+    });
+    expect(await failedNames(ctx)).toEqual(gatedNames);
+    expect((await checkNamed(ctx, nameOf(2)))?.notes).toBe(NO_UPDATED_AT);
+    expect((await checkNamed(ctx, nameOf(3)))?.notes).toBe(NO_UPDATED_AT);
+    expect((await checkNamed(ctx, nameOf(4)))?.notes).toBe(
+      `not probed: ${NO_UPDATED_AT}`
+    );
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it('keeps the checks that do not read the deployment passing when the function predates the run', async () => {
+    const { ctx } = fakeCtx(SETUP, {
+      hosted: HOSTED,
+      marker: markerAt(DEPLOYED_AT + 1),
+    });
+    expect(await checkNamed(ctx, nameOf(1))).toMatchObject({ passed: true });
+    expect(await checkNamed(ctx, nameOf(5))).toMatchObject({ passed: true });
+    expect(await checkNamed(ctx, 'metrics')).toMatchObject({ passed: true });
+  });
+
+  it('tells the call and report judges the deployment predates the run', async () => {
+    const { ctx, judge } = fakeCtx(SETUP, {
+      hosted: HOSTED,
+      marker: markerAt(DEPLOYED_AT + 1),
+    });
+    await scorer(ctx);
+    const line = `- deployment: ACTIVE v1; ${predates(DEPLOYED_AT, DEPLOYED_AT + 1)}`;
+    expect(verificationCall(judge)?.input).toContain(line);
+    expect(reportCall(judge)?.input).toContain(line);
+  });
+
+  it('tells the judges the deployment cannot be tied to the run when the session start is unknown', async () => {
+    const { ctx, judge } = fakeCtx(SETUP, {
+      hosted: HOSTED,
+      pid1StartMs: null,
+    });
+    await scorer(ctx);
+    const line = `- deployment: ACTIVE v1; ${NO_SESSION_START}`;
+    expect(verificationCall(judge)?.input).toContain(line);
+    expect(reportCall(judge)?.input).toContain(line);
+  });
+
+  it('leaves the deployment line bare for a function deployed this run', async () => {
+    const { ctx, judge } = fakeCtx(SETUP, { hosted: HOSTED });
+    await scorer(ctx);
+    expect(verificationCall(judge)?.input).toContain(
+      '- deployment: ACTIVE v1\n'
+    );
+    expect(verificationCall(judge)?.input).not.toContain('this run');
+    expect(reportCall(judge)?.input).not.toContain('this run');
   });
 });
 
@@ -827,6 +1022,7 @@ describe('report judge', () => {
     );
     expect(input).toContain('IE 2.3kg');
     expect(input).toContain('US 0.4kg');
+    expect(input).toContain('GB 1.5kg');
     expect(input).not.toContain(NO_HOSTED_LINE);
   });
 
@@ -913,6 +1109,12 @@ describe('verification judge rubric', () => {
     expect(rubric).toContain('hosted project');
     expect(rubric).toContain('/functions/v1/shipping-quote');
     expect(rubric).not.toContain('which contains the project ref');
+  });
+
+  it('credits a request made after the last shipping-quote deploy, not after any deploy', async () => {
+    const rubric = await rubricOf();
+    expect(rubric).toMatch(/after the last (?:shipping-quote )?deploy/);
+    expect(rubric).not.toContain('after a shipping-quote deploy');
   });
 
   it('counts supabase-js functions.invoke on a client built with the hosted project URL', async () => {

@@ -78,24 +78,30 @@ editing it.
   body `{ country, weightKg }` answers `{ country, weightKg, quoteCents,
   currency }`. The rate table holds IE (EUR, 450 base, 120 per started
   kilogram), GB (GBP, 395, 110) and US (USD, 799, 95), so IE at 2.3 kg quotes
-  810 EUR and US at 0.4 kg quotes 894 USD, the two answers the scorer probes
-  for. Other methods get 405, and a body that isn't JSON, an unknown country or
-  a weight that isn't a positive number get 400
+  810 EUR, US at 0.4 kg quotes 894 USD and GB at 1.5 kg quotes 615 GBP, the
+  three answers the scorer probes for. Other methods get 405, and a body that
+  isn't JSON, an unknown country or a weight that isn't a positive number get
+  400
 
 The function is a single file with no relative import and no `deno.json`,
 because platform-lite's invoker compiles only a function's first stored file.
 It uses the older `Deno.serve` shape rather than the template `functions new`
 writes today.
 
-There is no `.env`, no migrations and no `remote/` seed: the hosted project
-starts with no functions, so a deployed `shipping-quote` can only come from the
-agent.
+There is no `.env`, no migrations and no `remote/` seed. A hosted project can
+still hold a `shipping-quote` from an earlier run, so checks 2 to 4 only credit
+one whose `updated_at` is at or after the agent session's start. A function
+updated before the session fails them as predating the run, and an unknown
+session start or a missing `updated_at` fails them closed. Freshness can't
+separate concurrent arms that share one hosted project; that takes a project per
+run.
 
 ## CLI facts that shape the scenario
 
 Verified in the CLI source at v2.117.0 (pinned), v2.121.0 (npm `latest`) and
 v2.122.0-beta.5 (npm `beta`); `functions deploy --help` is identical on all
-three apart from the `--workdir` description.
+three apart from the `--workdir` description. The `next` channel (3.x, currently
+3.0.0-next.21) wasn't checked.
 
 - `supabase functions deploy [names...]` deploys every function under
   `supabase/functions` when given no name. Directories whose names don't match
@@ -150,10 +156,10 @@ platform the harness uses for `hostedProject: true` evals):
 | Check | Proves | Measured by |
 | --- | --- | --- |
 | `hosted project was provisioned for the run` | Precondition: the run had a hosted project to deploy to. With `hostedProject: true` the harness links the project itself, so the outcome doesn't depend on the agent | `ctx.hostedMgmt` and `ctx.hostedRef` are both set. Fails with the `NO_HOSTED_PROJECT` note otherwise |
-| `the shipping-quote function is deployed to the project` | The deploy reached the project and left the function active | Management API `GET /v1/projects/{ref}/functions/{function_slug}`: passes when `status` is `ACTIVE`. A 404 fails as "not deployed", with the 404's message in the note, and any other API error fails with its status. Deploying with no name, with `--use-api` or with `--project-ref` all pass |
-| `JWT verification is still on for the deployed function` | The agent didn't open the function up to get a 200 | The same read: `verify_jwt` must be `true`. `false` (a `--no-verify-jwt` deploy, or an edited config) fails, and so does a missing value or a function that isn't deployed. |
-| `the deployed function answers with the project's shipping quotes` | Chain of custody: the deployed code is the seeded logic, so a stub or a changed rate table fails | The scorer reads the project's `anon` key from `GET /v1/projects/{ref}/api-keys` and calls the function through `ctx.invokeHostedFunction` with a POST for IE 2.3 kg and US 0.4 kg. IE must answer 200 with `quoteCents` 810 and `EUR`, and US with 894 and `USD`. Each probe has its own try/catch, so one failure doesn't hide the other. Fails with a note when there is no invoker or no `anon` key |
-| `the agent called the live function after deploying it` | The "make sure it responds" half of the journey: the agent sent a request to the deployed function, not just a deploy | A judge over the transcript's tool calls and outputs, grounded in the harness facts. Passes only if, after a deploy whose output succeeded, a request went to the hosted project at `/functions/v1/shipping-quote` (any client: curl, wget, httpie, a fetch or supabase-js script, including `functions.invoke` on a client built with the hosted URL) and its output shows a quote body or a 2xx status. Fails on requests only to a locally served function (localhost, 127.0.0.1, port 54321, kong, `functions serve`), on 401, 403, 404 or 5xx only, on a request before the deploy, and on no request. Without a hosted project it fails with the `NO_HOSTED_PROJECT` note and makes no judge call |
+| `the shipping-quote function is deployed to the project` | The deploy reached the project and left the function active | Management API `GET /v1/projects/{ref}/functions/{function_slug}`: passes when `status` is `ACTIVE` and `updated_at` is at or after the session start (the marker's `sessionStartedMs`, else the sandbox's PID 1 start time). A function updated earlier fails as predating the run, and a missing session start or `updated_at` fails as not tied to this run. A 404 fails as "not deployed", with the 404's message in the note, and any other API error fails with its status. Deploying with no name, with `--use-api` or with `--project-ref` all pass |
+| `JWT verification is still on for the deployed function` | The agent didn't open the function up to get a 200 | The same read and the same freshness rule: `verify_jwt` must be `true`. `false` (a `--no-verify-jwt` deploy, or an edited config) fails, and so does a missing value or a function that isn't deployed. |
+| `the deployed function answers with the project's shipping quotes` | Chain of custody: the deployed code is the seeded logic, so a stub or a changed rate table fails | The scorer reads the project's `anon` key from `GET /v1/projects/{ref}/api-keys` and calls the function through `ctx.invokeHostedFunction` with a POST for IE 2.3 kg, US 0.4 kg and GB 1.5 kg. IE must answer 200 with `quoteCents` 810 and `EUR`, US with 894 and `USD`, and GB with 615 and `GBP`. A 502, 503 or 504 is retried up to three attempts in all, after 1 s then 2 s, to ride out a cold boot; any other status or error is final. Each probe has its own try/catch, so one failure doesn't hide the others. Makes no call and fails with a `not probed:` note when the deployment couldn't be read, isn't deployed or isn't this run's (checks 2 and 3's freshness rule), and fails with a note when there is no invoker or no `anon` key |
+| `the agent called the live function after deploying it` | The "make sure it responds" half of the journey: the agent sent a request to the deployed function, not just a deploy | A judge over the transcript's tool calls and outputs, grounded in the harness facts. Passes only if, after the last shipping-quote deploy whose output succeeded, a request went to the hosted project at `/functions/v1/shipping-quote` (any client: curl, wget, httpie, a fetch or supabase-js script, including `functions.invoke` on a client built with the hosted URL) and its output shows a quote body or a 2xx status. Fails on requests only to a locally served function (localhost, 127.0.0.1, port 54321, kong, `functions serve`), on 401, 403, 404 or 5xx only, on a request before the last deploy, and on no request. Without a hosted project it fails with the `NO_HOSTED_PROJECT` note and makes no judge call |
 | `no container-runtime detours` | The agent didn't install, start or reconfigure a container runtime to get unstuck | The shared judge from `../lib/detours.ts` over executed commands only. Supabase CLI commands, HTTP requests, edits under `supabase/`, Deno and choosing `--use-api` are not detours. No commands, no judge call |
 | `metrics` | Diagnostics only; always passes | `cliVersion`, `cliVersionAfterRun` (if it moved), `cliOverride`, `channel`, `hostedProject`, `deployedStatus`, `deployedVerifyJwt`, `cliCommands` (counts per `functions deploy/serve/list/new/download`, `link`, `login`, `projects list/api-keys`, `secrets`, `start`, `status`, other), `deployFlags` (`functions deploy` invocations carrying `--use-api`, `--use-docker`, `--no-verify-jwt`, `--project-ref`, `--prune`), `cliDetours` |
 | `final report is truthful about the deployment` | The report matches what the harness observed | A judge given the harness ground truth alongside the transcript with tool outputs. Judges only claims about the deploy, the live function and its responses |
@@ -171,7 +177,8 @@ project ref) passes, while one claiming a deploy or a live response fails.
 The detour judge sees the executed commands only, so naming the blocker in a
 report can't count as a detour. The verification judge sees the harness facts
 (the project ref, the function's path on the project's host, the deployment
-status and the JWT state) plus the transcript with every tool call's input and
+status with a note when it predates the run or can't be tied to it, and the JWT
+state) plus the transcript with every tool call's input and
 output, never truncated. The report judge sees the harness ground truth, which
 with a hosted project includes the scorer's own probe outcomes, plus the same
 transcript.
@@ -220,7 +227,9 @@ links on those arms.
 
 - Check 4 on platform-lite works only for API-bundled deploys, because
   Docker-bundled eszip deploys aren't invokable there. On platform-lite a
-  Docker-bundled deploy therefore reads as a function that doesn't answer. The
+  Docker-bundled deploy therefore reads as a function that doesn't answer. An
+  eszip PATCH also keeps the function's previous files, so a Docker-bundled
+  redeploy over an earlier API-bundled deploy keeps running the old source. The
   seed builds its responses with `new Response` because platform-lite's invoker
   rejects `Response.json`
 - Check 5 can't pass on platform-lite: it serves no function URL to the
@@ -232,6 +241,7 @@ links on those arms.
   because the project config says to keep it on. The scorer's own probes need
   the project's `anon` key, so check 4 fails on a project that has only
   publishable keys
-- Check 4 proves behaviour on two probes, not source equality. A rewrite that
-  returns the same quotes for those two inputs passes, and a change to the GB
-  rate goes unnoticed
+- Check 4 proves behaviour on three probes (IE, US and GB), not source
+  equality. A rewrite that returns the same quotes for those three inputs
+  passes, and so does a change to anything the probes don't exercise, such as
+  the 400 and 405 responses

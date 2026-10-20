@@ -9,16 +9,33 @@ import {
 } from './verification.js';
 
 const REF = 'abcdefghijklmnopqrst';
+const SESSION_START = 1_700_000_000_000;
+const DEPLOYED_AT = SESSION_START + 60_000;
+
+const iso = (ms: number) => new Date(ms).toISOString();
+
+const PREDATES = `the deployed shipping-quote predates this run (updated ${iso(SESSION_START - 1)}, session started ${iso(SESSION_START)})`;
+const NO_SESSION_START =
+  "the deployed shipping-quote can't be tied to this run: session start time unavailable";
+const NO_UPDATED_AT =
+  "the deployed shipping-quote can't be tied to this run: updated_at missing from the API response";
 
 const deployed = (
   overrides: Partial<{
     status: string;
     verifyJwt: boolean | undefined;
     version: number | undefined;
+    updatedAtMs: number | undefined;
   }> = {}
 ): DeploymentProbe => ({
   ok: true,
-  deployed: { status: 'ACTIVE', verifyJwt: true, version: 3, ...overrides },
+  deployed: {
+    status: 'ACTIVE',
+    verifyJwt: true,
+    version: 3,
+    updatedAtMs: DEPLOYED_AT,
+    ...overrides,
+  },
 });
 
 const REF_LINE = `- hosted project ref: ${REF}`;
@@ -28,7 +45,11 @@ const URL_LINE =
 describe('describeVerificationFacts', () => {
   it('states the ref, where the function lives, the deployment and the JWT setting', () => {
     expect(
-      describeVerificationFacts({ ref: REF, deployment: deployed() })
+      describeVerificationFacts({
+        ref: REF,
+        deployment: deployed(),
+        sessionStartMs: SESSION_START,
+      })
     ).toEqual([
       REF_LINE,
       URL_LINE,
@@ -41,6 +62,7 @@ describe('describeVerificationFacts', () => {
     const lines = describeVerificationFacts({
       ref: REF,
       deployment: deployed(),
+      sessionStartMs: SESSION_START,
     });
     expect(lines[1]).toBe(URL_LINE);
     expect(lines.join('\n')).not.toContain('reachable');
@@ -50,6 +72,7 @@ describe('describeVerificationFacts', () => {
     const lines = describeVerificationFacts({
       ref: REF,
       deployment: deployed({ verifyJwt: false }),
+      sessionStartMs: SESSION_START,
     });
     expect(lines[3]).toBe('- JWT verification on the deployed function: off');
   });
@@ -58,6 +81,7 @@ describe('describeVerificationFacts', () => {
     const lines = describeVerificationFacts({
       ref: REF,
       deployment: deployed({ verifyJwt: undefined }),
+      sessionStartMs: SESSION_START,
     });
     expect(lines[3]).toBe(
       '- JWT verification on the deployed function: unknown'
@@ -68,6 +92,7 @@ describe('describeVerificationFacts', () => {
     const lines = describeVerificationFacts({
       ref: REF,
       deployment: deployed({ status: 'THROTTLED', version: 2 }),
+      sessionStartMs: SESSION_START,
     });
     expect(lines[2]).toBe('- deployment: THROTTLED v2');
   });
@@ -76,6 +101,7 @@ describe('describeVerificationFacts', () => {
     const lines = describeVerificationFacts({
       ref: REF,
       deployment: deployed({ version: undefined }),
+      sessionStartMs: SESSION_START,
     });
     expect(lines[2]).toBe('- deployment: ACTIVE');
   });
@@ -85,6 +111,7 @@ describe('describeVerificationFacts', () => {
       describeVerificationFacts({
         ref: REF,
         deployment: { ok: true, deployed: null },
+        sessionStartMs: SESSION_START,
       })
     ).toEqual([
       REF_LINE,
@@ -99,6 +126,7 @@ describe('describeVerificationFacts', () => {
       describeVerificationFacts({
         ref: REF,
         deployment: { ok: false, notes: 'connection reset' },
+        sessionStartMs: SESSION_START,
       })
     ).toEqual([
       REF_LINE,
@@ -112,14 +140,76 @@ describe('describeVerificationFacts', () => {
     const lines = describeVerificationFacts({
       ref: 'zzzzzzzzzzzzzzzzzzzz',
       deployment: { ok: false, notes: NO_HOSTED_PROJECT },
+      sessionStartMs: SESSION_START,
     });
     expect(lines[0]).toBe('- hosted project ref: zzzzzzzzzzzzzzzzzzzz');
     expect(lines[2]).toBe(`- deployment: unavailable (${NO_HOSTED_PROJECT})`);
   });
 });
 
+describe('describeVerificationFacts freshness', () => {
+  it('says the deployment predates the run, so the call judge does not credit a deploy the agent never made', () => {
+    expect(
+      describeVerificationFacts({
+        ref: REF,
+        deployment: deployed({ updatedAtMs: SESSION_START - 1 }),
+        sessionStartMs: SESSION_START,
+      })
+    ).toEqual([
+      REF_LINE,
+      URL_LINE,
+      `- deployment: ACTIVE v3; ${PREDATES}`,
+      '- JWT verification on the deployed function: on',
+    ]);
+  });
+
+  it('says the deployment cannot be tied to the run when the session start is unknown', () => {
+    expect(
+      describeVerificationFacts({
+        ref: REF,
+        deployment: deployed(),
+        sessionStartMs: null,
+      })[2]
+    ).toBe(`- deployment: ACTIVE v3; ${NO_SESSION_START}`);
+  });
+
+  it('says the deployment cannot be tied to the run when the API reported no update time', () => {
+    expect(
+      describeVerificationFacts({
+        ref: REF,
+        deployment: deployed({ updatedAtMs: undefined }),
+        sessionStartMs: SESSION_START,
+      })[2]
+    ).toBe(`- deployment: ACTIVE v3; ${NO_UPDATED_AT}`);
+  });
+
+  it('adds no freshness remark for a function updated in the very millisecond the session started', () => {
+    expect(
+      describeVerificationFacts({
+        ref: REF,
+        deployment: deployed({ updatedAtMs: SESSION_START }),
+        sessionStartMs: SESSION_START,
+      })[2]
+    ).toBe('- deployment: ACTIVE v3');
+  });
+
+  it('adds no freshness remark when nothing is deployed, even with an unknown session start', () => {
+    expect(
+      describeVerificationFacts({
+        ref: REF,
+        deployment: { ok: true, deployed: null },
+        sessionStartMs: null,
+      })[2]
+    ).toBe('- deployment: not deployed');
+  });
+});
+
 describe('formatVerificationJudgeInput', () => {
-  const FACTS = describeVerificationFacts({ ref: REF, deployment: deployed() });
+  const FACTS = describeVerificationFacts({
+    ref: REF,
+    deployment: deployed(),
+    sessionStartMs: SESSION_START,
+  });
 
   it('puts the facts ahead of the transcript with tool inputs and outputs', () => {
     const transcript: TranscriptPart[] = [

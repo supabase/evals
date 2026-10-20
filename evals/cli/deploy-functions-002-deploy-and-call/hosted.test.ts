@@ -7,12 +7,25 @@ import {
   type DeploymentProbe,
   describeDeployment,
   hasHostedProject,
+  judgeFreshness,
   NO_HOSTED_PROJECT,
   readDeployment,
 } from './hosted.js';
 
 const REF = 'abcdefghijklmnopqrst';
 const FUNCTION_PATH = '/v1/projects/{ref}/functions/{function_slug}';
+const SESSION_START = 1_700_000_000_000;
+const DEPLOYED_AT = SESSION_START + 60_000;
+
+const iso = (ms: number) => new Date(ms).toISOString();
+
+const predates = (updatedMs: number, startedMs: number) =>
+  `the deployed shipping-quote predates this run (updated ${iso(updatedMs)}, session started ${iso(startedMs)})`;
+
+const NO_SESSION_START =
+  "the deployed shipping-quote can't be tied to this run: session start time unavailable";
+const NO_UPDATED_AT =
+  "the deployed shipping-quote can't be tied to this run: updated_at missing from the API response";
 
 type GetResult = {
   data?: unknown;
@@ -39,6 +52,7 @@ const found = (overrides: Record<string, unknown> = {}): GetResult => ({
     status: 'ACTIVE',
     version: 3,
     verify_jwt: true,
+    updated_at: DEPLOYED_AT,
     ...overrides,
   },
   error: undefined,
@@ -72,10 +86,17 @@ const deployed = (
     status: string;
     verifyJwt: boolean | undefined;
     version: number | undefined;
+    updatedAtMs: number | undefined;
   }> = {}
 ): DeploymentProbe => ({
   ok: true,
-  deployed: { status: 'ACTIVE', verifyJwt: true, version: 3, ...overrides },
+  deployed: {
+    status: 'ACTIVE',
+    verifyJwt: true,
+    version: 3,
+    updatedAtMs: DEPLOYED_AT,
+    ...overrides,
+  },
 });
 
 const NOT_DEPLOYED: DeploymentProbe = { ok: true, deployed: null };
@@ -146,9 +167,45 @@ describe('readDeployment', () => {
     const { ctx } = hostedCtx(async () => found());
     expect(await readDeployment(ctx)).toEqual({
       ok: true,
-      deployed: { status: 'ACTIVE', verifyJwt: true, version: 3 },
+      deployed: {
+        status: 'ACTIVE',
+        verifyJwt: true,
+        version: 3,
+        updatedAtMs: DEPLOYED_AT,
+      },
     });
   });
+
+  it('reads updated_at as the epoch milliseconds of the deploy', async () => {
+    const { ctx } = hostedCtx(async () => found({ updated_at: 1_234 }));
+    expect(await readDeployment(ctx)).toMatchObject({
+      ok: true,
+      deployed: { updatedAtMs: 1_234 },
+    });
+  });
+
+  it('keeps an updated_at of 0 as 0 rather than reading it as missing', async () => {
+    const { ctx } = hostedCtx(async () => found({ updated_at: 0 }));
+    const probe = await readDeployment(ctx);
+    expect(probe.ok && probe.deployed?.updatedAtMs).toBe(0);
+  });
+
+  it.each([
+    ['missing', undefined],
+    ['null', null],
+    ['an ISO string', '2026-10-20T10:00:00.000Z'],
+    ['a numeric string', '1700000000000'],
+    ['NaN', Number.NaN],
+    ['Infinity', Number.POSITIVE_INFINITY],
+  ])(
+    'leaves updatedAtMs undefined when updated_at is %s',
+    async (_label, updatedAt) => {
+      const { ctx } = hostedCtx(async () => found({ updated_at: updatedAt }));
+      const probe = await readDeployment(ctx);
+      expect(probe).toMatchObject({ ok: true });
+      expect(probe.ok && probe.deployed?.updatedAtMs).toBeUndefined();
+    }
+  );
 
   it('keeps verify_jwt false as false', async () => {
     const { ctx } = hostedCtx(async () => found({ verify_jwt: false }));
@@ -187,10 +244,10 @@ describe('readDeployment', () => {
   it('carries the 404 message into the not-deployed check note and the deployment line', async () => {
     const { ctx } = hostedCtx(async () => notFound);
     const probe = await readDeployment(ctx);
-    expect(checkFunctionDeployed(probe).notes).toBe(
+    expect(checkFunctionDeployed(probe, SESSION_START).notes).toBe(
       `${NOT_DEPLOYED_NOTE} (404: Function not found)`
     );
-    expect(describeDeployment(probe)[0]).toBe(
+    expect(describeDeployment(probe, SESSION_START)[0]).toBe(
       '- deployment: not deployed (404: Function not found)'
     );
   });
@@ -199,10 +256,10 @@ describe('readDeployment', () => {
     const { ctx } = hostedCtx(async () => projectNotFound);
     const probe = await readDeployment(ctx);
     expect(probe).toMatchObject({ ok: true, deployed: null });
-    expect(checkFunctionDeployed(probe).notes).toBe(
+    expect(checkFunctionDeployed(probe, SESSION_START).notes).toBe(
       `${NOT_DEPLOYED_NOTE} (404: Project not found)`
     );
-    expect(describeDeployment(probe)[0]).toBe(
+    expect(describeDeployment(probe, SESSION_START)[0]).toBe(
       '- deployment: not deployed (404: Project not found)'
     );
   });
@@ -219,10 +276,10 @@ describe('readDeployment', () => {
       const { ctx } = hostedCtx(async () => notFoundWith(error));
       const probe = await readDeployment(ctx);
       expect(probe).toMatchObject({ ok: true, deployed: null });
-      expect(checkFunctionDeployed(probe).notes).toBe(
+      expect(checkFunctionDeployed(probe, SESSION_START).notes).toBe(
         `${NOT_DEPLOYED_NOTE} (404)`
       );
-      expect(describeDeployment(probe)[0]).toBe(
+      expect(describeDeployment(probe, SESSION_START)[0]).toBe(
         '- deployment: not deployed (404)'
       );
     }
@@ -286,11 +343,79 @@ describe('readDeployment', () => {
   });
 });
 
+describe('judgeFreshness', () => {
+  const fn = (updatedAtMs: number | undefined) => ({
+    status: 'ACTIVE',
+    verifyJwt: true,
+    version: 3,
+    updatedAtMs,
+  });
+
+  it('is fresh when the function was updated after the session started', () => {
+    expect(judgeFreshness(fn(SESSION_START + 1), SESSION_START)).toEqual({
+      fresh: true,
+    });
+  });
+
+  it('is fresh when the function was updated in the same millisecond the session started', () => {
+    expect(judgeFreshness(fn(SESSION_START), SESSION_START)).toEqual({
+      fresh: true,
+    });
+  });
+
+  it('predates the run when the function was updated one millisecond before the session started', () => {
+    expect(judgeFreshness(fn(SESSION_START - 1), SESSION_START)).toEqual({
+      fresh: false,
+      notes: predates(SESSION_START - 1, SESSION_START),
+    });
+  });
+
+  it('names both instants as ISO timestamps in the predates note', () => {
+    const note = judgeFreshness(fn(0), SESSION_START);
+    expect(note).toEqual({ fresh: false, notes: predates(0, SESSION_START) });
+    expect(!note.fresh && note.notes).toContain('1970-01-01T00:00:00.000Z');
+    expect(!note.fresh && note.notes).toContain('2023-11-14T22:13:20.000Z');
+  });
+
+  it('treats an updated_at of 0 as a real time that predates a later session', () => {
+    expect(judgeFreshness(fn(0), 1)).toEqual({
+      fresh: false,
+      notes: predates(0, 1),
+    });
+  });
+
+  it('treats a session start of 0 as a real time, not as unavailable', () => {
+    expect(judgeFreshness(fn(0), 0)).toEqual({ fresh: true });
+    expect(judgeFreshness(fn(5), 0)).toEqual({ fresh: true });
+  });
+
+  it('fails closed with the session start note when the session start is null', () => {
+    expect(judgeFreshness(fn(DEPLOYED_AT), null)).toEqual({
+      fresh: false,
+      notes: NO_SESSION_START,
+    });
+  });
+
+  it('fails closed with the updated_at note when the API gave no update time', () => {
+    expect(judgeFreshness(fn(undefined), SESSION_START)).toEqual({
+      fresh: false,
+      notes: NO_UPDATED_AT,
+    });
+  });
+
+  it('fails closed on the session start note when both values are missing', () => {
+    expect(judgeFreshness(fn(undefined), null)).toEqual({
+      fresh: false,
+      notes: NO_SESSION_START,
+    });
+  });
+});
+
 describe('checkFunctionDeployed', () => {
   const name = 'the shipping-quote function is deployed to the project';
 
-  it('passes for an ACTIVE function and reports its version', () => {
-    expect(checkFunctionDeployed(deployed())).toEqual({
+  it('passes for an ACTIVE function deployed this run and reports its version', () => {
+    expect(checkFunctionDeployed(deployed(), SESSION_START)).toEqual({
       name,
       passed: true,
       notes: 'status ACTIVE (version 3)',
@@ -298,22 +423,35 @@ describe('checkFunctionDeployed', () => {
   });
 
   it('passes for an ACTIVE function without a version and never prints undefined', () => {
-    const check = checkFunctionDeployed(deployed({ version: undefined }));
+    const check = checkFunctionDeployed(
+      deployed({ version: undefined }),
+      SESSION_START
+    );
     expect(check.passed).toBe(true);
     expect(check.notes).toContain('status ACTIVE');
     expect(check.notes).not.toContain('undefined');
   });
 
   it('passes whatever the JWT setting is', () => {
-    expect(checkFunctionDeployed(deployed({ verifyJwt: false })).passed).toBe(
-      true
-    );
+    expect(
+      checkFunctionDeployed(deployed({ verifyJwt: false }), SESSION_START)
+        .passed
+    ).toBe(true);
+  });
+
+  it('passes for a function updated in the very millisecond the session started', () => {
+    expect(
+      checkFunctionDeployed(
+        deployed({ updatedAtMs: SESSION_START }),
+        SESSION_START
+      ).passed
+    ).toBe(true);
   });
 
   it.each(['THROTTLED', 'REMOVED', 'active'])(
     'fails for status %j and names it',
     (status) => {
-      const check = checkFunctionDeployed(deployed({ status }));
+      const check = checkFunctionDeployed(deployed({ status }), SESSION_START);
       expect(check.name).toBe(name);
       expect(check.passed).toBe(false);
       expect(check.notes).toContain(status);
@@ -321,7 +459,7 @@ describe('checkFunctionDeployed', () => {
   );
 
   it('fails when the project has no such function', () => {
-    expect(checkFunctionDeployed(NOT_DEPLOYED)).toEqual({
+    expect(checkFunctionDeployed(NOT_DEPLOYED, SESSION_START)).toEqual({
       name,
       passed: false,
       notes: 'not deployed: the project has no shipping-quote function',
@@ -329,25 +467,64 @@ describe('checkFunctionDeployed', () => {
   });
 
   it('fails with the probe notes when the deployment could not be read', () => {
-    expect(checkFunctionDeployed(UNAVAILABLE)).toEqual({
+    expect(checkFunctionDeployed(UNAVAILABLE, SESSION_START)).toEqual({
       name,
       passed: false,
       notes: NO_HOSTED_PROJECT,
     });
     expect(
-      checkFunctionDeployed({
-        ok: false,
-        notes: 'could not read the function: status 500 {"message":"boom"}',
-      }).notes
+      checkFunctionDeployed(
+        {
+          ok: false,
+          notes: 'could not read the function: status 500 {"message":"boom"}',
+        },
+        SESSION_START
+      ).notes
     ).toBe('could not read the function: status 500 {"message":"boom"}');
+  });
+
+  it('fails an ACTIVE function that predates the run, saying when it was updated', () => {
+    expect(
+      checkFunctionDeployed(
+        deployed({ updatedAtMs: SESSION_START - 1 }),
+        SESSION_START
+      )
+    ).toEqual({
+      name,
+      passed: false,
+      notes: predates(SESSION_START - 1, SESSION_START),
+    });
+  });
+
+  it('fails closed when the session start is unknown', () => {
+    expect(checkFunctionDeployed(deployed(), null)).toEqual({
+      name,
+      passed: false,
+      notes: NO_SESSION_START,
+    });
+  });
+
+  it('fails closed when the API reported no update time', () => {
+    expect(
+      checkFunctionDeployed(deployed({ updatedAtMs: undefined }), SESSION_START)
+    ).toEqual({ name, passed: false, notes: NO_UPDATED_AT });
+  });
+
+  it('keeps the not-deployed and unavailable notes when the session start is unknown', () => {
+    expect(checkFunctionDeployed(NOT_DEPLOYED, null).notes).toBe(
+      'not deployed: the project has no shipping-quote function'
+    );
+    expect(checkFunctionDeployed(UNAVAILABLE, null).notes).toBe(
+      NO_HOSTED_PROJECT
+    );
   });
 });
 
 describe('checkJwtVerificationKept', () => {
   const name = 'JWT verification is still on for the deployed function';
 
-  it('passes when the deployed function verifies JWTs', () => {
-    expect(checkJwtVerificationKept(deployed())).toMatchObject({
+  it('passes when the function deployed this run verifies JWTs', () => {
+    expect(checkJwtVerificationKept(deployed(), SESSION_START)).toMatchObject({
       name,
       passed: true,
     });
@@ -355,12 +532,15 @@ describe('checkJwtVerificationKept', () => {
 
   it('passes whatever the function status is', () => {
     expect(
-      checkJwtVerificationKept(deployed({ status: 'THROTTLED' })).passed
+      checkJwtVerificationKept(deployed({ status: 'THROTTLED' }), SESSION_START)
+        .passed
     ).toBe(true);
   });
 
   it('fails when verify_jwt is off and says the config keeps it on', () => {
-    expect(checkJwtVerificationKept(deployed({ verifyJwt: false }))).toEqual({
+    expect(
+      checkJwtVerificationKept(deployed({ verifyJwt: false }), SESSION_START)
+    ).toEqual({
       name,
       passed: false,
       notes: 'verify_jwt is off: the project config keeps it on',
@@ -369,7 +549,10 @@ describe('checkJwtVerificationKept', () => {
 
   it('fails loudly when the API does not report verify_jwt', () => {
     expect(
-      checkJwtVerificationKept(deployed({ verifyJwt: undefined }))
+      checkJwtVerificationKept(
+        deployed({ verifyJwt: undefined }),
+        SESSION_START
+      )
     ).toEqual({
       name,
       passed: false,
@@ -378,48 +561,86 @@ describe('checkJwtVerificationKept', () => {
   });
 
   it('fails when the function is not deployed', () => {
-    const check = checkJwtVerificationKept(NOT_DEPLOYED);
+    const check = checkJwtVerificationKept(NOT_DEPLOYED, SESSION_START);
     expect(check.name).toBe(name);
     expect(check.passed).toBe(false);
     expect(check.notes).toContain('not deployed');
   });
 
   it('fails with the probe notes when the deployment could not be read', () => {
-    expect(checkJwtVerificationKept(UNAVAILABLE)).toEqual({
+    expect(checkJwtVerificationKept(UNAVAILABLE, SESSION_START)).toEqual({
       name,
       passed: false,
       notes: NO_HOSTED_PROJECT,
     });
   });
+
+  it('fails a JWT-verified function that predates the run instead of crediting its setting', () => {
+    expect(
+      checkJwtVerificationKept(
+        deployed({ verifyJwt: true, updatedAtMs: SESSION_START - 1 }),
+        SESSION_START
+      )
+    ).toEqual({
+      name,
+      passed: false,
+      notes: predates(SESSION_START - 1, SESSION_START),
+    });
+  });
+
+  it('fails closed when the session start is unknown', () => {
+    expect(checkJwtVerificationKept(deployed(), null)).toEqual({
+      name,
+      passed: false,
+      notes: NO_SESSION_START,
+    });
+  });
+
+  it('fails closed when the API reported no update time', () => {
+    expect(
+      checkJwtVerificationKept(
+        deployed({ updatedAtMs: undefined }),
+        SESSION_START
+      )
+    ).toEqual({ name, passed: false, notes: NO_UPDATED_AT });
+  });
+
+  it('keeps the not-deployed and unavailable notes when the session start is unknown', () => {
+    expect(checkJwtVerificationKept(NOT_DEPLOYED, null).notes).toBe(
+      'not deployed'
+    );
+    expect(checkJwtVerificationKept(UNAVAILABLE, null).notes).toBe(
+      NO_HOSTED_PROJECT
+    );
+  });
 });
 
 describe('describeDeployment', () => {
-  it('reports the status, version and JWT setting of a deployed function', () => {
-    expect(describeDeployment(deployed())).toEqual([
+  it('reports the status, version and JWT setting of a function deployed this run', () => {
+    expect(describeDeployment(deployed(), SESSION_START)).toEqual([
       '- deployment: ACTIVE v3',
       `${JWT_LABEL} on`,
     ]);
-    expect(describeDeployment(deployed({ verifyJwt: false }))[1]).toBe(
-      `${JWT_LABEL} off`
-    );
+    expect(
+      describeDeployment(deployed({ verifyJwt: false }), SESSION_START)[1]
+    ).toBe(`${JWT_LABEL} off`);
   });
 
   it('says unknown only for a deployed function whose verify_jwt is undefined', () => {
-    expect(describeDeployment(deployed({ verifyJwt: undefined }))).toEqual([
-      '- deployment: ACTIVE v3',
-      `${JWT_LABEL} unknown`,
-    ]);
+    expect(
+      describeDeployment(deployed({ verifyJwt: undefined }), SESSION_START)
+    ).toEqual(['- deployment: ACTIVE v3', `${JWT_LABEL} unknown`]);
   });
 
   it('says the JWT setting is n/a, not unknown, when nothing is deployed', () => {
-    expect(describeDeployment(NOT_DEPLOYED)).toEqual([
+    expect(describeDeployment(NOT_DEPLOYED, SESSION_START)).toEqual([
       '- deployment: not deployed',
       `${JWT_LABEL} n/a (not deployed)`,
     ]);
   });
 
   it('says the JWT setting is n/a, not unknown, when the deployment is unavailable', () => {
-    expect(describeDeployment(UNAVAILABLE)).toEqual([
+    expect(describeDeployment(UNAVAILABLE, SESSION_START)).toEqual([
       `- deployment: unavailable (${NO_HOSTED_PROJECT})`,
       `${JWT_LABEL} n/a (deployment unavailable)`,
     ]);
@@ -431,7 +652,10 @@ describe('describeDeployment', () => {
       error: { message: 'upstream exploded' },
       response: { status: 500 },
     }));
-    const [summary, jwt] = describeDeployment(await readDeployment(ctx));
+    const [summary, jwt] = describeDeployment(
+      await readDeployment(ctx),
+      SESSION_START
+    );
     expect(summary).toContain('- deployment: unavailable (');
     expect(summary).toContain('upstream exploded');
     expect(jwt).toBe(`${JWT_LABEL} n/a (deployment unavailable)`);
@@ -439,8 +663,42 @@ describe('describeDeployment', () => {
 
   it('keeps the 404 message out of the JWT line', async () => {
     const { ctx } = hostedCtx(async () => projectNotFound);
-    expect(describeDeployment(await readDeployment(ctx))[1]).toBe(
-      `${JWT_LABEL} n/a (not deployed)`
+    expect(
+      describeDeployment(await readDeployment(ctx), SESSION_START)[1]
+    ).toBe(`${JWT_LABEL} n/a (not deployed)`);
+  });
+
+  it('says a function that predates the run predates it, so no judge credits it', () => {
+    expect(
+      describeDeployment(
+        deployed({ updatedAtMs: SESSION_START - 1 }),
+        SESSION_START
+      )
+    ).toEqual([
+      `- deployment: ACTIVE v3; ${predates(SESSION_START - 1, SESSION_START)}`,
+      `${JWT_LABEL} on`,
+    ]);
+  });
+
+  it('says the deployment cannot be tied to the run when the session start is unknown', () => {
+    expect(describeDeployment(deployed(), null)).toEqual([
+      `- deployment: ACTIVE v3; ${NO_SESSION_START}`,
+      `${JWT_LABEL} on`,
+    ]);
+  });
+
+  it('says the deployment cannot be tied to the run when the API reported no update time', () => {
+    expect(
+      describeDeployment(deployed({ updatedAtMs: undefined }), SESSION_START)
+    ).toEqual([`- deployment: ACTIVE v3; ${NO_UPDATED_AT}`, `${JWT_LABEL} on`]);
+  });
+
+  it('adds no freshness remark to a not-deployed or unavailable deployment', () => {
+    expect(describeDeployment(NOT_DEPLOYED, null)[0]).toBe(
+      '- deployment: not deployed'
+    );
+    expect(describeDeployment(UNAVAILABLE, null)[0]).toBe(
+      `- deployment: unavailable (${NO_HOSTED_PROJECT})`
     );
   });
 });

@@ -6,11 +6,12 @@ import { FUNCTION_SLUG } from './seed.js';
 export function describeVerificationFacts(facts: {
   ref: string;
   deployment: DeploymentProbe;
+  sessionStartMs: number | null;
 }): string[] {
   return [
     `- hosted project ref: ${facts.ref}`,
     `- the deployed function's path on the project's host is /functions/v1/${FUNCTION_SLUG}`,
-    ...describeDeployment(facts.deployment),
+    ...describeDeployment(facts.deployment, facts.sessionStartMs),
   ];
 }
 

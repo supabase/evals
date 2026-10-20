@@ -18,9 +18,25 @@ const CALL_PREFIX = "- the harness's own call to the deployed function:";
 
 const NO_CLI: CliFacts = { versions: null, cliOverride: [] };
 
+const SESSION_START = 1_700_000_000_000;
+const DEPLOYED_AT = SESSION_START + 60_000;
+
+const iso = (ms: number) => new Date(ms).toISOString();
+
+const PREDATES = `the deployed shipping-quote predates this run (updated ${iso(SESSION_START - 1)}, session started ${iso(SESSION_START)})`;
+const NO_SESSION_START =
+  "the deployed shipping-quote can't be tied to this run: session start time unavailable";
+const NO_UPDATED_AT =
+  "the deployed shipping-quote can't be tied to this run: updated_at missing from the API response";
+
 const DEPLOYED: DeploymentProbe = {
   ok: true,
-  deployed: { status: 'ACTIVE', verifyJwt: true, version: 3 },
+  deployed: {
+    status: 'ACTIVE',
+    verifyJwt: true,
+    version: 3,
+    updatedAtMs: DEPLOYED_AT,
+  },
 };
 
 const outcome = (
@@ -35,6 +51,7 @@ const ANSWERED: ResponsesProbe = {
   outcomes: [
     outcome('IE', 2.3, true, 'quote 810 EUR'),
     outcome('US', 0.4, true, 'quote 894 USD'),
+    outcome('GB', 1.5, true, 'quote 615 GBP'),
   ],
 };
 
@@ -45,6 +62,7 @@ const facts = (
 ) => ({
   hosted: true,
   deployment: DEPLOYED,
+  sessionStartMs: SESSION_START as number | null,
   responses: ANSWERED,
   cli: NO_CLI,
   ...overrides,
@@ -55,10 +73,17 @@ const deployedWith = (
     status: string;
     verifyJwt: boolean | undefined;
     version: number | undefined;
+    updatedAtMs: number | undefined;
   }>
 ): DeploymentProbe => ({
   ok: true,
-  deployed: { status: 'ACTIVE', verifyJwt: true, version: 3, ...overrides },
+  deployed: {
+    status: 'ACTIVE',
+    verifyJwt: true,
+    version: 3,
+    updatedAtMs: DEPLOYED_AT,
+    ...overrides,
+  },
 });
 
 const callLines = (lines: string[]) =>
@@ -98,11 +123,13 @@ describe('describeGroundTruth with a hosted project', () => {
 
   it('describes each of the harness own calls to the deployed function', () => {
     const lines = callLines(describeGroundTruth(facts()));
-    expect(lines).toHaveLength(2);
+    expect(lines).toHaveLength(3);
     expect(lines[0]).toContain('IE 2.3kg');
     expect(lines[0]).toContain('quote 810 EUR');
     expect(lines[1]).toContain('US 0.4kg');
     expect(lines[1]).toContain('quote 894 USD');
+    expect(lines[2]).toContain('GB 1.5kg');
+    expect(lines[2]).toContain('quote 615 GBP');
   });
 
   it('shows what a failing call came back with', () => {
@@ -119,6 +146,7 @@ describe('describeGroundTruth with a hosted project', () => {
                 'status 401: Missing authorization header'
               ),
               outcome('US', 0.4, false, 'error: edge function not found'),
+              outcome('GB', 1.5, false, 'status 503: boot (after 3 attempts)'),
             ],
           },
         })
@@ -128,6 +156,8 @@ describe('describeGroundTruth with a hosted project', () => {
     expect(lines[0]).toContain('status 401: Missing authorization header');
     expect(lines[1]).toContain('US 0.4kg');
     expect(lines[1]).toContain('error: edge function not found');
+    expect(lines[2]).toContain('GB 1.5kg');
+    expect(lines[2]).toContain('status 503: boot (after 3 attempts)');
   });
 
   it('says the call could not be made, and why, when the probe did not run', () => {
@@ -213,6 +243,42 @@ describe('describeGroundTruth with a hosted project', () => {
       );
     }
   );
+
+  it('says the deployment predates the run, so the report judge does not credit it', () => {
+    const lines = describeGroundTruth(
+      facts({
+        deployment: deployedWith({ updatedAtMs: SESSION_START - 1 }),
+      })
+    );
+    expect(lines).toContain(`- deployment: ACTIVE v3; ${PREDATES}`);
+    expect(lines).not.toContain('- deployment: ACTIVE v3');
+  });
+
+  it('says the deployment cannot be tied to the run when the session start is unknown', () => {
+    expect(describeGroundTruth(facts({ sessionStartMs: null }))).toContain(
+      `- deployment: ACTIVE v3; ${NO_SESSION_START}`
+    );
+  });
+
+  it('says the deployment cannot be tied to the run when the API reported no update time', () => {
+    expect(
+      describeGroundTruth(
+        facts({ deployment: deployedWith({ updatedAtMs: undefined }) })
+      )
+    ).toContain(`- deployment: ACTIVE v3; ${NO_UPDATED_AT}`);
+  });
+
+  it('adds no freshness remark for a function deployed this run', () => {
+    expect(describeGroundTruth(facts()).join('\n')).not.toContain('this run');
+  });
+
+  it('adds no freshness remark when nothing is deployed, even with an unknown session start', () => {
+    const lines = describeGroundTruth(
+      facts({ deployment: { ok: true, deployed: null }, sessionStartMs: null })
+    );
+    expect(lines).toContain('- deployment: not deployed');
+    expect(lines.join('\n')).not.toContain('this run');
+  });
 
   it('says the deployment is unavailable and why when the probe failed', () => {
     const lines = describeGroundTruth(

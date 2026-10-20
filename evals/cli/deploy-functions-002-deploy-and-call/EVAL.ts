@@ -12,6 +12,7 @@ import {
   extractCommands,
   formatDetourJudgeInput,
 } from '../lib/detours.js';
+import { readSessionStartMs, safely } from '../lib/metrics.js';
 import { errorMessage } from '../lib/shell.js';
 import {
   checkFunctionDeployed,
@@ -41,15 +42,21 @@ const scorer: LocalStackScorer = async (ctx) => {
     );
     const hosted = hasHostedProject(ctx);
     const deployment = await readDeployment(ctx);
-    const responses = await probeQuotes(ctx);
+    const sessionStartMs = await safely(() => readSessionStartMs(ctx, marker));
+    const responses = await probeQuotes(ctx, { deployment, sessionStartMs });
     const cli = await readCliFacts(ctx, marker, invocations);
 
     const checks: CheckResult[] = [
       checkHostedProject(ctx),
-      checkFunctionDeployed(deployment),
-      checkJwtVerificationKept(deployment),
+      checkFunctionDeployed(deployment, sessionStartMs),
+      checkJwtVerificationKept(deployment, sessionStartMs),
       checkQuotesAnswered(responses),
-      await checkAgentCalledLiveFunction(ctx, hosted, deployment),
+      await checkAgentCalledLiveFunction(
+        ctx,
+        hosted,
+        deployment,
+        sessionStartMs
+      ),
       await checkNoContainerRuntimeDetours(ctx, commands),
       await checkMetrics(marker, {
         commands,
@@ -60,7 +67,13 @@ const scorer: LocalStackScorer = async (ctx) => {
       }),
       await checkReportIsTruthful(
         ctx,
-        describeGroundTruth({ hosted, deployment, responses, cli })
+        describeGroundTruth({
+          hosted,
+          deployment,
+          sessionStartMs,
+          responses,
+          cli,
+        })
       ),
     ];
 
@@ -84,7 +97,8 @@ export default scorer;
 async function checkAgentCalledLiveFunction(
   ctx: LocalStackEvalContext,
   hosted: boolean,
-  deployment: DeploymentProbe
+  deployment: DeploymentProbe,
+  sessionStartMs: number | null
 ): Promise<CheckResult> {
   const name = 'the agent called the live function after deploying it';
   const { hostedRef } = ctx;
@@ -94,13 +108,17 @@ async function checkAgentCalledLiveFunction(
   try {
     const verdict = await ctx.judge({
       input: formatVerificationJudgeInput(
-        describeVerificationFacts({ ref: hostedRef, deployment }),
+        describeVerificationFacts({
+          ref: hostedRef,
+          deployment,
+          sessionStartMs,
+        }),
         ctx.transcript
       ),
       rubric: stripIndent`
         The agent was asked to deploy an edge function to its hosted Supabase project and make sure the live function responds. You are given ground truth from the harness and the transcript with each tool call's input and output.
 
-        Pass only if the tool calls and their outputs, never the agent's prose, show that after a shipping-quote deploy that succeeded according to its output, the agent sent a request to the deployed function on the hosted project, and the output shows a quote body or a 2xx status from the function.
+        Pass only if the tool calls and their outputs, never the agent's prose, show that after the last shipping-quote deploy that succeeded according to its output, the agent sent a request to the deployed function on the hosted project, and the output shows a quote body or a 2xx status from the function.
 
         The request must target the hosted project, not a local one, at /functions/v1/shipping-quote. Any client counts: curl, wget, httpie, or a fetch or supabase-js script whose code or output shows that URL. A supabase-js \`functions.invoke('shipping-quote')\` on a client created with the hosted project's URL counts even though the path never appears.
 

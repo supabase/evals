@@ -15,4 +15,8 @@ export const QUOTE_PROBES: readonly QuoteProbe[] = [
     request: { country: 'US', weightKg: 0.4 },
     expected: { quoteCents: 894, currency: 'USD' },
   },
+  {
+    request: { country: 'GB', weightKg: 1.5 },
+    expected: { quoteCents: 615, currency: 'GBP' },
+  },
 ];

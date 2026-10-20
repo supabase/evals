@@ -3,8 +3,8 @@ import type {
   EdgeFunctionsInvokeInput,
   EdgeFunctionsInvokeResult,
 } from '@supabase-evals/core';
-import { describe, expect, it, vi } from 'vitest';
-import { NO_HOSTED_PROJECT } from './hosted.js';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { type DeploymentProbe, NO_HOSTED_PROJECT } from './hosted.js';
 import {
   checkQuotesAnswered,
   type ProbeOutcome,
@@ -20,7 +20,26 @@ const API_KEYS_PATH = '/v1/projects/{ref}/api-keys';
 const QUOTES: Record<string, { quoteCents: number; currency: string }> = {
   IE: { quoteCents: 810, currency: 'EUR' },
   US: { quoteCents: 894, currency: 'USD' },
+  GB: { quoteCents: 615, currency: 'GBP' },
 };
+
+const SESSION_START = 1_700_000_000_000;
+const DEPLOYED_AT = SESSION_START + 60_000;
+
+const deploymentOf = (
+  overrides: Partial<{ updatedAtMs: number | undefined }> = {}
+): DeploymentProbe => ({
+  ok: true,
+  deployed: {
+    status: 'ACTIVE',
+    verifyJwt: true,
+    version: 1,
+    updatedAtMs: DEPLOYED_AT,
+    ...overrides,
+  },
+});
+
+const iso = (ms: number) => new Date(ms).toISOString();
 
 type Key = { name: string; api_key?: string; type?: string };
 
@@ -87,6 +106,19 @@ function fakeCtx(
   };
 }
 
+type ProbeCtx = Parameters<typeof probeQuotes>[0];
+type ProbeOptions = Parameters<typeof probeQuotes>[1];
+
+const noSleep = () => vi.fn(async (_ms: number) => {});
+
+const run = (ctx: ProbeCtx, overrides: Partial<ProbeOptions> = {}) =>
+  probeQuotes(ctx, {
+    deployment: deploymentOf(),
+    sessionStartMs: SESSION_START,
+    sleep: noSleep(),
+    ...overrides,
+  });
+
 const outcomesOf = (probe: ResponsesProbe): ProbeOutcome[] => {
   if (!probe.ok) throw new Error(`probe failed: ${probe.notes}`);
   return probe.outcomes;
@@ -97,18 +129,18 @@ const NAME = "the deployed function answers with the project's shipping quotes";
 describe('probeQuotes', () => {
   it('fails with NO_HOSTED_PROJECT and calls nothing without a hosted project', async () => {
     const { invoke, GET } = fakeCtx();
-    expect(await probeQuotes({ invokeHostedFunction: invoke })).toEqual({
+    expect(await run({ invokeHostedFunction: invoke })).toEqual({
       ok: false,
       notes: NO_HOSTED_PROJECT,
     });
     expect(
-      await probeQuotes({
+      await run({
         hostedRef: REF,
         invokeHostedFunction: invoke,
       })
     ).toEqual({ ok: false, notes: NO_HOSTED_PROJECT });
     expect(
-      await probeQuotes({
+      await run({
         hostedMgmt: { GET } as never,
         invokeHostedFunction: invoke,
       })
@@ -119,7 +151,7 @@ describe('probeQuotes', () => {
 
   it('fails with the invoker note when the context cannot invoke a hosted function', async () => {
     const { ctx, invoke } = fakeCtx({ invoke: null });
-    expect(await probeQuotes(ctx)).toEqual({
+    expect(await run(ctx)).toEqual({
       ok: false,
       notes: 'no hosted function invoker on the scoring context',
     });
@@ -127,7 +159,7 @@ describe('probeQuotes', () => {
   });
 
   it('reports the missing hosted project ahead of the missing invoker', async () => {
-    expect(await probeQuotes({})).toEqual({
+    expect(await run({})).toEqual({
       ok: false,
       notes: NO_HOSTED_PROJECT,
     });
@@ -135,7 +167,7 @@ describe('probeQuotes', () => {
 
   it('looks the anon key up on the project', async () => {
     const { ctx, GET } = fakeCtx();
-    await probeQuotes(ctx);
+    await run(ctx);
     expect(GET).toHaveBeenCalledWith(
       API_KEYS_PATH,
       expect.objectContaining({
@@ -146,7 +178,7 @@ describe('probeQuotes', () => {
 
   it('sends each probe as a POST to the function with the anon key and the probe body', async () => {
     const { ctx, invoke } = fakeCtx();
-    await probeQuotes(ctx);
+    await run(ctx);
     expect(invoke).toHaveBeenCalledTimes(QUOTE_PROBES.length);
     QUOTE_PROBES.forEach((probe, i) => {
       expect(invoke.mock.calls[i][0]).toMatchObject({
@@ -164,7 +196,7 @@ describe('probeQuotes', () => {
 
   it('never presents the service role key', async () => {
     const { ctx, invoke } = fakeCtx();
-    await probeQuotes(ctx);
+    await run(ctx);
     for (const [input] of invoke.mock.calls) {
       expect(JSON.stringify(input)).not.toContain('service-role-key-value');
     }
@@ -181,7 +213,7 @@ describe('probeQuotes', () => {
         ...KEYS,
       ],
     });
-    await probeQuotes(ctx);
+    await run(ctx);
     expect(invoke.mock.calls[0][0].headers?.authorization).toBe(
       `Bearer ${ANON}`
     );
@@ -198,7 +230,7 @@ describe('probeQuotes', () => {
         ...KEYS,
       ],
     });
-    await probeQuotes(ctx);
+    await run(ctx);
     expect(invoke).toHaveBeenCalledTimes(QUOTE_PROBES.length);
     for (const [input] of invoke.mock.calls) {
       expect(JSON.stringify(input)).not.toContain('sb_publishable_x');
@@ -212,7 +244,7 @@ describe('probeQuotes', () => {
         { name: 'default', api_key: 'sb_publishable_x', type: 'publishable' },
       ],
     });
-    expect(await probeQuotes(ctx)).toEqual({
+    expect(await run(ctx)).toEqual({
       ok: false,
       notes: 'no anon API key on the project',
     });
@@ -223,7 +255,7 @@ describe('probeQuotes', () => {
     const { ctx, invoke } = fakeCtx({
       keys: [{ name: 'service_role', api_key: 'srv', type: 'legacy' }],
     });
-    expect(await probeQuotes(ctx)).toEqual({
+    expect(await run(ctx)).toEqual({
       ok: false,
       notes: 'no anon API key on the project',
     });
@@ -234,7 +266,7 @@ describe('probeQuotes', () => {
     const { ctx, invoke } = fakeCtx({
       keys: [{ name: 'anon', type: 'legacy' }],
     });
-    expect(await probeQuotes(ctx)).toEqual({
+    expect(await run(ctx)).toEqual({
       ok: false,
       notes: 'no anon API key on the project',
     });
@@ -243,7 +275,7 @@ describe('probeQuotes', () => {
 
   it('fails without invoking anything when the key list is empty', async () => {
     const { ctx, invoke } = fakeCtx({ keys: [] });
-    expect(await probeQuotes(ctx)).toEqual({
+    expect(await run(ctx)).toEqual({
       ok: false,
       notes: 'no anon API key on the project',
     });
@@ -254,7 +286,7 @@ describe('probeQuotes', () => {
     const { ctx, invoke } = fakeCtx({
       keysError: { status: 500, body: { message: 'keys unavailable' } },
     });
-    const probe = await probeQuotes(ctx);
+    const probe = await run(ctx);
     expect(probe.ok).toBe(false);
     expect(!probe.ok && probe.notes).toContain('keys unavailable');
     expect(invoke).not.toHaveBeenCalled();
@@ -262,23 +294,25 @@ describe('probeQuotes', () => {
 
   it('fails with the message when the key lookup throws, and never rejects', async () => {
     const { ctx, invoke } = fakeCtx({ keysThrow: 'connection reset' });
-    const probe = await probeQuotes(ctx);
+    const probe = await run(ctx);
     expect(probe.ok).toBe(false);
     expect(!probe.ok && probe.notes).toContain('connection reset');
     expect(invoke).not.toHaveBeenCalled();
   });
 
-  it('passes both probes when the function returns the seeded quotes', async () => {
+  it('passes every probe when the function returns the seeded quotes', async () => {
     const { ctx } = fakeCtx();
-    const outcomes = outcomesOf(await probeQuotes(ctx));
+    const outcomes = outcomesOf(await run(ctx));
     expect(outcomes.map((o) => o.request)).toEqual(
       QUOTE_PROBES.map((probe) => probe.request)
     );
-    expect(outcomes.map((o) => o.passed)).toEqual([true, true]);
+    expect(outcomes.map((o) => o.passed)).toEqual([true, true, true]);
     expect(outcomes[0].detail).toContain('810');
     expect(outcomes[0].detail).toContain('EUR');
     expect(outcomes[1].detail).toContain('894');
     expect(outcomes[1].detail).toContain('USD');
+    expect(outcomes[2].detail).toContain('615');
+    expect(outcomes[2].detail).toContain('GBP');
   });
 
   it('accepts a refactored function that adds fields to the answer', async () => {
@@ -295,7 +329,8 @@ describe('probeQuotes', () => {
         );
       },
     });
-    expect(outcomesOf(await probeQuotes(ctx)).map((o) => o.passed)).toEqual([
+    expect(outcomesOf(await run(ctx)).map((o) => o.passed)).toEqual([
+      true,
       true,
       true,
     ]);
@@ -308,8 +343,8 @@ describe('probeQuotes', () => {
         error: 'edge function not found',
       }),
     });
-    const outcomes = outcomesOf(await probeQuotes(ctx));
-    expect(outcomes.map((o) => o.passed)).toEqual([false, false]);
+    const outcomes = outcomesOf(await run(ctx));
+    expect(outcomes.map((o) => o.passed)).toEqual([false, false, false]);
     expect(outcomes[0].detail).toBe('error: edge function not found');
   });
 
@@ -318,8 +353,8 @@ describe('probeQuotes', () => {
       invoke: async () =>
         reply(401, '{"error":"Missing authorization header"}'),
     });
-    const outcomes = outcomesOf(await probeQuotes(ctx));
-    expect(outcomes.map((o) => o.passed)).toEqual([false, false]);
+    const outcomes = outcomesOf(await run(ctx));
+    expect(outcomes.map((o) => o.passed)).toEqual([false, false, false]);
     expect(outcomes[0].detail).toBe(
       'status 401: {"error":"Missing authorization header"}'
     );
@@ -332,8 +367,8 @@ describe('probeQuotes', () => {
         return ok.type === 'response' ? { ...ok, status: 201 } : ok;
       },
     });
-    const outcomes = outcomesOf(await probeQuotes(ctx));
-    expect(outcomes.map((o) => o.passed)).toEqual([false, false]);
+    const outcomes = outcomesOf(await run(ctx));
+    expect(outcomes.map((o) => o.passed)).toEqual([false, false, false]);
     expect(outcomes[0].detail).toContain('status 201');
   });
 
@@ -341,7 +376,7 @@ describe('probeQuotes', () => {
     const { ctx } = fakeCtx({
       invoke: async () => reply(500, 'x'.repeat(500)),
     });
-    const [first] = outcomesOf(await probeQuotes(ctx));
+    const [first] = outcomesOf(await run(ctx));
     expect(first.detail).toBe(`status 500: ${'x'.repeat(200)}...`);
   });
 
@@ -349,8 +384,8 @@ describe('probeQuotes', () => {
     const { ctx } = fakeCtx({
       invoke: async () => reply(200, 'Hello from the starter function'),
     });
-    const outcomes = outcomesOf(await probeQuotes(ctx));
-    expect(outcomes.map((o) => o.passed)).toEqual([false, false]);
+    const outcomes = outcomesOf(await run(ctx));
+    expect(outcomes.map((o) => o.passed)).toEqual([false, false, false]);
     expect(outcomes[0].detail).toContain('Hello from the starter function');
   });
 
@@ -361,8 +396,8 @@ describe('probeQuotes', () => {
     ['a number', '810'],
   ])('fails a 200 whose JSON is %s without throwing', async (_label, body) => {
     const { ctx } = fakeCtx({ invoke: async () => reply(200, body) });
-    const outcomes = outcomesOf(await probeQuotes(ctx));
-    expect(outcomes.map((o) => o.passed)).toEqual([false, false]);
+    const outcomes = outcomesOf(await run(ctx));
+    expect(outcomes.map((o) => o.passed)).toEqual([false, false, false]);
   });
 
   it('fails a probe whose quote differs from the seeded rates and shows the quote', async () => {
@@ -378,8 +413,8 @@ describe('probeQuotes', () => {
         );
       },
     });
-    const outcomes = outcomesOf(await probeQuotes(ctx));
-    expect(outcomes.map((o) => o.passed)).toEqual([false, false]);
+    const outcomes = outcomesOf(await run(ctx));
+    expect(outcomes.map((o) => o.passed)).toEqual([false, false, false]);
     expect(outcomes[0].detail).toContain('811');
   });
 
@@ -396,8 +431,8 @@ describe('probeQuotes', () => {
         );
       },
     });
-    const outcomes = outcomesOf(await probeQuotes(ctx));
-    expect(outcomes.map((o) => o.passed)).toEqual([false, false]);
+    const outcomes = outcomesOf(await run(ctx));
+    expect(outcomes.map((o) => o.passed)).toEqual([false, false, false]);
     expect(outcomes[0].detail).toContain('JPY');
   });
 
@@ -414,13 +449,14 @@ describe('probeQuotes', () => {
         );
       },
     });
-    expect(outcomesOf(await probeQuotes(ctx)).map((o) => o.passed)).toEqual([
+    expect(outcomesOf(await run(ctx)).map((o) => o.passed)).toEqual([
+      false,
       false,
       false,
     ]);
   });
 
-  it('judges each probe on its own, so one wrong quote does not hide the other', async () => {
+  it('judges each probe on its own, so one wrong quote does not hide the others', async () => {
     const { ctx } = fakeCtx({
       invoke: async (input) => {
         const { country } = input.body as { country: string };
@@ -429,8 +465,9 @@ describe('probeQuotes', () => {
           : seededReply(input);
       },
     });
-    expect(outcomesOf(await probeQuotes(ctx)).map((o) => o.passed)).toEqual([
+    expect(outcomesOf(await run(ctx)).map((o) => o.passed)).toEqual([
       false,
+      true,
       true,
     ]);
   });
@@ -444,10 +481,322 @@ describe('probeQuotes', () => {
         return seededReply(input);
       },
     });
-    const outcomes = outcomesOf(await probeQuotes(ctx));
+    const outcomes = outcomesOf(await run(ctx));
     expect(invoke).toHaveBeenCalledTimes(QUOTE_PROBES.length);
-    expect(outcomes.map((o) => o.passed)).toEqual([false, true]);
+    expect(outcomes.map((o) => o.passed)).toEqual([false, true, true]);
     expect(outcomes[0].detail).toContain('socket hang up');
+  });
+
+  it('fails only the GB probe when only the GB rates changed', async () => {
+    const { ctx } = fakeCtx({
+      invoke: async (input) => {
+        const { country } = input.body as { country: string };
+        return country === 'GB'
+          ? reply(200, JSON.stringify({ quoteCents: 3, currency: 'GBP' }))
+          : seededReply(input);
+      },
+    });
+    const outcomes = outcomesOf(await run(ctx));
+    expect(outcomes.map((o) => o.request.country)).toEqual(['IE', 'US', 'GB']);
+    expect(outcomes.map((o) => o.passed)).toEqual([true, true, false]);
+    expect(outcomes[2].detail).toContain('expected 615 GBP');
+  });
+});
+
+describe('probeQuotes gate on the deployment', () => {
+  const NOT_THIS_RUN = deploymentOf({ updatedAtMs: SESSION_START - 1 });
+
+  it('does not invoke a function that predates the run and says when it was updated', async () => {
+    const { ctx, invoke } = fakeCtx();
+    expect(await run(ctx, { deployment: NOT_THIS_RUN })).toEqual({
+      ok: false,
+      notes: `not probed: the deployed shipping-quote predates this run (updated ${iso(SESSION_START - 1)}, session started ${iso(SESSION_START)})`,
+    });
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it('probes a function updated in the very millisecond the session started', async () => {
+    const { ctx, invoke } = fakeCtx();
+    const probe = await run(ctx, {
+      deployment: deploymentOf({ updatedAtMs: SESSION_START }),
+    });
+    expect(probe.ok).toBe(true);
+    expect(invoke).toHaveBeenCalledTimes(QUOTE_PROBES.length);
+  });
+
+  it('fails closed without invoking when the session start is unknown', async () => {
+    const { ctx, invoke } = fakeCtx();
+    expect(await run(ctx, { sessionStartMs: null })).toEqual({
+      ok: false,
+      notes:
+        "not probed: the deployed shipping-quote can't be tied to this run: session start time unavailable",
+    });
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it('fails closed without invoking when the API reported no update time', async () => {
+    const { ctx, invoke } = fakeCtx();
+    expect(
+      await run(ctx, { deployment: deploymentOf({ updatedAtMs: undefined }) })
+    ).toEqual({
+      ok: false,
+      notes:
+        "not probed: the deployed shipping-quote can't be tied to this run: updated_at missing from the API response",
+    });
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it('does not invoke when nothing is deployed and names the 404', async () => {
+    const { ctx, invoke } = fakeCtx();
+    expect(
+      await run(ctx, {
+        deployment: {
+          ok: true,
+          deployed: null,
+          notFound: '404: Function not found',
+        },
+      })
+    ).toEqual({
+      ok: false,
+      notes:
+        'not probed: the project has no shipping-quote function (404: Function not found)',
+    });
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it('does not invoke when nothing is deployed and the 404 carried no message', async () => {
+    const { ctx, invoke } = fakeCtx();
+    expect(
+      await run(ctx, { deployment: { ok: true, deployed: null } })
+    ).toEqual({
+      ok: false,
+      notes: 'not probed: the project has no shipping-quote function',
+    });
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it('does not invoke when the deployment could not be read and names why', async () => {
+    const { ctx, invoke } = fakeCtx();
+    expect(
+      await run(ctx, {
+        deployment: { ok: false, notes: 'connection reset' },
+      })
+    ).toEqual({ ok: false, notes: 'not probed: connection reset' });
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it('names the missing hosted project when there is no hosted project and nothing could be read', async () => {
+    const probe = await run(
+      {},
+      {
+        deployment: { ok: false, notes: NO_HOSTED_PROJECT },
+        sessionStartMs: null,
+      }
+    );
+    expect(probe.ok).toBe(false);
+    expect(!probe.ok && probe.notes).toContain(NO_HOSTED_PROJECT);
+  });
+});
+
+describe('probeQuotes retries a cold boot', () => {
+  const scripted = (script: Record<string, EdgeFunctionsInvokeResult[]>) => {
+    const attempts: Record<string, number> = {};
+    const invoke: Invoke = async (input) => {
+      const { country } = input.body as { country: string };
+      attempts[country] = (attempts[country] ?? 0) + 1;
+      return script[country]?.[attempts[country] - 1] ?? seededReply(input);
+    };
+    return invoke;
+  };
+
+  const countryOf = ([input]: [EdgeFunctionsInvokeInput]) =>
+    (input.body as { country: string }).country;
+
+  const callsFor = (
+    invoke: { mock: { calls: [EdgeFunctionsInvokeInput][] } },
+    country: string
+  ) => invoke.mock.calls.filter((args) => countryOf(args) === country).length;
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('passes a probe whose first call hit a 503 and whose retry answered', async () => {
+    const sleep = noSleep();
+    const { ctx, invoke } = fakeCtx({
+      invoke: scripted({ IE: [reply(503, '{"code":"BOOT_ERROR"}')] }),
+    });
+    const outcomes = outcomesOf(await run(ctx, { sleep }));
+    expect(outcomes.map((o) => o.passed)).toEqual([true, true, true]);
+    expect(outcomes[0].detail).toContain('quote 810 EUR');
+    expect(callsFor(invoke, 'IE')).toBe(2);
+    expect(invoke).toHaveBeenCalledTimes(QUOTE_PROBES.length + 1);
+    expect(sleep).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([502, 503, 504])('retries a %i', async (status) => {
+    const { ctx, invoke } = fakeCtx({
+      invoke: scripted({ IE: [reply(status, 'booting')] }),
+    });
+    const outcomes = outcomesOf(await run(ctx));
+    expect(outcomes.map((o) => o.passed)).toEqual([true, true, true]);
+    expect(callsFor(invoke, 'IE')).toBe(2);
+  });
+
+  it('passes a probe that only answers on its third attempt', async () => {
+    const sleep = noSleep();
+    const { ctx, invoke } = fakeCtx({
+      invoke: scripted({ IE: [reply(503, 'boot'), reply(503, 'boot')] }),
+    });
+    const outcomes = outcomesOf(await run(ctx, { sleep }));
+    expect(outcomes.map((o) => o.passed)).toEqual([true, true, true]);
+    expect(callsFor(invoke, 'IE')).toBe(3);
+    expect(sleep).toHaveBeenCalledTimes(2);
+  });
+
+  it('resends the same request on a retry', async () => {
+    const { ctx, invoke } = fakeCtx({
+      invoke: scripted({ IE: [reply(503, 'boot')] }),
+    });
+    await run(ctx);
+    const [first, second] = invoke.mock.calls;
+    expect(second[0]).toEqual(first[0]);
+    expect(first[0].body).toEqual(QUOTE_PROBES[0].request);
+  });
+
+  it('gives up after three attempts and reports the last status and the attempt count', async () => {
+    const always503: EdgeFunctionsInvokeResult[] = Array.from(
+      { length: 10 },
+      () => reply(503, '{"code":"BOOT_ERROR"}')
+    );
+    const sleep = noSleep();
+    const { ctx, invoke } = fakeCtx({ invoke: scripted({ IE: always503 }) });
+    const outcomes = outcomesOf(await run(ctx, { sleep }));
+    expect(outcomes[0]).toMatchObject({
+      passed: false,
+      detail: 'status 503: {"code":"BOOT_ERROR"} (after 3 attempts)',
+    });
+    expect(callsFor(invoke, 'IE')).toBe(3);
+  });
+
+  it('retries each probe on its own attempts, so one cold function does not spend the others', async () => {
+    const always503: EdgeFunctionsInvokeResult[] = Array.from(
+      { length: 10 },
+      () => reply(503, 'boot')
+    );
+    const { ctx, invoke } = fakeCtx({ invoke: scripted({ IE: always503 }) });
+    const outcomes = outcomesOf(await run(ctx));
+    expect(outcomes.map((o) => o.passed)).toEqual([false, true, true]);
+    expect(callsFor(invoke, 'US')).toBe(1);
+    expect(callsFor(invoke, 'GB')).toBe(1);
+  });
+
+  it('waits between attempts with a growing delay and never after the last attempt', async () => {
+    const always503: EdgeFunctionsInvokeResult[] = Array.from(
+      { length: 10 },
+      () => reply(503, 'boot')
+    );
+    const sleep = noSleep();
+    const { ctx } = fakeCtx({ invoke: scripted({ IE: always503 }) });
+    await run(ctx, { sleep });
+    const delays = sleep.mock.calls.map(([ms]) => ms);
+    expect(delays).toHaveLength(2);
+    expect(delays[0]).toBeGreaterThan(0);
+    expect(delays[1]).toBeGreaterThanOrEqual(delays[0]);
+    expect(delays[1]).toBeLessThanOrEqual(5_000);
+  });
+
+  it('reports the last status when the status changes across attempts', async () => {
+    const { ctx, invoke } = fakeCtx({
+      invoke: scripted({
+        IE: [reply(503, 'boot'), reply(503, 'boot'), reply(500, 'boom')],
+      }),
+    });
+    const outcomes = outcomesOf(await run(ctx));
+    expect(outcomes[0]).toMatchObject({
+      passed: false,
+      detail: 'status 500: boom (after 3 attempts)',
+    });
+    expect(callsFor(invoke, 'IE')).toBe(3);
+  });
+
+  it('stops at a non-retriable status that follows a 503', async () => {
+    const { ctx, invoke } = fakeCtx({
+      invoke: scripted({ IE: [reply(503, 'boot'), reply(401, 'denied')] }),
+    });
+    const outcomes = outcomesOf(await run(ctx));
+    expect(outcomes[0]).toMatchObject({
+      passed: false,
+      detail: 'status 401: denied (after 2 attempts)',
+    });
+    expect(callsFor(invoke, 'IE')).toBe(2);
+  });
+
+  it.each([401, 404, 429, 500, 501])('does not retry a %i', async (status) => {
+    const sleep = noSleep();
+    const { ctx, invoke } = fakeCtx({
+      invoke: async () => reply(status, 'denied'),
+    });
+    const outcomes = outcomesOf(await run(ctx, { sleep }));
+    expect(outcomes.map((o) => o.detail)).toEqual(
+      QUOTE_PROBES.map(() => `status ${status}: denied`)
+    );
+    expect(invoke).toHaveBeenCalledTimes(QUOTE_PROBES.length);
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
+  it('does not retry an invoker error result', async () => {
+    const sleep = noSleep();
+    const { ctx, invoke } = fakeCtx({
+      invoke: async () => ({ type: 'error', error: 'edge function not found' }),
+    });
+    const outcomes = outcomesOf(await run(ctx, { sleep }));
+    expect(outcomes[0].detail).toBe('error: edge function not found');
+    expect(invoke).toHaveBeenCalledTimes(QUOTE_PROBES.length);
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
+  it('does not retry an invocation that throws', async () => {
+    const sleep = noSleep();
+    const { ctx, invoke } = fakeCtx({
+      invoke: async () => {
+        throw new Error('socket hang up');
+      },
+    });
+    const outcomes = outcomesOf(await run(ctx, { sleep }));
+    expect(outcomes[0].detail).toContain('socket hang up');
+    expect(invoke).toHaveBeenCalledTimes(QUOTE_PROBES.length);
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
+  it('does not retry a 200 with the wrong answer', async () => {
+    const sleep = noSleep();
+    const { ctx, invoke } = fakeCtx({
+      invoke: async () => reply(200, 'Hello from the starter'),
+    });
+    await run(ctx, { sleep });
+    expect(invoke).toHaveBeenCalledTimes(QUOTE_PROBES.length);
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
+  it('waits on the clock between attempts when no sleep is injected', async () => {
+    vi.useFakeTimers();
+    const { ctx, invoke } = fakeCtx({
+      invoke: scripted({ IE: [reply(503, 'boot')] }),
+    });
+    const pending = probeQuotes(ctx, {
+      deployment: deploymentOf(),
+      sessionStartMs: SESSION_START,
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(invoke).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(outcomesOf(await pending).map((o) => o.passed)).toEqual([
+      true,
+      true,
+      true,
+    ]);
+    expect(invoke).toHaveBeenCalledTimes(QUOTE_PROBES.length + 1);
   });
 });
 
@@ -455,6 +804,7 @@ describe('checkQuotesAnswered', () => {
   const passing = (detail: string): ProbeOutcome[] => [
     { request: { country: 'IE', weightKg: 2.3 }, passed: true, detail },
     { request: { country: 'US', weightKg: 0.4 }, passed: true, detail },
+    { request: { country: 'GB', weightKg: 1.5 }, passed: true, detail },
   ];
 
   it('passes when every probe passed and lists each outcome', () => {
@@ -472,17 +822,23 @@ describe('checkQuotesAnswered', () => {
             passed: true,
             detail: 'quote 894 USD',
           },
+          {
+            request: { country: 'GB', weightKg: 1.5 },
+            passed: true,
+            detail: 'quote 615 GBP',
+          },
         ],
       })
     ).toEqual({
       name: NAME,
       passed: true,
-      notes: 'IE 2.3kg: quote 810 EUR; US 0.4kg: quote 894 USD',
+      notes:
+        'IE 2.3kg: quote 810 EUR; US 0.4kg: quote 894 USD; GB 1.5kg: quote 615 GBP',
     });
   });
 
   it('fails when any probe failed and still lists every outcome', () => {
-    const [ie] = passing('quote 810 EUR');
+    const [ie, , gb] = passing('quote 810 EUR');
     expect(
       checkQuotesAnswered({
         ok: true,
@@ -493,12 +849,36 @@ describe('checkQuotesAnswered', () => {
             passed: false,
             detail: 'status 401: unauthorized',
           },
+          gb,
         ],
       })
     ).toEqual({
       name: NAME,
       passed: false,
-      notes: 'IE 2.3kg: quote 810 EUR; US 0.4kg: status 401: unauthorized',
+      notes:
+        'IE 2.3kg: quote 810 EUR; US 0.4kg: status 401: unauthorized; GB 1.5kg: quote 810 EUR',
+    });
+  });
+
+  it('fails when only the last probe failed', () => {
+    const [ie, us] = passing('ok');
+    expect(
+      checkQuotesAnswered({
+        ok: true,
+        outcomes: [
+          ie,
+          us,
+          {
+            request: { country: 'GB', weightKg: 1.5 },
+            passed: false,
+            detail: 'answered {"quoteCents":3}, expected 615 GBP',
+          },
+        ],
+      })
+    ).toMatchObject({
+      passed: false,
+      notes:
+        'IE 2.3kg: ok; US 0.4kg: ok; GB 1.5kg: answered {"quoteCents":3}, expected 615 GBP',
     });
   });
 
