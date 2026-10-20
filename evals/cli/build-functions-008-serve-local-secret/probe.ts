@@ -72,7 +72,9 @@ export type FunctionProbe = {
 
 type Sleep = (ms: number) => Promise<void>;
 type Clock = { sleep: Sleep; now: () => number };
-export type ProbeOptions = Partial<Clock>;
+export type ProbeOptions = Partial<Clock> & {
+  agentCommands?: readonly string[];
+};
 type ApiKeys = { publishable?: string; anon?: string };
 type VariantRequest = { variant: AuthVariant; headers: Record<string, string> };
 type Send = (
@@ -84,7 +86,6 @@ type Verdict = Pick<
   'accepted' | 'wrongSecret' | 'missingHeader'
 >;
 type ServerProbe = Verdict & { attempts: ProbeAttempt[] };
-type Settle = (attempt: () => Promise<HttpResponse>) => Promise<HttpResponse>;
 export type ProcessRow = {
   pid: number;
   pgid: number;
@@ -98,14 +99,15 @@ const PAYLOAD = '{"run":"nightly"}';
 const CONNECT_TIMEOUT_SECONDS = 5;
 const REQUEST_TIMEOUT_SECONDS = 30;
 const REQUEST_BUDGET_MS = REQUEST_TIMEOUT_SECONDS * 1_000;
-const LIVE_BOOT_BUDGET_MS = 60_000;
+const LIVE_BOOT_BUDGET_MS = 120_000;
 const LIVE_RETRY_MS = 2_000;
 const REPLAY_BOOT_BUDGET_MS = 120_000;
 const REPLAY_POLL_MS = 3_000;
 const STOP_GRACE_MS = 15_000;
 const STOP_POLL_MS = 1_000;
 const REPLAY_LOG = '/tmp/eval-serve-replay.log';
-const HARNESS_SERVE_LOG = '/tmp/functions-serve.log';
+const HARNESS_SERVE_LOG_NAME = 'functions-serve.log';
+const HARNESS_SERVE_LOG = `/tmp/${HARNESS_SERVE_LOG_NAME}`;
 const REPLAY_LOG_TAIL_BYTES = 500;
 const NOTE_BODY_CHARS = 200;
 const NO_STACK_REASON = 'no local stack to serve the function';
@@ -262,7 +264,7 @@ export function checkAcceptsSecret(probe: FunctionProbe): CheckResult {
     name,
     passed: false,
     notes: maskSecret(
-      `no 2xx. live: ${describeAttempts(probe.live)}; ${replay}${lastBodyPreview(probe)}`
+      `no 2xx. live (last sweep): ${describeAttempts(probe.live)}; ${replay}${lastBodyPreview(probe)}`
     ),
   };
 }
@@ -388,34 +390,14 @@ function sender(ctx: LocalStackEvalContext, url: string): Send {
 const hasTimeFor = (deadline: number, waitMs: number, { now }: Clock) =>
   deadline - now() - waitMs >= REQUEST_BUDGET_MS;
 
-async function pollWhileBooting(
-  attempt: () => Promise<HttpResponse>,
-  deadline: number,
-  clock: Clock
-): Promise<HttpResponse> {
-  for (;;) {
-    const response = await attempt();
-    if (
-      !isStillBooting(response) ||
-      !hasTimeFor(deadline, LIVE_RETRY_MS, clock)
-    ) {
-      return response;
-    }
-    await clock.sleep(LIVE_RETRY_MS);
-  }
-}
-
 async function sweep(
   send: Send,
   variants: readonly VariantRequest[],
-  servedBy: ServedBy,
-  settleFirst: Settle
+  servedBy: ServedBy
 ): Promise<ServerProbe> {
   const attempts: ProbeAttempt[] = [];
-  for (const [index, { variant, headers }] of variants.entries()) {
-    const attempt = () => send(headers, DIGEST_SECRET);
-    const first = index === 0;
-    const response = first ? await settleFirst(attempt) : await attempt();
+  for (const { variant, headers } of variants) {
+    const response = await send(headers, DIGEST_SECRET);
     attempts.push({ variant, response });
     if (isAccepted(response)) {
       return {
@@ -425,9 +407,33 @@ async function sweep(
         missingHeader: await send(headers),
       };
     }
-    if (first && isStillBooting(response)) break;
+    if (isStillBooting(response)) break;
   }
   return { attempts };
+}
+
+const endedBooting = ({ attempts }: ServerProbe) => {
+  const last = attempts.at(-1);
+  return last !== undefined && isStillBooting(last.response);
+};
+
+async function probeLive(
+  send: Send,
+  variants: readonly VariantRequest[],
+  clock: Clock
+): Promise<ServerProbe> {
+  const deadline = clock.now() + LIVE_BOOT_BUDGET_MS;
+  for (;;) {
+    const probe = await sweep(send, variants, 'live');
+    if (
+      probe.accepted !== undefined ||
+      !endedBooting(probe) ||
+      !hasTimeFor(deadline, LIVE_RETRY_MS, clock)
+    ) {
+      return probe;
+    }
+    await clock.sleep(LIVE_RETRY_MS);
+  }
 }
 
 export function parseProcessTable(stdout: string): ProcessRow[] {
@@ -568,7 +574,7 @@ async function probeReplay(
 ): Promise<ServerProbe> {
   const deadline = clock.now() + REPLAY_BOOT_BUDGET_MS;
   for (;;) {
-    const probe = await sweep(send, variants, 'replay', (attempt) => attempt());
+    const probe = await sweep(send, variants, 'replay');
     if (
       probe.accepted !== undefined ||
       !hasTimeFor(deadline, REPLAY_POLL_MS, clock) ||
@@ -619,8 +625,14 @@ async function replayServe(
 }
 
 async function detectHarnessServe(
-  ctx: LocalStackEvalContext
+  ctx: LocalStackEvalContext,
+  agentCommands: readonly string[]
 ): Promise<boolean> {
+  if (
+    agentCommands.some((command) => command.includes(HARNESS_SERVE_LOG_NAME))
+  ) {
+    return false;
+  }
   const result = await safely(() => ctx.exec(`test -e ${HARNESS_SERVE_LOG}`));
   return result?.ok === true;
 }
@@ -633,7 +645,7 @@ export async function probeFunction(
   ctx: LocalStackEvalContext,
   stack: StackProbe,
   invocations: readonly SupabaseInvocation[],
-  { sleep = wait, now = Date.now }: ProbeOptions = {}
+  { sleep = wait, now = Date.now, agentCommands = [] }: ProbeOptions = {}
 ): Promise<FunctionProbe> {
   if (!stack.ok || !stack.apiUrl) {
     return {
@@ -646,17 +658,15 @@ export async function probeFunction(
     };
   }
   const clock: Clock = { sleep, now };
-  const harnessServe = await detectHarnessServe(ctx);
+  const harnessServe = await detectHarnessServe(ctx, agentCommands);
   const url = `${stack.apiUrl}${FUNCTIONS_PATH}${FUNCTION_NAME}`;
   const send = sender(ctx, url);
   const variants = authVariants(await readKeys(ctx, stack, invocations));
 
-  const liveDeadline = clock.now() + LIVE_BOOT_BUDGET_MS;
-  const { attempts: live, ...liveVerdict } = await sweep(
+  const { attempts: live, ...liveVerdict } = await probeLive(
     send,
     variants,
-    'live',
-    (attempt) => pollWhileBooting(attempt, liveDeadline, clock)
+    clock
   );
   if (liveVerdict.accepted !== undefined) {
     return {

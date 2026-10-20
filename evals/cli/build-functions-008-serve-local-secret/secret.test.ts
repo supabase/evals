@@ -25,6 +25,12 @@ const LOCAL_FIXTURE = fileURLToPath(new URL('./local', import.meta.url));
 const CANNOT_DENY_ACCESS =
   process.platform === 'win32' || process.getuid?.() === 0;
 
+const gitEnv = {
+  ...process.env,
+  GIT_CONFIG_GLOBAL: os.devNull,
+  GIT_CONFIG_NOSYSTEM: '1',
+};
+
 const roots: string[] = [];
 
 afterEach(() => {
@@ -400,12 +406,6 @@ describe('scanSecret', () => {
 });
 
 describe('listNotIgnoredScript with a real git', () => {
-  const gitEnv = {
-    ...process.env,
-    GIT_CONFIG_GLOBAL: os.devNull,
-    GIT_CONFIG_NOSYSTEM: '1',
-  };
-
   const run = (root: string, files: readonly string[]) =>
     spawnSync('/bin/sh', ['-c', listNotIgnoredScript(files)], {
       cwd: root,
@@ -461,6 +461,81 @@ describe('listNotIgnoredScript with a real git', () => {
   });
 });
 
+describe('the secret check against a real git', () => {
+  const SHARED = 'supabase/functions/_shared/secret.local.ts';
+  const CONFIG = 'supabase/config.toml';
+  const hardcoded = `export const EXPECTED = '${DIGEST_SECRET}';\n`;
+
+  const realGit = (hostWorkspace: string) =>
+    ({
+      hostWorkspace,
+      exec: async (command: string): Promise<CommandResult> => {
+        const run = spawnSync('/bin/sh', ['-c', command], {
+          cwd: hostWorkspace,
+          encoding: 'utf8',
+          env: gitEnv,
+        });
+        return {
+          ok: run.status === 0,
+          exitCode: run.status ?? -1,
+          stdout: run.stdout,
+          stderr: run.stderr,
+        };
+      },
+    }) as unknown as LocalStackEvalContext;
+
+  function project(files: Record<string, string>, ignored: string[] = []) {
+    const root = workspace({
+      [SOURCE]: "Deno.env.get('DIGEST_SECRET')",
+      ...files,
+    });
+    fs.cpSync(LOCAL_FIXTURE, root, { recursive: true, force: false });
+    fs.appendFileSync(
+      path.join(root, '.gitignore'),
+      ignored.map((file) => `${file}\n`).join('')
+    );
+    return root;
+  }
+
+  it.each([
+    ['an ignored function source', SOURCE, { [SOURCE]: hardcoded }],
+    ['an ignored shared module', SHARED, { [SHARED]: hardcoded }],
+    [
+      'an ignored project config',
+      CONFIG,
+      {
+        [CONFIG]: `[edge_runtime.secrets]\nDIGEST_SECRET = "${DIGEST_SECRET}"\n`,
+      },
+    ],
+  ])('fails when %s holds the literal', async (_name, file, files) => {
+    const root = project(files, [file]);
+
+    const scan = await scanSecret(realGit(root));
+
+    expect(scan.ok && scan.hits).toContainEqual({ file, ignored: true });
+    const check = checkSecretKeptOut(scan);
+    expect(check.passed).toBe(false);
+    expect(check.notes).toContain('written into code or config');
+    expect(check.notes).toContain(file);
+  });
+
+  it('passes when only ignored env files hold the literal', async () => {
+    const root = project({
+      'supabase/functions/.env': withSecret,
+      'supabase/functions/nightly-digest/.env': withSecret,
+    });
+
+    const scan = await scanSecret(realGit(root));
+
+    expect(scan.ok && scan.hits).toEqual([
+      { file: '.env', ignored: true },
+      { file: 'supabase/functions/.env', ignored: true },
+      { file: 'supabase/functions/nightly-digest/.env', ignored: true },
+    ]);
+    expect(checkSecretKeptOut(scan).passed).toBe(true);
+  });
+});
+
 describe('checkSecretKeptOut', () => {
   const NAME = 'the secret stays out of committed files';
 
@@ -474,10 +549,46 @@ describe('checkSecretKeptOut', () => {
       scan([
         { file: '.env', ignored: true },
         { file: 'supabase/functions/.env', ignored: true },
+        { file: 'supabase/functions/nightly-digest/.env', ignored: true },
       ])
     );
 
     expect(check).toMatchObject({ name: NAME, passed: true });
+  });
+
+  it.each([
+    ['a function source', SOURCE],
+    ['a shared module', 'supabase/functions/_shared/secret.local.ts'],
+    ['a module script', 'supabase/functions/nightly-digest/lib/util.mjs'],
+    ['a project config file', 'supabase/config.toml'],
+  ])(
+    'fails and names %s that holds the literal even though git ignores it',
+    (_name, file) => {
+      const check = checkSecretKeptOut(
+        scan([
+          { file: '.env', ignored: true },
+          { file, ignored: true },
+        ])
+      );
+
+      expect(check).toMatchObject({ name: NAME, passed: false });
+      expect(check.notes).toContain('written into code or config');
+      expect(check.notes).toContain(file);
+      expect(check.notes).not.toContain('.env,');
+    }
+  );
+
+  it('keeps the committed files and the ignored code files apart in the notes', () => {
+    const check = checkSecretKeptOut(
+      scan([
+        { file: '.env.example', ignored: false },
+        { file: SOURCE, ignored: true },
+      ])
+    );
+
+    expect(check.notes).toBe(
+      `the secret is written into code or config: ${SOURCE}; the secret would be committed in .env.example`
+    );
   });
 
   it('passes when the literal is nowhere in the workspace', () => {

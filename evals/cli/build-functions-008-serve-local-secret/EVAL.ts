@@ -12,6 +12,7 @@ import {
   extractCommands,
   formatDetourJudgeInput,
 } from '../lib/detours.js';
+import { safely } from '../lib/metrics.js';
 import { formatGroundTruthJudgeInput } from '../lib/report.js';
 import { errorMessage } from '../lib/shell.js';
 import { resolveStackWithAgentHomes } from '../lib/stack.js';
@@ -38,10 +39,13 @@ const scorer: LocalStackScorer = async (ctx) => {
       { kind: 'root' },
       invocations
     );
-    const probe = await probeFunction(ctx, stack, invocations);
+    const probe = await probeFunction(ctx, stack, invocations, {
+      agentCommands: commands,
+    });
     const scan = await scanSecret(ctx);
     const cli = await readCliFacts(ctx, marker, invocations);
-    const functionDirs = listFunctionDirs(ctx.hostWorkspace);
+    const functionDirs =
+      (await safely(() => listFunctionDirs(ctx.hostWorkspace))) ?? [];
     const serveCommands = invocations
       .filter(isFunctionsServe)
       .map(({ argv }) => argv.join(' '));

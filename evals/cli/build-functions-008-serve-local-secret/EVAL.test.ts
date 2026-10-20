@@ -28,6 +28,7 @@ import {
   failed,
   FUNCTION_URL,
   functionReplies,
+  HARNESS_LOG,
   needsPublishable,
   ok,
   rejectEverything,
@@ -260,7 +261,7 @@ function workspace(files: Record<string, string>): string {
 }
 
 const WORKSPACES = {} as Record<
-  'passing' | 'rootEnvOnly' | 'hardcoded' | 'noFunction',
+  'passing' | 'rootEnvOnly' | 'hardcoded' | 'noFunction' | 'functionsIsFile',
   string
 >;
 
@@ -281,6 +282,10 @@ beforeAll(() => {
   WORKSPACES.noFunction = workspace({
     '.env': withSecret,
     'supabase/config.toml': 'project_id = "digest-app"\n',
+  });
+  WORKSPACES.functionsIsFile = workspace({
+    '.env': withSecret,
+    'supabase/functions': 'not a directory',
   });
 });
 
@@ -599,6 +604,20 @@ describe('a harness-started serve', () => {
     expect(judgeInput(judge, 'report')).not.toMatch(/harness restarted/);
   });
 
+  it('is not claimed when the agent logged its own serve to the harness log path', async () => {
+    const { ctx, judge, events } = fakeCtx({
+      workspace: WORKSPACES.passing,
+      harnessServe: true,
+      toolCalls: [...SESSION, call(`nohup ${SERVE} > ${HARNESS_LOG} 2>&1 &`)],
+    });
+
+    const result = await score(ctx);
+
+    expect(metricsOf(result).harnessServe).toBe(false);
+    expect(events).not.toContain('harness');
+    expect(judgeInput(judge, 'report')).not.toMatch(/harness restarted/);
+  });
+
   it('is stopped by the replay, which then passes with the agent env file', async () => {
     const { ctx, kills, events } = fakeCtx({
       workspace: WORKSPACES.rootEnvOnly,
@@ -637,6 +656,19 @@ describe('a hardcoded secret', () => {
     expect(notesOf(result, KEPT_OUT)).toContain(SOURCE);
     expect(checkNamed(result, ACCEPTS)?.passed).toBe(true);
     expect(checkNamed(result, REJECTS)?.passed).toBe(true);
+  });
+
+  it('fails the secret check for a literal in a function source that git ignores', async () => {
+    const { ctx } = fakeCtx({
+      workspace: WORKSPACES.hardcoded,
+      notIgnored: [],
+    });
+
+    const result = await score(ctx);
+
+    expectFailed(result, [KEPT_OUT]);
+    expect(notesOf(result, KEPT_OUT)).toContain(SOURCE);
+    expect(metricsOf(result).secretFiles).toEqual(['.env', SOURCE]);
   });
 
   it('records the committed file in the metrics', async () => {
@@ -752,6 +784,17 @@ describe('the function behind the endpoint', () => {
     expectFailed(result, [ACCEPTS, REJECTS, KEPT_OUT]);
     expect(notesOf(result, KEPT_OUT)).toContain('supabase/functions');
     expect(notesOf(result, ACCEPTS)).toContain('none→404');
+  });
+
+  it('still returns all six checks when supabase/functions is a file', async () => {
+    const { ctx } = fakeCtx({ workspace: WORKSPACES.functionsIsFile });
+
+    const result = await score(ctx);
+
+    expect(result.checks?.map(({ name }) => name)).toEqual(CHECK_NAMES);
+    expect(checkNamed(result, FALLBACK)).toBeUndefined();
+    expect(metricsOf(result).functionDirs).toEqual([]);
+    expect(checkNamed(result, KEPT_OUT)?.passed).toBe(false);
   });
 
   it('fails only the secret check with the sandbox error when the ignore check cannot run', async () => {

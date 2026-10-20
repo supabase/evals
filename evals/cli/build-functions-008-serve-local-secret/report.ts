@@ -78,7 +78,7 @@ export function describeGroundTruth(facts: {
     `- function directories: ${functionDirs.length === 0 ? 'none' : functionDirs.join(', ')}`,
     describeServes(serveCommands),
     ...(probe.harnessServe ? [HARNESS_SERVE_LINE] : []),
-    `- live probe: ${describeAttempts(probe.live, REPORT_ARROW)}`,
+    `- live probe (last sweep): ${describeAttempts(probe.live, REPORT_ARROW)}`,
     ...describeReplay(probe),
     ...describeVerdict(probe),
     ...describeScan(scan),

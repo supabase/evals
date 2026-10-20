@@ -14,6 +14,7 @@ const MAX_SCANNED_BYTES = 1024 * 1024;
 const SKIPPED_DIRS = new Set(['node_modules', '.git']);
 const SKIPPED_PATHS = new Set(['supabase/.temp', 'supabase/.branches']);
 const FUNCTIONS_DIR = 'supabase/functions';
+const CONFIG_FILE = 'supabase/config.toml';
 const FUNCTION_SOURCE = /\.(ts|tsx|js|mjs|jsx)$/;
 
 /** `text` with every occurrence of the seeded secret replaced by a placeholder. */
@@ -104,6 +105,13 @@ export async function scanSecret(
   }
 }
 
+const isCodeOrConfig = (file: string) =>
+  file === CONFIG_FILE ||
+  (file.startsWith(`${FUNCTIONS_DIR}/`) && FUNCTION_SOURCE.test(file));
+
+const fileList = (hits: readonly SecretHit[]) =>
+  hits.map(({ file }) => file).join(', ');
+
 export function checkSecretKeptOut(scan: SecretScan): CheckResult {
   const name = 'the secret stays out of committed files';
   if (!scan.ok) return { name, passed: false, notes: scan.notes };
@@ -114,13 +122,20 @@ export function checkSecretKeptOut(scan: SecretScan): CheckResult {
       notes: `no function source under ${FUNCTIONS_DIR}/`,
     };
   }
-  const committed = scan.hits.filter(({ ignored }) => !ignored);
-  if (committed.length > 0) {
-    return {
-      name,
-      passed: false,
-      notes: `the secret would be committed in ${committed.map(({ file }) => file).join(', ')}`,
-    };
+  const written = scan.hits.filter(({ file }) => isCodeOrConfig(file));
+  const committed = scan.hits.filter(
+    ({ file, ignored }) => !ignored && !isCodeOrConfig(file)
+  );
+  const problems = [
+    ...(written.length > 0
+      ? [`the secret is written into code or config: ${fileList(written)}`]
+      : []),
+    ...(committed.length > 0
+      ? [`the secret would be committed in ${fileList(committed)}`]
+      : []),
+  ];
+  if (problems.length > 0) {
+    return { name, passed: false, notes: problems.join('; ') };
   }
   return {
     name,
@@ -128,6 +143,6 @@ export function checkSecretKeptOut(scan: SecretScan): CheckResult {
     notes:
       scan.hits.length === 0
         ? 'the secret literal appears in no file'
-        : `the secret literal sits only in ignored files: ${scan.hits.map(({ file }) => file).join(', ')}`,
+        : `the secret literal sits only in ignored files: ${fileList(scan.hits)}`,
   };
 }

@@ -45,6 +45,9 @@ export type CommandEntry = {
 const SHELL_EXPANSION_RE = /[$`]/;
 const ENV_ASSIGNMENT_RE = /^[A-Za-z_][A-Za-z0-9_]*=/;
 const PASSTHROUGH_WORDS = new Set(['exec', 'command', 'time', 'nohup']);
+const SETSID_FLAGS = new Set(['-f', '-w', '-c', '--fork', '--wait', '--ctty']);
+const STDBUF_VALUE_FLAGS = new Set(['-i', '-o', '-e']);
+const STDBUF_ATTACHED_VALUE_RE = /^(?:-[ioe].+|--(?:input|output|error)=)/;
 const PACKAGE_RUNNERS = new Set(['npx', 'bunx']);
 const NPM_EXEC_VERBS = new Set(['exec', 'x']);
 const INSTALLERS = new Set(['npm', 'pnpm', 'bun']);
@@ -207,6 +210,16 @@ function skipRunnerOptions(
   return { next: i, packageAt };
 }
 
+function skipStdbufOptions(argv: readonly string[], start: number): number {
+  let i = start;
+  for (;;) {
+    const flag = argv[i] ?? '';
+    if (STDBUF_VALUE_FLAGS.has(flag)) i += 2;
+    else if (STDBUF_ATTACHED_VALUE_RE.test(flag)) i++;
+    else return i;
+  }
+}
+
 function stripPrefixes(
   argv: readonly string[],
   seedEnv: RawEnv = {}
@@ -258,6 +271,11 @@ function stripPrefixes(
       i++;
     } else if (word === 'timeout') {
       i += 2;
+    } else if (word === 'setsid') {
+      i++;
+      while (SETSID_FLAGS.has(argv[i])) i++;
+    } else if (word === 'stdbuf') {
+      i = skipStdbufOptions(argv, i + 1);
     } else if (runnerSkip > 0) {
       runnerStart = i;
       npmExec = word === 'npm';

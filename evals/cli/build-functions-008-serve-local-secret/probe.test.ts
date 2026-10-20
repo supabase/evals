@@ -33,6 +33,7 @@ import {
   SERVICE_ROLE,
   type Handler,
   type Reply,
+  type Seen,
 } from './fakes.js';
 import { DIGEST_SECRET, SECRET_HEADER, WRONG_SECRET } from './fixture.js';
 import {
@@ -811,6 +812,42 @@ describe('probeFunction', () => {
       expect(probe.accepted?.servedBy).toBe('live');
     });
 
+    it('is false, and never checked, when the agent wrote a log at the same path', async () => {
+      const world = createSandbox({
+        live: functionReplies(),
+        harnessServe: true,
+      });
+
+      const probe = await probeFunction(world.ctx, LEGACY, [], {
+        ...world.clock,
+        agentCommands: [
+          'supabase start',
+          `nohup supabase functions serve --env-file .env > ${HARNESS_LOG} 2>&1 &`,
+        ],
+      });
+
+      expect(probe.harnessServe).toBe(false);
+      expect(probe.accepted?.servedBy).toBe('live');
+      expect(world.events).not.toContain('harness');
+    });
+
+    it('stays true when the agent ran commands that never mention the log', async () => {
+      const world = createSandbox({
+        live: functionReplies(),
+        harnessServe: true,
+      });
+
+      const probe = await probeFunction(world.ctx, LEGACY, [], {
+        ...world.clock,
+        agentCommands: [
+          'supabase start',
+          'nohup supabase functions serve --env-file .env > /tmp/serve.log 2>&1 &',
+        ],
+      });
+
+      expect(probe.harnessServe).toBe(true);
+    });
+
     it('is carried on a probe that replays and on one that never could', async () => {
       const replaying = createSandbox({
         live: rejectEverything,
@@ -884,22 +921,23 @@ describe('probeFunction', () => {
       expect(probe.wrongSecret).toEqual({ status: 401, body: 'wrong secret' });
     });
 
-    it('keeps polling the first variant until a request would no longer fit in the 60 s budget', async () => {
+    it('keeps polling from the first variant until a request would no longer fit in the 120 s budget', async () => {
       const world = createSandbox({ live: () => ({ status: 502, body: '' }) });
 
       const probe = await probeFunction(world.ctx, LEGACY, [], world.clock);
 
       expect(probe.accepted).toBeUndefined();
-      expect(world.requests).toHaveLength(16);
+      expect(world.requests).toHaveLength(46);
       expect(
         world.requests.every(
           ({ secret, apikey }) => secret === 'right' && apikey === undefined
         )
       ).toBe(true);
       expect(world.requests.map(({ at }) => at)).toEqual(
-        Array.from({ length: 16 }, (_, index) => index * 2_000)
+        Array.from({ length: 46 }, (_, index) => index * 2_000)
       );
-      expect(world.sleeps()).toEqual(Array(15).fill(2000));
+      expect(world.sleeps()).toEqual(Array(45).fill(2000));
+      expect(world.clock.now()).toBeLessThanOrEqual(120_000);
       expect(probe.replay.ran).toBe(false);
     });
 
@@ -910,8 +948,10 @@ describe('probeFunction', () => {
 
       const probe = await probeFunction(world.ctx, LEGACY, [], world.clock);
 
-      expect(world.requests.map(({ at }) => at)).toEqual([0, 12_000, 24_000]);
-      expect(world.sleeps()).toEqual([2000, 2000]);
+      expect(world.requests.map(({ at }) => at)).toEqual(
+        Array.from({ length: 8 }, (_, index) => index * 12_000)
+      );
+      expect(world.sleeps()).toEqual(Array(7).fill(2000));
       expect(outcomes(probe.live)).toEqual([['none', 504]]);
     });
 
@@ -932,7 +972,7 @@ describe('probeFunction', () => {
       expect(world.sleeps()).toEqual([2000, 2000]);
     });
 
-    it('stops after a request that ran the whole 30 s timeout since no second one would fit', async () => {
+    it('keeps polling after a request that ran the whole 30 s timeout while another still fits', async () => {
       const world = createSandbox({
         live: () => ({
           status: 0,
@@ -943,10 +983,142 @@ describe('probeFunction', () => {
 
       const probe = await probeFunction(world.ctx, LEGACY, [], world.clock);
 
-      expect(world.requests).toHaveLength(1);
+      expect(world.requests.map(({ at }) => at)).toEqual([0, 32_000, 64_000]);
       expect(outcomes(probe.live)).toEqual([['none', 0]]);
       expect(probe.accepted).toBeUndefined();
-      expect(world.sleeps()).toEqual([]);
+      expect(world.sleeps()).toEqual([2000, 2000]);
+    });
+
+    describe('a cold worker', () => {
+      const TIMEOUT_MS = 30_000;
+
+      function coldWorker(
+        bootMs: number,
+        reachesWorker: (request: Seen) => boolean = () => true
+      ): Handler {
+        let readyAt: number | undefined;
+        return (request, attempt) => {
+          if (!reachesWorker(request)) {
+            return { status: 401, body: 'Invalid JWT' };
+          }
+          readyAt ??= request.at + bootMs;
+          const wait = Math.max(0, readyAt - request.at);
+          if (wait > TIMEOUT_MS) {
+            return {
+              status: 0,
+              body: 'curl: (28) Operation timed out after 30001 milliseconds',
+              takesMs: TIMEOUT_MS,
+            };
+          }
+          const answer = functionReplies()(request, attempt);
+          return answer === 'throw' ? answer : { ...answer, takesMs: wait };
+        };
+      }
+
+      it.each([25, 31, 45, 80])(
+        'is accepted live when its first call takes %i s',
+        async (bootSeconds) => {
+          const world = createSandbox({
+            live: coldWorker(bootSeconds * 1_000),
+          });
+
+          const probe = await probeFunction(world.ctx, LEGACY, [], world.clock);
+
+          expect(probe.accepted).toMatchObject({
+            servedBy: 'live',
+            variant: 'none',
+            response: { status: 200 },
+          });
+          expect(outcomes(probe.live)).toEqual([['none', 200]]);
+          expect(probe.replay.ran).toBe(false);
+          expect(world.events).not.toContain('start');
+        }
+      );
+
+      it('sweeps again from the first variant when a later one is still warming, and accepts it live', async () => {
+        const world = createSandbox({
+          live: coldWorker(
+            65_000,
+            ({ authorization }) => authorization === ANON
+          ),
+        });
+
+        const probe = await probeFunction(world.ctx, LEGACY, [], world.clock);
+
+        expect(probe.accepted).toMatchObject({
+          servedBy: 'live',
+          variant: 'publishable+anon-bearer',
+          response: { status: 200 },
+        });
+        expect(outcomes(probe.live)).toEqual([
+          ['none', 401],
+          ['publishable', 401],
+          ['publishable+anon-bearer', 200],
+        ]);
+        expect(world.sleeps()).toEqual([2000, 2000]);
+        expect(world.requests.some(({ apikey }) => apikey === ANON)).toBe(
+          false
+        );
+        expect(probe.wrongSecret).toEqual({
+          status: 401,
+          body: 'wrong secret',
+        });
+        expect(probe.replay.ran).toBe(false);
+      });
+
+      it('gives up within the 120 s budget on a worker that never boots', async () => {
+        const world = createSandbox({
+          live: coldWorker(1_000_000),
+        });
+
+        const probe = await probeFunction(world.ctx, LEGACY, [], world.clock);
+
+        expect(probe.accepted).toBeUndefined();
+        expect(world.requests.map(({ at }) => at)).toEqual([0, 32_000, 64_000]);
+        expect(world.clock.now()).toBeLessThanOrEqual(120_000);
+      });
+    });
+
+    describe('answers that are all definitive', () => {
+      it('ends after one sweep without waiting out the live budget', async () => {
+        const world = createSandbox({ live: rejectEverything });
+
+        const probe = await probeFunction(world.ctx, LEGACY, [], world.clock);
+
+        expect(outcomes(probe.live)).toEqual([
+          ['none', 401],
+          ['publishable', 401],
+          ['publishable+anon-bearer', 401],
+          ['anon', 401],
+        ]);
+        expect(world.requests).toHaveLength(4);
+        expect(world.sleeps()).toEqual([]);
+        expect(probe.accepted).toBeUndefined();
+        expect(probe.replay).toEqual({
+          ran: false,
+          reason: 'the agent never ran supabase functions serve',
+        });
+      });
+
+      it('goes on to the replay after one sweep without a live wait', async () => {
+        const world = createSandbox({
+          live: rejectEverything,
+          replay: functionReplies(),
+        });
+
+        const probe = await probeFunction(
+          world.ctx,
+          LEGACY,
+          findSupabaseInvocations(SERVE),
+          world.clock
+        );
+
+        expect(
+          world.requests.filter(({ server }) => server === 'live')
+        ).toHaveLength(4);
+        expect(world.sleeps()).toEqual([]);
+        expect(probe.accepted?.servedBy).toBe('replay');
+      });
     });
 
     it('records a transport failure as status 0 with the curl error as the body', async () => {
@@ -1034,6 +1206,37 @@ describe('probeFunction', () => {
       expect(start).not.toContain('--no-verify-jwt');
       expect(start).toContain('functions');
       expect(start).toContain(REPLAY_LOG);
+    });
+
+    it('replays a serve the agent launched behind setsid and nohup with its output redirected', async () => {
+      const world = createSandbox({
+        live: rejectEverything,
+        replay: functionReplies(),
+      });
+
+      const probe = await probeFunction(
+        world.ctx,
+        LEGACY,
+        findSupabaseInvocations([
+          {
+            command:
+              'setsid nohup supabase functions serve --env-file .env > log 2>&1 &',
+            cwd: '/home/agent/app',
+          },
+        ]),
+        world.clock
+      );
+
+      expect(probe.accepted?.servedBy).toBe('replay');
+      const { command } = replayOf(probe);
+      expect(command).toContain('/home/agent/app');
+      expect(invocationOf(command).argv).toEqual([
+        'supabase',
+        'functions',
+        'serve',
+        '--env-file',
+        '.env',
+      ]);
     });
 
     it('probes the wrong secret and the missing header against the replay, not the dead live server', async () => {
