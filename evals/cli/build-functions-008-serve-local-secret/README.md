@@ -223,6 +223,11 @@ are reported through `metrics`.
 - The echo check reads response bodies only, not headers.
 - When nothing listens, the live phase polls for about 90 seconds before the
   replay starts.
+- The edge runtime answers 503 (`BOOT_ERROR`) permanently when a worker throws
+  at top level, for example a fail-fast check for a missing `DIGEST_SECRET`. The
+  probe treats 503 as still booting, because a module fetch can cause a
+  transient boot error, so that case spends about 90 seconds in the live phase,
+  and up to 120 in a replay, before failing. The verdict is unaffected.
 - On the managed stack, the CLI writes function env to
   `${SUPABASE_HOME}/stacks/<id>/state.json`. If the agent relocates
   `SUPABASE_HOME` inside the workspace and doesn't ignore it, the secret scan

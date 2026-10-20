@@ -15,7 +15,8 @@ const SKIPPED_DIRS = new Set(['node_modules', '.git']);
 const SKIPPED_PATHS = new Set(['supabase/.temp', 'supabase/.branches']);
 const FUNCTIONS_DIR = 'supabase/functions';
 const CONFIG_FILE = 'supabase/config.toml';
-const FUNCTION_SOURCE = /\.(ts|tsx|js|mjs|jsx)$/;
+const FUNCTION_SOURCE = /\.[cm]?[jt]sx?$/;
+const CODE_OR_CONFIG = /\.(?:[cm]?[jt]sx?|jsonc?)$/;
 
 /** `text` with every occurrence of the seeded secret replaced by a placeholder. */
 export function maskSecret(text: string): string {
@@ -107,7 +108,7 @@ export async function scanSecret(
 
 const isCodeOrConfig = (file: string) =>
   file === CONFIG_FILE ||
-  (file.startsWith(`${FUNCTIONS_DIR}/`) && FUNCTION_SOURCE.test(file));
+  (file.startsWith(`${FUNCTIONS_DIR}/`) && CODE_OR_CONFIG.test(file));
 
 const fileList = (hits: readonly SecretHit[]) =>
   hits.map(({ file }) => file).join(', ');

@@ -831,6 +831,51 @@ describe('probeFunction', () => {
       expect(world.events).not.toContain('harness');
     });
 
+    it.each([
+      `nohup supabase functions serve --env-file .env >${HARNESS_LOG} 2>&1 &`,
+      `nohup supabase functions serve --env-file .env 2>&1 | tee ${HARNESS_LOG} &`,
+      `tail -f ${HARNESS_LOG}`,
+    ])(
+      'is false, and never checked, when the agent names the harness log in %s',
+      async (command) => {
+        const world = createSandbox({
+          live: functionReplies(),
+          harnessServe: true,
+        });
+
+        const probe = await probeFunction(world.ctx, LEGACY, [], {
+          ...world.clock,
+          agentCommands: ['supabase start', command],
+        });
+
+        expect(probe.harnessServe).toBe(false);
+        expect(world.events).not.toContain('harness');
+      }
+    );
+
+    it.each([
+      'nohup supabase functions serve --env-file .env > functions-serve.log 2>&1 &',
+      'nohup supabase functions serve --env-file .env > /tmp/supabase-functions-serve.log 2>&1 &',
+      'nohup supabase functions serve --env-file .env > logs/functions-serve.log 2>&1 &',
+      `nohup supabase functions serve --env-file .env > ${HARNESS_LOG}.bak 2>&1 &`,
+    ])(
+      'stays true when the agent logs to a different file than the harness in %s',
+      async (command) => {
+        const world = createSandbox({
+          live: functionReplies(),
+          harnessServe: true,
+        });
+
+        const probe = await probeFunction(world.ctx, LEGACY, [], {
+          ...world.clock,
+          agentCommands: ['supabase start', command],
+        });
+
+        expect(probe.harnessServe).toBe(true);
+        expect(world.events).toContain('harness');
+      }
+    );
+
     it('stays true when the agent ran commands that never mention the log', async () => {
       const world = createSandbox({
         live: functionReplies(),

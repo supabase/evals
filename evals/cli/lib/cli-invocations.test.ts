@@ -107,10 +107,22 @@ describe('findSupabaseInvocations', () => {
     'stdbuf --input=0 supabase functions serve --env-file .env',
     'nohup stdbuf -oL supabase functions serve --env-file .env &',
     'setsid stdbuf -oL timeout 30 supabase functions serve --env-file .env',
+    'setsid -fw supabase functions serve --env-file .env',
+    'setsid -- supabase functions serve --env-file .env',
+    'stdbuf --output L supabase functions serve --env-file .env',
+    'stdbuf -oL -- supabase functions serve --env-file .env',
   ])('finds the serve behind the wrappers of %s', (command) => {
     expect(findSupabaseInvocations([command]).map(({ argv }) => argv)).toEqual([
       ['supabase', 'functions', 'serve', '--env-file', '.env'],
     ]);
+  });
+
+  it('finds the invocation behind setsid and stdbuf option terminators', () => {
+    expect(
+      findSupabaseInvocations([
+        'setsid -f -- stdbuf -o L -- supabase start',
+      ]).map(({ argv }) => argv)
+    ).toEqual([['supabase', 'start']]);
   });
 
   it('keeps the env prefixes and working directory of a wrapped invocation', () => {

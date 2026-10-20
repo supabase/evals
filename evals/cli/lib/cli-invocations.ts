@@ -45,8 +45,16 @@ export type CommandEntry = {
 const SHELL_EXPANSION_RE = /[$`]/;
 const ENV_ASSIGNMENT_RE = /^[A-Za-z_][A-Za-z0-9_]*=/;
 const PASSTHROUGH_WORDS = new Set(['exec', 'command', 'time', 'nohup']);
-const SETSID_FLAGS = new Set(['-f', '-w', '-c', '--fork', '--wait', '--ctty']);
-const STDBUF_VALUE_FLAGS = new Set(['-i', '-o', '-e']);
+const SETSID_LONG_FLAGS = new Set(['--fork', '--wait', '--ctty']);
+const SETSID_SHORT_FLAGS_RE = /^-[fwc]+$/;
+const STDBUF_VALUE_FLAGS = new Set([
+  '-i',
+  '-o',
+  '-e',
+  '--input',
+  '--output',
+  '--error',
+]);
 const STDBUF_ATTACHED_VALUE_RE = /^(?:-[ioe].+|--(?:input|output|error)=)/;
 const PACKAGE_RUNNERS = new Set(['npx', 'bunx']);
 const NPM_EXEC_VERBS = new Set(['exec', 'x']);
@@ -210,10 +218,21 @@ function skipRunnerOptions(
   return { next: i, packageAt };
 }
 
+function skipSetsidOptions(argv: readonly string[], start: number): number {
+  let i = start;
+  for (;;) {
+    const flag = argv[i] ?? '';
+    if (flag === '--') return i + 1;
+    if (SETSID_LONG_FLAGS.has(flag) || SETSID_SHORT_FLAGS_RE.test(flag)) i++;
+    else return i;
+  }
+}
+
 function skipStdbufOptions(argv: readonly string[], start: number): number {
   let i = start;
   for (;;) {
     const flag = argv[i] ?? '';
+    if (flag === '--') return i + 1;
     if (STDBUF_VALUE_FLAGS.has(flag)) i += 2;
     else if (STDBUF_ATTACHED_VALUE_RE.test(flag)) i++;
     else return i;
@@ -272,8 +291,7 @@ function stripPrefixes(
     } else if (word === 'timeout') {
       i += 2;
     } else if (word === 'setsid') {
-      i++;
-      while (SETSID_FLAGS.has(argv[i])) i++;
+      i = skipSetsidOptions(argv, i + 1);
     } else if (word === 'stdbuf') {
       i = skipStdbufOptions(argv, i + 1);
     } else if (runnerSkip > 0) {

@@ -171,6 +171,28 @@ describe('findFunctionSources', () => {
     expect(findFunctionSources(root)).toEqual([SOURCE]);
   });
 
+  it('lists mts, cts and cjs files too', () => {
+    const root = workspace({
+      'supabase/functions/a/index.mts': '',
+      'supabase/functions/a/lib.cts': '',
+      'supabase/functions/a/util.cjs': '',
+    });
+
+    expect(findFunctionSources(root)).toEqual([
+      'supabase/functions/a/index.mts',
+      'supabase/functions/a/lib.cts',
+      'supabase/functions/a/util.cjs',
+    ]);
+  });
+
+  it('does not count a lone deno.json as a function source', () => {
+    const root = workspace({
+      'supabase/functions/nightly-digest/deno.json': '{}',
+    });
+
+    expect(findFunctionSources(root)).toEqual([]);
+  });
+
   it('skips node_modules inside a function', () => {
     const root = workspace({
       [SOURCE]: '',
@@ -519,6 +541,22 @@ describe('the secret check against a real git', () => {
     expect(check.notes).toContain(file);
   });
 
+  it.each(['secret.mts', 'secret.cts', 'secret.cjs', 'secret.json'])(
+    'fails when an ignored %s module holds the literal',
+    async (name) => {
+      const file = `supabase/functions/nightly-digest/${name}`;
+      const root = project({ [file]: hardcoded }, [file]);
+
+      const scan = await scanSecret(realGit(root));
+
+      expect(scan.ok && scan.hits).toContainEqual({ file, ignored: true });
+      const check = checkSecretKeptOut(scan);
+      expect(check.passed).toBe(false);
+      expect(check.notes).toContain('written into code or config');
+      expect(check.notes).toContain(file);
+    }
+  );
+
   it('passes when only ignored env files hold the literal', async () => {
     const root = project({
       'supabase/functions/.env': withSecret,
@@ -560,6 +598,13 @@ describe('checkSecretKeptOut', () => {
     ['a function source', SOURCE],
     ['a shared module', 'supabase/functions/_shared/secret.local.ts'],
     ['a module script', 'supabase/functions/nightly-digest/lib/util.mjs'],
+    [
+      'a typescript module script',
+      'supabase/functions/nightly-digest/lib/util.mts',
+    ],
+    ['a commonjs script', 'supabase/functions/nightly-digest/lib/util.cjs'],
+    ['a json module', 'supabase/functions/nightly-digest/secret.json'],
+    ['a deno config file', 'supabase/functions/nightly-digest/deno.jsonc'],
     ['a project config file', 'supabase/config.toml'],
   ])(
     'fails and names %s that holds the literal even though git ignores it',

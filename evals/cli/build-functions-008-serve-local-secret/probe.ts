@@ -106,8 +106,9 @@ const REPLAY_POLL_MS = 3_000;
 const STOP_GRACE_MS = 15_000;
 const STOP_POLL_MS = 1_000;
 const REPLAY_LOG = '/tmp/eval-serve-replay.log';
-const HARNESS_SERVE_LOG_NAME = 'functions-serve.log';
-const HARNESS_SERVE_LOG = `/tmp/${HARNESS_SERVE_LOG_NAME}`;
+const HARNESS_SERVE_LOG = '/tmp/functions-serve.log';
+const HARNESS_SERVE_LOG_TOKEN =
+  /(^|[\s>'"=])\/tmp\/functions-serve\.log(?=$|[\s;&|)'"])/;
 const REPLAY_LOG_TAIL_BYTES = 500;
 const NOTE_BODY_CHARS = 200;
 const NO_STACK_REASON = 'no local stack to serve the function';
@@ -628,9 +629,7 @@ async function detectHarnessServe(
   ctx: LocalStackEvalContext,
   agentCommands: readonly string[]
 ): Promise<boolean> {
-  if (
-    agentCommands.some((command) => command.includes(HARNESS_SERVE_LOG_NAME))
-  ) {
+  if (agentCommands.some((command) => HARNESS_SERVE_LOG_TOKEN.test(command))) {
     return false;
   }
   const result = await safely(() => ctx.exec(`test -e ${HARNESS_SERVE_LOG}`));
