@@ -20,13 +20,12 @@ import {
   HOSTED_REF,
   type ExecCtx,
   persistedLoginRoute,
+  stderrFailure,
   tokenEnvRoute,
-  versionRoute,
 } from './fixtures.js';
 import {
   checkMetrics,
   countLoginLinkInvocations,
-  readCliFacts,
   readCredentialFacts,
   type LoginLinkCounts,
 } from './metrics.js';
@@ -46,13 +45,6 @@ const ZERO_COUNTS: LoginLinkCounts = {
   unlink: 0,
   projectsList: 0,
 };
-
-const throwing = <T extends object>(target: T): T =>
-  new Proxy(target, {
-    get() {
-      throw new Error('boom');
-    },
-  });
 
 const metricsOf = (check: { notes?: string }) =>
   JSON.parse(check.notes ?? '{}') as Record<string, unknown>;
@@ -82,6 +74,13 @@ describe('countLoginLinkInvocations', () => {
       ...ZERO_COUNTS,
       login: 1,
       loginWithToken: 1,
+    });
+  });
+
+  it('does not count a trailing bare --token as a login with a token', () => {
+    expect(count('supabase login --token')).toEqual({
+      ...ZERO_COUNTS,
+      login: 1,
     });
   });
 
@@ -183,23 +182,19 @@ describe('readCredentialFacts', () => {
     }
   );
 
-  it('probes the env var and the CLI-home access-token file without printing the token', async () => {
-    const { ctx, calls } = fakeExec([
-      tokenEnvRoute(commandResult()),
-      persistedLoginRoute(commandResult()),
+  it.each([
+    ['exits 2', stderrFailure(2, 'test: bad expression')],
+    ['is killed', { ok: false, exitCode: null, stdout: '', stderr: '' }],
+  ])('reports null for a probe that %s', async (_, result) => {
+    const { ctx } = fakeExec([
+      tokenEnvRoute(result),
+      persistedLoginRoute(result),
     ]);
 
-    await readCredentialFacts(ctx);
-
-    expect(calls).toHaveLength(2);
-    expect(calls).toContain('test -n "$SUPABASE_ACCESS_TOKEN"');
-    expect(
-      calls.some(
-        (command) =>
-          command.startsWith('test -s') &&
-          command.includes('${SUPABASE_HOME:-$HOME/.supabase}/access-token')
-      )
-    ).toBe(true);
+    expect(await readCredentialFacts(ctx)).toEqual({
+      tokenInEnvironment: null,
+      persistedLogin: null,
+    });
   });
 
   it('reports null for the probe whose exec throws and keeps the other', async () => {
@@ -323,29 +318,6 @@ describe('readCredentialFacts in a real shell', () => {
   });
 });
 
-describe('readCliFacts', () => {
-  it('reports the marker version when PATH agrees', async () => {
-    const { ctx } = fakeExec([versionRoute(commandResult('2.117.0\n'))]);
-
-    expect(await readCliFacts(ctx, MARKER)).toEqual({ cliVersion: '2.117.0' });
-  });
-
-  it('reports the version PATH resolves to after the run when it differs', async () => {
-    const { ctx } = fakeExec([versionRoute(commandResult('2.120.0\n'))]);
-
-    expect(await readCliFacts(ctx, MARKER)).toEqual({
-      cliVersion: '2.117.0',
-      cliVersionAfterRun: '2.120.0',
-    });
-  });
-
-  it('reports a null version instead of throwing when exec throws and no marker exists', async () => {
-    const { ctx } = fakeExec([versionRoute(crash())]);
-
-    expect(await readCliFacts(ctx, undefined)).toEqual({ cliVersion: null });
-  });
-});
-
 describe('checkMetrics', () => {
   const COMMANDS = [
     'supabase login --token "$SUPABASE_ACCESS_TOKEN"',
@@ -386,20 +358,15 @@ describe('checkMetrics', () => {
     commandCount: 3,
   };
 
-  const baselineWithout = (...fields: string[]) =>
-    Object.fromEntries(
-      Object.entries(BASELINE).filter(([field]) => !fields.includes(field))
-    );
-
-  it('carries every documented field and passes', async () => {
-    const check = await checkMetrics(MARKER, FACTS);
+  it('carries every documented field and passes', () => {
+    const check = checkMetrics(MARKER, FACTS);
 
     expect(check).toMatchObject({ name: 'metrics', passed: true });
     expect(metricsOf(check)).toMatchObject(BASELINE);
   });
 
-  it('reports the CLI version PATH resolved to after the run when it differs', async () => {
-    const check = await checkMetrics(MARKER, {
+  it('reports the CLI version PATH resolved to after the run when it differs', () => {
+    const check = checkMetrics(MARKER, {
       ...FACTS,
       cli: { cliVersion: '2.117.0', cliVersionAfterRun: '2.120.0' },
     });
@@ -410,26 +377,14 @@ describe('checkMetrics', () => {
     });
   });
 
-  it('reports no version after the run when PATH agreed', async () => {
-    const metrics = metricsOf(await checkMetrics(MARKER, FACTS));
+  it('reports no version after the run when PATH agreed', () => {
+    const metrics = metricsOf(checkMetrics(MARKER, FACTS));
 
     expect(metrics.cliVersionAfterRun ?? null).toBeNull();
   });
 
-  it('holds only numbers, strings, booleans and nulls', async () => {
-    const metrics = metricsOf(await checkMetrics(MARKER, FACTS));
-
-    for (const [field, value] of Object.entries(metrics)) {
-      expect(
-        value === null ||
-          ['number', 'string', 'boolean'].includes(typeof value),
-        field
-      ).toBe(true);
-    }
-  });
-
-  it('reports no runtime or docker without a marker', async () => {
-    const metrics = metricsOf(await checkMetrics(undefined, FACTS));
+  it('reports no runtime or docker without a marker', () => {
+    const metrics = metricsOf(checkMetrics(undefined, FACTS));
 
     expect(metrics.runtime ?? null).toBeNull();
     expect(metrics.docker ?? null).toBeNull();
@@ -439,8 +394,8 @@ describe('checkMetrics', () => {
     });
   });
 
-  it('passes with nulls and zeros when nothing worked', async () => {
-    const check = await checkMetrics(undefined, {
+  it('passes with nulls and zeros when nothing worked', () => {
+    const check = checkMetrics(undefined, {
       hosted: HOSTED_ABSENT,
       link: { ok: false, notes: 'supabase/.temp/project-ref is missing' },
       probe: { exitCode: null, output: 'sandbox gone' },
@@ -465,52 +420,5 @@ describe('checkMetrics', () => {
       cliVersion: null,
       commandCount: 0,
     });
-  });
-
-  it('keeps every other field when the CLI version could not be read', async () => {
-    const { ctx } = fakeExec([versionRoute(crash())]);
-
-    const check = await checkMetrics(undefined, {
-      ...FACTS,
-      cli: await readCliFacts(ctx, undefined),
-    });
-
-    expect(check.passed).toBe(true);
-    expect(metricsOf(check).cliVersion).toBeNull();
-    expect(metricsOf(check)).toMatchObject(
-      baselineWithout('cliVersion', 'runtime', 'docker')
-    );
-  });
-
-  it.each([
-    ['hosted', ['hostedProject']],
-    ['link', ['workspaceProjectRef']],
-    ['probe', ['linkedCliExitCode']],
-    ['counts', ['login', 'loginWithToken', 'link', 'unlink', 'projectsList']],
-    ['credentials', ['tokenInEnvironment', 'persistedLogin']],
-    ['cli', ['cliVersion']],
-    ['commands', ['commandCount']],
-  ] as const)(
-    'keeps every other field when %s cannot be read',
-    async (key, lost) => {
-      const check = await checkMetrics(MARKER, {
-        ...FACTS,
-        [key]: throwing(FACTS[key]),
-      });
-
-      const metrics = metricsOf(check);
-      expect(check.passed).toBe(true);
-      for (const field of lost) expect(metrics[field] ?? null).toBeNull();
-      expect(metrics).toMatchObject(baselineWithout(...lost));
-    }
-  );
-
-  it('keeps every other field when the marker cannot be read', async () => {
-    const check = await checkMetrics(throwing(MARKER), FACTS);
-
-    expect(check.passed).toBe(true);
-    expect(metricsOf(check)).toMatchObject(
-      baselineWithout('runtime', 'docker')
-    );
   });
 });

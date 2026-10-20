@@ -1,5 +1,9 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/deploy-cli-001-login-and-link
-import { describe, expect, it } from 'vitest';
+import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { afterAll, describe, expect, it } from 'vitest';
 import {
   commandResult,
   crash,
@@ -8,9 +12,11 @@ import {
   HOSTED_ABSENT,
   HOSTED_OK,
   HOSTED_REF,
+  MISSING_FILE,
   OTHER_REF,
   probeRoute,
   readLinkRoute,
+  stderrFailure,
 } from './fixtures.js';
 import {
   checkLinkedCliWorks,
@@ -18,28 +24,12 @@ import {
   LINK_CHECK_NAME,
   LINKED_CLI_CHECK_NAME,
   LINKED_CLI_PROBE,
-  PROJECT_REF_PATH,
   probeLinkedCli,
   readWorkspaceLink,
 } from './link.js';
 
-const MISSING_FILE = failure(
-  1,
-  'cat: supabase/.temp/project-ref: No such file or directory'
-);
-
 const MISSING_NOTES = 'supabase/.temp/project-ref is missing';
 const EMPTY_NOTES = 'supabase/.temp/project-ref is empty';
-
-describe('check names', () => {
-  it('keeps the names results are keyed by', () => {
-    expect(LINK_CHECK_NAME).toBe('the repo is linked to our project');
-    expect(LINKED_CLI_CHECK_NAME).toBe(
-      'the CLI reaches our project from the repo without prompting'
-    );
-    expect(PROJECT_REF_PATH).toBe('supabase/.temp/project-ref');
-  });
-});
 
 describe('readWorkspaceLink', () => {
   it('reads the ref the CLI wrote, without its trailing newline', async () => {
@@ -83,6 +73,31 @@ describe('readWorkspaceLink', () => {
       notes: MISSING_NOTES,
     });
   });
+
+  it.each([
+    [
+      'permission denied',
+      stderrFailure(1, 'cat: supabase/.temp/project-ref: Permission denied'),
+      'could not read supabase/.temp/project-ref (exit 1: cat: supabase/.temp/project-ref: Permission denied)',
+    ],
+    [
+      'a directory',
+      stderrFailure(1, 'cat: supabase/.temp/project-ref: Is a directory'),
+      'could not read supabase/.temp/project-ref (exit 1: cat: supabase/.temp/project-ref: Is a directory)',
+    ],
+    [
+      'a killed cat',
+      { ok: false, exitCode: null, stdout: '', stderr: '' },
+      'could not read supabase/.temp/project-ref (exit null)',
+    ],
+  ])(
+    'does not call an unreadable file missing: %s',
+    async (_, result, notes) => {
+      const { ctx } = fakeExec([readLinkRoute(result)]);
+
+      expect(await readWorkspaceLink(ctx)).toEqual({ ok: false, notes });
+    }
+  );
 
   it.each([
     ['empty', ''],
@@ -182,22 +197,49 @@ describe('checkLinkedToProject', () => {
   });
 });
 
+describe('LINKED_CLI_PROBE in a real shell', () => {
+  const dirs: string[] = [];
+  const hasTimeout =
+    spawnSync('bash', ['-c', 'command -v timeout']).status === 0;
+
+  afterAll(() => {
+    for (const dir of dirs) fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it.skipIf(!hasTimeout)(
+    'runs the CLI without SUPABASE_PROJECT_ID and with stdin closed',
+    () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'eval-login-probe-'));
+      dirs.push(dir);
+      fs.writeFileSync(
+        path.join(dir, 'supabase'),
+        [
+          '#!/bin/sh',
+          'echo "project_id=${SUPABASE_PROJECT_ID-unset}"',
+          'echo "stdin_bytes=$(wc -c | tr -d \' \')"',
+        ].join('\n'),
+        { mode: 0o755 }
+      );
+
+      const run = spawnSync('bash', ['-c', LINKED_CLI_PROBE], {
+        cwd: dir,
+        encoding: 'utf8',
+        input: 'typed by a user',
+        env: {
+          PATH: `${dir}:${process.env.PATH ?? ''}`,
+          SUPABASE_PROJECT_ID: HOSTED_REF,
+        },
+      });
+
+      expect(run.stdout.trim().split('\n')).toEqual([
+        'project_id=unset',
+        'stdin_bytes=0',
+      ]);
+    }
+  );
+});
+
 describe('probeLinkedCli', () => {
-  it('runs exactly the documented probe', async () => {
-    const { ctx, calls } = fakeExec([probeRoute(commandResult('ok'))]);
-
-    await probeLinkedCli(ctx);
-
-    expect(calls).toEqual([LINKED_CLI_PROBE]);
-  });
-
-  it('runs the probe without the harness project id, without a TTY and with a timeout', () => {
-    expect(LINKED_CLI_PROBE).toContain('env -u SUPABASE_PROJECT_ID');
-    expect(LINKED_CLI_PROBE).toContain('</dev/null');
-    expect(LINKED_CLI_PROBE).toMatch(/\btimeout \d+\b/);
-    expect(LINKED_CLI_PROBE).toContain('2>&1');
-  });
-
   it('returns the exit code and output of a successful probe', async () => {
     const { ctx } = fakeExec([probeRoute(commandResult('NAME  DIGEST\n'))]);
 

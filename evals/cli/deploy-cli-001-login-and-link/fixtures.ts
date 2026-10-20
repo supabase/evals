@@ -4,7 +4,7 @@ import type {
   ManagementApiClient,
   ToolCallRecord,
 } from '@supabase-evals/core';
-import type { HostedFacts } from './hosted.js';
+import { type HostedFacts, readHostedFacts } from './hosted.js';
 import { LINKED_CLI_PROBE, PROJECT_REF_PATH } from './link.js';
 import { ACCESS_TOKEN_PATTERN } from './token.js';
 
@@ -21,11 +21,7 @@ export const HOSTED_CONTEXT = {
 
 export const HOSTED_OK: HostedFacts = { ok: true, ref: HOSTED_REF };
 
-export const HOSTED_ABSENT: HostedFacts = {
-  ok: false,
-  notes:
-    'no hosted project in CI until the staging org lands (CLI-2754): the run has nothing to link to',
-};
+export const HOSTED_ABSENT: HostedFacts = readHostedFacts({});
 
 export function commandResult(stdout = ''): CommandResult {
   return { ok: true, exitCode: 0, stdout, stderr: '' };
@@ -34,6 +30,15 @@ export function commandResult(stdout = ''): CommandResult {
 export function failure(exitCode: number, output = ''): CommandResult {
   return { ok: false, exitCode, stdout: output, stderr: '' };
 }
+
+export function stderrFailure(exitCode: number, stderr: string): CommandResult {
+  return { ok: false, exitCode, stdout: '', stderr };
+}
+
+export const MISSING_FILE = stderrFailure(
+  1,
+  `cat: ${PROJECT_REF_PATH}: No such file or directory`
+);
 
 export const crash = (message = 'sandbox gone') => {
   return (): CommandResult => {

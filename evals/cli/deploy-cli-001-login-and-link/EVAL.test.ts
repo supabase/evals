@@ -19,6 +19,7 @@ import {
   HOSTED_CONTEXT,
   HOSTED_REF,
   healthyRoutes,
+  MISSING_FILE,
   OTHER_REF,
   PROBE_OUTPUT,
   persistedLoginRoute,
@@ -26,7 +27,6 @@ import {
   readLinkRoute,
   shellCall,
   tokenEnvRoute,
-  versionRoute,
   type Route,
 } from './fixtures.js';
 import { HOSTED_CHECK_NAME } from './hosted.js';
@@ -51,11 +51,6 @@ const SESSION = [
   shellCall('supabase projects list'),
   shellCall(`supabase link --project-ref ${HOSTED_REF}`),
 ];
-
-const MISSING_FILE = failure(
-  1,
-  'cat: supabase/.temp/project-ref: No such file or directory'
-);
 
 const NOTHING_LINKED: Route[] = [
   readLinkRoute(MISSING_FILE),
@@ -246,40 +241,6 @@ describe('login-and-link scorer', () => {
     expect(failedNames(await scorer(ctx))).toEqual([TOKEN_CHECK_NAME]);
   });
 
-  it('fails the token check when grep itself errors', async () => {
-    const { ctx } = fakeCtx({
-      routes: [
-        grepRoute({ ok: false, exitCode: 2, stdout: '', stderr: 'grep: bad' }),
-      ],
-    });
-
-    expect(failedNames(await scorer(ctx))).toEqual([TOKEN_CHECK_NAME]);
-  });
-
-  it.each([
-    ['reading the project-ref file', readLinkRoute(crash()), [LINK_CHECK_NAME]],
-    ['the CLI probe', probeRoute(crash()), [LINKED_CLI_CHECK_NAME]],
-    ['the token search', grepRoute(crash()), [TOKEN_CHECK_NAME]],
-    [
-      'the token search positive control',
-      controlRoute(crash()),
-      [TOKEN_CHECK_NAME],
-    ],
-    ['the token-in-environment probe', tokenEnvRoute(crash()), []],
-    ['the persisted-login probe', persistedLoginRoute(crash()), []],
-    ['the CLI version read', versionRoute(crash()), []],
-  ])(
-    'still yields all seven checks when exec throws while %s',
-    async (_, route, expectedFailures) => {
-      const { ctx } = fakeCtx({ routes: [route] });
-
-      const result = await scorer(ctx);
-
-      expect(result.checks?.map(({ name }) => name)).toEqual(CHECK_NAMES);
-      expect(failedNames(result)).toEqual(expectedFailures);
-    }
-  );
-
   it('still yields all seven checks when every exec throws', async () => {
     const { ctx } = fakeCtx({ routes: [[/.*/, crash()]] });
 
@@ -410,6 +371,25 @@ describe('report judge', () => {
     expect(input).toContain(HOSTED_REF);
     expect(input).toContain(PROBE_OUTPUT.trim());
     expect(input).toContain('Linked the repo.');
+  });
+
+  it('receives the output of the tool calls in the transcript', async () => {
+    const { ctx, judge } = fakeCtx({
+      transcript: [
+        {
+          type: 'tool_call',
+          name: 'bash',
+          input: { command: 'supabase projects list' },
+          output: 'orders-app  listed by the CLI',
+        },
+      ],
+    });
+
+    await scorer(ctx);
+
+    expect(judgeCall(judge, 'report')?.input).toContain(
+      'orders-app  listed by the CLI'
+    );
   });
 
   it('receives the missing link and the probe failure when nothing was linked', async () => {

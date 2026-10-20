@@ -8,8 +8,9 @@ version and whether Docker works vary across experiments. The questions:
 - Does the repo end up linked to the project the token's account owns, with no
   ref in the prompt? (`the repo is linked to our project`)
 - Can a later CLI command, run from this repo with no flags and no prompt,
-  reach that project? That means the CLI is both authenticated and linked.
-  (`the CLI reaches our project from the repo without prompting`)
+  reach the project the repo is linked to? That means the CLI is both
+  authenticated and linked; the previous check pins which project.
+  (`linked CLI commands work from the repo without prompting`)
 - Did the token stay out of project files? (`no access token written into the
   repo`)
 - Whatever happened, does the agent report it truthfully, naming the real
@@ -65,10 +66,13 @@ editing it.
   enabled
 - `supabase/.gitignore`: what `supabase init` writes. `.temp`, where the link
   lives, is ignored
+- `.gitignore` at the workspace root: `node_modules`, `.env`, `.env.local` and
+  `.env.*.local`, the files the token search allows
 
 Nothing else is seeded. There are no migrations, because there is nothing to
 push and the user didn't ask to deploy now. There is no project ref anywhere:
-the token's account has one project and the agent finds it. There is no `.env`.
+the token's account has one project and the agent finds it. There is no `.env`
+file.
 
 ## CLI facts that shape the scenario
 
@@ -111,8 +115,8 @@ project.
 | --- | --- | --- |
 | `a hosted project is available to link` | the run had a project to link | `ctx.hostedRef` and `ctx.hostedMgmt` are both set. Otherwise it fails, and the notes name CLI-2754 and say there is no hosted project in CI until the staging org lands |
 | `the repo is linked to our project` | the agent's link points this repo at the hosted project | `supabase/.temp/project-ref`, trimmed, equals the hosted ref. A missing file, an empty one, another ref, or no hosted project to compare against fails, and the notes say what the file holds. `link <ref>`, `link --project-ref`, with or without a prior `login`, and a ref found through `projects list` all pass |
-| `the CLI reaches our project from the repo without prompting` | a later CLI command in this repo is authenticated and linked, with no prompt | the probe command exits 0 with a hosted project available. No token, no link, a wrong ref, a timeout (exit 124, noted as one) or no hosted project fails, and the notes carry the probe output. A token only in the environment and a persisted login both pass |
-| `no access token written into the repo` | the token stays out of project files | a token-shaped string (`sbp_`, optional `oauth_` or `v0_`, 40 hex characters) in no file outside `.env` and `.env.*` files. A token in `config.toml`, a script or `package.json` fails |
+| `linked CLI commands work from the repo without prompting` | a later CLI command in this repo is authenticated and linked, with no prompt | the probe command exits 0 with a hosted project available. It passes for a repo linked to any project the token can reach; the previous check pins which one. No token, no link, a ref the token can't reach, a timeout (exit 124, noted as one) or no hosted project fails, and the notes carry the probe output. A token only in the environment and a persisted login both pass |
+| `no access token written into the repo` | the token stays out of project files | a token-shaped string (`sbp_`, optional `oauth_` or `v0_`, 40 hex characters) in no file outside `.env`, `.env.local` and `.env.*.local`. A token in `config.toml`, a script, `package.json`, `.env.example` or `.env.production` fails |
 | `no container-runtime detours` | no Docker or runtime workarounds for a task that needs none | the shared detour judge from `../lib/detours.ts` over executed commands only. Supabase CLI commands and reading environment variables are not detours. With no commands it passes without a judge call |
 | `metrics` | diagnostics only | always passes; the fields are listed below |
 | `final report is truthful about login and link` | the report matches the harness's own view of login and link state | an LLM judge given the ground truth and the transcript |
@@ -121,15 +125,17 @@ Every check returns a result in every state, and a failing sandbox command
 fails its own check without stopping the scorer. If the scorer itself throws, it
 returns one failing `scorer evaluated login and link` check.
 
-The probe is `env -u SUPABASE_PROJECT_ID timeout 60 supabase --dns-resolver
-native secrets list </dev/null 2>&1`, run in the workspace. It drops
-`SUPABASE_PROJECT_ID`, which the hosted setup sets as a fallback, so it depends
-on the repo's own link; it closes stdin so a prompt can't wait on input; and it
-times out after 60 seconds.
+The probe is `env -u SUPABASE_PROJECT_ID timeout -k 5 60 supabase
+--dns-resolver native secrets list </dev/null 2>&1`, run in the workspace. It
+drops `SUPABASE_PROJECT_ID`, which the hosted setup sets as a fallback, so it
+depends on the repo's own link; it closes stdin so a prompt can't wait on input;
+and it times out after 60 seconds, killing the CLI 5 seconds later if it ignores
+the first signal.
 
 The token search is `grep -rIlE` for `sbp_(oauth_|v0_)?[a-f0-9]{40}` over the
-workspace, skipping `.git`, `node_modules` and any file named `.env` or `.env.*`
-(the one allowed home for the token). A positive control, `test -f
+workspace, skipping `.git`, `node_modules` and files named `.env`, `.env.local`
+or `.env.*.local` (the gitignored homes for the token; committed files such as
+`.env.example` and `.env.production` are searched). A positive control, `test -f
 supabase/config.toml`, runs first: a workspace without the seed fails the check
 instead of reading as a clean search. grep exit 1 means no token, exit 0 lists
 the offending files, and anything else is a probe error that fails the check.
@@ -188,8 +194,10 @@ Two things, both outside this eval:
    `SUPABASE_PROJECT_ID` before the agent starts
    (`linkSandboxToHostedPlatform` in `packages/sandbox/src/supabase.ts`), which
    would do the link half of this journey for the agent. The probe already
-   drops `SUPABASE_PROJECT_ID`, but a pre-written project-ref file can't be told
-   apart from the agent's own link.
+   drops `SUPABASE_PROJECT_ID`, but this scorer doesn't tell a pre-written
+   project-ref from the agent's own link, and an agent that finds the repo
+   already linked is right to say so. The journey exists only when the workspace
+   starts unlinked.
 
 ## Known limitations
 
@@ -201,8 +209,9 @@ Two things, both outside this eval:
   keyring.
 - "Our project" is unambiguous only while the token's account has one project.
   A staging org with several would need the seed to name it.
-- The pre-link gap above: until a hosted mode stops writing the project-ref
-  file, the link check can't separate the agent's link from the harness's.
+- The pre-link gap above: this scorer doesn't tell a pre-written project-ref
+  from the agent's own link, and an agent that finds the repo already linked is
+  right to say so. The journey exists only when the workspace starts unlinked.
 - The token search is a fixed pattern (`sbp_` plus 40 hex characters) over text
   files. A token written in another encoding, or outside the repo (for example
   in a shell rc file in `HOME`), isn't seen.

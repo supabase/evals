@@ -4,32 +4,16 @@ import type {
   LocalStackEvalContext,
 } from '@supabase-evals/core';
 import {
+  invocationFlag,
+  invocationPositionals,
   invocationVerb,
   type SupabaseInvocation,
 } from '../lib/cli-invocations.js';
-import { readCliVersions, safely } from '../lib/metrics.js';
+import { safely, type readCliVersions } from '../lib/metrics.js';
 import type { HostedFacts } from './hosted.js';
 import type { LinkedCliProbe, WorkspaceLink } from './link.js';
 
 type ExecCtx = Pick<LocalStackEvalContext, 'exec'>;
-
-export type CliFacts = {
-  cliVersion: string | null;
-  cliVersionAfterRun?: string;
-};
-
-export async function readCliFacts(
-  ctx: ExecCtx,
-  marker: LocalStackEnvironmentMarker | undefined
-): Promise<CliFacts> {
-  const versions = await safely(() => readCliVersions(ctx, marker));
-  return {
-    cliVersion: versions?.cliVersion ?? null,
-    ...(versions?.cliVersionAfterRun === undefined
-      ? {}
-      : { cliVersionAfterRun: versions.cliVersionAfterRun }),
-  };
-}
 
 export type LoginLinkCounts = {
   login: number;
@@ -41,24 +25,9 @@ export type LoginLinkCounts = {
 
 const PROJECTS_LIST_VERBS = new Set(['list', 'ls']);
 
-// `invocationVerb` is the only positional parser cli-invocations exposes, so the
-// token that made it answer the verb is dropped to read the next positional.
-function subcommand(invocation: SupabaseInvocation): string | undefined {
-  const { argv } = invocation;
-  const verbAt = argv.findIndex(
-    (_, index) =>
-      index > 0 &&
-      invocationVerb({ ...invocation, argv: argv.slice(0, index + 1) }) !==
-        undefined
-  );
-  return invocationVerb({
-    ...invocation,
-    argv: argv.filter((_, index) => index !== verbAt),
-  });
-}
-
-const hasTokenFlag = ({ argv }: SupabaseInvocation) =>
-  argv.some((arg) => arg === '--token' || arg.startsWith('--token='));
+const isProjectsList = (invocation: SupabaseInvocation) =>
+  invocationVerb(invocation) === 'projects' &&
+  PROJECTS_LIST_VERBS.has(invocationPositionals(invocation)[1] ?? '');
 
 export function countLoginLinkInvocations(
   invocations: readonly SupabaseInvocation[]
@@ -74,7 +43,9 @@ export function countLoginLinkInvocations(
     switch (invocationVerb(invocation)) {
       case 'login':
         counts.login++;
-        if (hasTokenFlag(invocation)) counts.loginWithToken++;
+        if (invocationFlag(invocation, '--token') !== undefined) {
+          counts.loginWithToken++;
+        }
         break;
       case 'link':
         counts.link++;
@@ -83,9 +54,7 @@ export function countLoginLinkInvocations(
         counts.unlink++;
         break;
       case 'projects':
-        if (PROJECTS_LIST_VERBS.has(subcommand(invocation) ?? '')) {
-          counts.projectsList++;
-        }
+        if (isProjectsList(invocation)) counts.projectsList++;
         break;
     }
   }
@@ -98,7 +67,10 @@ export type CredentialFacts = {
 };
 
 const probeSucceeds = (ctx: ExecCtx, command: string) =>
-  safely(async () => (await ctx.exec(command)).ok);
+  safely(async () => {
+    const { exitCode } = await ctx.exec(command);
+    return exitCode === 0 ? true : exitCode === 1 ? false : null;
+  });
 
 export async function readCredentialFacts(
   ctx: ExecCtx
@@ -115,8 +87,10 @@ export async function readCredentialFacts(
   };
 }
 
-/** Diagnostics only: every field is read independently and the check always passes. */
-export async function checkMetrics(
+type CliVersions = Awaited<ReturnType<typeof readCliVersions>>;
+
+/** Diagnostics only: the check always passes. */
+export function checkMetrics(
   marker: LocalStackEnvironmentMarker | undefined,
   facts: {
     hosted: HostedFacts;
@@ -124,29 +98,22 @@ export async function checkMetrics(
     probe: LinkedCliProbe;
     counts: LoginLinkCounts;
     credentials: CredentialFacts;
-    cli: CliFacts;
+    cli: CliVersions;
     commands: readonly string[];
   }
-): Promise<CheckResult> {
+): CheckResult {
   const { hosted, link, probe, counts, credentials, cli, commands } = facts;
-  const cliVersionAfterRun = await safely(() => cli.cliVersionAfterRun);
 
   const metrics = {
-    hostedProject: await safely(() => hosted.ok),
-    workspaceProjectRef: await safely(() => (link.ok ? link.ref : null)),
-    linkedCliExitCode: await safely(() => probe.exitCode),
-    login: await safely(() => counts.login),
-    loginWithToken: await safely(() => counts.loginWithToken),
-    link: await safely(() => counts.link),
-    unlink: await safely(() => counts.unlink),
-    projectsList: await safely(() => counts.projectsList),
-    tokenInEnvironment: await safely(() => credentials.tokenInEnvironment),
-    persistedLogin: await safely(() => credentials.persistedLogin),
-    cliVersion: await safely(() => cli.cliVersion),
-    ...(cliVersionAfterRun ? { cliVersionAfterRun } : {}),
-    runtime: await safely(() => marker?.runtime ?? null),
-    docker: await safely(() => marker?.docker ?? null),
-    commandCount: await safely(() => commands.length),
+    hostedProject: hosted.ok,
+    workspaceProjectRef: link.ok ? link.ref : null,
+    linkedCliExitCode: probe.exitCode,
+    ...counts,
+    ...credentials,
+    ...cli,
+    runtime: marker?.runtime ?? null,
+    docker: marker?.docker ?? null,
+    commandCount: commands.length,
   };
 
   return { name: 'metrics', passed: true, notes: JSON.stringify(metrics) };

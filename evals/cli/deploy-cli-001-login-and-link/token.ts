@@ -6,13 +6,13 @@ export const TOKEN_CHECK_NAME = 'no access token written into the repo';
 export const ACCESS_TOKEN_PATTERN = 'sbp_(oauth_|v0_)?[a-f0-9]{40}';
 
 const POSITIVE_CONTROL = 'test -f supabase/config.toml';
-const SEARCH = `grep -rIlE '${ACCESS_TOKEN_PATTERN}' --exclude-dir=.git --exclude-dir=node_modules --exclude='.env' --exclude='.env.*' .`;
+const SEARCH = `grep -rIlE '${ACCESS_TOKEN_PATTERN}' --exclude-dir=.git --exclude-dir=node_modules --exclude='.env' --exclude='.env.local' --exclude='.env.*.local' .`;
 
 export type TokenLeakProbe =
   | { ok: true; files: string[] }
   | { ok: false; notes: string };
 
-/** Files holding a token outside .env files; the positive control keeps a missing workspace from reading as a clean search. */
+/** Files holding a token outside the gitignored .env files; the positive control keeps a missing workspace from reading as a clean search. */
 export async function findTokenLeaks(
   ctx: Pick<LocalStackEvalContext, 'exec'>
 ): Promise<TokenLeakProbe> {

@@ -589,6 +589,11 @@ export function invocationFlag(
   return flagValue(inv.argv, flag);
 }
 
+/** The invocation's positional arguments, verb first, with flags and their values dropped. */
+export function invocationPositionals(inv: SupabaseInvocation): string[] {
+  return positionals(inv.argv);
+}
+
 /** The subcommand an invocation ran, e.g. `stop` or `stack destroy`. */
 export function invocationVerb(inv: SupabaseInvocation): string | undefined {
   const [first, second] = positionals(inv.argv);

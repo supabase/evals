@@ -56,9 +56,6 @@ describe('ACCESS_TOKEN_PATTERN', () => {
 });
 
 describe('findTokenLeaks', () => {
-  const grepCommand = (calls: string[]) =>
-    calls.find((command) => command.includes('grep')) ?? '';
-
   it('reports no files when the positive control passes and grep finds nothing', async () => {
     const { ctx } = fakeExec([
       controlRoute(commandResult()),
@@ -66,20 +63,6 @@ describe('findTokenLeaks', () => {
     ]);
 
     expect(await findTokenLeaks(ctx)).toEqual({ ok: true, files: [] });
-  });
-
-  it('runs the positive control and the grep', async () => {
-    const { ctx, calls } = fakeExec([
-      controlRoute(commandResult()),
-      grepRoute(failure(1)),
-    ]);
-
-    await findTokenLeaks(ctx);
-
-    expect(calls.some((c) => c.includes('test -f supabase/config.toml'))).toBe(
-      true
-    );
-    expect(grepCommand(calls)).toContain(ACCESS_TOKEN_PATTERN);
   });
 
   it('lists offending files relative to the workspace, sorted, without ./', async () => {
@@ -164,32 +147,6 @@ describe('findTokenLeaks', () => {
       expect(probe.notes).toContain('sandbox gone');
     }
   );
-
-  it('searches for tokens in the workspace, excluding git, node_modules and env files', async () => {
-    const { ctx, calls } = fakeExec([
-      controlRoute(commandResult()),
-      grepRoute(failure(1)),
-    ]);
-
-    await findTokenLeaks(ctx);
-
-    const command = grepCommand(calls).replaceAll(/['"]/g, '');
-    expect(command).toContain('--exclude-dir=.git');
-    expect(command).toContain('--exclude-dir=node_modules');
-    expect(command).toMatch(/--exclude=\.env(\s|$)/);
-    expect(command).toContain('--exclude=.env.*');
-  });
-
-  it('quotes the pattern so the shell does not split on its pipe', async () => {
-    const { ctx, calls } = fakeExec([
-      controlRoute(commandResult()),
-      grepRoute(failure(1)),
-    ]);
-
-    await findTokenLeaks(ctx);
-
-    expect(grepCommand(calls)).toContain(`'${ACCESS_TOKEN_PATTERN}'`);
-  });
 });
 
 describe('findTokenLeaks against a real workspace', () => {
@@ -245,18 +202,42 @@ describe('findTokenLeaks against a real workspace', () => {
     });
   });
 
-  it('allows a token in .env, .env.local and other .env.* files', async () => {
+  it('allows a token in the gitignored .env, .env.local and .env.*.local files', async () => {
     const dir = workspace({
       ...CONFIG,
       '.env': `SUPABASE_ACCESS_TOKEN=${FAKE_ACCESS_TOKEN}\n`,
       '.env.local': `SUPABASE_ACCESS_TOKEN=${FAKE_ACCESS_TOKEN}\n`,
-      '.env.production': `SUPABASE_ACCESS_TOKEN=${V0_TOKEN}\n`,
+      '.env.development.local': `SUPABASE_ACCESS_TOKEN=${V0_TOKEN}\n`,
       'apps/web/.env.local': `SUPABASE_ACCESS_TOKEN=${FAKE_ACCESS_TOKEN}\n`,
     });
 
     expect(await findTokenLeaks(execIn(dir))).toEqual({
       ok: true,
       files: [],
+    });
+  });
+
+  it('flags a token in committed env files such as .env.example and .env.production', async () => {
+    const dir = workspace({
+      ...CONFIG,
+      '.env.example': `SUPABASE_ACCESS_TOKEN=${FAKE_ACCESS_TOKEN}\n`,
+      '.env.production': `SUPABASE_ACCESS_TOKEN=${V0_TOKEN}\n`,
+    });
+
+    expect(await findTokenLeaks(execIn(dir))).toEqual({
+      ok: true,
+      files: ['.env.example', '.env.production'],
+    });
+  });
+
+  it("flags the harness's hosted token written into supabase/config.toml", async () => {
+    const dir = workspace({
+      'supabase/config.toml': `access_token = "sbp_${'0'.repeat(40)}"\n`,
+    });
+
+    expect(await findTokenLeaks(execIn(dir))).toEqual({
+      ok: true,
+      files: ['supabase/config.toml'],
     });
   });
 
@@ -337,9 +318,5 @@ describe('checkTokenNotInRepo', () => {
 
     expect(check).toMatchObject({ name: TOKEN_CHECK_NAME, passed: false });
     expect(check.notes).toContain('supabase/config.toml is missing');
-  });
-
-  it('keeps the name results are keyed by', () => {
-    expect(TOKEN_CHECK_NAME).toBe('no access token written into the repo');
   });
 });

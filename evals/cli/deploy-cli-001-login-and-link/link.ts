@@ -1,15 +1,15 @@
 import type { CheckResult, LocalStackEvalContext } from '@supabase-evals/core';
-import { errorMessage } from '../lib/shell.js';
+import { describeFailure, errorMessage } from '../lib/shell.js';
 import type { HostedFacts } from './hosted.js';
 
 export const PROJECT_REF_PATH = 'supabase/.temp/project-ref';
 export const LINK_CHECK_NAME = 'the repo is linked to our project';
 export const LINKED_CLI_CHECK_NAME =
-  'the CLI reaches our project from the repo without prompting';
+  'linked CLI commands work from the repo without prompting';
 
 /** Drops the harness's pre-set SUPABASE_PROJECT_ID so the probe depends on the workspace's own link. */
 export const LINKED_CLI_PROBE =
-  'env -u SUPABASE_PROJECT_ID timeout 60 supabase --dns-resolver native secrets list </dev/null 2>&1';
+  'env -u SUPABASE_PROJECT_ID timeout -k 5 60 supabase --dns-resolver native secrets list </dev/null 2>&1';
 
 const TIMEOUT_EXIT_CODE = 124;
 
@@ -22,8 +22,14 @@ export type WorkspaceLink =
 export async function readWorkspaceLink(ctx: ExecCtx): Promise<WorkspaceLink> {
   try {
     const result = await ctx.exec(`cat ${PROJECT_REF_PATH}`);
-    if (!result.ok)
-      return { ok: false, notes: `${PROJECT_REF_PATH} is missing` };
+    if (!result.ok) {
+      return {
+        ok: false,
+        notes: result.stderr.includes('No such file or directory')
+          ? `${PROJECT_REF_PATH} is missing`
+          : `could not read ${PROJECT_REF_PATH} (${describeFailure(result)})`,
+      };
+    }
     const ref = result.stdout.trim();
     return ref === ''
       ? { ok: false, notes: `${PROJECT_REF_PATH} is empty` }
