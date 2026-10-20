@@ -16,10 +16,8 @@ version and whether Docker works vary across experiments. The questions:
 
 The scenario is the one in the prompt: a scheduler calls `nightly-digest` with
 an `x-digest-secret` header, and the project already holds that secret in its
-root `.env`. The scenario tests whether the secret reaches the function from a
-local env file. In CI a plain `supabase start` did deliver a root `.env` value
-to the function (see CLI facts), so the root `.env` alone is not a guaranteed
-failure.
+root `.env`. The footgun is that `config.toml`'s `env()` and the user's app read
+the root `.env`, while the function runtime does not.
 
 Motivation: CLI-2704,
 <https://linear.app/supabase/issue/CLI-2704/eval-create-and-serve-an-edge-function-locally-with-secrets>,
@@ -27,8 +25,7 @@ whose journey is "the agent creates an edge function, gives it a secret through
 a local env file, serves it, and calls it successfully" (also the `motivation`
 field in `PROMPT.md`). Evidence that env-file loading for functions trips users:
 
-- CLI-818, filed as `config.toml`'s `env()` reading the root `.env` while
-  functions don't:
+- CLI-818, `config.toml`'s `env()` reads the root `.env` and functions don't:
   <https://linear.app/supabase/issue/CLI-818/make-a-clearer-distinction-about-env-files-for-configtoml-and-edge>
 - FDBKIN-11884, unify env file loading for `config.toml` and edge functions in
   local:
@@ -64,7 +61,8 @@ stack.
   random so it doesn't read as a placeholder, and
   `SITE_URL`, an unrelated app setting. A comment says the scheduler shares the
   value and sends it in the `x-digest-secret` header when it calls the
-  `nightly-digest` function
+  `nightly-digest` function. This is the trap: `config.toml`'s `env()` and the
+  user's app read the root `.env`, the function runtime doesn't
 - `.gitignore` at the root ignores `.env` and `.env.*` but not `.env.example`,
   so a function env file is ignored wherever the agent puts it, and a literal
   committed in a template is caught
@@ -115,13 +113,9 @@ Checked on `supabase@2.117.0` (pinned), `2.121.0` (stable), `2.122.0-beta.5` and
   header sets.
 - The gateway route is `<API_URL>/functions/v1/<name>`.
 
-In CI, the root `.env` alone reached the function: in 5 of the 12 passing Docker
-runs the agent ran only `supabase start` (or `functions serve` with no
-`--env-file`), with no `[edge_runtime.secrets]`, no `supabase/functions/.env`
-and no `[functions.<slug>] env`, and the function read
-`Deno.env.get("DIGEST_SECRET")`; the live probe still accepted the secret. The
-mechanism is unconfirmed: the TS CLI's legacy `start` builds the edge runtime
-env from `supabase/functions/.env` and `[edge_runtime.secrets]` only.
+So the root `.env` alone doesn't reach the function: it can start fine and never
+see the secret. In CI, every passing run passed `--env-file .env` to
+`functions serve`.
 
 ## The checks
 
@@ -206,11 +200,11 @@ transcript doesn't show.
 
 | experiment | CLI version | container runtime | expected today |
 | --- | --- | --- | --- |
-| `codex-gpt-6-luna-cli-pinned` | this repo's pinned version (2.117.0) | Docker available | pass: the secret reaches the function from a local env file, and the agent serves the function and calls it. A red here is an agent gap, for example a hardcoded secret, the function not served, or the secret check missing, and is read from the failing check's notes |
+| `codex-gpt-6-luna-cli-pinned` | this repo's pinned version (2.117.0) | Docker available | pass: the secret reaches the function from a local env file, and the agent serves the function and calls it. A red here is an agent gap, for example the secret left only in the root `.env` (the CLI-818 trap), a hardcoded secret, the function not served, or the secret check missing, and is read from the failing check's notes |
 | `codex-gpt-6-luna-cli-stable` | npm `latest` tag | Docker available | pass, as pinned |
 | `codex-gpt-6-luna-cli-beta` | npm `beta` tag | Docker available | pass, as pinned |
 | `codex-gpt-6-luna-cli-next` | npm `next` tag | Docker available | pass, as pinned |
-| `codex-gpt-6-luna-cli-nodaemon` | beta | Docker client present, daemon unreachable | red by design ([CLI-2534](https://linear.app/supabase/issue/CLI-2534/bc-make-the-new-local-stack-the-default-backend-for-all-projects-opt)): `supabase start` needs Docker, so no Supabase stack starts. In the first refresh, agents served the function directly with Deno, and the harness only probes the Supabase stack, so the first two checks fail, and serving it with plain Deno also fails the detour check; the secret and report checks can still pass when the agent reports truthfully |
+| `codex-gpt-6-luna-cli-nodaemon` | beta | Docker client present, daemon unreachable | red by design ([CLI-2534](https://linear.app/supabase/issue/CLI-2534/bc-make-the-new-local-stack-the-default-backend-for-all-projects-opt)): `supabase start` needs Docker, so no Supabase stack starts. In CI, agents served the function directly with Deno or Node, and the harness only probes the Supabase stack, so the first two checks fail, and serving it outside the CLI also fails the detour check when the launch is in the transcript (see Known limitations); the secret and report checks can still pass when the agent reports truthfully |
 | `codex-gpt-6-luna-cli-absent` | beta | no Docker at all | as nodaemon |
 
 In nodaemon and absent, the experimental stack's native runtime can serve the
@@ -238,9 +232,12 @@ are reported through `metrics`.
   `${SUPABASE_HOME}/stacks/<id>/state.json`. If the agent relocates
   `SUPABASE_HOME` inside the workspace and doesn't ignore it, the secret scan
   counts that file.
-- A server the agent launched with a command still running when it finished may
-  be missing from the transcript, so the report judge leans on later HTTP output
-  from its port.
+- Under codex, a command still running when the agent finished (`functions
+  serve`, a Deno or Node server) is often missing from the captured tool calls,
+  and so is the output of some later commands. `serveInvocations` and
+  `lastServe` then undercount, the replay has no serve to rerun, the detour judge
+  can't see a plain-Deno server, and the report judge can fail a test call the
+  agent did make. The report judge leans on whatever later HTTP output survives.
 - The live probe can't tell "left running, then the harness ended it" from
   "never left running". The replay credits a working configuration, and
   `servedBy` separates the two.
