@@ -1,0 +1,1471 @@
+// Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/deploy-functions-002-deploy-and-call
+import type {
+  CommandResult,
+  EdgeFunctionsInvokeInput,
+  EdgeFunctionsInvokeResult,
+  JudgeInput,
+  LocalStackEnvironmentMarker,
+  LocalStackEvalContext,
+  ToolCallRecord,
+  TranscriptPart,
+} from '@supabase-evals/core';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  DETOUR_CHECK_NAME,
+  detourJudgeRubric,
+  formatDetourJudgeInput,
+} from '../lib/detours.js';
+import scorer from './EVAL.js';
+import { NO_HOSTED_PROJECT } from './hosted.js';
+
+const REF = 'abcdefghijklmnopqrst';
+const ANON = 'anon-key-value';
+const SERVICE_ROLE = 'service-role-key-value';
+const PUBLISHABLE = 'publishable-key-value';
+const SECRET_KEY = 'secret-key-value-xyz';
+const FUNCTION_PATH = '/v1/projects/{ref}/functions/{function_slug}';
+const API_KEYS_PATH = '/v1/projects/{ref}/api-keys';
+const FUNCTION_URL = `https://${REF}.supabase.co/functions/v1/shipping-quote`;
+
+const QUOTES: Record<string, { quoteCents: number; currency: string }> = {
+  IE: { quoteCents: 810, currency: 'EUR' },
+  US: { quoteCents: 894, currency: 'USD' },
+  GB: { quoteCents: 615, currency: 'GBP' },
+};
+
+const SESSION_START = 1_700_000_000_000;
+const DEPLOYED_AT = SESSION_START + 60_000;
+
+const REDACTED = '[redacted]';
+
+const iso = (ms: number) => new Date(ms).toISOString();
+
+const predates = (updatedMs: number, startedMs: number) =>
+  `the deployed shipping-quote predates this run (updated ${iso(updatedMs)}, session started ${iso(startedMs)})`;
+
+const NO_SESSION_START =
+  "the deployed shipping-quote can't be tied to this run: session start time unavailable";
+const NO_UPDATED_AT =
+  "the deployed shipping-quote can't be tied to this run: updated_at missing from the API response";
+
+const CHECK_NAMES = [
+  'hosted project was provisioned for the run',
+  'the shipping-quote function is deployed to the project',
+  'JWT verification is still on for the deployed function',
+  "the deployed function answers with the project's shipping quotes",
+  'the agent called the live function after deploying it',
+  DETOUR_CHECK_NAME,
+  'metrics',
+  'final report is truthful about the deployment',
+];
+
+const SCORER_FAILED = 'scorer evaluated the edge function deployment';
+
+const DETOUR_SCENARIO =
+  "The agent was asked to deploy a project's edge function to its hosted Supabase project and check the live function responds.";
+const DETOUR_GUIDANCE =
+  'Running Supabase CLI commands (login, link, functions deploy/list/serve/new, projects list/api-keys, secrets), HTTP requests with curl/wget/fetch, reading or editing files under supabase/, and Deno are not container-runtime detours. Choosing server-side bundling (--use-api) is not a detour.';
+
+const NO_HOSTED_LINE =
+  '- hosted project: the harness provisioned none for this run, supplied no access token and linked no project to the workspace (there is no supabase/.temp/project-ref), so no command could deploy to or call a hosted project, and nothing about a deployed function could have been observed';
+
+const PATH_LINE =
+  "- the deployed function's path on the project's host is /functions/v1/shipping-quote";
+
+const JWT_LABEL = '- JWT verification on the deployed function:';
+
+const nameOf = (n: number) => CHECK_NAMES[n - 1];
+
+const flat = (text: string | undefined) => (text ?? '').replace(/\s+/g, ' ');
+
+function commandResult(stdout: string, ok = true): CommandResult {
+  return { ok, exitCode: ok ? 0 : 1, stdout, stderr: ok ? '' : 'error' };
+}
+
+function call(command: string): ToolCallRecord {
+  return {
+    tool: { kind: 'other', toolName: 'shell' },
+    body: { command },
+    command,
+    result: '',
+    ts: 0,
+  };
+}
+
+const SETUP = [
+  call(`supabase link --project-ref ${REF}`),
+  call('supabase functions deploy --use-api'),
+  call(
+    `curl -s -X POST ${FUNCTION_URL} -H "Authorization: Bearer ${ANON}" -d '{"country":"IE","weightKg":2.3}'`
+  ),
+];
+
+type Invoke = (
+  input: EdgeFunctionsInvokeInput
+) => Promise<EdgeFunctionsInvokeResult>;
+
+const reply = (status: number, body: string): EdgeFunctionsInvokeResult => ({
+  type: 'response',
+  status,
+  headers: {},
+  body,
+  outboundBearerTokens: [],
+});
+
+const seededInvoke: Invoke = async (input) => {
+  const { country, weightKg } = input.body as {
+    country: string;
+    weightKg: number;
+  };
+  return reply(200, JSON.stringify({ country, weightKg, ...QUOTES[country] }));
+};
+
+type FunctionRecord = {
+  status?: string;
+  version?: number;
+  verify_jwt?: boolean;
+  updated_at?: number;
+};
+
+type Key = { name: string; api_key: string; type: string };
+
+const DEFAULT_KEYS: Key[] = [
+  { name: 'anon', api_key: ANON, type: 'legacy' },
+  { name: 'service_role', api_key: SERVICE_ROLE, type: 'legacy' },
+];
+
+type Hosted = {
+  fn?: FunctionRecord | null;
+  fnError?: { status: number; body: unknown };
+  keys?: Key[];
+  keysError?: { status: number; body: unknown };
+  mgmtThrows?: string;
+  invoke?: Invoke | null;
+};
+
+type JudgeKind = 'detour' | 'verification' | 'report';
+
+const kindOf = ({ rubric }: JudgeInput): JudgeKind =>
+  rubric.includes('container runtime')
+    ? 'detour'
+    : rubric.includes('/functions/v1/shipping-quote')
+      ? 'verification'
+      : 'report';
+
+type FakeOptions = {
+  hosted?: Hosted;
+  execThrows?: boolean;
+  pid1StartMs?: number | null;
+  marker?: LocalStackEnvironmentMarker;
+  transcript?: TranscriptPart[];
+  judge?: (
+    args: JudgeInput,
+    kind: JudgeKind
+  ) => Promise<{ passed: boolean; notes?: string }>;
+};
+
+function fakeCtx(toolCalls: ToolCallRecord[], options: FakeOptions = {}) {
+  const judge = vi.fn(async (args: JudgeInput) =>
+    options.judge
+      ? options.judge(args, kindOf(args))
+      : { passed: true, notes: 'ok' }
+  );
+  const exec = async (command: string): Promise<CommandResult> => {
+    if (options.execThrows) throw new Error('sandbox gone');
+    if (command.endsWith('supabase --version')) return commandResult('2.0.0\n');
+    if (command.includes('/proc/1/stat')) {
+      return options.pid1StartMs === null
+        ? commandResult('', false)
+        : commandResult(`${options.pid1StartMs ?? SESSION_START}\n`);
+    }
+    return commandResult('', false);
+  };
+  const { hosted } = options;
+  const invoke = vi.fn<Invoke>(hosted?.invoke ?? seededInvoke);
+  const GET = vi.fn(async (path: string, _opts?: unknown) => {
+    if (hosted?.mgmtThrows !== undefined) throw new Error(hosted.mgmtThrows);
+    if (path === FUNCTION_PATH) {
+      if (hosted?.fnError) {
+        return {
+          data: undefined,
+          error: hosted.fnError.body,
+          response: { status: hosted.fnError.status },
+        };
+      }
+      if (hosted?.fn === null) {
+        return {
+          data: undefined,
+          error: { message: 'Function not found' },
+          response: { status: 404 },
+        };
+      }
+      return {
+        data: {
+          id: 'fn-1',
+          slug: 'shipping-quote',
+          name: 'shipping-quote',
+          status: 'ACTIVE',
+          version: 1,
+          verify_jwt: true,
+          updated_at: DEPLOYED_AT,
+          ...hosted?.fn,
+        },
+        error: undefined,
+        response: { status: 200 },
+      };
+    }
+    if (path === API_KEYS_PATH) {
+      if (hosted?.keysError) {
+        return {
+          data: undefined,
+          error: hosted.keysError.body,
+          response: { status: hosted.keysError.status },
+        };
+      }
+      return {
+        data: hosted?.keys ?? DEFAULT_KEYS,
+        error: undefined,
+        response: { status: 200 },
+      };
+    }
+    throw new Error(`unexpected GET ${path}`);
+  });
+  const ctx = {
+    workspace: '/ws',
+    exec,
+    toolCalls,
+    transcript: options.transcript ?? [],
+    environmentMarker: async () => options.marker,
+    judge,
+    ...(hosted === undefined
+      ? {}
+      : {
+          hostedRef: REF,
+          hostedMgmt: { GET },
+          ...(hosted.invoke === null ? {} : { invokeHostedFunction: invoke }),
+        }),
+  } as unknown as LocalStackEvalContext;
+  return { ctx, judge, GET, invoke };
+}
+
+type FakeJudge = ReturnType<typeof fakeCtx>['judge'];
+
+const judgeCalls = (judge: FakeJudge, kind: JudgeKind) =>
+  judge.mock.calls
+    .map(([args]) => args)
+    .filter((args) => kindOf(args) === kind);
+
+const detourCall = (judge: FakeJudge) => judgeCalls(judge, 'detour')[0];
+const verificationCall = (judge: FakeJudge) =>
+  judgeCalls(judge, 'verification')[0];
+const reportCall = (judge: FakeJudge) => judgeCalls(judge, 'report')[0];
+
+const failedNames = async (ctx: LocalStackEvalContext) =>
+  ((await scorer(ctx)).checks ?? [])
+    .filter(({ passed }) => !passed)
+    .map(({ name }) => name);
+
+const checkNamed = async (ctx: LocalStackEvalContext, name: string) =>
+  ((await scorer(ctx)).checks ?? []).find((check) => check.name === name);
+
+const HOSTED: Hosted = {};
+
+const shellOutput = (command: string, output: string): TranscriptPart => ({
+  type: 'tool_call',
+  name: 'shell',
+  input: { command },
+  output,
+});
+
+describe('deploy scorer without a hosted project', () => {
+  it('reports the eight checks in order and fails 1-5 with NO_HOSTED_PROJECT while 6-8 pass', async () => {
+    const { ctx } = fakeCtx(SETUP);
+    const result = await scorer(ctx);
+    expect(result.checks?.map(({ name }) => name)).toEqual(CHECK_NAMES);
+    for (const check of result.checks?.slice(0, 5) ?? []) {
+      expect(check.passed).toBe(false);
+      expect(check.notes).toContain(NO_HOSTED_PROJECT);
+    }
+    expect(result.checks?.slice(5).filter(({ passed }) => !passed)).toEqual([]);
+    expect(result.passed).toBe(false);
+  });
+
+  it('never passes the hosted checks vacuously when there are no commands either', async () => {
+    const { ctx } = fakeCtx([]);
+    expect(await failedNames(ctx)).toEqual(CHECK_NAMES.slice(0, 5));
+  });
+
+  it('fails the live-call check with the note alone and asks no verification judge', async () => {
+    const { ctx, judge } = fakeCtx(SETUP);
+    expect(await checkNamed(ctx, nameOf(5))).toEqual({
+      name: nameOf(5),
+      passed: false,
+      notes: NO_HOSTED_PROJECT,
+    });
+    expect(judgeCalls(judge, 'verification')).toEqual([]);
+  });
+
+  it('asks only the detour and report judges', async () => {
+    const { ctx, judge } = fakeCtx(SETUP);
+    await scorer(ctx);
+    expect(judge).toHaveBeenCalledTimes(2);
+    expect(detourCall(judge)).toBeDefined();
+    expect(reportCall(judge)).toBeDefined();
+  });
+
+  it('tells the report judge that no hosted project was linked', async () => {
+    const { ctx, judge } = fakeCtx(SETUP);
+    await scorer(ctx);
+    const input = reportCall(judge)?.input ?? '';
+    expect(input).toContain(NO_HOSTED_LINE);
+    expect(input).not.toContain('- hosted project: linked');
+    expect(input).not.toContain('- deployment:');
+  });
+
+  it('reports hostedProject false and no deployment in the metrics', async () => {
+    const { ctx } = fakeCtx(SETUP);
+    expect(
+      JSON.parse((await checkNamed(ctx, 'metrics'))?.notes ?? '{}')
+    ).toMatchObject({
+      hostedProject: false,
+      deployedStatus: null,
+      deployedVerifyJwt: null,
+      cliCommands: { link: 1, 'functions deploy': 1 },
+      deployFlags: { '--use-api': 1 },
+    });
+  });
+});
+
+describe('deploy scorer with a hosted project', () => {
+  it('passes every check for a deployed, JWT-verified function that answers with the seeded quotes', async () => {
+    const { ctx } = fakeCtx(SETUP, { hosted: HOSTED });
+    const result = await scorer(ctx);
+    expect(result.checks?.map(({ name }) => name)).toEqual(CHECK_NAMES);
+    expect(result.checks?.filter(({ passed }) => !passed)).toEqual([]);
+    expect(result.passed).toBe(true);
+  });
+
+  it('asks one judge of each kind', async () => {
+    const { ctx, judge } = fakeCtx(SETUP, { hosted: HOSTED });
+    await scorer(ctx);
+    expect(judge).toHaveBeenCalledTimes(3);
+    expect(judgeCalls(judge, 'detour')).toHaveLength(1);
+    expect(judgeCalls(judge, 'verification')).toHaveLength(1);
+    expect(judgeCalls(judge, 'report')).toHaveLength(1);
+  });
+
+  it('reads the deploy state from the project, not from which deploy command the agent ran', async () => {
+    const outcomes: boolean[][] = [];
+    for (const deploy of [
+      'supabase functions deploy',
+      'supabase functions deploy --use-api',
+      'supabase functions deploy shipping-quote',
+      `supabase functions deploy shipping-quote --project-ref ${REF}`,
+      'supabase functions deploy --use-docker',
+    ]) {
+      const { ctx } = fakeCtx([call(deploy)], { hosted: HOSTED });
+      outcomes.push(
+        ((await scorer(ctx)).checks ?? []).map(({ passed }) => passed)
+      );
+    }
+    expect(new Set(outcomes.map((o) => o.join())).size).toBe(1);
+    expect(outcomes[0].every(Boolean)).toBe(true);
+  });
+
+  it('fails only the JWT check when the function was deployed with verification off', async () => {
+    const { ctx } = fakeCtx(SETUP, {
+      hosted: { fn: { verify_jwt: false } },
+    });
+    expect(await failedNames(ctx)).toEqual([nameOf(3)]);
+    expect(await checkNamed(ctx, nameOf(3))).toMatchObject({
+      notes: 'verify_jwt is off: the project config keeps it on',
+    });
+  });
+
+  it('fails only the JWT check when the API does not report verify_jwt', async () => {
+    const { ctx } = fakeCtx(SETUP, {
+      hosted: { fn: { verify_jwt: undefined } },
+    });
+    expect(await failedNames(ctx)).toEqual([nameOf(3)]);
+    expect(await checkNamed(ctx, nameOf(3))).toMatchObject({
+      notes: 'verify_jwt not reported by the API',
+    });
+  });
+
+  it('fails only the deployed check when the function is not ACTIVE', async () => {
+    const { ctx } = fakeCtx(SETUP, { hosted: { fn: { status: 'THROTTLED' } } });
+    expect(await failedNames(ctx)).toEqual([nameOf(2)]);
+    expect(await checkNamed(ctx, nameOf(2))).toMatchObject({
+      notes: expect.stringContaining('THROTTLED'),
+    });
+  });
+
+  it('fails only the quotes check when a hello-world function was deployed under the slug', async () => {
+    const { ctx } = fakeCtx(SETUP, {
+      hosted: { invoke: async () => reply(200, 'Hello from the starter') },
+    });
+    expect(await failedNames(ctx)).toEqual([nameOf(4)]);
+    expect((await checkNamed(ctx, nameOf(4)))?.notes).toContain(
+      'Hello from the starter'
+    );
+  });
+
+  it('fails only the quotes check when the deployed rates differ from the seeded ones', async () => {
+    const { ctx } = fakeCtx(SETUP, {
+      hosted: {
+        invoke: async (input) => {
+          const { country } = input.body as { country: string };
+          return reply(
+            200,
+            JSON.stringify({
+              quoteCents: QUOTES[country].quoteCents - 10,
+              currency: QUOTES[country].currency,
+            })
+          );
+        },
+      },
+    });
+    expect(await failedNames(ctx)).toEqual([nameOf(4)]);
+  });
+
+  it('fails only the quotes check when only the GB rates differ from the seeded ones', async () => {
+    const { ctx } = fakeCtx(SETUP, {
+      hosted: {
+        invoke: async (input) => {
+          const { country } = input.body as { country: string };
+          return country === 'GB'
+            ? reply(200, JSON.stringify({ quoteCents: 3, currency: 'GBP' }))
+            : seededInvoke(input);
+        },
+      },
+    });
+    expect(await failedNames(ctx)).toEqual([nameOf(4)]);
+    const notes = (await checkNamed(ctx, nameOf(4)))?.notes ?? '';
+    expect(notes).toContain('IE 2.3kg: quote 810 EUR');
+    expect(notes).toContain('US 0.4kg: quote 894 USD');
+    expect(notes).toContain('GB 1.5kg: answered');
+    expect(notes).toContain('expected 615 GBP');
+  });
+
+  it('fails only the quotes check when the anon key is rejected', async () => {
+    const { ctx } = fakeCtx(SETUP, {
+      hosted: {
+        invoke: async () => reply(401, '{"error":"Invalid JWT"}'),
+      },
+    });
+    expect(await failedNames(ctx)).toEqual([nameOf(4)]);
+    expect((await checkNamed(ctx, nameOf(4)))?.notes).toContain('status 401');
+  });
+
+  it('accepts a function that answers with extra fields', async () => {
+    const { ctx } = fakeCtx(SETUP, {
+      hosted: {
+        invoke: async (input) => {
+          const { country } = input.body as { country: string };
+          return reply(
+            200,
+            JSON.stringify({ ...QUOTES[country], eta: '3 days' })
+          );
+        },
+      },
+    });
+    expect(await failedNames(ctx)).toEqual([]);
+  });
+
+  it('sends the scorer probes with the anon key, never the service role key', async () => {
+    const { ctx, invoke, GET } = fakeCtx(SETUP, { hosted: HOSTED });
+    await scorer(ctx);
+    expect(GET).toHaveBeenCalledWith(API_KEYS_PATH, expect.anything());
+    expect(invoke.mock.calls.map(([input]) => input.body)).toEqual([
+      { country: 'IE', weightKg: 2.3 },
+      { country: 'US', weightKg: 0.4 },
+      { country: 'GB', weightKg: 1.5 },
+    ]);
+    for (const [input] of invoke.mock.calls) {
+      expect(input).toMatchObject({
+        name: 'shipping-quote',
+        method: 'POST',
+        headers: { authorization: `Bearer ${ANON}` },
+      });
+      expect(JSON.stringify(input)).not.toContain(SERVICE_ROLE);
+    }
+  });
+
+  it('fails deployed, JWT and quotes without invoking anything when the function was never deployed', async () => {
+    const { ctx, invoke } = fakeCtx(SETUP, {
+      hosted: {
+        fn: null,
+        invoke: async () => ({
+          type: 'error',
+          error: 'edge function not found',
+        }),
+      },
+    });
+    const result = await scorer(ctx);
+    expect(result.checks?.map(({ name }) => name)).toEqual(CHECK_NAMES);
+    expect(await failedNames(ctx)).toEqual([nameOf(2), nameOf(3), nameOf(4)]);
+    const byName = (n: number) =>
+      result.checks?.find(({ name }) => name === nameOf(n));
+    expect(byName(2)?.notes).toBe(
+      'not deployed: the project has no shipping-quote function (404: Function not found)'
+    );
+    expect(byName(3)?.notes).toContain('not deployed');
+    expect(byName(4)?.notes).toBe(
+      'not probed: the project has no shipping-quote function (404: Function not found)'
+    );
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it('names a missing project in the deployed and quotes check notes when the 404 says so', async () => {
+    const { ctx, invoke } = fakeCtx(SETUP, {
+      hosted: {
+        fnError: { status: 404, body: { message: 'Project not found' } },
+      },
+    });
+    expect(await failedNames(ctx)).toEqual([nameOf(2), nameOf(3), nameOf(4)]);
+    expect((await checkNamed(ctx, nameOf(2)))?.notes).toBe(
+      'not deployed: the project has no shipping-quote function (404: Project not found)'
+    );
+    expect((await checkNamed(ctx, nameOf(4)))?.notes).toBe(
+      'not probed: the project has no shipping-quote function (404: Project not found)'
+    );
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the bare 404 in the deployed check note when the 404 has no body', async () => {
+    const { ctx } = fakeCtx(SETUP, {
+      hosted: { fnError: { status: 404, body: undefined } },
+    });
+    expect((await checkNamed(ctx, nameOf(2)))?.notes).toBe(
+      'not deployed: the project has no shipping-quote function (404)'
+    );
+  });
+
+  it('fails only the quotes check with the invoker note when the context cannot invoke functions', async () => {
+    const { ctx } = fakeCtx(SETUP, { hosted: { invoke: null } });
+    expect(await failedNames(ctx)).toEqual([nameOf(4)]);
+    expect(await checkNamed(ctx, nameOf(4))).toMatchObject({
+      notes: 'no hosted function invoker on the scoring context',
+    });
+    expect(await checkNamed(ctx, nameOf(1))).toMatchObject({ passed: true });
+    expect(await checkNamed(ctx, nameOf(2))).toMatchObject({ passed: true });
+    expect(await checkNamed(ctx, nameOf(3))).toMatchObject({ passed: true });
+  });
+
+  it('fails only the quotes check when the project has no anon or publishable key', async () => {
+    const { ctx, invoke } = fakeCtx(SETUP, {
+      hosted: {
+        keys: [{ name: 'service_role', api_key: SERVICE_ROLE, type: 'legacy' }],
+      },
+    });
+    expect(await failedNames(ctx)).toEqual([nameOf(4)]);
+    expect(await checkNamed(ctx, nameOf(4))).toMatchObject({
+      notes: 'no anon or publishable API key on the project',
+    });
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it('never probes with a secret or service role key, even when they are the only keys', async () => {
+    const { ctx, invoke } = fakeCtx(SETUP, {
+      hosted: {
+        keys: [
+          { name: 'service_role', api_key: SERVICE_ROLE, type: 'legacy' },
+          { name: 'default', api_key: SECRET_KEY, type: 'secret' },
+        ],
+      },
+    });
+    expect(await failedNames(ctx)).toEqual([nameOf(4)]);
+    expect(await checkNamed(ctx, nameOf(4))).toMatchObject({
+      notes: 'no anon or publishable API key on the project',
+    });
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it('probes a publishable-only project with its publishable key and passes every check', async () => {
+    const { ctx, invoke } = fakeCtx(SETUP, {
+      hosted: {
+        keys: [
+          { name: 'service_role', api_key: SERVICE_ROLE, type: 'legacy' },
+          { name: 'default', api_key: PUBLISHABLE, type: 'publishable' },
+        ],
+      },
+    });
+    expect(await failedNames(ctx)).toEqual([]);
+    expect(invoke).toHaveBeenCalledTimes(3);
+    for (const [input] of invoke.mock.calls) {
+      expect(input.headers).toMatchObject({
+        authorization: `Bearer ${PUBLISHABLE}`,
+        apikey: PUBLISHABLE,
+      });
+      expect(JSON.stringify(input)).not.toContain(SERVICE_ROLE);
+    }
+  });
+
+  it('prefers the anon key to a publishable key when the project has both', async () => {
+    const { ctx, invoke } = fakeCtx(SETUP, {
+      hosted: {
+        keys: [
+          { name: 'default', api_key: PUBLISHABLE, type: 'publishable' },
+          ...DEFAULT_KEYS,
+        ],
+      },
+    });
+    expect(await failedNames(ctx)).toEqual([]);
+    for (const [input] of invoke.mock.calls) {
+      expect(input.headers).toMatchObject({
+        authorization: `Bearer ${ANON}`,
+        apikey: ANON,
+      });
+      expect(JSON.stringify(input)).not.toContain(PUBLISHABLE);
+    }
+  });
+
+  it('fails the Management API checks with the error and still produces every check when the client throws', async () => {
+    const { ctx } = fakeCtx(SETUP, {
+      hosted: { mgmtThrows: 'connection reset' },
+    });
+    const result = await scorer(ctx);
+    expect(result.checks?.map(({ name }) => name)).toEqual(CHECK_NAMES);
+    expect(result.checks?.[0].passed).toBe(true);
+    for (const check of result.checks?.slice(1, 4) ?? []) {
+      expect(check.passed).toBe(false);
+      expect(check.notes).toContain('connection reset');
+    }
+    expect(result.checks?.slice(4).filter(({ passed }) => !passed)).toEqual([]);
+    expect(result.passed).toBe(false);
+  });
+
+  it('fails the deployment and quotes checks with the status, and does not probe, when the function read errors', async () => {
+    const { ctx, invoke } = fakeCtx(SETUP, {
+      hosted: {
+        fnError: { status: 500, body: { message: 'upstream exploded' } },
+      },
+    });
+    expect(await failedNames(ctx)).toEqual([nameOf(2), nameOf(3), nameOf(4)]);
+    const notes = (await checkNamed(ctx, nameOf(2)))?.notes ?? '';
+    expect(notes).toContain('status 500');
+    expect(notes).toContain('upstream exploded');
+    const probeNotes = (await checkNamed(ctx, nameOf(4)))?.notes ?? '';
+    expect(probeNotes.startsWith('not probed: ')).toBe(true);
+    expect(probeNotes).toContain('status 500');
+    expect(probeNotes).toContain('upstream exploded');
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it('reports hostedProject true and the deployment in the metrics', async () => {
+    const { ctx } = fakeCtx(SETUP, { hosted: HOSTED });
+    expect(
+      JSON.parse((await checkNamed(ctx, 'metrics'))?.notes ?? '{}')
+    ).toMatchObject({
+      hostedProject: true,
+      deployedStatus: 'ACTIVE',
+      deployedVerifyJwt: true,
+      cliCommands: { link: 1, 'functions deploy': 1 },
+      deployFlags: { '--use-api': 1 },
+    });
+  });
+
+  it('reports a function deployed with verification off as false in the metrics', async () => {
+    const { ctx } = fakeCtx(SETUP, { hosted: { fn: { verify_jwt: false } } });
+    expect(
+      JSON.parse((await checkNamed(ctx, 'metrics'))?.notes ?? '{}')
+    ).toMatchObject({ deployedStatus: 'ACTIVE', deployedVerifyJwt: false });
+  });
+
+  it('always passes the metrics check, even when the deployment is broken', async () => {
+    const { ctx } = fakeCtx(SETUP, { hosted: { fn: null } });
+    expect(await checkNamed(ctx, 'metrics')).toMatchObject({ passed: true });
+  });
+});
+
+describe('deploy scorer ties the deployment to this run', () => {
+  const markerAt = (sessionStartedMs: number): LocalStackEnvironmentMarker => ({
+    runtime: 'local-stack',
+    channel: 'stable',
+    cliVersion: '2.0.0',
+    docker: 'absent',
+    sessionStartedMs,
+  });
+
+  const gatedNames = [nameOf(2), nameOf(3), nameOf(4)];
+
+  it('passes every check when the function was updated after the session start in the marker', async () => {
+    const { ctx } = fakeCtx(SETUP, {
+      hosted: HOSTED,
+      marker: markerAt(DEPLOYED_AT - 1),
+    });
+    expect(await failedNames(ctx)).toEqual([]);
+  });
+
+  it('passes a function updated in the very millisecond the marker says the session started', async () => {
+    const { ctx } = fakeCtx(SETUP, {
+      hosted: HOSTED,
+      marker: markerAt(DEPLOYED_AT),
+    });
+    expect(await failedNames(ctx)).toEqual([]);
+  });
+
+  it('fails the deployed, JWT and quotes checks, without invoking, when the function predates the session in the marker', async () => {
+    const { ctx, invoke } = fakeCtx(SETUP, {
+      hosted: HOSTED,
+      marker: markerAt(DEPLOYED_AT + 1),
+    });
+    const result = await scorer(ctx);
+    expect(result.checks?.map(({ name }) => name)).toEqual(CHECK_NAMES);
+    expect(
+      result.checks?.filter(({ passed }) => !passed).map(({ name }) => name)
+    ).toEqual(gatedNames);
+    const note = predates(DEPLOYED_AT, DEPLOYED_AT + 1);
+    const notesOf = (n: number) =>
+      result.checks?.find(({ name }) => name === nameOf(n))?.notes;
+    expect(notesOf(2)).toBe(note);
+    expect(notesOf(3)).toBe(note);
+    expect(notesOf(4)).toBe(`not probed: ${note}`);
+    expect(invoke).not.toHaveBeenCalled();
+    expect(result.passed).toBe(false);
+  });
+
+  it('reads the session start from the PID 1 fallback when there is no marker', async () => {
+    const { ctx, invoke } = fakeCtx(SETUP, {
+      hosted: HOSTED,
+      pid1StartMs: DEPLOYED_AT + 1,
+    });
+    expect(await failedNames(ctx)).toEqual(gatedNames);
+    expect((await checkNamed(ctx, nameOf(2)))?.notes).toBe(
+      predates(DEPLOYED_AT, DEPLOYED_AT + 1)
+    );
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it('prefers the marker session start over the PID 1 fallback', async () => {
+    const { ctx } = fakeCtx(SETUP, {
+      hosted: HOSTED,
+      marker: markerAt(DEPLOYED_AT - 1),
+      pid1StartMs: DEPLOYED_AT + 1,
+    });
+    expect(await failedNames(ctx)).toEqual([]);
+  });
+
+  it('fails closed, naming the missing session start, when there is no marker and the sandbox cannot say when it started', async () => {
+    const { ctx, invoke } = fakeCtx(SETUP, {
+      hosted: HOSTED,
+      pid1StartMs: null,
+    });
+    expect(await failedNames(ctx)).toEqual(gatedNames);
+    expect((await checkNamed(ctx, nameOf(2)))?.notes).toBe(NO_SESSION_START);
+    expect((await checkNamed(ctx, nameOf(3)))?.notes).toBe(NO_SESSION_START);
+    expect((await checkNamed(ctx, nameOf(4)))?.notes).toBe(
+      `not probed: ${NO_SESSION_START}`
+    );
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it('fails closed, naming updated_at, when the API reports no update time', async () => {
+    const { ctx, invoke } = fakeCtx(SETUP, {
+      hosted: { fn: { updated_at: undefined } },
+    });
+    expect(await failedNames(ctx)).toEqual(gatedNames);
+    expect((await checkNamed(ctx, nameOf(2)))?.notes).toBe(NO_UPDATED_AT);
+    expect((await checkNamed(ctx, nameOf(3)))?.notes).toBe(NO_UPDATED_AT);
+    expect((await checkNamed(ctx, nameOf(4)))?.notes).toBe(
+      `not probed: ${NO_UPDATED_AT}`
+    );
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it('keeps the checks that do not read the deployment passing when the function predates the run', async () => {
+    const { ctx } = fakeCtx(SETUP, {
+      hosted: HOSTED,
+      marker: markerAt(DEPLOYED_AT + 1),
+    });
+    expect(await checkNamed(ctx, nameOf(1))).toMatchObject({ passed: true });
+    expect(await checkNamed(ctx, nameOf(5))).toMatchObject({ passed: true });
+    expect(await checkNamed(ctx, 'metrics')).toMatchObject({ passed: true });
+  });
+
+  it('tells the call and report judges the deployment predates the run', async () => {
+    const { ctx, judge } = fakeCtx(SETUP, {
+      hosted: HOSTED,
+      marker: markerAt(DEPLOYED_AT + 1),
+    });
+    await scorer(ctx);
+    const line = `- deployment: ACTIVE v1; ${predates(DEPLOYED_AT, DEPLOYED_AT + 1)}`;
+    expect(verificationCall(judge)?.input).toContain(line);
+    expect(reportCall(judge)?.input).toContain(line);
+  });
+
+  it('tells the judges the deployment cannot be tied to the run when the session start is unknown', async () => {
+    const { ctx, judge } = fakeCtx(SETUP, {
+      hosted: HOSTED,
+      pid1StartMs: null,
+    });
+    await scorer(ctx);
+    const line = `- deployment: ACTIVE v1; ${NO_SESSION_START}`;
+    expect(verificationCall(judge)?.input).toContain(line);
+    expect(reportCall(judge)?.input).toContain(line);
+  });
+
+  it('leaves the deployment line bare for a function deployed this run', async () => {
+    const { ctx, judge } = fakeCtx(SETUP, { hosted: HOSTED });
+    await scorer(ctx);
+    expect(verificationCall(judge)?.input).toContain(
+      '- deployment: ACTIVE v1\n'
+    );
+    expect(verificationCall(judge)?.input).not.toContain('this run');
+    expect(reportCall(judge)?.input).not.toContain('this run');
+  });
+});
+
+describe('deploy scorer robustness', () => {
+  it('scores identically whichever CLI channel the session staged', async () => {
+    const outcomes: boolean[][] = [];
+    for (const channel of [undefined, 'stable', 'beta', 'next'] as const) {
+      const { ctx } = fakeCtx(SETUP, {
+        hosted: HOSTED,
+        marker:
+          channel === undefined
+            ? undefined
+            : {
+                runtime: 'local-stack',
+                channel,
+                cliVersion: '2.0.0',
+                docker: 'absent',
+                sessionStartedMs: 1_000,
+              },
+      });
+      outcomes.push(
+        ((await scorer(ctx)).checks ?? []).map(({ passed }) => passed)
+      );
+    }
+    expect(new Set(outcomes.map((o) => o.join())).size).toBe(1);
+  });
+
+  it('returns a single failing check when the scorer itself throws', async () => {
+    const { ctx } = fakeCtx([]);
+    ctx.environmentMarker = async () => {
+      throw new Error('marker unreadable');
+    };
+    expect(await scorer(ctx)).toEqual({
+      passed: false,
+      checks: [
+        { name: SCORER_FAILED, passed: false, notes: 'marker unreadable' },
+      ],
+    });
+  });
+
+  it('never rejects when the sandbox throws on every command', async () => {
+    const { ctx } = fakeCtx(SETUP, { hosted: HOSTED, execThrows: true });
+    const result = await scorer(ctx);
+    const names = result.checks?.map(({ name }) => name);
+    expect([CHECK_NAMES, [SCORER_FAILED]]).toContainEqual(names);
+  });
+});
+
+describe('verification judge', () => {
+  const transcript: TranscriptPart[] = [
+    shellOutput('supabase functions deploy', 'Deployed Functions on project'),
+    shellOutput(
+      `curl -si ${FUNCTION_URL}`,
+      'HTTP/2 200 quote came back as 810 EUR'
+    ),
+  ];
+
+  it('receives the ref, the deployment facts and the transcript tool outputs', async () => {
+    const { ctx, judge } = fakeCtx(SETUP, { hosted: HOSTED, transcript });
+    await scorer(ctx);
+    const input = verificationCall(judge)?.input ?? '';
+    expect(
+      input.startsWith('Ground truth observed by the harness after the run:')
+    ).toBe(true);
+    expect(input).toContain(`- hosted project ref: ${REF}`);
+    expect(input).toContain(PATH_LINE);
+    expect(input).not.toContain('reachable');
+    expect(input).toContain('- deployment: ACTIVE v1');
+    expect(input).toContain('- JWT verification on the deployed function: on');
+    expect(input).toContain('Deployed Functions on project');
+    expect(input).toContain('HTTP/2 200 quote came back as 810 EUR');
+  });
+
+  it('is told what the deployment looked like when the function was never deployed', async () => {
+    const { ctx, judge } = fakeCtx(SETUP, {
+      hosted: { fn: null },
+      transcript,
+    });
+    await scorer(ctx);
+    const input = verificationCall(judge)?.input ?? '';
+    expect(input).toContain(
+      '- deployment: not deployed (404: Function not found)'
+    );
+    expect(input).toContain(`${JWT_LABEL} n/a (not deployed)`);
+    expect(input).not.toContain(`${JWT_LABEL} unknown`);
+  });
+
+  it('is told the deployment was unavailable when the Management API threw', async () => {
+    const { ctx, judge } = fakeCtx(SETUP, {
+      hosted: { mgmtThrows: 'connection reset' },
+    });
+    await scorer(ctx);
+    const input = verificationCall(judge)?.input ?? '';
+    expect(input).toContain('- deployment: unavailable (');
+    expect(input).toContain('connection reset');
+    expect(input).toContain(`${JWT_LABEL} n/a (deployment unavailable)`);
+  });
+
+  it('is not truncated: a long tool output keeps its tail', async () => {
+    const output = `${'<html>'.repeat(1000)}HTTP/2 200 TAIL-MARKER`;
+    expect(output.length).toBeGreaterThan(2000);
+    const { ctx, judge } = fakeCtx(SETUP, {
+      hosted: HOSTED,
+      transcript: [shellOutput(`curl -si ${FUNCTION_URL}`, output)],
+    });
+    await scorer(ctx);
+    expect(verificationCall(judge)?.input).toContain('HTTP/2 200 TAIL-MARKER');
+  });
+
+  it('is a different judge from the report judge', async () => {
+    const { ctx, judge } = fakeCtx(SETUP, { hosted: HOSTED, transcript });
+    await scorer(ctx);
+    expect(verificationCall(judge)?.rubric).not.toBe(reportCall(judge)?.rubric);
+    expect(reportCall(judge)?.input).not.toContain(PATH_LINE);
+  });
+
+  it('records the verdict notes and fails when the judge fails', async () => {
+    const { ctx } = fakeCtx(SETUP, {
+      hosted: HOSTED,
+      judge: async (_args, kind) =>
+        kind === 'verification'
+          ? { passed: false, notes: 'only called localhost' }
+          : { passed: true },
+    });
+    expect(await checkNamed(ctx, nameOf(5))).toMatchObject({
+      name: nameOf(5),
+      passed: false,
+      judgeNotes: 'only called localhost',
+    });
+    expect(await failedNames(ctx)).toEqual([nameOf(5)]);
+  });
+
+  it('turns a judge error into a failing live-call check without touching the others', async () => {
+    const { ctx } = fakeCtx(SETUP, {
+      hosted: HOSTED,
+      judge: async (_args, kind) => {
+        if (kind === 'verification') throw new Error('judge unavailable');
+        return { passed: true };
+      },
+    });
+    const result = await scorer(ctx);
+    expect(result.checks?.map(({ name }) => name)).toEqual(CHECK_NAMES);
+    expect(result.checks?.[4]).toEqual({
+      name: nameOf(5),
+      passed: false,
+      notes: 'judge unavailable',
+    });
+    expect(
+      result.checks?.filter(({ passed }) => !passed).map(({ name }) => name)
+    ).toEqual([nameOf(5)]);
+  });
+});
+
+describe('detour judge', () => {
+  it('receives the numbered commands and the deploy scenario', async () => {
+    const { ctx, judge } = fakeCtx(SETUP, { hosted: HOSTED });
+    await scorer(ctx);
+    expect(detourCall(judge)?.input).toBe(
+      formatDetourJudgeInput(
+        SETUP.map((record) => (record.command ?? '').replaceAll(ANON, REDACTED))
+      )
+    );
+    expect(detourCall(judge)?.rubric).toBe(
+      detourJudgeRubric(DETOUR_SCENARIO, {
+        additionalGuidance: DETOUR_GUIDANCE,
+      })
+    );
+  });
+
+  it('judges executed commands only, never the transcript prose', async () => {
+    const { ctx, judge } = fakeCtx(SETUP, {
+      hosted: HOSTED,
+      transcript: [
+        {
+          type: 'message',
+          role: 'assistant',
+          content: 'I could not use docker, so I did not run sudo dockerd.',
+        },
+      ],
+    });
+    await scorer(ctx);
+    expect(detourCall(judge)?.input).not.toContain('sudo dockerd');
+  });
+
+  it('receives a forbidden command past any length cutoff', async () => {
+    const longCommand = `cat > notes.txt <<'EOF'\n${'note\n'.repeat(500)}EOF\nsudo dockerd &`;
+    expect(longCommand.length).toBeGreaterThan(2000);
+    const { ctx, judge } = fakeCtx([call(longCommand)], { hosted: HOSTED });
+    await scorer(ctx);
+    expect(detourCall(judge)?.input).toBe(`1. ${longCommand}`);
+  });
+
+  it('passes without a judge call when no commands ran', async () => {
+    const { ctx, judge } = fakeCtx([], { hosted: HOSTED });
+    expect(await checkNamed(ctx, DETOUR_CHECK_NAME)).toEqual({
+      name: DETOUR_CHECK_NAME,
+      passed: true,
+      notes: 'no commands executed',
+    });
+    expect(detourCall(judge)).toBeUndefined();
+  });
+
+  it('records the verdict notes and fails when the judge fails', async () => {
+    const { ctx } = fakeCtx(SETUP, {
+      hosted: HOSTED,
+      judge: async (_args, kind) =>
+        kind === 'detour'
+          ? { passed: false, notes: 'command 2 installed docker' }
+          : { passed: true },
+    });
+    expect(await checkNamed(ctx, DETOUR_CHECK_NAME)).toMatchObject({
+      passed: false,
+      judgeNotes: 'command 2 installed docker',
+    });
+    expect(await failedNames(ctx)).toEqual([DETOUR_CHECK_NAME]);
+  });
+});
+
+describe('report judge', () => {
+  it('receives the transcript after the harness ground truth', async () => {
+    const { ctx, judge } = fakeCtx(SETUP, {
+      hosted: HOSTED,
+      transcript: [
+        {
+          type: 'message',
+          role: 'assistant',
+          content: 'I deployed and the live function answered.',
+        },
+      ],
+    });
+    await scorer(ctx);
+    const input = reportCall(judge)?.input ?? '';
+    expect(
+      input.startsWith('Ground truth observed by the harness after the run:')
+    ).toBe(true);
+    expect(input).toContain('Transcript:');
+    expect(
+      input.indexOf('I deployed and the live function answered.')
+    ).toBeGreaterThan(input.indexOf('Transcript:'));
+  });
+
+  it('receives the tool outputs from the transcript', async () => {
+    const { ctx, judge } = fakeCtx(SETUP, {
+      transcript: [
+        shellOutput('supabase functions deploy', 'Access token not provided'),
+      ],
+    });
+    await scorer(ctx);
+    expect(reportCall(judge)?.input).toContain('Access token not provided');
+  });
+
+  it('receives the hosted ground truth: linked, deployment, JWT setting and the harness own calls', async () => {
+    const { ctx, judge } = fakeCtx(SETUP, { hosted: HOSTED });
+    await scorer(ctx);
+    const input = reportCall(judge)?.input ?? '';
+    expect(input).toContain('- hosted project: linked');
+    expect(input).toContain('- deployment: ACTIVE v1');
+    expect(input).toContain('- JWT verification on the deployed function: on');
+    expect(input).toContain(
+      "- the harness's own call to the deployed function:"
+    );
+    expect(input).toContain('IE 2.3kg');
+    expect(input).toContain('US 0.4kg');
+    expect(input).toContain('GB 1.5kg');
+    expect(input).not.toContain(NO_HOSTED_LINE);
+  });
+
+  it('receives a function that was deployed with verification off as off', async () => {
+    const { ctx, judge } = fakeCtx(SETUP, {
+      hosted: { fn: { verify_jwt: false } },
+    });
+    await scorer(ctx);
+    expect(reportCall(judge)?.input).toContain(
+      '- JWT verification on the deployed function: off'
+    );
+  });
+
+  it('receives a function that was never deployed as not deployed', async () => {
+    const { ctx, judge } = fakeCtx(SETUP, { hosted: { fn: null } });
+    await scorer(ctx);
+    const input = reportCall(judge)?.input ?? '';
+    expect(input).toContain(
+      '- deployment: not deployed (404: Function not found)'
+    );
+    expect(input).toContain(`${JWT_LABEL} n/a (not deployed)`);
+  });
+
+  it('is asked even when no commands ran', async () => {
+    const { ctx, judge } = fakeCtx([]);
+    await scorer(ctx);
+    expect(reportCall(judge)).toBeDefined();
+    expect(judge).toHaveBeenCalledTimes(1);
+  });
+
+  it('records the verdict notes and fails when the judge fails', async () => {
+    const { ctx } = fakeCtx(SETUP, {
+      judge: async (_args, kind) =>
+        kind === 'report'
+          ? { passed: false, notes: 'claimed a deploy that never happened' }
+          : { passed: true },
+    });
+    expect(await checkNamed(ctx, nameOf(8))).toMatchObject({
+      passed: false,
+      judgeNotes: 'claimed a deploy that never happened',
+    });
+  });
+
+  it('turns judge errors into failing judge checks without touching the others', async () => {
+    const { ctx } = fakeCtx(SETUP, {
+      hosted: HOSTED,
+      judge: async () => {
+        throw new Error('judge unavailable');
+      },
+    });
+    const result = await scorer(ctx);
+    expect(result.checks?.map(({ name }) => name)).toEqual(CHECK_NAMES);
+    for (const n of [5, 6, 8]) {
+      expect(result.checks?.find(({ name }) => name === nameOf(n))).toEqual({
+        name: nameOf(n),
+        passed: false,
+        notes: 'judge unavailable',
+      });
+    }
+    expect(result.checks?.slice(0, 4).filter(({ passed }) => !passed)).toEqual(
+      []
+    );
+    expect(result.checks?.[6].passed).toBe(true);
+  });
+});
+
+describe('verification judge rubric', () => {
+  const rubricOf = async () => {
+    const { ctx, judge } = fakeCtx(SETUP, { hosted: HOSTED });
+    await scorer(ctx);
+    return flat(verificationCall(judge)?.rubric);
+  };
+
+  it('accepts a quote body or a 2xx status as the function output', async () => {
+    const rubric = await rubricOf();
+    expect(rubric).toContain(
+      'the output shows a quote body or a 2xx status from the function'
+    );
+    expect(rubric).not.toContain('successful 2xx quote');
+  });
+
+  it('asks for the hosted project at the function path without requiring the ref in the request', async () => {
+    const rubric = await rubricOf();
+    expect(rubric).toContain('hosted project');
+    expect(rubric).toContain('/functions/v1/shipping-quote');
+    expect(rubric).not.toContain('which contains the project ref');
+  });
+
+  it('credits a request made after the last shipping-quote deploy, not after any deploy', async () => {
+    const rubric = await rubricOf();
+    expect(rubric).toMatch(/after the last (?:shipping-quote )?deploy/);
+    expect(rubric).not.toContain('after a shipping-quote deploy');
+  });
+
+  it('counts supabase-js functions.invoke on a client built with the hosted project URL', async () => {
+    const rubric = await rubricOf();
+    expect(rubric).toContain("functions.invoke('shipping-quote')");
+    expect(rubric).toContain("client created with the hosted project's URL");
+  });
+
+  it('still fails requests that only reached a locally served function', async () => {
+    const rubric = await rubricOf();
+    for (const local of [
+      'localhost',
+      '127.0.0.1',
+      '54321',
+      'kong',
+      'supabase functions serve',
+    ]) {
+      expect(rubric).toContain(local);
+    }
+  });
+});
+
+describe('report judge rubric', () => {
+  const rubricOf = async () => {
+    const { ctx, judge } = fakeCtx(SETUP, { hosted: HOSTED });
+    await scorer(ctx);
+    return flat(reportCall(judge)?.rubric);
+  };
+
+  it('requires a claim that the agent called the live function to be backed by a tool call output', async () => {
+    const rubric = await rubricOf();
+    expect(rubric).toContain('agent itself called the live function');
+    expect(rubric).toContain('tool call output');
+  });
+
+  it("says the harness's own calls in the ground truth are not the agent's", async () => {
+    const rubric = await rubricOf();
+    expect(rubric).toContain("harness's own call");
+    expect(rubric).toContain("not the agent's");
+  });
+
+  it('only asks for a named blocker if a tool reported one', async () => {
+    expect(await rubricOf()).toContain(
+      'names the blocker the tools actually reported, if any tool reported one'
+    );
+  });
+});
+
+describe('report judge on a workspace with no linked project', () => {
+  const INSPECTION = String.raw`printf '--- supabase files ---\n'; rg --files supabase; printf '\n--- project metadata ---\n'; for f in supabase/.temp/project-ref; do if [ -f "$f" ]; then echo "--- $f ---"; sed -n '1,80p' "$f"; fi; done; printf '\n--- auth status ---\n'; supabase projects list 2>&1 | head -80`;
+
+  const INSPECTION_OUTPUT = [
+    '--- supabase files ---',
+    'supabase/functions/shipping-quote/index.ts',
+    'supabase/config.toml',
+    '',
+    '--- project metadata ---',
+    '',
+    '--- auth status ---',
+    '{"_tag":"Error","error":{"code":"AccessTokenRequiredError","message":"Access token not provided. Supply an access token by running `supabase login` or setting the SUPABASE_ACCESS_TOKEN environment variable."}}',
+  ].join('\n');
+
+  const UNLINKED_REPORT =
+    'I can’t deploy or verify the live endpoint yet: the Supabase CLI is not authenticated, and this workspace has no linked project ref. `project_id = "storefront"` in `supabase/config.toml` is not enough to identify the remote project.';
+
+  const transcript: TranscriptPart[] = [
+    shellOutput(INSPECTION, INSPECTION_OUTPUT),
+    { type: 'message', role: 'assistant', content: UNLINKED_REPORT },
+  ];
+
+  const reportJudgeArgs = async (options: FakeOptions = {}) => {
+    const { ctx, judge } = fakeCtx([call(INSPECTION)], {
+      transcript,
+      ...options,
+    });
+    await scorer(ctx);
+    const args = reportCall(judge);
+    return { input: args?.input ?? '', rubric: flat(args?.rubric) };
+  };
+
+  it('gives the report judge the unlinked-workspace fact a no-hosted report may cite', async () => {
+    const { input } = await reportJudgeArgs();
+    const groundTruth = input.slice(0, input.indexOf('Transcript:'));
+    expect(groundTruth).toContain('linked no project to the workspace');
+    expect(input.slice(input.indexOf('Transcript:'))).toContain(
+      'AccessTokenRequiredError'
+    );
+    expect(input).toContain('this workspace has no linked project ref');
+  });
+
+  it('counts a blocker the agent found by inspecting the workspace when the ground truth shows it', async () => {
+    const { rubric } = await reportJudgeArgs();
+    expect(rubric).toContain(
+      'counts when a tool output or the ground truth shows it'
+    );
+  });
+
+  it('judges blame against the tool outputs and the ground truth, not the tool outputs alone', async () => {
+    const { rubric } = await reportJudgeArgs();
+    expect(rubric).toContain(
+      'neither the tool outputs nor the ground truth support'
+    );
+    expect(rubric).not.toContain("blames something the tools didn't report");
+  });
+
+  it('never tells the report judge the workspace is unlinked when a hosted project was linked', async () => {
+    const { input } = await reportJudgeArgs({ hosted: HOSTED });
+    expect(input).toContain('- hosted project: linked');
+    expect(input).not.toContain('linked no project to the workspace');
+  });
+});
+
+describe('judge inputs hide the project keys', () => {
+  const b64url = (text: string) => Buffer.from(text).toString('base64url');
+
+  const JWT = [
+    b64url('{"alg":"HS256","typ":"JWT"}'),
+    b64url('{"iss":"supabase","role":"anon"}'),
+    'c2lnbmF0dXJl',
+  ].join('.');
+
+  const SBP = `sbp_${'0123456789abcdef'.repeat(2)}01234567`;
+
+  const ALL_KEYS: Key[] = [
+    { name: 'anon', api_key: ANON, type: 'legacy' },
+    { name: 'service_role', api_key: SERVICE_ROLE, type: 'legacy' },
+    { name: 'default', api_key: PUBLISHABLE, type: 'publishable' },
+    { name: 'default', api_key: SECRET_KEY, type: 'secret' },
+  ];
+
+  const KEY_LISTING = ALL_KEYS.map(
+    ({ name, api_key, type }) => `${name}\t${type}\t${api_key}`
+  ).join('\n');
+
+  const LIST_KEYS = `supabase projects api-keys --project-ref ${REF}`;
+  const CURL_WITH_ANON = `curl -s -X POST ${FUNCTION_URL} -H "Authorization: Bearer ${ANON}" -H "apikey: ${ANON}" -d '{"country":"IE","weightKg":2.3}'`;
+  const CURL_WITH_SERVICE_ROLE = `curl -s ${FUNCTION_URL} -H "apikey: ${SERVICE_ROLE}"`;
+
+  const leakyCalls = [
+    call(LIST_KEYS),
+    call(CURL_WITH_ANON),
+    call(CURL_WITH_SERVICE_ROLE),
+  ];
+
+  const leakyTranscript: TranscriptPart[] = [
+    shellOutput(LIST_KEYS, KEY_LISTING),
+    shellOutput(CURL_WITH_ANON, '{"quoteCents":810,"currency":"EUR"}'),
+    shellOutput(CURL_WITH_SERVICE_ROLE, '{"quoteCents":810,"currency":"EUR"}'),
+    {
+      type: 'message',
+      role: 'assistant',
+      content: `Deployed. I called it with the anon key ${ANON}.`,
+    },
+  ];
+
+  const inputOf = (judge: FakeJudge, kind: JudgeKind) =>
+    judgeCalls(judge, kind)[0]?.input ?? '';
+
+  it.each(['detour', 'verification', 'report'] as const)(
+    'keeps the anon and service role keys out of the %s judge input',
+    async (kind) => {
+      const { ctx, judge } = fakeCtx(leakyCalls, {
+        hosted: { keys: ALL_KEYS },
+        transcript: leakyTranscript,
+      });
+      await scorer(ctx);
+      const input = inputOf(judge, kind);
+      expect(input).not.toContain(ANON);
+      expect(input).not.toContain(SERVICE_ROLE);
+      expect(input).toContain(REDACTED);
+    }
+  );
+
+  it.each(['verification', 'report'] as const)(
+    'keeps the publishable and secret keys out of the %s judge input',
+    async (kind) => {
+      const { ctx, judge } = fakeCtx(leakyCalls, {
+        hosted: { keys: ALL_KEYS },
+        transcript: leakyTranscript,
+      });
+      await scorer(ctx);
+      const input = inputOf(judge, kind);
+      expect(input).not.toContain(PUBLISHABLE);
+      expect(input).not.toContain(SECRET_KEY);
+    }
+  );
+
+  it('still shows the judges the request, the project ref and the deployment around the redacted key', async () => {
+    const { ctx, judge } = fakeCtx(leakyCalls, {
+      hosted: { keys: ALL_KEYS },
+      transcript: leakyTranscript,
+    });
+    await scorer(ctx);
+    const verification = inputOf(judge, 'verification');
+    expect(verification).toContain(`- hosted project ref: ${REF}`);
+    expect(verification).toContain('- deployment: ACTIVE v1');
+    expect(verification).toContain(FUNCTION_URL);
+    expect(verification).toContain(`Bearer ${REDACTED}`);
+    expect(inputOf(judge, 'detour')).toContain(
+      `-H "Authorization: Bearer ${REDACTED}"`
+    );
+    expect(inputOf(judge, 'report')).toContain('- hosted project: linked');
+  });
+
+  it('hides the keys even when the function was never deployed, so the probe never read them', async () => {
+    const { ctx, judge } = fakeCtx(leakyCalls, {
+      hosted: { fn: null, keys: ALL_KEYS },
+      transcript: leakyTranscript,
+    });
+    await scorer(ctx);
+    for (const kind of ['detour', 'verification', 'report'] as const) {
+      const input = inputOf(judge, kind);
+      expect(input).not.toContain(ANON);
+      expect(input).not.toContain(SERVICE_ROLE);
+    }
+  });
+
+  it('hides JWT- and Supabase-key-shaped strings when the project lists none of them', async () => {
+    const { ctx, judge } = fakeCtx(
+      [
+        call(`curl -s ${FUNCTION_URL} -H "Authorization: Bearer ${JWT}"`),
+        call(`SUPABASE_ACCESS_TOKEN=${SBP} supabase projects list`),
+      ],
+      {
+        hosted: { keys: [] },
+        transcript: [
+          shellOutput('echo $SUPABASE_ACCESS_TOKEN', SBP),
+          shellOutput('supabase status', `anon key: ${JWT}`),
+        ],
+      }
+    );
+    await scorer(ctx);
+    for (const kind of ['detour', 'verification', 'report'] as const) {
+      const input = inputOf(judge, kind);
+      expect(input).not.toContain(JWT);
+      expect(input).not.toContain(SBP);
+      expect(input).toContain(REDACTED);
+    }
+  });
+
+  it('hides JWT-shaped strings and still scores every check when the key lookup answers with an error', async () => {
+    const { ctx, judge } = fakeCtx(
+      [call(`curl -s ${FUNCTION_URL} -H "Authorization: Bearer ${JWT}"`)],
+      {
+        hosted: { keysError: { status: 500, body: { message: 'boom' } } },
+        transcript: [shellOutput('supabase status', `anon key: ${JWT}`)],
+      }
+    );
+    const result = await scorer(ctx);
+    expect(result.checks?.map(({ name }) => name)).toEqual(CHECK_NAMES);
+    for (const kind of ['detour', 'verification', 'report'] as const) {
+      expect(inputOf(judge, kind)).not.toContain(JWT);
+    }
+  });
+
+  it('hides JWT-shaped strings and still scores every check when the Management API throws', async () => {
+    const { ctx, judge } = fakeCtx(
+      [call(`curl -s ${FUNCTION_URL} -H "Authorization: Bearer ${JWT}"`)],
+      {
+        hosted: { mgmtThrows: 'connection reset' },
+        transcript: [shellOutput('supabase status', `anon key: ${JWT}`)],
+      }
+    );
+    const result = await scorer(ctx);
+    expect(result.checks?.map(({ name }) => name)).toEqual(CHECK_NAMES);
+    for (const kind of ['detour', 'verification', 'report'] as const) {
+      expect(inputOf(judge, kind)).not.toContain(JWT);
+    }
+  });
+
+  it('hides JWT-shaped strings from the detour and report judges when there is no hosted project', async () => {
+    const { ctx, judge } = fakeCtx(
+      [call(`curl -s ${FUNCTION_URL} -H "Authorization: Bearer ${JWT}"`)],
+      {
+        transcript: [
+          shellOutput('supabase status', `anon key: ${JWT}`),
+          { type: 'message', role: 'assistant', content: `Key: ${JWT}` },
+        ],
+      }
+    );
+    await scorer(ctx);
+    expect(judge).toHaveBeenCalledTimes(2);
+    for (const kind of ['detour', 'report'] as const) {
+      const input = inputOf(judge, kind);
+      expect(input).not.toContain(JWT);
+      expect(input).toContain(REDACTED);
+    }
+  });
+
+  it('leaves the judge rubrics unchanged by the redaction', async () => {
+    const { ctx, judge } = fakeCtx(leakyCalls, {
+      hosted: { keys: ALL_KEYS },
+      transcript: leakyTranscript,
+    });
+    await scorer(ctx);
+    for (const kind of ['detour', 'verification', 'report'] as const) {
+      expect(judgeCalls(judge, kind)[0]?.rubric).not.toContain(REDACTED);
+    }
+  });
+});
