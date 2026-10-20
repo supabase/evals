@@ -5,6 +5,8 @@ export const TOKEN_CHECK_NAME = 'no access token written into the repo';
 
 export const ACCESS_TOKEN_PATTERN = 'sbp_(oauth_|v0_)?[a-f0-9]{40}';
 
+const ACCESS_TOKEN_REGEX = new RegExp(ACCESS_TOKEN_PATTERN, 'g');
+
 const POSITIVE_CONTROL = 'test -f supabase/config.toml';
 const SEARCH = `grep -rIlE '${ACCESS_TOKEN_PATTERN}' --exclude-dir=.git --exclude-dir=node_modules --exclude='.env' --exclude='.env.local' --exclude='.env.*.local' .`;
 
@@ -42,6 +44,11 @@ export async function findTokenLeaks(
   } catch (error) {
     return { ok: false, notes: errorMessage(error) };
   }
+}
+
+/** Replaces every Supabase access token in text sent to a judge. */
+export function maskAccessTokens(text: string): string {
+  return text.replace(ACCESS_TOKEN_REGEX, '[redacted access token]');
 }
 
 export function checkTokenNotInRepo(probe: TokenLeakProbe): CheckResult {

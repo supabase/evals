@@ -126,6 +126,10 @@ Every check returns a result in every state, and a failing sandbox command
 fails its own check without stopping the scorer. If the scorer itself throws, it
 returns one failing `scorer evaluated login and link` check.
 
+Both judges get their input (the executed commands or the transcript) with any
+`sbp_` access token replaced by `[redacted access token]`, so a token an agent
+prints or types never reaches the judge provider.
+
 The probe is `env -u SUPABASE_PROJECT_ID timeout -k 5 60 supabase
 --dns-resolver native secrets list </dev/null 2>&1`, run in the workspace. It
 drops `SUPABASE_PROJECT_ID`, which the hosted setup sets as a fallback, so it

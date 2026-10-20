@@ -19,6 +19,7 @@ import {
   ACCESS_TOKEN_PATTERN,
   checkTokenNotInRepo,
   findTokenLeaks,
+  maskAccessTokens,
   TOKEN_CHECK_NAME,
 } from './token.js';
 
@@ -52,6 +53,49 @@ describe('ACCESS_TOKEN_PATTERN', () => {
     ['an unknown variant prefix', `sbp_other_${'a'.repeat(40)}`],
   ])('does not match %s', (_, text) => {
     expect(pattern.test(text)).toBe(false);
+  });
+});
+
+describe('maskAccessTokens', () => {
+  it.each([
+    ['a plain sbp_ token', FAKE_ACCESS_TOKEN],
+    ['a v0 token', V0_TOKEN],
+    ['an oauth token', OAUTH_TOKEN],
+  ])('replaces %s and keeps the surrounding text', (_, token) => {
+    const masked = maskAccessTokens(
+      `SUPABASE_ACCESS_TOKEN=${token} supabase link`
+    );
+
+    expect(masked).toBe(
+      'SUPABASE_ACCESS_TOKEN=[redacted access token] supabase link'
+    );
+  });
+
+  it('replaces every token when one string holds several', () => {
+    expect(
+      maskAccessTokens(
+        `first=${FAKE_ACCESS_TOKEN}\nsecond=${V0_TOKEN}\nthird=${OAUTH_TOKEN}`
+      )
+    ).toBe(
+      [
+        'first=[redacted access token]',
+        'second=[redacted access token]',
+        'third=[redacted access token]',
+      ].join('\n')
+    );
+  });
+
+  it.each([
+    ['no token at all', 'supabase projects list'],
+    ['the bare sbp_ prefix', 'sbp_'],
+    ['sbp_ in prose', 'tokens start with sbp_... and are 44 characters long'],
+    ['39 hex characters', `sbp_${'a'.repeat(39)}`],
+    ['39 hex characters after v0', `sbp_v0_${'a'.repeat(39)}`],
+    ['uppercase hex', `sbp_${'A'.repeat(40)}`],
+    ['non-hex letters', `sbp_${'g'.repeat(40)}`],
+    ['an unknown variant prefix', `sbp_other_${'a'.repeat(40)}`],
+  ])('leaves text with %s unchanged', (_, text) => {
+    expect(maskAccessTokens(text)).toBe(text);
   });
 });
 

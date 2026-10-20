@@ -13,6 +13,7 @@ import {
   commandResult,
   controlRoute,
   crash,
+  FAKE_ACCESS_TOKEN,
   failure,
   fakeExec,
   grepRoute,
@@ -354,6 +355,18 @@ describe('detour judge', () => {
     expect(call?.rubric).toMatch(/environment variable|env var/i);
   });
 
+  it('masks an access token typed into a command before the detour judge sees it', async () => {
+    const { ctx, judge } = fakeCtx({
+      toolCalls: [shellCall(`supabase login --token ${FAKE_ACCESS_TOKEN}`)],
+    });
+
+    await scorer(ctx);
+
+    const input = judgeCall(judge, 'detours')?.input ?? '';
+    expect(input).not.toContain(FAKE_ACCESS_TOKEN);
+    expect(input).toContain('supabase login --token [redacted access token]');
+  });
+
   it('records the verdict notes and fails when the judge fails', async () => {
     const { ctx } = fakeCtx({
       verdicts: {
@@ -405,6 +418,25 @@ describe('report judge', () => {
     expect(judgeCall(judge, 'report')?.input).toContain(
       'orders-app  listed by the CLI'
     );
+  });
+
+  it('masks an access token printed by a tool before the report judge sees it', async () => {
+    const { ctx, judge } = fakeCtx({
+      transcript: [
+        {
+          type: 'tool_call',
+          name: 'bash',
+          input: { command: 'env' },
+          output: `SUPABASE_ACCESS_TOKEN=${FAKE_ACCESS_TOKEN}`,
+        },
+      ],
+    });
+
+    await scorer(ctx);
+
+    const input = judgeCall(judge, 'report')?.input ?? '';
+    expect(input).not.toContain(FAKE_ACCESS_TOKEN);
+    expect(input).toContain('SUPABASE_ACCESS_TOKEN=[redacted access token]');
   });
 
   it('receives the missing link and the probe failure when nothing was linked', async () => {
