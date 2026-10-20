@@ -36,10 +36,12 @@ async function readClientKey(
       notes: `could not read the project's API keys: status ${res.response.status} ${truncate(JSON.stringify(res.error ?? null), 200)}`,
     };
   }
-  const key = res.data.find(({ name, api_key }) => name === 'anon' && api_key);
+  const key =
+    res.data.find(({ name, api_key }) => name === 'anon' && api_key) ??
+    res.data.find(({ type, api_key }) => type === 'publishable' && api_key);
   return key?.api_key
     ? { key: key.api_key }
-    : { notes: 'no anon API key on the project' };
+    : { notes: 'no anon or publishable API key on the project' };
 }
 
 function judgeAnswer(
@@ -133,7 +135,7 @@ async function runProbe(
   };
 }
 
-/** Calls the deployed function with the project's anon key for each seeded probe, once it is this run's deploy. */
+/** Calls the deployed function with the project's anon key, else its publishable key, for each seeded probe, once it is this run's deploy. */
 export async function probeQuotes(
   ctx: InvokeContext,
   {

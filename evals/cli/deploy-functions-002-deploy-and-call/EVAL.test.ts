@@ -20,6 +20,9 @@ import { NO_HOSTED_PROJECT } from './hosted.js';
 
 const REF = 'abcdefghijklmnopqrst';
 const ANON = 'anon-key-value';
+const SERVICE_ROLE = 'service-role-key-value';
+const PUBLISHABLE = 'publishable-key-value';
+const SECRET_KEY = 'secret-key-value-xyz';
 const FUNCTION_PATH = '/v1/projects/{ref}/functions/{function_slug}';
 const API_KEYS_PATH = '/v1/projects/{ref}/api-keys';
 const FUNCTION_URL = `https://${REF}.supabase.co/functions/v1/shipping-quote`;
@@ -32,6 +35,8 @@ const QUOTES: Record<string, { quoteCents: number; currency: string }> = {
 
 const SESSION_START = 1_700_000_000_000;
 const DEPLOYED_AT = SESSION_START + 60_000;
+
+const REDACTED = '[redacted]';
 
 const iso = (ms: number) => new Date(ms).toISOString();
 
@@ -126,13 +131,14 @@ type Key = { name: string; api_key: string; type: string };
 
 const DEFAULT_KEYS: Key[] = [
   { name: 'anon', api_key: ANON, type: 'legacy' },
-  { name: 'service_role', api_key: 'service-role-key-value', type: 'legacy' },
+  { name: 'service_role', api_key: SERVICE_ROLE, type: 'legacy' },
 ];
 
 type Hosted = {
   fn?: FunctionRecord | null;
   fnError?: { status: number; body: unknown };
   keys?: Key[];
+  keysError?: { status: number; body: unknown };
   mgmtThrows?: string;
   invoke?: Invoke | null;
 };
@@ -209,6 +215,13 @@ function fakeCtx(toolCalls: ToolCallRecord[], options: FakeOptions = {}) {
       };
     }
     if (path === API_KEYS_PATH) {
+      if (hosted?.keysError) {
+        return {
+          data: undefined,
+          error: hosted.keysError.body,
+          response: { status: hosted.keysError.status },
+        };
+      }
       return {
         data: hosted?.keys ?? DEFAULT_KEYS,
         error: undefined,
@@ -474,7 +487,7 @@ describe('deploy scorer with a hosted project', () => {
         method: 'POST',
         headers: { authorization: `Bearer ${ANON}` },
       });
-      expect(JSON.stringify(input)).not.toContain('service-role-key-value');
+      expect(JSON.stringify(input)).not.toContain(SERVICE_ROLE);
     }
   });
 
@@ -539,33 +552,72 @@ describe('deploy scorer with a hosted project', () => {
     expect(await checkNamed(ctx, nameOf(3))).toMatchObject({ passed: true });
   });
 
-  it('fails only the quotes check when the project has no anon key', async () => {
+  it('fails only the quotes check when the project has no anon or publishable key', async () => {
     const { ctx, invoke } = fakeCtx(SETUP, {
       hosted: {
-        keys: [{ name: 'service_role', api_key: 'srv', type: 'legacy' }],
+        keys: [{ name: 'service_role', api_key: SERVICE_ROLE, type: 'legacy' }],
       },
     });
     expect(await failedNames(ctx)).toEqual([nameOf(4)]);
     expect(await checkNamed(ctx, nameOf(4))).toMatchObject({
-      notes: 'no anon API key on the project',
+      notes: 'no anon or publishable API key on the project',
     });
     expect(invoke).not.toHaveBeenCalled();
   });
 
-  it('fails only the quotes check for a publishable-only project instead of probing with a key the function rejects', async () => {
+  it('never probes with a secret or service role key, even when they are the only keys', async () => {
     const { ctx, invoke } = fakeCtx(SETUP, {
       hosted: {
         keys: [
-          { name: 'service_role', api_key: 'srv', type: 'legacy' },
-          { name: 'default', api_key: 'sb_publishable_x', type: 'publishable' },
+          { name: 'service_role', api_key: SERVICE_ROLE, type: 'legacy' },
+          { name: 'default', api_key: SECRET_KEY, type: 'secret' },
         ],
       },
     });
     expect(await failedNames(ctx)).toEqual([nameOf(4)]);
     expect(await checkNamed(ctx, nameOf(4))).toMatchObject({
-      notes: 'no anon API key on the project',
+      notes: 'no anon or publishable API key on the project',
     });
     expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it('probes a publishable-only project with its publishable key and passes every check', async () => {
+    const { ctx, invoke } = fakeCtx(SETUP, {
+      hosted: {
+        keys: [
+          { name: 'service_role', api_key: SERVICE_ROLE, type: 'legacy' },
+          { name: 'default', api_key: PUBLISHABLE, type: 'publishable' },
+        ],
+      },
+    });
+    expect(await failedNames(ctx)).toEqual([]);
+    expect(invoke).toHaveBeenCalledTimes(3);
+    for (const [input] of invoke.mock.calls) {
+      expect(input.headers).toMatchObject({
+        authorization: `Bearer ${PUBLISHABLE}`,
+        apikey: PUBLISHABLE,
+      });
+      expect(JSON.stringify(input)).not.toContain(SERVICE_ROLE);
+    }
+  });
+
+  it('prefers the anon key to a publishable key when the project has both', async () => {
+    const { ctx, invoke } = fakeCtx(SETUP, {
+      hosted: {
+        keys: [
+          { name: 'default', api_key: PUBLISHABLE, type: 'publishable' },
+          ...DEFAULT_KEYS,
+        ],
+      },
+    });
+    expect(await failedNames(ctx)).toEqual([]);
+    for (const [input] of invoke.mock.calls) {
+      expect(input.headers).toMatchObject({
+        authorization: `Bearer ${ANON}`,
+        apikey: ANON,
+      });
+      expect(JSON.stringify(input)).not.toContain(PUBLISHABLE);
+    }
   });
 
   it('fails the Management API checks with the error and still produces every check when the client throws', async () => {
@@ -919,7 +971,9 @@ describe('detour judge', () => {
     const { ctx, judge } = fakeCtx(SETUP, { hosted: HOSTED });
     await scorer(ctx);
     expect(detourCall(judge)?.input).toBe(
-      formatDetourJudgeInput(SETUP.map((record) => record.command ?? ''))
+      formatDetourJudgeInput(
+        SETUP.map((record) => (record.command ?? '').replaceAll(ANON, REDACTED))
+      )
     );
     expect(detourCall(judge)?.rubric).toBe(
       detourJudgeRubric(DETOUR_SCENARIO, {
@@ -1224,5 +1278,194 @@ describe('report judge on a workspace with no linked project', () => {
     const { input } = await reportJudgeArgs({ hosted: HOSTED });
     expect(input).toContain('- hosted project: linked');
     expect(input).not.toContain('linked no project to the workspace');
+  });
+});
+
+describe('judge inputs hide the project keys', () => {
+  const b64url = (text: string) => Buffer.from(text).toString('base64url');
+
+  const JWT = [
+    b64url('{"alg":"HS256","typ":"JWT"}'),
+    b64url('{"iss":"supabase","role":"anon"}'),
+    'c2lnbmF0dXJl',
+  ].join('.');
+
+  const SBP = `sbp_${'0123456789abcdef'.repeat(2)}01234567`;
+
+  const ALL_KEYS: Key[] = [
+    { name: 'anon', api_key: ANON, type: 'legacy' },
+    { name: 'service_role', api_key: SERVICE_ROLE, type: 'legacy' },
+    { name: 'default', api_key: PUBLISHABLE, type: 'publishable' },
+    { name: 'default', api_key: SECRET_KEY, type: 'secret' },
+  ];
+
+  const KEY_LISTING = ALL_KEYS.map(
+    ({ name, api_key, type }) => `${name}\t${type}\t${api_key}`
+  ).join('\n');
+
+  const LIST_KEYS = `supabase projects api-keys --project-ref ${REF}`;
+  const CURL_WITH_ANON = `curl -s -X POST ${FUNCTION_URL} -H "Authorization: Bearer ${ANON}" -H "apikey: ${ANON}" -d '{"country":"IE","weightKg":2.3}'`;
+  const CURL_WITH_SERVICE_ROLE = `curl -s ${FUNCTION_URL} -H "apikey: ${SERVICE_ROLE}"`;
+
+  const leakyCalls = [
+    call(LIST_KEYS),
+    call(CURL_WITH_ANON),
+    call(CURL_WITH_SERVICE_ROLE),
+  ];
+
+  const leakyTranscript: TranscriptPart[] = [
+    shellOutput(LIST_KEYS, KEY_LISTING),
+    shellOutput(CURL_WITH_ANON, '{"quoteCents":810,"currency":"EUR"}'),
+    shellOutput(CURL_WITH_SERVICE_ROLE, '{"quoteCents":810,"currency":"EUR"}'),
+    {
+      type: 'message',
+      role: 'assistant',
+      content: `Deployed. I called it with the anon key ${ANON}.`,
+    },
+  ];
+
+  const inputOf = (judge: FakeJudge, kind: JudgeKind) =>
+    judgeCalls(judge, kind)[0]?.input ?? '';
+
+  it.each(['detour', 'verification', 'report'] as const)(
+    'keeps the anon and service role keys out of the %s judge input',
+    async (kind) => {
+      const { ctx, judge } = fakeCtx(leakyCalls, {
+        hosted: { keys: ALL_KEYS },
+        transcript: leakyTranscript,
+      });
+      await scorer(ctx);
+      const input = inputOf(judge, kind);
+      expect(input).not.toContain(ANON);
+      expect(input).not.toContain(SERVICE_ROLE);
+      expect(input).toContain(REDACTED);
+    }
+  );
+
+  it.each(['verification', 'report'] as const)(
+    'keeps the publishable and secret keys out of the %s judge input',
+    async (kind) => {
+      const { ctx, judge } = fakeCtx(leakyCalls, {
+        hosted: { keys: ALL_KEYS },
+        transcript: leakyTranscript,
+      });
+      await scorer(ctx);
+      const input = inputOf(judge, kind);
+      expect(input).not.toContain(PUBLISHABLE);
+      expect(input).not.toContain(SECRET_KEY);
+    }
+  );
+
+  it('still shows the judges the request, the project ref and the deployment around the redacted key', async () => {
+    const { ctx, judge } = fakeCtx(leakyCalls, {
+      hosted: { keys: ALL_KEYS },
+      transcript: leakyTranscript,
+    });
+    await scorer(ctx);
+    const verification = inputOf(judge, 'verification');
+    expect(verification).toContain(`- hosted project ref: ${REF}`);
+    expect(verification).toContain('- deployment: ACTIVE v1');
+    expect(verification).toContain(FUNCTION_URL);
+    expect(verification).toContain(`Bearer ${REDACTED}`);
+    expect(inputOf(judge, 'detour')).toContain(
+      `-H "Authorization: Bearer ${REDACTED}"`
+    );
+    expect(inputOf(judge, 'report')).toContain('- hosted project: linked');
+  });
+
+  it('hides the keys even when the function was never deployed, so the probe never read them', async () => {
+    const { ctx, judge } = fakeCtx(leakyCalls, {
+      hosted: { fn: null, keys: ALL_KEYS },
+      transcript: leakyTranscript,
+    });
+    await scorer(ctx);
+    for (const kind of ['detour', 'verification', 'report'] as const) {
+      const input = inputOf(judge, kind);
+      expect(input).not.toContain(ANON);
+      expect(input).not.toContain(SERVICE_ROLE);
+    }
+  });
+
+  it('hides JWT- and Supabase-key-shaped strings when the project lists none of them', async () => {
+    const { ctx, judge } = fakeCtx(
+      [
+        call(`curl -s ${FUNCTION_URL} -H "Authorization: Bearer ${JWT}"`),
+        call(`SUPABASE_ACCESS_TOKEN=${SBP} supabase projects list`),
+      ],
+      {
+        hosted: { keys: [] },
+        transcript: [
+          shellOutput('echo $SUPABASE_ACCESS_TOKEN', SBP),
+          shellOutput('supabase status', `anon key: ${JWT}`),
+        ],
+      }
+    );
+    await scorer(ctx);
+    for (const kind of ['detour', 'verification', 'report'] as const) {
+      const input = inputOf(judge, kind);
+      expect(input).not.toContain(JWT);
+      expect(input).not.toContain(SBP);
+      expect(input).toContain(REDACTED);
+    }
+  });
+
+  it('hides JWT-shaped strings and still scores every check when the key lookup answers with an error', async () => {
+    const { ctx, judge } = fakeCtx(
+      [call(`curl -s ${FUNCTION_URL} -H "Authorization: Bearer ${JWT}"`)],
+      {
+        hosted: { keysError: { status: 500, body: { message: 'boom' } } },
+        transcript: [shellOutput('supabase status', `anon key: ${JWT}`)],
+      }
+    );
+    const result = await scorer(ctx);
+    expect(result.checks?.map(({ name }) => name)).toEqual(CHECK_NAMES);
+    for (const kind of ['detour', 'verification', 'report'] as const) {
+      expect(inputOf(judge, kind)).not.toContain(JWT);
+    }
+  });
+
+  it('hides JWT-shaped strings and still scores every check when the Management API throws', async () => {
+    const { ctx, judge } = fakeCtx(
+      [call(`curl -s ${FUNCTION_URL} -H "Authorization: Bearer ${JWT}"`)],
+      {
+        hosted: { mgmtThrows: 'connection reset' },
+        transcript: [shellOutput('supabase status', `anon key: ${JWT}`)],
+      }
+    );
+    const result = await scorer(ctx);
+    expect(result.checks?.map(({ name }) => name)).toEqual(CHECK_NAMES);
+    for (const kind of ['detour', 'verification', 'report'] as const) {
+      expect(inputOf(judge, kind)).not.toContain(JWT);
+    }
+  });
+
+  it('hides JWT-shaped strings from the detour and report judges when there is no hosted project', async () => {
+    const { ctx, judge } = fakeCtx(
+      [call(`curl -s ${FUNCTION_URL} -H "Authorization: Bearer ${JWT}"`)],
+      {
+        transcript: [
+          shellOutput('supabase status', `anon key: ${JWT}`),
+          { type: 'message', role: 'assistant', content: `Key: ${JWT}` },
+        ],
+      }
+    );
+    await scorer(ctx);
+    expect(judge).toHaveBeenCalledTimes(2);
+    for (const kind of ['detour', 'report'] as const) {
+      const input = inputOf(judge, kind);
+      expect(input).not.toContain(JWT);
+      expect(input).toContain(REDACTED);
+    }
+  });
+
+  it('leaves the judge rubrics unchanged by the redaction', async () => {
+    const { ctx, judge } = fakeCtx(leakyCalls, {
+      hosted: { keys: ALL_KEYS },
+      transcript: leakyTranscript,
+    });
+    await scorer(ctx);
+    for (const kind of ['detour', 'verification', 'report'] as const) {
+      expect(judgeCalls(judge, kind)[0]?.rubric).not.toContain(REDACTED);
+    }
   });
 });

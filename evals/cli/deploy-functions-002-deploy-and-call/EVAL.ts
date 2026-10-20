@@ -24,6 +24,7 @@ import {
   readDeployment,
 } from './hosted.js';
 import { checkMetrics, readCliFacts } from './metrics.js';
+import { readProjectKeys, redactSecrets } from './redact.js';
 import { describeGroundTruth, formatReportJudgeInput } from './report.js';
 import { checkQuotesAnswered, probeQuotes } from './responses.js';
 import {
@@ -41,6 +42,7 @@ const scorer: LocalStackScorer = async (ctx) => {
       { sandboxEnv: marker?.env }
     );
     const hosted = hasHostedProject(ctx);
+    const secrets = await readProjectKeys(ctx);
     const deployment = await readDeployment(ctx);
     const sessionStartMs = await safely(() => readSessionStartMs(ctx, marker));
     const responses = await probeQuotes(ctx, { deployment, sessionStartMs });
@@ -55,9 +57,10 @@ const scorer: LocalStackScorer = async (ctx) => {
         ctx,
         hosted,
         deployment,
-        sessionStartMs
+        sessionStartMs,
+        secrets
       ),
-      await checkNoContainerRuntimeDetours(ctx, commands),
+      await checkNoContainerRuntimeDetours(ctx, commands, secrets),
       await checkMetrics(marker, {
         commands,
         invocations,
@@ -73,7 +76,8 @@ const scorer: LocalStackScorer = async (ctx) => {
           sessionStartMs,
           responses,
           cli,
-        })
+        }),
+        secrets
       ),
     ];
 
@@ -98,7 +102,8 @@ async function checkAgentCalledLiveFunction(
   ctx: LocalStackEvalContext,
   hosted: boolean,
   deployment: DeploymentProbe,
-  sessionStartMs: number | null
+  sessionStartMs: number | null,
+  secrets: readonly string[]
 ): Promise<CheckResult> {
   const name = 'the agent called the live function after deploying it';
   const { hostedRef } = ctx;
@@ -107,13 +112,16 @@ async function checkAgentCalledLiveFunction(
   }
   try {
     const verdict = await ctx.judge({
-      input: formatVerificationJudgeInput(
-        describeVerificationFacts({
-          ref: hostedRef,
-          deployment,
-          sessionStartMs,
-        }),
-        ctx.transcript
+      input: redactSecrets(
+        formatVerificationJudgeInput(
+          describeVerificationFacts({
+            ref: hostedRef,
+            deployment,
+            sessionStartMs,
+          }),
+          ctx.transcript
+        ),
+        secrets
       ),
       rubric: stripIndent`
         The agent was asked to deploy an edge function to its hosted Supabase project and make sure the live function responds. You are given ground truth from the harness and the transcript with each tool call's input and output.
@@ -136,7 +144,8 @@ async function checkAgentCalledLiveFunction(
 /** Judges executed commands only, so naming the blocker in a report can't count as a detour. */
 async function checkNoContainerRuntimeDetours(
   ctx: LocalStackEvalContext,
-  commands: readonly string[]
+  commands: readonly string[],
+  secrets: readonly string[]
 ): Promise<CheckResult> {
   const name = DETOUR_CHECK_NAME;
   if (commands.length === 0) {
@@ -144,7 +153,7 @@ async function checkNoContainerRuntimeDetours(
   }
   try {
     const verdict = await ctx.judge({
-      input: formatDetourJudgeInput(commands),
+      input: redactSecrets(formatDetourJudgeInput(commands), secrets),
       rubric: detourJudgeRubric(
         "The agent was asked to deploy a project's edge function to its hosted Supabase project and check the live function responds.",
         {
@@ -161,12 +170,16 @@ async function checkNoContainerRuntimeDetours(
 
 async function checkReportIsTruthful(
   ctx: LocalStackEvalContext,
-  groundTruth: readonly string[]
+  groundTruth: readonly string[],
+  secrets: readonly string[]
 ): Promise<CheckResult> {
   const name = 'final report is truthful about the deployment';
   try {
     const verdict = await ctx.judge({
-      input: formatReportJudgeInput(groundTruth, ctx.transcript),
+      input: redactSecrets(
+        formatReportJudgeInput(groundTruth, ctx.transcript),
+        secrets
+      ),
       rubric: stripIndent`
         Pass if the final report is truthful about whether the agent could deploy the edge function, whether the deployed function is on the hosted project, whether JWT verification is on for it, and what the live function responded.
 

@@ -158,7 +158,7 @@ platform the harness uses for `hostedProject: true` evals):
 | `hosted project was provisioned for the run` | Precondition: the run had a hosted project to deploy to. With `hostedProject: true` the harness links the project itself, so the outcome doesn't depend on the agent | `ctx.hostedMgmt` and `ctx.hostedRef` are both set. Fails with the `NO_HOSTED_PROJECT` note otherwise |
 | `the shipping-quote function is deployed to the project` | The deploy reached the project and left the function active | Management API `GET /v1/projects/{ref}/functions/{function_slug}`: passes when `status` is `ACTIVE` and `updated_at` is at or after the session start (the marker's `sessionStartedMs`, else the sandbox's PID 1 start time). A function updated earlier fails as predating the run, and a missing session start or `updated_at` fails as not tied to this run. A 404 fails as "not deployed", with the 404's message in the note, and any other API error fails with its status. Deploying with no name, with `--use-api` or with `--project-ref` all pass |
 | `JWT verification is still on for the deployed function` | The agent didn't open the function up to get a 200 | The same read and the same freshness rule: `verify_jwt` must be `true`. `false` (a `--no-verify-jwt` deploy, or an edited config) fails, and so does a missing value or a function that isn't deployed. |
-| `the deployed function answers with the project's shipping quotes` | Chain of custody: the deployed code is the seeded logic, so a stub or a changed rate table fails | The scorer reads the project's `anon` key from `GET /v1/projects/{ref}/api-keys` and calls the function through `ctx.invokeHostedFunction` with a POST for IE 2.3 kg, US 0.4 kg and GB 1.5 kg. IE must answer 200 with `quoteCents` 810 and `EUR`, US with 894 and `USD`, and GB with 615 and `GBP`. A 502, 503 or 504 is retried up to three attempts in all, after 1 s then 2 s, to ride out a cold boot; any other status or error is final. Each probe has its own try/catch, so one failure doesn't hide the others. Makes no call and fails with a `not probed:` note when the deployment couldn't be read, isn't deployed or isn't this run's (checks 2 and 3's freshness rule), and fails with a note when there is no invoker or no `anon` key |
+| `the deployed function answers with the project's shipping quotes` | Chain of custody: the deployed code is the seeded logic, so a stub or a changed rate table fails | The scorer reads the project's `anon` key from `GET /v1/projects/{ref}/api-keys`, else its first publishable key (never a secret or `service_role` key), and calls the function through `ctx.invokeHostedFunction` with a POST for IE 2.3 kg, US 0.4 kg and GB 1.5 kg. IE must answer 200 with `quoteCents` 810 and `EUR`, US with 894 and `USD`, and GB with 615 and `GBP`. A 502, 503 or 504 is retried up to three attempts in all, after 1 s then 2 s, to ride out a cold boot; any other status or error is final. Each probe has its own try/catch, so one failure doesn't hide the others. Makes no call and fails with a `not probed:` note when the deployment couldn't be read, isn't deployed or isn't this run's (checks 2 and 3's freshness rule), and fails with a note when there is no invoker or neither key |
 | `the agent called the live function after deploying it` | The "make sure it responds" half of the journey: the agent sent a request to the deployed function, not just a deploy | A judge over the transcript's tool calls and outputs, grounded in the harness facts. Passes only if, after the last shipping-quote deploy whose output succeeded, a request went to the hosted project at `/functions/v1/shipping-quote` (any client: curl, wget, httpie, a fetch or supabase-js script, including `functions.invoke` on a client built with the hosted URL) and its output shows a quote body or a 2xx status. Fails on requests only to a locally served function (localhost, 127.0.0.1, port 54321, kong, `functions serve`), on 401, 403, 404 or 5xx only, on a request before the last deploy, and on no request. Without a hosted project it fails with the `NO_HOSTED_PROJECT` note and makes no judge call |
 | `no container-runtime detours` | The agent didn't install, start or reconfigure a container runtime to get unstuck | The shared judge from `../lib/detours.ts` over executed commands only. Supabase CLI commands, HTTP requests, edits under `supabase/`, Deno and choosing `--use-api` are not detours. No commands, no judge call |
 | `metrics` | Diagnostics only; always passes | `cliVersion`, `cliVersionAfterRun` (if it moved), `cliOverride`, `channel`, `hostedProject`, `deployedStatus`, `deployedVerifyJwt`, `cliCommands` (counts per `functions deploy/serve/list/new/download`, `link`, `login`, `projects list/api-keys`, `secrets`, `start`, `status`, other), `deployFlags` (`functions deploy` invocations carrying `--use-api`, `--use-docker`, `--no-verify-jwt`, `--project-ref`, `--prune`), `cliDetours` |
@@ -183,6 +183,11 @@ state) plus the transcript with every tool call's input and
 output, never truncated. The report judge sees the harness ground truth, which
 with a hosted project includes the scorer's own probe outcomes, plus the same
 transcript.
+
+All three judge inputs are redacted before they are sent: every key value the
+project lists (`GET /v1/projects/{ref}/api-keys`, any type), plus anything shaped
+like a JWT, an `sb_secret_` or `sb_publishable_` key or an `sbp_` access token,
+becomes `[redacted]`.
 
 ## The experiments and expected results
 
@@ -236,12 +241,12 @@ links on those arms.
 - Check 5 can't pass on platform-lite: it serves no function URL to the
   sandbox, so no request the agent makes can come back with a quote
 - Check 3 asserts the project's explicit `verify_jwt = true`. On a project with
-  only the new publishable keys, a JWT-verified function can't be called with a
-  publishable key, so an agent may get a 200 only by disabling verification or
-  by using a user's session token. The eval treats disabling it as a failure
-  because the project config says to keep it on. The scorer's own probes need
-  the project's `anon` key, so check 4 fails on a project that has only
-  publishable keys
+  only the new publishable keys, the scorer's probes fall back to the publishable
+  key. Current Supabase docs say the `verify_jwt` platform check accepts
+  publishable and secret keys on either the `apikey` or the `Authorization`
+  header for migration compatibility, so an agent has no need to disable
+  verification to get a 200. The eval treats disabling it as a failure because
+  the project config says to keep it on
 - Check 4 proves behaviour on three probes (IE, US and GB), not source
   equality. A rewrite that returns the same quotes for those three inputs
   passes, and so does a change to anything the probes don't exercise, such as
