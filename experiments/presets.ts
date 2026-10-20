@@ -7,10 +7,7 @@ import {
   supabaseMcpServer,
   type ExperimentConfig,
 } from '@supabase-evals/core';
-import {
-  localStackRuntime,
-  type LocalStackRuntimeOptions,
-} from '@supabase-evals/sandbox';
+import { localStackRuntime } from '@supabase-evals/sandbox';
 
 type ExperimentPreset = Pick<
   ExperimentConfig,
@@ -18,16 +15,6 @@ type ExperimentPreset = Pick<
 >;
 
 const skills = ['supabase', 'supabase-postgres-best-practices'];
-
-const EVAL_ENV = { SUPABASE_EVAL: '1' } as const;
-
-/** A local-stack runtime whose CLI runs are tagged as eval traffic in CLI telemetry. */
-export function evalLocalStack(options: LocalStackRuntimeOptions = {}) {
-  return localStackRuntime({
-    ...options,
-    env: { ...options.env, ...EVAL_ENV },
-  });
-}
 
 function defaultRuntime() {
   return platformLiteRuntime({
@@ -41,7 +28,7 @@ export const claudeCodeOpus55 = {
     reasoningEffort: 'high',
   }),
   runtime: defaultRuntime(),
-  localStack: evalLocalStack(),
+  localStack: localStackRuntime(),
   skills,
 } satisfies ExperimentPreset;
 
@@ -51,7 +38,7 @@ export const claudeCodeSonnet5 = {
     reasoningEffort: 'high',
   }),
   runtime: defaultRuntime(),
-  localStack: evalLocalStack(),
+  localStack: localStackRuntime(),
   skills,
 } satisfies ExperimentPreset;
 
@@ -61,7 +48,7 @@ export const codexGpt6Luna = {
     reasoningEffort: 'medium',
   }),
   runtime: defaultRuntime(),
-  localStack: evalLocalStack(),
+  localStack: localStackRuntime(),
   skills,
 } satisfies ExperimentPreset;
 
@@ -71,7 +58,7 @@ export const codexGpt6Sol = {
     reasoningEffort: 'medium',
   }),
   runtime: defaultRuntime(),
-  localStack: evalLocalStack(),
+  localStack: localStackRuntime(),
   skills,
 } satisfies ExperimentPreset;
 
@@ -81,7 +68,7 @@ export const grok47 = {
     reasoningEffort: 'high',
   }),
   runtime: defaultRuntime(),
-  localStack: evalLocalStack(),
+  localStack: localStackRuntime(),
   skills,
 } satisfies ExperimentPreset;
 
@@ -90,6 +77,6 @@ export const opencodeKimiK3 = {
     model: 'moonshotai/kimi-k3',
   }),
   runtime: defaultRuntime(),
-  localStack: evalLocalStack(),
+  localStack: localStackRuntime(),
   skills,
 } satisfies ExperimentPreset;

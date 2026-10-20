@@ -1,10 +1,12 @@
 import { defineExperiment } from '@supabase-evals/core';
-import { codexGpt6Luna, evalLocalStack } from '../presets.js';
+import { localStackRuntime } from '@supabase-evals/sandbox';
+import { codexGpt6Luna } from '../presets.js';
+import { EVAL_ENV } from './lib/eval-env.js';
 import { skipUnlessCli } from './lib/skip.js';
 
 export default defineExperiment({
   ...codexGpt6Luna,
   suite: ['cli'],
-  localStack: evalLocalStack({ cliVersion: 'beta' }),
+  localStack: localStackRuntime({ cliVersion: 'beta', env: EVAL_ENV }),
   skipEval: skipUnlessCli,
 });
