@@ -135,7 +135,7 @@ There are two runtimes, chosen automatically per eval:
 
 ### Local-stack evals
 
-The Supabase CLI is the agent's tool; the **local stack** (the Docker services `supabase start` runs on a developer machine) is the environment it acts on — distinct from the remote/hosted platform that platform-lite mocks. Experiments declare the environment like MCP servers and skills: add `localStack: localStackRuntime()` (from [`@supabase-evals/sandbox`](packages/sandbox/src/local-stack-runtime.ts)); experiments without it skip these evals. Skills compose with the CLI tools as usual, and tool surfaces merge, so an experiment can in principle expose MCP and CLI together.
+The Supabase CLI is the agent's tool; the **local stack** (the Docker services `supabase start` runs on a developer machine) is the environment it acts on — distinct from the remote/hosted platform that platform-lite mocks. Experiments declare the environment like MCP servers and skills: add `localStack: evalLocalStack()` (from [`experiments/presets.ts`](experiments/presets.ts), a wrapper over [`localStackRuntime()`](packages/sandbox/src/local-stack-runtime.ts)); experiments without it skip these evals. Skills compose with the CLI tools as usual, and tool surfaces merge, so an experiment can in principle expose MCP and CLI together.
 
 **Scoring uses host tooling against an exported workspace.** After the agent finishes, the harness copies its workspace out of the sandbox to the host (`docker cp`), so scorers can run the repo-root `vite`/`vitest` against the produced files without that toolchain having to exist in the sandbox — the same build/test scoring former "project" evals used. Scorers may also run commands and SQL **inside** the sandbox (against the live stack) via the scoring context.
 
@@ -150,6 +150,8 @@ An experiment can instead pass `localStackRuntime({ cliVersion: 'stable' })`, `'
 An experiment can pass `localStackRuntime({ docker: 'no-daemon' })` or `'absent'` to stage a sandbox where the Docker daemon is unreachable or the `docker` binary is missing entirely, instead of the default `'available'`. `needsDocker` defaults to `true`; set it `false` in an eval's frontmatter when the scenario can run, and is meaningful, without a Docker daemon (e.g. starting the stack is the agent's own job) — that's what lets a Docker-less experiment pick the eval up.
 
 An experiment can pass `localStackRuntime({ env: { SUPABASE_EXPERIMENTAL_STACK: '1' } })` to turn on feature-flagged CLI behaviour for every eval it runs. The eval itself stays flag-agnostic, so once the feature graduates you drop the entry and the eval's history carries on. Names the harness manages itself (`PATH`, `HOME`, `DOCKER_HOST`, hosted-link credentials and so on) are rejected.
+
+Experiments in this repo build their local stack with `evalLocalStack()` from [`experiments/presets.ts`](experiments/presets.ts), which wraps `localStackRuntime()` and sets `SUPABASE_EVAL=1` so the CLI's telemetry can tell eval runs apart from real usage; a test fails any experiment that uses `localStackRuntime()` directly.
 
 Scorers check what the agent produced, never what the harness provisioned: with `projectRunning: true` (the default) the running stack and the seeded `local/` workspace are setup, so score only the deltas the agent made on top; with `projectRunning: false` the agent creates that state itself, so depending on it is fair game.
 

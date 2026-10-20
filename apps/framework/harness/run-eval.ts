@@ -409,7 +409,7 @@ async function runOne(
     if (!exp.localStack) {
       throw new Error(
         `eval ${ev.id} has interface: cli but experiment "${expName}" does not configure a local stack runtime. ` +
-          `Add \`localStack: localStackRuntime()\` (from "@supabase-evals/sandbox") to experiments/<team>/${expName}.experiment.ts.`
+          `Add \`localStack: evalLocalStack()\` (from experiments/presets.ts) to experiments/<team>/${expName}.experiment.ts.`
       );
     }
     // Boots a platform-lite backend seeded from the eval's `remote/` dir so scorers
@@ -754,7 +754,7 @@ async function main() {
     for (const ev of suiteFiltered) {
       if (ev.mode === 'local-stack' && !config.localStack) {
         console.log(
-          `SKIP ${name} x ${ev.id} (no local stack runtime — add \`localStack: localStackRuntime()\` from "@supabase-evals/sandbox" to experiments/<team>/${name}.experiment.ts)`
+          `SKIP ${name} x ${ev.id} (no local stack runtime — add \`localStack: evalLocalStack()\` from experiments/presets.ts to experiments/<team>/${name}.experiment.ts)`
         );
         continue;
       }
