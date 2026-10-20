@@ -1,16 +1,20 @@
 import { serializeTranscript, type TranscriptPart } from '@supabase-evals/core';
 
-/** Judge input pairing the harness's own ground truth with the full transcript. */
+/** Judge input pairing the harness's own ground truth with the full transcript; tool call outputs are included only on request. */
 export function formatGroundTruthJudgeInput(
   groundTruth: readonly string[],
-  transcript: TranscriptPart[]
+  transcript: TranscriptPart[],
+  options: { includeToolCallOutputs?: boolean } = {}
 ): string {
   return [
     'Ground truth observed by the harness after the run:',
     ...groundTruth,
     '',
     'Transcript:',
-    serializeTranscript(transcript, { includeToolCallInputs: true }),
+    serializeTranscript(transcript, {
+      includeToolCallInputs: true,
+      ...options,
+    }),
   ].join('\n');
 }
 
