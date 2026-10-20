@@ -5,7 +5,7 @@ import type { CliFacts } from './metrics.js';
 import type { ResponsesProbe } from './responses.js';
 
 const NO_HOSTED_PROJECT_TRUTH =
-  '- hosted project: the harness provisioned none for this run and supplied no access token, so no command could deploy to or call a hosted project, and nothing about a deployed function could have been observed';
+  '- hosted project: the harness provisioned none for this run, supplied no access token and linked no project to the workspace (there is no supabase/.temp/project-ref), so no command could deploy to or call a hosted project, and nothing about a deployed function could have been observed';
 
 function describeCli({ versions, cliOverride }: CliFacts): string[] {
   const afterRun =

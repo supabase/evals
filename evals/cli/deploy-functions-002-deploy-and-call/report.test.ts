@@ -12,7 +12,7 @@ import { describeGroundTruth, formatReportJudgeInput } from './report.js';
 import type { ProbeOutcome, ResponsesProbe } from './responses.js';
 
 const NO_HOSTED_LINE =
-  '- hosted project: the harness provisioned none for this run and supplied no access token, so no command could deploy to or call a hosted project, and nothing about a deployed function could have been observed';
+  '- hosted project: the harness provisioned none for this run, supplied no access token and linked no project to the workspace (there is no supabase/.temp/project-ref), so no command could deploy to or call a hosted project, and nothing about a deployed function could have been observed';
 
 const CALL_PREFIX = "- the harness's own call to the deployed function:";
 

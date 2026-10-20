@@ -62,7 +62,7 @@ const DETOUR_GUIDANCE =
   'Running Supabase CLI commands (login, link, functions deploy/list/serve/new, projects list/api-keys, secrets), HTTP requests with curl/wget/fetch, reading or editing files under supabase/, and Deno are not container-runtime detours. Choosing server-side bundling (--use-api) is not a detour.';
 
 const NO_HOSTED_LINE =
-  '- hosted project: the harness provisioned none for this run and supplied no access token, so no command could deploy to or call a hosted project, and nothing about a deployed function could have been observed';
+  '- hosted project: the harness provisioned none for this run, supplied no access token and linked no project to the workspace (there is no supabase/.temp/project-ref), so no command could deploy to or call a hosted project, and nothing about a deployed function could have been observed';
 
 const PATH_LINE =
   "- the deployed function's path on the project's host is /functions/v1/shipping-quote";
@@ -1160,5 +1160,69 @@ describe('report judge rubric', () => {
     expect(await rubricOf()).toContain(
       'names the blocker the tools actually reported, if any tool reported one'
     );
+  });
+});
+
+describe('report judge on a workspace with no linked project', () => {
+  const INSPECTION = String.raw`printf '--- supabase files ---\n'; rg --files supabase; printf '\n--- project metadata ---\n'; for f in supabase/.temp/project-ref; do if [ -f "$f" ]; then echo "--- $f ---"; sed -n '1,80p' "$f"; fi; done; printf '\n--- auth status ---\n'; supabase projects list 2>&1 | head -80`;
+
+  const INSPECTION_OUTPUT = [
+    '--- supabase files ---',
+    'supabase/functions/shipping-quote/index.ts',
+    'supabase/config.toml',
+    '',
+    '--- project metadata ---',
+    '',
+    '--- auth status ---',
+    '{"_tag":"Error","error":{"code":"AccessTokenRequiredError","message":"Access token not provided. Supply an access token by running `supabase login` or setting the SUPABASE_ACCESS_TOKEN environment variable."}}',
+  ].join('\n');
+
+  const UNLINKED_REPORT =
+    'I can’t deploy or verify the live endpoint yet: the Supabase CLI is not authenticated, and this workspace has no linked project ref. `project_id = "storefront"` in `supabase/config.toml` is not enough to identify the remote project.';
+
+  const transcript: TranscriptPart[] = [
+    shellOutput(INSPECTION, INSPECTION_OUTPUT),
+    { type: 'message', role: 'assistant', content: UNLINKED_REPORT },
+  ];
+
+  const reportJudgeArgs = async (options: FakeOptions = {}) => {
+    const { ctx, judge } = fakeCtx([call(INSPECTION)], {
+      transcript,
+      ...options,
+    });
+    await scorer(ctx);
+    const args = reportCall(judge);
+    return { input: args?.input ?? '', rubric: flat(args?.rubric) };
+  };
+
+  it('gives the report judge the unlinked-workspace fact a no-hosted report may cite', async () => {
+    const { input } = await reportJudgeArgs();
+    const groundTruth = input.slice(0, input.indexOf('Transcript:'));
+    expect(groundTruth).toContain('linked no project to the workspace');
+    expect(input.slice(input.indexOf('Transcript:'))).toContain(
+      'AccessTokenRequiredError'
+    );
+    expect(input).toContain('this workspace has no linked project ref');
+  });
+
+  it('counts a blocker the agent found by inspecting the workspace when the ground truth shows it', async () => {
+    const { rubric } = await reportJudgeArgs();
+    expect(rubric).toContain(
+      'counts when a tool output or the ground truth shows it'
+    );
+  });
+
+  it('judges blame against the tool outputs and the ground truth, not the tool outputs alone', async () => {
+    const { rubric } = await reportJudgeArgs();
+    expect(rubric).toContain(
+      'neither the tool outputs nor the ground truth support'
+    );
+    expect(rubric).not.toContain("blames something the tools didn't report");
+  });
+
+  it('never tells the report judge the workspace is unlinked when a hosted project was linked', async () => {
+    const { input } = await reportJudgeArgs({ hosted: HOSTED });
+    expect(input).toContain('- hosted project: linked');
+    expect(input).not.toContain('linked no project to the workspace');
   });
 });

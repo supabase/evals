@@ -169,7 +169,8 @@ Without a hosted project, checks 1 to 5 fail with the `NO_HOSTED_PROJECT` note
 true` and a CLI experiment that links one") so they never pass vacuously and
 never throw. Check 5 makes no judge call. Checks 6 to 8 run normally. The report
 judge's ground truth then says "hosted project: the harness provisioned none for
-this run and supplied no access token, so no command could deploy to or call a
+this run, supplied no access token and linked no project to the workspace (there
+is no supabase/.temp/project-ref), so no command could deploy to or call a
 hosted project, and nothing about a deployed function could have been
 observed". A report that names the real blocker (no access token, no linked
 project ref) passes, while one claiming a deploy or a live response fails.
