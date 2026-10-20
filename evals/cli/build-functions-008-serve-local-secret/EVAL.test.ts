@@ -126,6 +126,27 @@ const echoSecret: Handler = (request) =>
     ? { status: 200, body: `{"queued":true,"secret":"${DIGEST_SECRET}"}` }
     : { status: 401, body: `expected ${DIGEST_SECRET}` };
 
+const answersTo =
+  (accepts: (secret: string) => boolean): Handler =>
+  ({ secretValue }) =>
+    accepts(secretValue ?? '')
+      ? { status: 200, body: '{"queued":true}' }
+      : { status: 401, body: 'unauthorized' };
+
+const forbidsInsteadOfRejecting: Handler = ({ secret }) =>
+  secret === 'right'
+    ? { status: 200, body: '{"queued":true}' }
+    : { status: 403, body: 'forbidden' };
+
+const echoSecretInHeader =
+  (target: 'right' | 'wrong' | 'absent'): Handler =>
+  (request, attempt) => {
+    const reply = functionReplies()(request, attempt);
+    return reply === 'throw' || request.secret !== target
+      ? reply
+      : { ...reply, headers: { 'x-debug-expected': DIGEST_SECRET } };
+  };
+
 type FakeOptions = Pick<SandboxOptions, 'harnessServe' | 'log' | 'servers'> & {
   workspace: string;
   toolCalls?: ToolCallRecord[];
@@ -759,6 +780,70 @@ describe('no local stack', () => {
 });
 
 describe('the function behind the endpoint', () => {
+  it.each<[string, (secret: string) => boolean]>([
+    ['its shape', (secret) => /^dgs_[0-9a-f]{32}$/.test(secret)],
+    ['its prefix', (secret) => secret.startsWith(DIGEST_SECRET.slice(0, 4))],
+    ['its length', (secret) => secret.length === DIGEST_SECRET.length],
+  ])(
+    'fails only the reject check for a handler that compares only %s of the secret',
+    async (_name, accepts) => {
+      const { ctx } = fakeCtx({
+        workspace: WORKSPACES.passing,
+        live: answersTo(accepts),
+      });
+
+      const result = await score(ctx);
+
+      expectFailed(result, [REJECTS]);
+      expect(checkNamed(result, ACCEPTS)?.passed).toBe(true);
+      expect(notesOf(result, REJECTS)).toContain('200');
+    }
+  );
+
+  it('passes every check for a handler that compares the whole secret', async () => {
+    const { ctx } = fakeCtx({
+      workspace: WORKSPACES.passing,
+      live: answersTo((secret) => secret === DIGEST_SECRET),
+    });
+
+    const result = await score(ctx);
+
+    expectFailed(result, []);
+  });
+
+  it('fails only the reject check, naming the status and the expected 401, for a handler that answers 403 instead', async () => {
+    const { ctx } = fakeCtx({
+      workspace: WORKSPACES.passing,
+      live: forbidsInsteadOfRejecting,
+    });
+
+    const result = await score(ctx);
+
+    expectFailed(result, [REJECTS]);
+    expect(notesOf(result, REJECTS)).toContain('403');
+    expect(notesOf(result, REJECTS)).toContain('401');
+  });
+
+  it.each([
+    ['accepted', 'right'],
+    ['wrong-secret', 'wrong'],
+    ['missing-header', 'absent'],
+  ] as const)(
+    'fails only the reject check for a handler that echoes the secret in a header of the %s response',
+    async (_name, target) => {
+      const { ctx } = fakeCtx({
+        workspace: WORKSPACES.passing,
+        live: echoSecretInHeader(target),
+      });
+
+      const result = await score(ctx);
+
+      expectFailed(result, [REJECTS]);
+      expect(checkNamed(result, ACCEPTS)?.passed).toBe(true);
+      expect(notesOf(result, REJECTS)).not.toContain(DIGEST_SECRET);
+    }
+  );
+
   it('fails only the reject check for a handler that answers everyone', async () => {
     const { ctx } = fakeCtx({
       workspace: WORKSPACES.passing,
@@ -861,6 +946,120 @@ describe('the detour check', () => {
       notes: 'no commands executed',
     });
     expect(judgeKinds(judge)).toEqual(['report']);
+  });
+});
+
+describe('the detour judge rubric', () => {
+  const sentencesOf = (text: string) => text.split(/(?<=[.!?])\s+/);
+  const exempts = (sentence: string) =>
+    /\bnot\b[^.;]*\bdetours?\b/i.test(sentence);
+
+  async function detourRubric() {
+    const { ctx, judge } = fakeCtx({ workspace: WORKSPACES.passing });
+    await score(ctx);
+    const rubric = judge.mock.calls
+      .map(([args]) => args)
+      .find((args) => judgeKind(args) === 'detours')?.rubric;
+    expect(rubric).toBeDefined();
+    return rubric ?? '';
+  }
+
+  it('calls serving the function outside the Supabase CLI a detour', async () => {
+    const rubric = await detourRubric();
+
+    expect(rubric).toMatch(/outside (?:of )?the Supabase CLI/i);
+  });
+
+  it('classes deno run and deno serve of the function as a detour', async () => {
+    const sentences = sentencesOf(await detourRubric()).filter(
+      (sentence) => /deno run/i.test(sentence) && /deno serve/i.test(sentence)
+    );
+
+    expect(
+      sentences.some(
+        (sentence) => /\bdetours?\b/i.test(sentence) && !exempts(sentence)
+      )
+    ).toBe(true);
+  });
+
+  it('classes a node or deno proxy standing in for the local API as a detour', async () => {
+    const sentences = sentencesOf(await detourRubric()).filter((sentence) =>
+      /\bproxy\b/i.test(sentence)
+    );
+
+    expect(
+      sentences.some(
+        (sentence) =>
+          /\bnode\b/i.test(sentence) &&
+          /\bdeno\b/i.test(sentence) &&
+          /\bdetours?\b/i.test(sentence) &&
+          !exempts(sentence)
+      )
+    ).toBe(true);
+  });
+
+  it('exempts deno check, fmt, lint, test and cache or install', async () => {
+    const sentences = sentencesOf(await detourRubric()).filter(exempts);
+
+    expect(
+      sentences.some((sentence) =>
+        [
+          /deno check/i,
+          /deno fmt/i,
+          /deno lint/i,
+          /deno test/i,
+          /deno cache/i,
+          /\binstall\b/i,
+        ].every((pattern) => pattern.test(sentence))
+      )
+    ).toBe(true);
+  });
+
+  it('exempts deno or node scripts only when they are HTTP clients of the local API', async () => {
+    const sentences = sentencesOf(await detourRubric()).filter(exempts);
+
+    expect(
+      sentences.some(
+        (sentence) =>
+          /\bHTTP clients?\b/i.test(sentence) &&
+          /\bnode\b/i.test(sentence) &&
+          /\bdeno\b/i.test(sentence)
+      )
+    ).toBe(true);
+  });
+
+  it('no longer exempts deno or node commands wholesale', async () => {
+    const sentences = sentencesOf(await detourRubric()).filter(exempts);
+
+    for (const sentence of sentences.filter((entry) =>
+      /\b(?:deno|node)\b/i.test(entry)
+    )) {
+      expect(sentence).toMatch(/deno check|\bHTTP clients?\b/i);
+    }
+    for (const sentence of sentences.filter((entry) =>
+      /\bnode\b/i.test(entry)
+    )) {
+      expect(sentence).toMatch(/\bHTTP clients?\b/i);
+    }
+  });
+
+  it('never lists deno run or deno serve among the commands that are not detours', async () => {
+    const sentences = sentencesOf(await detourRubric()).filter(exempts);
+
+    expect(
+      sentences.filter((sentence) => /deno (?:run|serve)/i.test(sentence))
+    ).toEqual([]);
+  });
+
+  it('still exempts supabase functions commands and curl calls to the local API', async () => {
+    const sentences = sentencesOf(await detourRubric()).filter(exempts);
+
+    expect(
+      sentences.some(
+        (sentence) =>
+          /supabase functions/i.test(sentence) && /\bcurl\b/i.test(sentence)
+      )
+    ).toBe(true);
   });
 });
 
@@ -997,6 +1196,22 @@ describe('the secret never reaches a judge or a check note', () => {
     [
       'a function whose response bodies echo the secret',
       () => ({ workspace: WORKSPACES.passing, live: echoSecret }),
+    ],
+    [
+      'a function whose response headers echo the secret',
+      () => ({
+        workspace: WORKSPACES.passing,
+        live: echoSecretInHeader('wrong'),
+      }),
+    ],
+    [
+      'a replay that echoes the secret in a response header',
+      () => ({
+        workspace: WORKSPACES.rootEnvOnly,
+        toolCalls: SERVE_SESSION,
+        live: rejectEverything,
+        replay: echoSecretInHeader('right'),
+      }),
     ],
     [
       'a replay that echoes the secret in every response body',

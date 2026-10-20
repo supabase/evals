@@ -57,21 +57,21 @@ const NOT_RUN = {
 const ACCEPTED_LIVE: FunctionProbe = {
   url: FUNCTION_URL,
   harnessServe: false,
-  live: [{ variant: 'none', response: { status: 200, body: '' } }],
+  live: [{ variant: 'none', response: { status: 200, body: '', headers: '' } }],
   replay: NOT_RUN,
   accepted: {
     servedBy: 'live',
     variant: 'none',
-    response: { status: 200, body: '' },
+    response: { status: 200, body: '', headers: '' },
   },
-  wrongSecret: { status: 401, body: '' },
-  missingHeader: { status: 401, body: '' },
+  wrongSecret: { status: 401, body: '', headers: '' },
+  missingHeader: { status: 401, body: '', headers: '' },
 };
 
 const NOTHING_ACCEPTED: FunctionProbe = {
   url: FUNCTION_URL,
   harnessServe: false,
-  live: [{ variant: 'none', response: { status: 401, body: '' } }],
+  live: [{ variant: 'none', response: { status: 401, body: '', headers: '' } }],
   replay: NOT_RUN,
 };
 
@@ -238,14 +238,16 @@ describe('checkMetrics', () => {
       probe: {
         url: FUNCTION_URL,
         harnessServe: true,
-        live: [{ variant: 'none', response: { status: 401, body: '' } }],
+        live: [
+          { variant: 'none', response: { status: 401, body: '', headers: '' } },
+        ],
         replay: {
           ran: true,
           command: 'supabase functions serve --env-file .env',
           attempts: [
             {
               variant: 'publishable',
-              response: { status: 200, body: '' },
+              response: { status: 200, body: '', headers: '' },
             },
           ],
           log: '',
@@ -254,10 +256,10 @@ describe('checkMetrics', () => {
         accepted: {
           servedBy: 'replay',
           variant: 'publishable',
-          response: { status: 200, body: '' },
+          response: { status: 200, body: '', headers: '' },
         },
-        wrongSecret: { status: 401, body: '' },
-        missingHeader: { status: 401, body: '' },
+        wrongSecret: { status: 401, body: '', headers: '' },
+        missingHeader: { status: 401, body: '', headers: '' },
       },
       scan: {
         ok: true,
@@ -338,7 +340,7 @@ describe('checkMetrics', () => {
           accepted: {
             servedBy: 'live',
             variant,
-            response: { status: 200, body: '' },
+            response: { status: 200, body: '', headers: '' },
           },
         },
       });
@@ -372,7 +374,12 @@ describe('checkMetrics', () => {
         replay: {
           ran: true,
           command: 'supabase functions serve',
-          attempts: [{ variant: 'none', response: { status: 401, body: '' } }],
+          attempts: [
+            {
+              variant: 'none',
+              response: { status: 401, body: '', headers: '' },
+            },
+          ],
           log: '',
           stoppedServers: 0,
         },

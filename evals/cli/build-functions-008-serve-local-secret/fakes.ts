@@ -40,11 +40,17 @@ export const MANAGED_KEYS = [
 ].join('\n');
 
 export type Reply =
-  | { status: number; body?: string; takesMs?: number }
+  | {
+      status: number;
+      body?: string;
+      takesMs?: number;
+      headers?: Record<string, string>;
+    }
   | 'throw';
 
 export type Seen = {
   secret: 'right' | 'wrong' | 'absent' | 'other';
+  secretValue?: string;
   apikey?: string;
   authorization?: string;
   server: 'live' | 'replay';
@@ -123,22 +129,53 @@ function secretKind(value: string | undefined): Seen['secret'] {
 
 function parseRequest(command: string): Omit<Seen, 'server' | 'at'> {
   const header = (pattern: RegExp) => pattern.exec(command)?.[1];
+  const secretValue = header(
+    new RegExp(`${SECRET_HEADER}:[ \\t]*([^'"\\s]*)`, 'i')
+  );
   return {
-    secret: secretKind(
-      header(new RegExp(`${SECRET_HEADER}:[ \\t]*([^'"\\s]*)`, 'i'))
-    ),
+    secret: secretKind(secretValue),
+    secretValue,
     apikey: header(/apikey:[ \t]*([^'"\s]*)/i),
     authorization: header(/authorization:[ \t]*(?:Bearer[ \t]+)?([^'"\s]*)/i),
   };
 }
 
+const REASONS: Record<number, string> = {
+  200: 'OK',
+  202: 'Accepted',
+  204: 'No Content',
+  400: 'Bad Request',
+  401: 'Unauthorized',
+  403: 'Forbidden',
+  404: 'Not Found',
+  422: 'Unprocessable Entity',
+  500: 'Internal Server Error',
+  502: 'Bad Gateway',
+  503: 'Service Unavailable',
+  504: 'Gateway Timeout',
+};
+
+/** The header block `curl -i` prints for a reply, without the blank line that ends it. */
+export function responseHeaders(
+  status: number,
+  extra: Record<string, string> = {}
+): string {
+  return [
+    `HTTP/1.1 ${status} ${REASONS[status] ?? 'Status'}`,
+    'content-type: text/plain',
+    ...Object.entries(extra).map(([name, value]) => `${name}: ${value}`),
+  ].join('\r\n');
+}
+
 function curlResult(reply: Reply, trailingNewline: boolean): CommandResult {
   if (reply === 'throw') throw new Error('sandbox gone');
-  const { status, body = '' } = reply;
+  const { status, body = '', headers } = reply;
   if (status === 0) {
     return { ok: false, exitCode: 7, stdout: '\n000', stderr: body };
   }
-  return ok(`${body}\n${status}${trailingNewline ? '\n' : ''}`);
+  return ok(
+    `${responseHeaders(status, headers)}\r\n\r\n${body}\n${status}${trailingNewline ? '\n' : ''}`
+  );
 }
 
 export function functionReplies(

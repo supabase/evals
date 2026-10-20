@@ -38,8 +38,8 @@ export type AuthVariant =
   | 'publishable+anon-bearer'
   | 'anon';
 
-/** Status 0 means no HTTP response came back; the body then holds the transport error. */
-export type HttpResponse = { status: number; body: string };
+/** Status 0 means no HTTP response came back; the body then holds the transport error and `headers` is empty. */
+export type HttpResponse = { status: number; body: string; headers: string };
 
 export type ProbeAttempt = { variant: AuthVariant; response: HttpResponse };
 
@@ -96,6 +96,7 @@ export type ProcessRow = {
 export const FUNCTIONS_PATH = '/functions/v1/';
 
 const PAYLOAD = '{"run":"nightly"}';
+const REJECTED_STATUS = 401;
 const CONNECT_TIMEOUT_SECONDS = 5;
 const REQUEST_TIMEOUT_SECONDS = 30;
 const REQUEST_BUDGET_MS = REQUEST_TIMEOUT_SECONDS * 1_000;
@@ -109,6 +110,9 @@ const REPLAY_LOG = '/tmp/eval-serve-replay.log';
 const HARNESS_SERVE_LOG = '/tmp/functions-serve.log';
 const HARNESS_SERVE_LOG_TOKEN =
   /(^|[\s>'"=])\/tmp\/functions-serve\.log(?=$|[\s;&|)'"])/;
+const HTTP_PREFIX = 'HTTP/';
+const BLANK_LINE = /\r\n\r\n|\n\n/;
+const INTERIM_STATUS_LINE = /^HTTP\/\S+ 1\d\d\b/;
 const REPLAY_LOG_TAIL_BYTES = 500;
 const NOTE_BODY_CHARS = 200;
 const NO_STACK_REASON = 'no local stack to serve the function';
@@ -193,9 +197,6 @@ export function isStillBooting({ status }: HttpResponse): boolean {
 
 const isAccepted = ({ status }: HttpResponse) => status >= 200 && status < 300;
 
-const isRejected = ({ status }: HttpResponse) =>
-  status >= 400 && status < 500 && status !== 404;
-
 const bearer = (key: string) => ({ authorization: `Bearer ${key}` });
 
 export function authVariants({ publishable, anon }: ApiKeys): VariantRequest[] {
@@ -270,14 +271,19 @@ export function checkAcceptsSecret(probe: FunctionProbe): CheckResult {
   };
 }
 
-const describeEcho = (label: string, { body }: HttpResponse): string[] =>
-  body.includes(DIGEST_SECRET)
+const describeEcho = (
+  label: string,
+  { body, headers }: HttpResponse
+): string[] =>
+  body.includes(DIGEST_SECRET) || headers.includes(DIGEST_SECRET)
     ? [`the ${label} response echoes the secret`]
     : [];
 
 function describeProblems(label: string, response: HttpResponse): string[] {
   return [
-    ...(isRejected(response) ? [] : [`${label} got ${response.status}`]),
+    ...(response.status === REJECTED_STATUS
+      ? []
+      : [`${label} got ${response.status} (expected ${REJECTED_STATUS})`]),
     ...describeEcho(label, response),
   ];
 }
@@ -352,7 +358,7 @@ function curlCommand(url: string, headers: Record<string, string>): string {
     ([name, value]) => `-H ${shellQuote(`${name}: ${value}`)}`
   );
   return [
-    'curl -sS -X POST',
+    'curl -sS -i -X POST',
     `--connect-timeout ${CONNECT_TIMEOUT_SECONDS}`,
     `--max-time ${REQUEST_TIMEOUT_SECONDS}`,
     ...headerFlags,
@@ -362,14 +368,33 @@ function curlCommand(url: string, headers: Record<string, string>): string {
   ].join(' ');
 }
 
-function parseCurlResult(result: CommandResult): HttpResponse {
-  const output = result.stdout.trimEnd();
+function splitHeaders(text: string): Pick<HttpResponse, 'body' | 'headers'> {
+  if (!text.startsWith(HTTP_PREFIX)) return { headers: '', body: text };
+  const separator = BLANK_LINE.exec(text);
+  if (separator === null) return { headers: text, body: '' };
+  const headers = text.slice(0, separator.index);
+  const body = text.slice(separator.index + separator[0].length);
+  return INTERIM_STATUS_LINE.test(headers) && body.startsWith(HTTP_PREFIX)
+    ? splitHeaders(body)
+    : { headers, body };
+}
+
+/** Reads `curl -i -w '\n%{http_code}'` output: the final response's headers and body, and the status from the trailing code. */
+export function parseCurlResponse(stdout: string): HttpResponse {
+  const output = stdout.trimEnd();
   const split = output.lastIndexOf('\n');
   const status = Number(output.slice(split + 1));
   if (split === -1 || !Number.isInteger(status) || status === 0) {
-    return { status: 0, body: (result.stderr || result.stdout).trim() };
+    return { status: 0, body: stdout.trim(), headers: '' };
   }
-  return { status, body: output.slice(0, split) };
+  return { status, ...splitHeaders(output.slice(0, split)) };
+}
+
+function parseCurlResult(result: CommandResult): HttpResponse {
+  const response = parseCurlResponse(result.stdout);
+  return response.status === 0
+    ? { ...response, body: (result.stderr || result.stdout).trim() }
+    : response;
 }
 
 function sender(ctx: LocalStackEvalContext, url: string): Send {
@@ -382,7 +407,7 @@ function sender(ctx: LocalStackEvalContext, url: string): Send {
     try {
       return parseCurlResult(await ctx.exec(curlCommand(url, allHeaders)));
     } catch (error) {
-      return { status: 0, body: errorMessage(error) };
+      return { status: 0, body: errorMessage(error), headers: '' };
     }
   };
 }

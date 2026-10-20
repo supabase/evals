@@ -25,6 +25,7 @@ const NOT_RUN = {
 const response = (status: number, body = ''): HttpResponse => ({
   status,
   body,
+  headers: '',
 });
 
 const attempt = (

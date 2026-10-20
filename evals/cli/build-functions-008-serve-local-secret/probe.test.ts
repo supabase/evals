@@ -29,6 +29,7 @@ import {
   PUBLISHABLE,
   REPLAY_LOG,
   rejectEverything,
+  responseHeaders,
   SECRET_KEY,
   SERVICE_ROLE,
   type Handler,
@@ -44,6 +45,7 @@ import {
   isFunctionsServe,
   isStillBooting,
   lastServeInvocation,
+  parseCurlResponse,
   parseProcessTable,
   probeFunction,
   PROCESS_TABLE_SCRIPT,
@@ -73,6 +75,26 @@ const MANAGED: StackProbe = {
 };
 
 const SERVE = ['supabase functions serve --env-file .env'];
+
+const SEEDED_SHAPE = /^dgs_[0-9a-f]{32}$/;
+
+const ACCEPTED_RESPONSE: HttpResponse = {
+  status: 200,
+  body: '{"queued":true}',
+  headers: responseHeaders(200),
+};
+
+const WRONG_RESPONSE: HttpResponse = {
+  status: 401,
+  body: 'wrong secret',
+  headers: responseHeaders(401),
+};
+
+const MISSING_RESPONSE: HttpResponse = {
+  status: 401,
+  body: 'missing secret',
+  headers: responseHeaders(401),
+};
 
 const outcomes = (attempts: ProbeAttempt[]) =>
   attempts.map(({ variant, response }) => [variant, response.status]);
@@ -360,19 +382,23 @@ describe('replayCommand', () => {
 
 describe('isStillBooting', () => {
   it.each([0, 502, 503, 504])('is true for status %i', (status) => {
-    expect(isStillBooting({ status, body: '' })).toBe(true);
+    expect(isStillBooting({ status, body: '', headers: '' })).toBe(true);
   });
 
   it('is true for a gateway status that carries a body', () => {
     expect(
-      isStillBooting({ status: 503, body: 'upstream connect error' })
+      isStillBooting({
+        status: 503,
+        body: 'upstream connect error',
+        headers: '',
+      })
     ).toBe(true);
   });
 
   it.each([200, 204, 400, 401, 403, 404, 500])(
     'is false for status %i',
     (status) => {
-      expect(isStillBooting({ status, body: '' })).toBe(false);
+      expect(isStillBooting({ status, body: '', headers: '' })).toBe(false);
     }
   );
 });
@@ -409,6 +435,147 @@ describe('authVariants', () => {
   });
 });
 
+describe('parseCurlResponse', () => {
+  const BODY = '{"queued":true}';
+
+  it.each([
+    ['HTTP/1.1 over CRLF', 'HTTP/1.1 200 OK', '\r\n'],
+    ['HTTP/2 over CRLF', 'HTTP/2 200 ', '\r\n'],
+    ['HTTP/1.1 over LF', 'HTTP/1.1 200 OK', '\n'],
+    ['HTTP/2 over LF', 'HTTP/2 200 ', '\n'],
+  ])(
+    'splits the header block from the body for %s',
+    (_name, statusLine, eol) => {
+      const headers = [
+        statusLine,
+        'content-type: application/json',
+        'x-request-id: abc',
+      ].join(eol);
+
+      expect(parseCurlResponse(`${headers}${eol}${eol}${BODY}\n200`)).toEqual({
+        status: 200,
+        body: BODY,
+        headers,
+      });
+    }
+  );
+
+  it.each(['\n202', '\n202\n'])(
+    'takes the status from the trailing code line %j',
+    (trailer) => {
+      expect(
+        parseCurlResponse(`${responseHeaders(202)}\r\n\r\naccepted${trailer}`)
+      ).toEqual({
+        status: 202,
+        body: 'accepted',
+        headers: responseHeaders(202),
+      });
+    }
+  );
+
+  it.each([
+    ['CRLF', '\r\n'],
+    ['LF', '\n'],
+  ])('gives a response with no body an empty body over %s', (_name, eol) => {
+    const headers = ['HTTP/1.1 204 No Content', 'x-request-id: abc'].join(eol);
+
+    expect(parseCurlResponse(`${headers}${eol}${eol}\n204`)).toEqual({
+      status: 204,
+      body: '',
+      headers,
+    });
+  });
+
+  it.each([
+    ['CRLF', '\r\n'],
+    ['LF', '\n'],
+  ])(
+    'splits at the first blank line only when the body holds more over %s',
+    (_name, eol) => {
+      const headers = ['HTTP/1.1 200 OK', 'content-type: text/plain'].join(eol);
+      const body = `first${eol}${eol}second${eol}${eol}${eol}third`;
+
+      expect(parseCurlResponse(`${headers}${eol}${eol}${body}\n200`)).toEqual({
+        status: 200,
+        body,
+        headers,
+      });
+    }
+  );
+
+  it('keeps the newline a body ends with', () => {
+    expect(
+      parseCurlResponse(`${responseHeaders(200)}\r\n\r\nline\n\n200`)
+    ).toEqual({ status: 200, body: 'line\n', headers: responseHeaders(200) });
+  });
+
+  it.each<[string, string[][], string[], string]>([
+    [
+      'a 100 Continue block over CRLF',
+      [['HTTP/1.1 100 Continue']],
+      ['HTTP/1.1 200 OK', 'content-type: text/plain'],
+      '\r\n',
+    ],
+    [
+      'a 100 and a 103 block over CRLF',
+      [
+        ['HTTP/1.1 100 Continue'],
+        ['HTTP/1.1 103 Early Hints', 'link: </a.css>; rel=preload'],
+      ],
+      ['HTTP/1.1 200 OK', 'content-type: text/plain'],
+      '\r\n',
+    ],
+    [
+      'an HTTP/2 100 block over LF',
+      [['HTTP/2 100 ']],
+      ['HTTP/2 200 ', 'content-type: text/plain'],
+      '\n',
+    ],
+  ])(
+    'skips the interim blocks before the final response: %s',
+    (_name, interim, final, eol) => {
+      const blocks = interim.map((lines) => `${lines.join(eol)}${eol}${eol}`);
+
+      expect(
+        parseCurlResponse(
+          `${blocks.join('')}${final.join(eol)}${eol}${eol}hello\n200`
+        )
+      ).toEqual({ status: 200, body: 'hello', headers: final.join(eol) });
+    }
+  );
+
+  it('keeps a body that starts with HTTP/ because the headers before it were final', () => {
+    const body = 'HTTP/1.1 is what the proxy speaks';
+
+    expect(
+      parseCurlResponse(`${responseHeaders(200)}\r\n\r\n${body}\n200`)
+    ).toEqual({ status: 200, body, headers: responseHeaders(200) });
+  });
+
+  it('takes output without a status line as a body with no headers', () => {
+    expect(parseCurlResponse(`${BODY}\n200`)).toEqual({
+      status: 200,
+      body: BODY,
+      headers: '',
+    });
+    expect(parseCurlResponse('one\n\ntwo\n200')).toEqual({
+      status: 200,
+      body: 'one\n\ntwo',
+      headers: '',
+    });
+  });
+
+  it.each(['\n000', '\n000\n', ''])(
+    'reports status 0 and no headers when there was no response (%j)',
+    (stdout) => {
+      expect(parseCurlResponse(stdout)).toMatchObject({
+        status: 0,
+        headers: '',
+      });
+    }
+  );
+});
+
 describe('probeFunction', () => {
   describe('served live', () => {
     it('accepts on the first variant and neither replays nor probes further variants', async () => {
@@ -425,7 +592,7 @@ describe('probeFunction', () => {
       expect(probe.accepted).toEqual({
         servedBy: 'live',
         variant: 'none',
-        response: { status: 200, body: '{"queued":true}' },
+        response: ACCEPTED_RESPONSE,
       });
       expect(outcomes(probe.live)).toEqual([['none', 200]]);
       expect(probe.replay.ran).toBe(false);
@@ -448,11 +615,8 @@ describe('probeFunction', () => {
         world.clock
       );
 
-      expect(probe.wrongSecret).toEqual({ status: 401, body: 'wrong secret' });
-      expect(probe.missingHeader).toEqual({
-        status: 401,
-        body: 'missing secret',
-      });
+      expect(probe.wrongSecret).toEqual(WRONG_RESPONSE);
+      expect(probe.missingHeader).toEqual(MISSING_RESPONSE);
     });
 
     it('posts the scheduler payload as JSON to the function url with curl', async () => {
@@ -473,6 +637,171 @@ describe('probeFunction', () => {
       expect(command).toContain('%{http_code}');
     });
 
+    it('asks curl to print the response headers', async () => {
+      const world = createSandbox({ live: functionReplies() });
+
+      await probeFunction(world.ctx, LEGACY, [], world.clock);
+
+      const curls = world.commands.filter((entry) => entry.includes('curl'));
+      expect(curls).toHaveLength(3);
+      for (const curl of curls) {
+        expect(
+          parse(curl, {}).some(
+            (token) =>
+              token === '--include' ||
+              (typeof token === 'string' &&
+                /^-[a-zA-Z]*i[a-zA-Z]*$/.test(token))
+          )
+        ).toBe(true);
+      }
+    });
+
+    it('splits each response into its headers and its body', async () => {
+      const world = createSandbox({
+        live: (request, attempt) => {
+          const reply = functionReplies()(request, attempt);
+          return reply === 'throw'
+            ? reply
+            : { ...reply, headers: { 'x-request-id': 'req-1' } };
+        },
+      });
+
+      const probe = await probeFunction(world.ctx, LEGACY, [], world.clock);
+
+      const headers = (status: number) =>
+        responseHeaders(status, { 'x-request-id': 'req-1' });
+      expect(probe.accepted?.response).toEqual({
+        ...ACCEPTED_RESPONSE,
+        headers: headers(200),
+      });
+      expect(probe.wrongSecret).toEqual({
+        ...WRONG_RESPONSE,
+        headers: headers(401),
+      });
+      expect(probe.missingHeader).toEqual({
+        ...MISSING_RESPONSE,
+        headers: headers(401),
+      });
+    });
+
+    it('keeps a body that holds a blank line whole', async () => {
+      const body = 'paragraph one\n\nparagraph two';
+      const world = createSandbox({
+        live: (request, attempt) =>
+          request.secret === 'right'
+            ? { status: 200, body }
+            : functionReplies()(request, attempt),
+      });
+
+      const probe = await probeFunction(world.ctx, LEGACY, [], world.clock);
+
+      expect(probe.accepted?.response).toEqual({
+        status: 200,
+        body,
+        headers: responseHeaders(200),
+      });
+    });
+
+    it('reads the final response that follows an interim 100 Continue block', async () => {
+      const world = createSandbox({
+        live: functionReplies(),
+        intercept: (kind, call) =>
+          kind === 'curl' && call === 0
+            ? ok(
+                `HTTP/1.1 100 Continue\r\n\r\n${responseHeaders(200)}\r\n\r\n{"queued":true}\n200`
+              )
+            : undefined,
+      });
+
+      const probe = await probeFunction(world.ctx, LEGACY, [], world.clock);
+
+      expect(probe.accepted).toEqual({
+        servedBy: 'live',
+        variant: 'none',
+        response: ACCEPTED_RESPONSE,
+      });
+    });
+
+    describe('a function that compares less than the whole secret', () => {
+      const answers =
+        (accepts: (secret: string) => boolean): Handler =>
+        ({ secretValue }) =>
+          accepts(secretValue ?? '')
+            ? { status: 200, body: '{"queued":true}' }
+            : { status: 401, body: 'unauthorized' };
+
+      it.each<[string, (secret: string) => boolean]>([
+        ['its shape', (secret) => SEEDED_SHAPE.test(secret)],
+        [
+          'its prefix',
+          (secret) => secret.startsWith(DIGEST_SECRET.slice(0, 4)),
+        ],
+        ['its length', (secret) => secret.length === DIGEST_SECRET.length],
+      ])(
+        'fails the reject check when it only checks %s, because the wrong secret gets a 2xx',
+        async (_name, accepts) => {
+          const world = createSandbox({ live: answers(accepts) });
+
+          const probe = await probeFunction(world.ctx, LEGACY, [], world.clock);
+
+          expect(probe.accepted?.servedBy).toBe('live');
+          expect(probe.wrongSecret?.status).toBe(200);
+          const check = checkRejectsWrongSecret(probe);
+          expect(check.passed).toBe(false);
+          expect(check.notes).toContain('200');
+          expect(check.notes).toMatch(/wrong/i);
+        }
+      );
+
+      it('passes the reject check for a function that compares the whole secret', async () => {
+        const world = createSandbox({
+          live: answers((secret) => secret === DIGEST_SECRET),
+        });
+
+        const probe = await probeFunction(world.ctx, LEGACY, [], world.clock);
+
+        expect(probe.wrongSecret?.status).toBe(401);
+        expect(checkRejectsWrongSecret(probe).passed).toBe(true);
+      });
+    });
+
+    describe('a secret echoed in a response header', () => {
+      const echoing =
+        (target: Seen['secret']): Handler =>
+        (request, attempt) => {
+          const reply = functionReplies()(request, attempt);
+          return reply === 'throw' || request.secret !== target
+            ? reply
+            : { ...reply, headers: { 'x-debug-expected': DIGEST_SECRET } };
+        };
+
+      it.each<
+        [
+          string,
+          Seen['secret'],
+          (probe: FunctionProbe) => HttpResponse | undefined,
+        ]
+      >([
+        ['accepted', 'right', (probe) => probe.accepted?.response],
+        ['wrong-secret', 'wrong', (probe) => probe.wrongSecret],
+        ['missing-header', 'absent', (probe) => probe.missingHeader],
+      ])(
+        'fails the reject check when the %s response carries it, and keeps it out of the notes',
+        async (_name, target, responseOf) => {
+          const world = createSandbox({ live: echoing(target) });
+
+          const probe = await probeFunction(world.ctx, LEGACY, [], world.clock);
+
+          const echoed = responseOf(probe);
+          expect(echoed?.headers ?? '').toContain(DIGEST_SECRET);
+          expect(echoed?.body).not.toContain(DIGEST_SECRET);
+          const check = checkRejectsWrongSecret(probe);
+          expect(check.passed).toBe(false);
+          expect(check.notes).not.toContain(DIGEST_SECRET);
+        }
+      );
+    });
+
     it.each([200, 202, 204])('accepts a %i answer', async (status) => {
       const world = createSandbox({
         live: (request, attempt) =>
@@ -486,7 +815,11 @@ describe('probeFunction', () => {
       expect(probe.accepted).toEqual({
         servedBy: 'live',
         variant: 'none',
-        response: { status, body: status === 204 ? '' : 'done' },
+        response: {
+          status,
+          body: status === 204 ? '' : 'done',
+          headers: responseHeaders(status),
+        },
       });
     });
 
@@ -504,6 +837,7 @@ describe('probeFunction', () => {
       expect(probe.accepted?.response).toEqual({
         status: 200,
         body: 'line one\nline two',
+        headers: responseHeaders(200),
       });
     });
 
@@ -520,7 +854,7 @@ describe('probeFunction', () => {
       expect(probe.accepted).toEqual({
         servedBy: 'live',
         variant: 'publishable+anon-bearer',
-        response: { status: 200, body: '{"queued":true}' },
+        response: ACCEPTED_RESPONSE,
       });
       expect(probe.replay.ran).toBe(false);
     });
@@ -530,11 +864,8 @@ describe('probeFunction', () => {
 
       const probe = await probeFunction(world.ctx, LEGACY, [], world.clock);
 
-      expect(probe.wrongSecret).toEqual({ status: 401, body: 'wrong secret' });
-      expect(probe.missingHeader).toEqual({
-        status: 401,
-        body: 'missing secret',
-      });
+      expect(probe.wrongSecret).toEqual(WRONG_RESPONSE);
+      expect(probe.missingHeader).toEqual(MISSING_RESPONSE);
       const [wrong, missing] = world.requests.slice(-2);
       expect(wrong).toMatchObject({
         secret: 'wrong',
@@ -945,7 +1276,7 @@ describe('probeFunction', () => {
         expect(probe.accepted).toEqual({
           servedBy: 'live',
           variant: 'none',
-          response: { status: 200, body: '{"queued":true}' },
+          response: ACCEPTED_RESPONSE,
         });
         expect(world.sleeps()).toEqual([2000]);
       }
@@ -963,7 +1294,7 @@ describe('probeFunction', () => {
 
       expect(probe.accepted?.response.status).toBe(200);
       expect(world.sleeps()).toEqual([2000, 2000]);
-      expect(probe.wrongSecret).toEqual({ status: 401, body: 'wrong secret' });
+      expect(probe.wrongSecret).toEqual(WRONG_RESPONSE);
     });
 
     it('keeps polling from the first variant until a request would no longer fit in the 120 s budget', async () => {
@@ -1104,10 +1435,7 @@ describe('probeFunction', () => {
         expect(world.requests.some(({ apikey }) => apikey === ANON)).toBe(
           false
         );
-        expect(probe.wrongSecret).toEqual({
-          status: 401,
-          body: 'wrong secret',
-        });
+        expect(probe.wrongSecret).toEqual(WRONG_RESPONSE);
         expect(probe.replay.ran).toBe(false);
       });
 
@@ -1177,7 +1505,7 @@ describe('probeFunction', () => {
 
       expect(probe.live[0]).toEqual({
         variant: 'none',
-        response: { status: 0, body: refused },
+        response: { status: 0, body: refused, headers: '' },
       });
     });
 
@@ -1229,7 +1557,7 @@ describe('probeFunction', () => {
       expect(probe.accepted).toEqual({
         servedBy: 'replay',
         variant: 'none',
-        response: { status: 200, body: '{"queued":true}' },
+        response: ACCEPTED_RESPONSE,
       });
       const replay = replayOf(probe);
       expect(replay.command).toContain('--env-file');
@@ -1292,11 +1620,8 @@ describe('probeFunction', () => {
 
       const probe = await probeWithServes(world);
 
-      expect(probe.wrongSecret).toEqual({ status: 401, body: 'wrong secret' });
-      expect(probe.missingHeader).toEqual({
-        status: 401,
-        body: 'missing secret',
-      });
+      expect(probe.wrongSecret).toEqual(WRONG_RESPONSE);
+      expect(probe.missingHeader).toEqual(MISSING_RESPONSE);
       expect(
         replayRequests(world)
           .map(({ secret }) => secret)
@@ -1413,11 +1738,8 @@ describe('probeFunction', () => {
 
       expect(probe.accepted?.servedBy).toBe('replay');
       expect(probe.accepted?.variant).toBe('publishable+anon-bearer');
-      expect(probe.wrongSecret).toEqual({ status: 401, body: 'wrong secret' });
-      expect(probe.missingHeader).toEqual({
-        status: 401,
-        body: 'missing secret',
-      });
+      expect(probe.wrongSecret).toEqual(WRONG_RESPONSE);
+      expect(probe.missingHeader).toEqual(MISSING_RESPONSE);
       expect(outcomes(replayOf(probe).attempts)).toEqual([
         ['none', 401],
         ['publishable', 401],
@@ -1439,13 +1761,10 @@ describe('probeFunction', () => {
       expect(probe.accepted).toEqual({
         servedBy: 'replay',
         variant: 'none',
-        response: { status: 200, body: '{"queued":true}' },
+        response: ACCEPTED_RESPONSE,
       });
-      expect(probe.wrongSecret).toEqual({ status: 401, body: 'wrong secret' });
-      expect(probe.missingHeader).toEqual({
-        status: 401,
-        body: 'missing secret',
-      });
+      expect(probe.wrongSecret).toEqual(WRONG_RESPONSE);
+      expect(probe.missingHeader).toEqual(MISSING_RESPONSE);
       expect(outcomes(replayOf(probe).attempts)).toEqual([['none', 200]]);
       expect(
         replayRequests(world)
@@ -1770,10 +2089,7 @@ describe('probeFunction', () => {
         const probe = await probeWithServes(world);
 
         expect(probe.accepted?.servedBy).toBe('replay');
-        expect(probe.wrongSecret).toEqual({
-          status: 401,
-          body: 'wrong secret',
-        });
+        expect(probe.wrongSecret).toEqual(WRONG_RESPONSE);
         expect(replayOf(probe).attempts).toHaveLength(1);
       });
 
@@ -1985,9 +2301,10 @@ describe('the process table', () => {
   });
 });
 
-const response = (status: number, body = ''): HttpResponse => ({
+const response = (status: number, body = '', headers = ''): HttpResponse => ({
   status,
   body,
+  headers,
 });
 
 const probeAttempt = (
@@ -2145,20 +2462,52 @@ describe('checkRejectsWrongSecret', () => {
     missingHeader: HttpResponse
   ): FunctionProbe => ({ ...ACCEPTED, wrongSecret, missingHeader });
 
-  it.each([
-    [401, 401],
-    [403, 400],
-    [401, 422],
-  ])(
-    'passes when the wrong secret gets %i and the missing header %i',
-    (wrong, missing) => {
+  it('passes when the wrong secret and the missing header both get 401', () => {
+    const check = checkRejectsWrongSecret(
+      withReplies(response(401, 'denied'), response(401, 'denied'))
+    );
+
+    expect(check).toMatchObject({ name: NAME, passed: true });
+    expect(check.notes).toContain('401');
+  });
+
+  it.each([400, 403, 405, 422, 429])(
+    'fails and says 401 was expected when the wrong secret gets %i',
+    (status) => {
       const check = checkRejectsWrongSecret(
-        withReplies(response(wrong, 'denied'), response(missing, 'denied'))
+        withReplies(response(status, 'denied'), response(401, 'denied'))
       );
 
-      expect(check).toMatchObject({ name: NAME, passed: true });
+      expect(check).toMatchObject({ name: NAME, passed: false });
+      expect(check.notes).toContain(String(status));
+      expect(check.notes).toMatch(/wrong/i);
+      expect(check.notes).toContain('401');
     }
   );
+
+  it.each([400, 403, 405, 422, 429])(
+    'fails and says 401 was expected when the missing header gets %i',
+    (status) => {
+      const check = checkRejectsWrongSecret(
+        withReplies(response(401, 'denied'), response(status, 'denied'))
+      );
+
+      expect(check).toMatchObject({ name: NAME, passed: false });
+      expect(check.notes).toContain(String(status));
+      expect(check.notes).toMatch(/missing/i);
+      expect(check.notes).toContain('401');
+    }
+  );
+
+  it('names both replies when neither is a 401', () => {
+    const check = checkRejectsWrongSecret(
+      withReplies(response(403, 'denied'), response(400, 'denied'))
+    );
+
+    expect(check).toMatchObject({ name: NAME, passed: false });
+    expect(check.notes).toContain('403');
+    expect(check.notes).toContain('400');
+  });
 
   it.each([200, 202, 204])(
     'fails and reports the status when the wrong secret gets %i',
@@ -2226,6 +2575,104 @@ describe('checkRejectsWrongSecret', () => {
       expect(check.notes).not.toContain(DIGEST_SECRET);
     }
   );
+
+  const echoedIn = (status: number, name: string, value: string) =>
+    responseHeaders(status, { [name]: value });
+
+  it.each<[string, RegExp, FunctionProbe]>([
+    [
+      'the accepted response',
+      /accepted/i,
+      {
+        ...ACCEPTED,
+        accepted: {
+          servedBy: 'live',
+          variant: 'none',
+          response: response(
+            200,
+            '{"queued":true}',
+            echoedIn(200, 'x-debug-expected', DIGEST_SECRET)
+          ),
+        },
+      },
+    ],
+    [
+      'the wrong-secret response',
+      /wrong/i,
+      withReplies(
+        response(
+          401,
+          'wrong secret',
+          echoedIn(401, 'set-cookie', `digest=${DIGEST_SECRET}; Path=/`)
+        ),
+        MISSING_RESPONSE
+      ),
+    ],
+    [
+      'the missing-header response',
+      /missing/i,
+      withReplies(
+        WRONG_RESPONSE,
+        response(
+          401,
+          'missing secret',
+          echoedIn(
+            401,
+            'www-authenticate',
+            `Digest realm="digest", nonce="${DIGEST_SECRET}"`
+          )
+        )
+      ),
+    ],
+  ])(
+    'fails when the headers of %s echo the secret, without printing it',
+    (_name, label, probe) => {
+      const check = checkRejectsWrongSecret(probe);
+
+      expect(check).toMatchObject({ name: NAME, passed: false });
+      expect(check.notes).toMatch(label);
+      expect(check.notes).toMatch(/echo/i);
+      expect(check.notes).not.toContain(DIGEST_SECRET);
+    }
+  );
+
+  it('passes when the headers are ordinary, including one that names the secret header', () => {
+    const ordinary = (status: number) =>
+      responseHeaders(status, {
+        'content-length': '12',
+        'access-control-allow-headers': `authorization, ${SECRET_HEADER}, content-type`,
+        vary: 'Origin',
+        'x-request-id': 'req-1',
+      });
+
+    const check = checkRejectsWrongSecret({
+      ...ACCEPTED,
+      accepted: {
+        servedBy: 'live',
+        variant: 'none',
+        response: response(200, '{"queued":true}', ordinary(200)),
+      },
+      wrongSecret: response(401, 'wrong secret', ordinary(401)),
+      missingHeader: response(401, 'missing secret', ordinary(401)),
+    });
+
+    expect(check).toMatchObject({ name: NAME, passed: true });
+  });
+
+  it('passes when a header reflects only the wrong secret the caller sent', () => {
+    const check = checkRejectsWrongSecret(
+      withReplies(
+        response(
+          401,
+          'wrong secret',
+          echoedIn(401, 'x-received-secret', WRONG_SECRET)
+        ),
+        MISSING_RESPONSE
+      )
+    );
+
+    expect(check).toMatchObject({ name: NAME, passed: true });
+  });
 
   it('fails when the accepted response echoes the secret, without printing it', () => {
     const check = checkRejectsWrongSecret({
