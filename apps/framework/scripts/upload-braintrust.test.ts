@@ -6,6 +6,7 @@ import {
   logTranscript,
   relatedPrLines,
   runViewUrl,
+  sandboxMetrics,
   unwrapShell,
   type SpanSink,
   tokenMetrics,
@@ -57,6 +58,29 @@ describe('tokenMetrics', () => {
 
   it('returns no metrics without usage', () => {
     expect(tokenMetrics(undefined)).toEqual({});
+  });
+});
+
+describe('sandboxMetrics', () => {
+  it('maps reported usage and omits what is missing', () => {
+    expect(
+      sandboxMetrics({
+        activeCpuDurationMs: 271497,
+        duration: 278288,
+        memory: 8192,
+        networkTransfer: { ingress: 2057723077, egress: 13804285 },
+      })
+    ).toEqual({
+      sandbox_active_cpu_ms: 271497,
+      sandbox_duration_ms: 278288,
+      sandbox_memory_mb: 8192,
+      sandbox_egress_bytes: 13804285,
+      sandbox_ingress_bytes: 2057723077,
+    });
+    expect(sandboxMetrics({ memory: 8192 })).toEqual({
+      sandbox_memory_mb: 8192,
+    });
+    expect(sandboxMetrics(undefined)).toEqual({});
   });
 });
 

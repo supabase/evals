@@ -15,6 +15,7 @@ import {
   modelUsageSchema,
   type AgentUsage,
   type JudgeCall,
+  type SandboxUsage,
 } from '@supabase-evals/core/eval-metadata';
 import {
   normalizeExperimentName,
@@ -82,7 +83,6 @@ interface PendingRow {
   transcript: TranscriptPart[];
   toolLabels: (string | undefined)[];
   metadata: Record<string, unknown>;
-  tags: string[];
   metrics: Record<string, number>;
   /** The run's `session-archive.tar.gz`, when the harness wrote one. */
   sessionArchivePath?: string;
@@ -227,6 +227,22 @@ export function judgeMetrics(
   return metrics;
 }
 
+/** Vercel Sandbox usage as run-level metrics. Unreported fields stay missing. */
+export function sandboxMetrics(
+  usage: SandboxUsage | undefined
+): Record<string, number> {
+  const metrics: Record<string, number> = {};
+  const set = (key: string, value: number | undefined) => {
+    if (value !== undefined) metrics[key] = value;
+  };
+  set('sandbox_active_cpu_ms', usage?.activeCpuDurationMs);
+  set('sandbox_duration_ms', usage?.duration);
+  set('sandbox_memory_mb', usage?.memory);
+  set('sandbox_egress_bytes', usage?.networkTransfer?.egress);
+  set('sandbox_ingress_bytes', usage?.networkTransfer?.ingress);
+  return metrics;
+}
+
 function toolLabels(toolCalls: unknown): (string | undefined)[] {
   if (!Array.isArray(toolCalls)) {
     return [];
@@ -360,12 +376,10 @@ async function collectRows(
         interface: promptData?.interface ?? result.interface,
         skills: result.skills,
         docs: result.docs,
+        product: promptData?.product ?? result.product ?? [],
+        topic: promptData?.topic ?? result.topic ?? [],
         source_path: sourcePath,
       },
-      tags: [
-        ...(promptData?.product ?? result.product ?? []),
-        ...(promptData?.topic ?? result.topic ?? []),
-      ].map(String),
       // Braintrust sums tokens across a trace's spans, so only LLM spans carry
       // them. `aiSdkAgent` records no per-request usage, so its rows show none.
       // https://braintrust.dev/docs/reference/sql/query-structure#summary
@@ -377,6 +391,7 @@ async function collectRows(
         ...(typeof result.toolCallCount === 'number'
           ? { tool_call_count: result.toolCallCount }
           : {}),
+        ...sandboxMetrics(result.sandboxUsage),
       },
       promptTime: sec(result.agentPromptAt),
       agentEndTime: sec(result.agentRunEndedAt),
@@ -786,7 +801,6 @@ async function main() {
             : {}),
         },
         ...(Object.keys(row.metrics).length ? { metrics: row.metrics } : {}),
-        ...(row.tags.length ? { tags: row.tags } : {}),
       });
       logTranscript(root, row);
       root.end(row.endTime ? { endTime: row.endTime } : undefined);
