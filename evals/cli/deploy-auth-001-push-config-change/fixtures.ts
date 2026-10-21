@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import type {
   CommandResult,
   LocalStackEvalContext,
@@ -5,7 +6,7 @@ import type {
   ToolCallRecord,
 } from '@supabase-evals/core';
 import { vi } from 'vitest';
-import type { HostedFacts } from './hosted.js';
+import { type HostedFacts, NO_HOSTED_PROJECT } from '../lib/hosted.js';
 
 export type ExecCtx = Pick<LocalStackEvalContext, 'exec'>;
 
@@ -14,19 +15,10 @@ export const FAKE_ACCESS_TOKEN = `sbp_${'e'.repeat(40)}`;
 export const AUTH_CONFIG_PATH = '/v1/projects/{ref}/config/auth';
 export const READ_CONFIG_COMMAND = 'cat supabase/config.toml';
 
-export const SEED_CONFIG = `project_id = "orders-app"
-
-[db]
-major_version = 17
-
-[auth]
-enabled = true
-# Passwords shorter than this value will be rejected as weak. Minimum 6, recommended 8 or more.
-minimum_password_length = 6
-# Passwords that do not meet the following requirements will be rejected as weak. Supported values
-# are: \`letters_digits\`, \`lower_upper_letters_digits\`, \`lower_upper_letters_digits_symbols\`
-password_requirements = ""
-`;
+export const SEED_CONFIG = readFileSync(
+  new URL('./local/supabase/config.toml', import.meta.url),
+  'utf8'
+);
 
 /** The seed with its `minimum_password_length = 6` line holding `tomlValue`, written as raw TOML. */
 export const seedWith = (tomlValue: string | number) =>
@@ -99,12 +91,9 @@ otp_expiry = 3600
 
 export const HOSTED_OK: HostedFacts = { ok: true, ref: HOSTED_REF };
 
-export const NO_HOSTED_NOTES =
-  'no hosted project in CI until the staging org lands (CLI-2754): the run has nothing to push to';
-
 export const HOSTED_ABSENT: HostedFacts = {
   ok: false,
-  notes: NO_HOSTED_NOTES,
+  notes: NO_HOSTED_PROJECT,
 };
 
 export function commandResult(stdout = ''): CommandResult {

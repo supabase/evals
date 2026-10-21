@@ -1,14 +1,9 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/deploy-auth-001-push-config-change
 import { describe, expect, it } from 'vitest';
+import { NO_HOSTED_PROJECT } from '../lib/hosted.js';
 import { mentionsNumber } from '../lib/report.js';
-import {
-  FAKE_ACCESS_TOKEN,
-  HOSTED_ABSENT,
-  HOSTED_OK,
-  HOSTED_REF,
-  NO_HOSTED_NOTES,
-} from './fixtures.js';
-import { describeGroundTruth, maskAccessTokens } from './report.js';
+import { HOSTED_ABSENT, HOSTED_OK, HOSTED_REF } from './fixtures.js';
+import { describeGroundTruth } from './report.js';
 
 type Facts = Parameters<typeof describeGroundTruth>;
 
@@ -38,7 +33,7 @@ describe('describeGroundTruth', () => {
 
     expect(
       lines.some(
-        (line) => line.includes('none') && line.includes(NO_HOSTED_NOTES)
+        (line) => line.includes('none') && line.includes(NO_HOSTED_PROJECT)
       )
     ).toBe(true);
     expect(lines.join('\n')).not.toContain(HOSTED_REF);
@@ -85,6 +80,20 @@ describe('describeGroundTruth', () => {
     expect(repoLine(lines)).toContain('"10"');
   });
 
+  it.each([Infinity, -Infinity, NaN])(
+    'shows the non-finite repo number %s as itself, not as null',
+    (value) => {
+      const lines = describeGroundTruth(
+        HOSTED_OK,
+        { ok: true, minPasswordLength: value },
+        PROJECT_10
+      );
+
+      expect(repoLine(lines)).toContain(String(value));
+      expect(repoLine(lines)).not.toContain('null');
+    }
+  );
+
   it.each([10, 6])('reports the project password_min_length %i', (value) => {
     const lines = describeGroundTruth(HOSTED_OK, REPO_10, {
       ok: true,
@@ -128,61 +137,5 @@ describe('describeGroundTruth', () => {
     expect(mentionsNumber(repoLine(lines), 6)).toBe(false);
     expect(mentionsNumber(projectLine(lines), 6)).toBe(true);
     expect(mentionsNumber(projectLine(lines), 8)).toBe(false);
-  });
-});
-
-describe('maskAccessTokens', () => {
-  const MASK = '[redacted access token]';
-
-  it('masks a token typed into a command', () => {
-    expect(
-      maskAccessTokens(`supabase login --token ${FAKE_ACCESS_TOKEN}`)
-    ).toBe(`supabase login --token ${MASK}`);
-  });
-
-  it('masks a token printed after an environment variable name', () => {
-    expect(
-      maskAccessTokens(`SUPABASE_ACCESS_TOKEN=${FAKE_ACCESS_TOKEN}\nHOME=/root`)
-    ).toBe(`SUPABASE_ACCESS_TOKEN=${MASK}\nHOME=/root`);
-  });
-
-  it.each([
-    ['sbp_', `sbp_${'a'.repeat(40)}`],
-    ['sbp_oauth_', `sbp_oauth_${'b'.repeat(40)}`],
-    ['sbp_v0_', `sbp_v0_${'0123456789abcdef'.repeat(3).slice(0, 40)}`],
-  ])('masks a token with the %s prefix', (_, token) => {
-    const masked = maskAccessTokens(`token: ${token}.`);
-
-    expect(masked).toBe(`token: ${MASK}.`);
-    expect(masked).not.toContain(token);
-  });
-
-  it('masks every token in the text', () => {
-    const masked = maskAccessTokens(
-      `${FAKE_ACCESS_TOKEN} and ${FAKE_ACCESS_TOKEN.replace('e', 'f')} in "${FAKE_ACCESS_TOKEN}"`
-    );
-
-    expect(masked).toBe(`${MASK} and ${MASK} in "${MASK}"`);
-  });
-
-  it('gives the same answer when called repeatedly', () => {
-    const text = `a ${FAKE_ACCESS_TOKEN} b`;
-
-    expect(maskAccessTokens(text)).toBe(maskAccessTokens(text));
-    expect(maskAccessTokens(maskAccessTokens(text))).toBe(`a ${MASK} b`);
-  });
-
-  it.each([
-    ['too short', `sbp_${'e'.repeat(39)}`],
-    ['not hexadecimal', `sbp_${'g'.repeat(40)}`],
-    ['a different prefix', `sbx_${'e'.repeat(40)}`],
-  ])('leaves a string alone when it is %s', (_, text) => {
-    expect(maskAccessTokens(text)).toBe(text);
-  });
-
-  it('leaves text without a token untouched', () => {
-    const text = `supabase config push --project-ref ${HOSTED_REF} --yes`;
-
-    expect(maskAccessTokens(text)).toBe(text);
   });
 });

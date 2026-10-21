@@ -110,8 +110,8 @@ project.
 
 | check | what it proves | how it's measured |
 | --- | --- | --- |
-| `a hosted project is available to push to` | the run had a project to push to | `ctx.hostedRef` and `ctx.hostedMgmt` are both set. Otherwise it fails, and the notes name CLI-2754 and say there is no hosted project in CI until the staging org lands |
-| `the repo's Supabase config requires passwords of at least 10 characters` | the change lives in the repo, so a later push won't revert it | `cat supabase/config.toml`, parsed as TOML with `smol-toml`. It passes only when `auth.minimum_password_length` is the number 10, in any TOML spelling: a trailing comment, `[ auth ]`, `["auth"]`, an inline table or a dotted key. It fails for 6, 8 or 12, for a value that appears only in a comment, in `[auth.email]` or inside a string, for the string "10", for a missing file, and for a file that no longer parses; the notes say which |
+| `a hosted project is available to push to` | the run had a project to push to | `ctx.hostedRef` and `ctx.hostedMgmt` are both set (`readHostedFacts` in `../lib/hosted.ts`). Otherwise it fails, and the notes name CLI-2754 and say there is no hosted project in CI until the staging org lands |
+| `the repo's Supabase config requires passwords of at least 10 characters` | the change lives in the repo, so a later push won't revert it | `cat supabase/config.toml`, parsed as TOML with `smol-toml`. It passes only when `auth.minimum_password_length` is the number 10, in any TOML spelling: a trailing comment, `[ auth ]`, `["auth"]`, an inline table or a dotted key, and TOML's other spellings of the number 10 (`10.0`, `0xA`, `1_0`). It fails for 6, 8 or 12, for a value that appears only in a comment, in `[auth.email]` or inside a string, for a missing file, and for a file that no longer parses; the notes say which. It fails the string `"10"` because the CLI's config schema decodes `minimum_password_length` as a number and would reject the file too. An `auth` that isn't a table (`auth = 5`, `[[auth]]`) counts as not set |
 | `the project requires passwords of at least 10 characters` | the change reached the hosted project | `GET /v1/projects/{ref}/config/auth` through `ctx.hostedMgmt`. It passes only when `password_min_length` is 10. No hosted project, an API error, null or any other value fails, and the notes say which. A change made by calling the Management API directly instead of `config push` still passes, because the end state is what's scored |
 | `no container-runtime detours` | no Docker or runtime workarounds for a task that needs none | the shared detour judge from `../lib/detours.ts` over executed commands only. Supabase CLI commands (`config push`, `config diff`, `config pull`, `link`, `login`, `projects list`), editing files under `supabase/`, reading environment variables and calling the Management API with `curl` are not detours. With no commands it passes without a judge call |
 | `metrics` | diagnostics only | always passes; the fields are listed below |
@@ -121,8 +121,9 @@ Every check returns a result in every state. If the scorer itself throws, it
 returns one failing `scorer evaluated the config push` check.
 
 Both judges get their input (the executed commands or the transcript) with any
-`sbp_` access token replaced by `[redacted access token]`, so a token an agent
-prints or types never reaches the judge provider.
+`sbp_` access token replaced by `[redacted access token]` (`maskAccessTokens` in
+`../lib/report.ts`), so a token an agent prints or types never reaches the judge
+provider.
 
 `metrics` fields, each computed independently: `hostedProject`,
 `repoMinPasswordLength` (null when the config is unreadable or the key is
@@ -135,7 +136,8 @@ value is unset), the invocation counts `configPush`, `configPushWithYes`,
 The report judge's ground truth is three lines:
 
 - `- hosted project available to push to: <ref>`, or `none (<why>)`
-- `- repo supabase/config.toml auth.minimum_password_length: <value>`, or `not
+- `- repo supabase/config.toml auth.minimum_password_length: <value>` (a number
+  as itself, including `Infinity` and `NaN`; anything else as JSON), or `not
   set`, or `unreadable (<why>)`
 - `- hosted project password_min_length: <value>`, or `not set (null)`, or
   `unavailable (<why>)`

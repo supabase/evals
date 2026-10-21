@@ -10,11 +10,19 @@ export type RepoPasswordPolicy =
   | { ok: true; minPasswordLength: unknown }
   | { ok: false; notes: string };
 
+const isTable = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
 /** Reads `auth.minimum_password_length` from the TOML text; a TOML parse error, including an integer outside the safe range, makes it not ok. */
 export function parsePasswordPolicy(text: string): RepoPasswordPolicy {
   try {
-    const { auth } = parse(text) as { auth?: Record<string, unknown> };
-    return { ok: true, minPasswordLength: auth?.minimum_password_length };
+    const { auth } = parse(text);
+    return {
+      ok: true,
+      minPasswordLength: isTable(auth)
+        ? auth.minimum_password_length
+        : undefined,
+    };
   } catch (error) {
     return {
       ok: false,

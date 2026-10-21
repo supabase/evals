@@ -12,18 +12,21 @@ import {
   extractCommands,
   formatDetourJudgeInput,
 } from '../lib/detours.js';
+import { checkHostedProject, readHostedFacts } from '../lib/hosted.js';
 import { readCliVersions } from '../lib/metrics.js';
-import { formatGroundTruthJudgeInput } from '../lib/report.js';
+import {
+  formatGroundTruthJudgeInput,
+  maskAccessTokens,
+} from '../lib/report.js';
 import { errorMessage } from '../lib/shell.js';
 import { checkRepoPasswordPolicy, readRepoPasswordPolicy } from './config.js';
 import {
-  checkHostedProject,
   checkProjectPasswordPolicy,
-  readHostedFacts,
+  HOSTED_CHECK_NAME,
   readProjectPasswordPolicy,
 } from './hosted.js';
 import { checkMetrics, countConfigInvocations } from './metrics.js';
-import { describeGroundTruth, maskAccessTokens } from './report.js';
+import { describeGroundTruth } from './report.js';
 
 /** Scores "raise the minimum password length to 10 in the repo's Supabase config and push it to the hosted project" by its end state, whichever way the agent got there. */
 const scorer: LocalStackScorer = async (ctx) => {
@@ -40,7 +43,7 @@ const scorer: LocalStackScorer = async (ctx) => {
     const cli = await readCliVersions(ctx, marker);
 
     const checks: CheckResult[] = [
-      checkHostedProject(hosted),
+      checkHostedProject(hosted, HOSTED_CHECK_NAME),
       checkRepoPasswordPolicy(repo),
       checkProjectPasswordPolicy(project),
       await checkNoContainerRuntimeDetours(ctx, commands),

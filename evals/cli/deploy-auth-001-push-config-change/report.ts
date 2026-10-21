@@ -1,18 +1,12 @@
+import type { HostedFacts } from '../lib/hosted.js';
 import type { RepoPasswordPolicy } from './config.js';
-import type { HostedFacts, ProjectPasswordPolicy } from './hosted.js';
-
-const ACCESS_TOKEN_REGEX = /sbp_(oauth_|v0_)?[a-f0-9]{40}/g;
-
-/** Replaces every Supabase access token in text sent to a judge. */
-export function maskAccessTokens(text: string): string {
-  return text.replace(ACCESS_TOKEN_REGEX, '[redacted access token]');
-}
+import type { ProjectPasswordPolicy } from './hosted.js';
 
 function describeRepoLength(repo: RepoPasswordPolicy): string {
   if (!repo.ok) return `unreadable (${repo.notes})`;
-  return repo.minPasswordLength === undefined
-    ? 'not set'
-    : JSON.stringify(repo.minPasswordLength);
+  const value = repo.minPasswordLength;
+  if (value === undefined) return 'not set';
+  return typeof value === 'number' ? String(value) : JSON.stringify(value);
 }
 
 function describeProjectLength(project: ProjectPasswordPolicy): string {

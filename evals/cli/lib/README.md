@@ -7,6 +7,10 @@ What belongs here: pure and probe helpers (`shell.ts`, `stack.ts`,
 `projects.ts`, `markers.ts`, `metrics.ts`, `migrations.ts`), shared judge
 policy text and input formatters (`detours.ts`, `report.ts`).
 
+`hosted.ts` reads whether the run has a hosted project (`readHostedFacts`) and
+turns that into a check result (`checkHostedProject`); `report.ts`'s
+`maskAccessTokens` redacts `sbp_` access tokens from text sent to a judge.
+
 What stays in each eval's `EVAL.ts`: check composition, every `ctx.judge()`
 call, its scenario-specific rubric text, and `export default`. Scenario-only
 helpers with a single consumer stay colocated with that eval.

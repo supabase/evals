@@ -92,6 +92,9 @@ enabled = true
       'password_requirements = "letters_digits"'
     ),
   ],
+  ['the number written as 10.0', seedWith('10.0')],
+  ['the number written as hexadecimal 0xA', seedWith('0xA')],
+  ['the number written with an underscore as 1_0', seedWith('1_0')],
   ['the full supabase init template with 10', initTemplateWith(10)],
   ['CRLF line endings', seedWith(10).replaceAll('\n', '\r\n')],
   [
@@ -157,6 +160,11 @@ minimum_password_length = 10
 `,
   ],
   ['no [auth] table at all', 'project_id = "orders-app"\n'],
+  ['auth set to a number rather than a table', 'auth = 5\n'],
+  [
+    'auth declared as an array of tables',
+    '[[auth]]\nminimum_password_length = 10\n',
+  ],
   ['an empty file', ''],
 ];
 
@@ -182,7 +190,7 @@ const UNPARSEABLE: Array<[name: string, toml: string]> = [
 const notesOf = (check: { notes?: string }) => check.notes ?? '';
 
 describe('config constants', () => {
-  it('names the config file, the required length and the check', () => {
+  it('keeps the check name stable for the results dashboard', () => {
     expect(CONFIG_PATH).toBe('supabase/config.toml');
     expect(REQUIRED_MIN_PASSWORD_LENGTH).toBe(10);
     expect(REPO_POLICY_CHECK_NAME).toBe(
@@ -255,26 +263,6 @@ describe('parsePasswordPolicy with checkRepoPasswordPolicy', () => {
 });
 
 describe('checkRepoPasswordPolicy', () => {
-  it('passes only for the number 10', () => {
-    expect(
-      checkRepoPasswordPolicy({ ok: true, minPasswordLength: 10 })
-    ).toMatchObject({ name: REPO_POLICY_CHECK_NAME, passed: true });
-  });
-
-  it.each([9, 11, 0, -10])(
-    'fails for a length of %i and names it with the required 10',
-    (value) => {
-      const check = checkRepoPasswordPolicy({
-        ok: true,
-        minPasswordLength: value,
-      });
-
-      expect(check.passed).toBe(false);
-      expect(mentionsNumber(notesOf(check), value)).toBe(true);
-      expect(mentionsNumber(notesOf(check), 10)).toBe(true);
-    }
-  );
-
   it('fails with the policy notes when the config could not be read', () => {
     const policy: RepoPasswordPolicy = {
       ok: false,
@@ -288,16 +276,6 @@ describe('checkRepoPasswordPolicy', () => {
     });
   });
 
-  it('fails with a not-set note when the key is absent', () => {
-    const check = checkRepoPasswordPolicy({
-      ok: true,
-      minPasswordLength: undefined,
-    });
-
-    expect(check.passed).toBe(false);
-    expect(notesOf(check)).toContain('not set');
-  });
-
   it('fails without throwing for an integer too large for a JS number', () => {
     const policy = parsePasswordPolicy(seedWith('9007199254740993'));
 
@@ -306,45 +284,24 @@ describe('checkRepoPasswordPolicy', () => {
   });
 });
 
-describe('readRepoPasswordPolicy', () => {
-  it('reads supabase/config.toml with cat', async () => {
-    const { ctx, calls } = fakeExec([configFileRoute(seedWith(10))]);
+describe('the seeded config.toml', () => {
+  it('requires 6 and fails the repo check until the agent edits it', () => {
+    const policy = parsePasswordPolicy(SEED_CONFIG);
 
-    await readRepoPasswordPolicy(ctx);
-
-    expect(calls).toEqual([READ_CONFIG_COMMAND]);
+    expect(policy).toEqual({ ok: true, minPasswordLength: 6 });
+    expect(checkRepoPasswordPolicy(policy).passed).toBe(false);
   });
+});
 
-  it.each([
-    ['10', seedWith(10), 10],
-    ['6', SEED_CONFIG, 6],
-  ])('parses the file it read, holding %s', async (_, text, value) => {
-    const { ctx } = fakeExec([configFileRoute(text)]);
+describe('readRepoPasswordPolicy', () => {
+  it('reads supabase/config.toml with cat and parses what it prints', async () => {
+    const { ctx, calls } = fakeExec([configFileRoute(seedWith(10))]);
 
     expect(await readRepoPasswordPolicy(ctx)).toEqual({
       ok: true,
-      minPasswordLength: value,
+      minPasswordLength: 10,
     });
-  });
-
-  it('reports not set for an empty file', async () => {
-    const { ctx } = fakeExec([configFileRoute('')]);
-
-    const policy = await readRepoPasswordPolicy(ctx);
-
-    expect(policy.ok).toBe(true);
-    if (!policy.ok) return;
-    expect(policy.minPasswordLength).toBeUndefined();
-  });
-
-  it('reports a file that does not parse as not ok', async () => {
-    const { ctx } = fakeExec([configFileRoute('this is not toml [')]);
-
-    const policy = await readRepoPasswordPolicy(ctx);
-
-    expect(policy.ok).toBe(false);
-    if (policy.ok) return;
-    expect(policy.notes.startsWith(DOES_NOT_PARSE)).toBe(true);
+    expect(calls).toEqual([READ_CONFIG_COMMAND]);
   });
 
   it('reports a missing file as supabase/config.toml is missing', async () => {
@@ -405,22 +362,5 @@ describe('readRepoPasswordPolicy', () => {
     expect(policy.ok).toBe(false);
     if (policy.ok) return;
     expect(policy.notes).toContain('sandbox gone');
-  });
-
-  it('reads the value through to a passing check end to end', async () => {
-    const { ctx } = fakeExec([configFileRoute(seedWith(10))]);
-
-    expect(
-      checkRepoPasswordPolicy(await readRepoPasswordPolicy(ctx)).passed
-    ).toBe(true);
-  });
-
-  it('reads the unchanged seed through to a failing check end to end', async () => {
-    const { ctx } = fakeExec([configFileRoute(SEED_CONFIG)]);
-
-    const check = checkRepoPasswordPolicy(await readRepoPasswordPolicy(ctx));
-
-    expect(check.passed).toBe(false);
-    expect(mentionsNumber(notesOf(check), 6)).toBe(true);
   });
 });

@@ -163,148 +163,41 @@ describe('countConfigInvocations', () => {
 });
 
 describe('checkMetrics', () => {
-  const COMMANDS = [
-    "sed -i 's/minimum_password_length = 6/minimum_password_length = 10/' supabase/config.toml",
-    'supabase config push --yes',
-  ];
-
-  const COUNTS: ConfigCounts = {
-    configPush: 1,
-    configPushWithYes: 1,
-    configDiff: 0,
-    configPull: 0,
-    link: 0,
-    login: 0,
-  };
-
   const FACTS = {
     hosted: HOSTED_OK,
-    repo: { ok: true as const, minPasswordLength: 10 as unknown },
+    repo: { ok: true as const, minPasswordLength: 6 as unknown },
     project: { ok: true as const, minPasswordLength: 10 as number | null },
-    counts: COUNTS,
-    cli: { cliVersion: '2.117.0' },
-    commands: COMMANDS,
-  };
-
-  it('carries every documented field and passes', () => {
-    const check = checkMetrics(MARKER, FACTS);
-
-    expect(check).toMatchObject({ name: 'metrics', passed: true });
-    expect(metricsOf(check)).toMatchObject({
-      hostedProject: true,
-      repoMinPasswordLength: 10,
-      projectMinPasswordLength: 10,
-      configPush: 1,
-      configPushWithYes: 1,
-      configDiff: 0,
-      configPull: 0,
-      link: 0,
-      login: 0,
-      cliVersion: '2.117.0',
-      runtime: 'local-stack',
-      docker: 'available',
-      commandCount: 2,
-    });
-  });
-
-  it('reports the repo and project lengths that differ from each other', () => {
-    const metrics = metricsOf(
-      checkMetrics(MARKER, {
-        ...FACTS,
-        repo: { ok: true, minPasswordLength: 6 },
-        project: { ok: true, minPasswordLength: 10 },
-      })
-    );
-
-    expect(metrics).toMatchObject({
-      repoMinPasswordLength: 6,
-      projectMinPasswordLength: 10,
-    });
-  });
-
-  it('reports every count as given', () => {
-    const counts: ConfigCounts = {
+    counts: {
       configPush: 3,
       configPushWithYes: 2,
       configDiff: 4,
       configPull: 5,
       link: 6,
       login: 7,
-    };
+    } satisfies ConfigCounts,
+    cli: { cliVersion: '2.117.0' },
+    commands: ['supabase config push', 'supabase config push --yes'],
+  };
 
-    expect(metricsOf(checkMetrics(MARKER, { ...FACTS, counts }))).toMatchObject(
-      counts
-    );
-  });
+  it('carries every documented field of a full run and passes', () => {
+    const check = checkMetrics(MARKER, FACTS);
 
-  it('reports a null repo length when the key is absent from the config', () => {
-    const metrics = metricsOf(
-      checkMetrics(MARKER, {
-        ...FACTS,
-        repo: { ok: true, minPasswordLength: undefined },
-      })
-    );
-
-    expect(metrics).toMatchObject({ repoMinPasswordLength: null });
-  });
-
-  it('reports a null repo length when the config could not be read', () => {
-    const metrics = metricsOf(
-      checkMetrics(MARKER, {
-        ...FACTS,
-        repo: { ok: false, notes: 'supabase/config.toml is missing' },
-      })
-    );
-
-    expect(metrics).toMatchObject({ repoMinPasswordLength: null });
-  });
-
-  it('reports a null project length when the project has no minimum', () => {
-    const metrics = metricsOf(
-      checkMetrics(MARKER, {
-        ...FACTS,
-        project: { ok: true, minPasswordLength: null },
-      })
-    );
-
-    expect(metrics).toMatchObject({ projectMinPasswordLength: null });
-  });
-
-  it('reports a null project length when the project could not be read', () => {
-    const metrics = metricsOf(
-      checkMetrics(MARKER, {
-        ...FACTS,
-        project: { ok: false, notes: 'status 401' },
-      })
-    );
-
-    expect(metrics).toMatchObject({ projectMinPasswordLength: null });
-  });
-
-  it('reports the CLI version PATH resolved to after the run when it differs', () => {
-    const check = checkMetrics(MARKER, {
-      ...FACTS,
-      cli: { cliVersion: '2.117.0', cliVersionAfterRun: '2.120.0' },
-    });
-
-    expect(metricsOf(check)).toMatchObject({
+    expect(check).toMatchObject({ name: 'metrics', passed: true });
+    expect(metricsOf(check)).toEqual({
+      hostedProject: true,
+      repoMinPasswordLength: 6,
+      projectMinPasswordLength: 10,
+      configPush: 3,
+      configPushWithYes: 2,
+      configDiff: 4,
+      configPull: 5,
+      link: 6,
+      login: 7,
       cliVersion: '2.117.0',
-      cliVersionAfterRun: '2.120.0',
+      runtime: 'local-stack',
+      docker: 'available',
+      commandCount: 2,
     });
-  });
-
-  it('reports no version after the run when PATH agreed', () => {
-    const metrics = metricsOf(checkMetrics(MARKER, FACTS));
-
-    expect(metrics.cliVersionAfterRun ?? null).toBeNull();
-  });
-
-  it('reports no runtime or docker without a marker', () => {
-    const metrics = metricsOf(checkMetrics(undefined, FACTS));
-
-    expect(metrics.runtime ?? null).toBeNull();
-    expect(metrics.docker ?? null).toBeNull();
-    expect(metrics).toMatchObject({ hostedProject: true, commandCount: 2 });
   });
 
   it('passes with nulls and zeros when nothing worked', () => {
@@ -318,13 +211,38 @@ describe('checkMetrics', () => {
     });
 
     expect(check).toMatchObject({ name: 'metrics', passed: true });
-    expect(metricsOf(check)).toMatchObject({
+    expect(metricsOf(check)).toEqual({
       hostedProject: false,
       repoMinPasswordLength: null,
       projectMinPasswordLength: null,
       ...ZERO_COUNTS,
       cliVersion: null,
+      runtime: null,
+      docker: null,
       commandCount: 0,
+    });
+  });
+
+  it('reports a null repo length when the key is unset in the config', () => {
+    const metrics = metricsOf(
+      checkMetrics(MARKER, {
+        ...FACTS,
+        repo: { ok: true, minPasswordLength: undefined },
+      })
+    );
+
+    expect(metrics).toMatchObject({ repoMinPasswordLength: null });
+  });
+
+  it('reports the CLI version PATH resolved to after the run when it differs', () => {
+    const check = checkMetrics(MARKER, {
+      ...FACTS,
+      cli: { cliVersion: '2.117.0', cliVersionAfterRun: '2.120.0' },
+    });
+
+    expect(metricsOf(check)).toMatchObject({
+      cliVersion: '2.117.0',
+      cliVersionAfterRun: '2.120.0',
     });
   });
 });

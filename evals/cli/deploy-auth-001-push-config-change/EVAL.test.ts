@@ -14,7 +14,6 @@ import { mentionsNumber } from '../lib/report.js';
 import { REPO_POLICY_CHECK_NAME } from './config.js';
 import scorer from './EVAL.js';
 import {
-  apiError,
   authConfig,
   commandResult,
   configFileRoute,
@@ -219,17 +218,6 @@ describe('push-config-change scorer', () => {
     });
   });
 
-  it('fails the repo check when only a comment mentions 10', async () => {
-    const { ctx } = fakeCtx({
-      config: SEED_CONFIG.replace(
-        'minimum_password_length = 6',
-        '# minimum_password_length = 10\nminimum_password_length = 6'
-      ),
-    });
-
-    expect(failedNames(await scorer(ctx))).toEqual([REPO_POLICY_CHECK_NAME]);
-  });
-
   it('fails both policy checks, and no others, when nothing was changed anywhere', async () => {
     const { ctx } = fakeCtx({
       config: SEED_CONFIG,
@@ -265,16 +253,6 @@ describe('push-config-change scorer', () => {
 
     expect(failedNames(result)).toEqual([REPO_POLICY_CHECK_NAME]);
     expect(notesOf(result, REPO_POLICY_CHECK_NAME)).toContain('does not parse');
-  });
-
-  it('fails only the project check, with the status, when the Management API answers 401', async () => {
-    const { ctx } = fakeCtx({ project: apiError(401, 'Unauthorized') });
-
-    const result = await scorer(ctx);
-
-    expect(failedNames(result)).toEqual([PROJECT_POLICY_CHECK_NAME]);
-    expect(notesOf(result, PROJECT_POLICY_CHECK_NAME)).toContain('401');
-    expect(metricsOf(result)).toMatchObject({ projectMinPasswordLength: null });
   });
 
   it('fails only the project check, with the message, when the Management API call throws', async () => {
