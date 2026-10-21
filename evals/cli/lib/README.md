@@ -44,6 +44,7 @@ invocation's prefix, an earlier `export` in the same command, or the
 `sandboxEnv` option. Scorers should pass
 `(await ctx.environmentMarker())?.env` as `sandboxEnv` so the experiment's env
 counts.
+`invocationPositionals` returns an invocation's positional arguments, verb first, so a scorer can read a subcommand such as the `list` in `projects list`.
 `commandToolCalls` returns the tool calls behind `extractCommands`' entries, so
 an invocation's `commandIndex` maps back to its result.
 

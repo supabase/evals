@@ -4,6 +4,7 @@ import {
   findSupabaseInvocations,
   invocationDirectory,
   invocationFlag,
+  invocationPositionals,
   invocationSubcommand,
   invocationTargetUnresolved,
   invocationTargets,
@@ -533,6 +534,34 @@ describe('invocationVerb', () => {
     [['supabase'], undefined],
   ])('%j -> %s', (argv, verb) => {
     expect(invocationVerb(inv(argv))).toBe(verb);
+  });
+});
+
+describe('invocationPositionals', () => {
+  it.each([
+    [
+      ['supabase', 'projects', 'list'],
+      ['projects', 'list'],
+    ],
+    [
+      ['supabase', '--debug', 'projects', 'ls', '-o', 'json'],
+      ['projects', 'ls'],
+    ],
+    [
+      ['supabase', 'projects', '--output', 'json', 'list'],
+      ['projects', 'list'],
+    ],
+    [
+      ['supabase', 'projects', '-o=json', 'list'],
+      ['projects', 'list'],
+    ],
+    [
+      ['supabase', '--workdir', 'a', 'link', 'abc'],
+      ['link', 'abc'],
+    ],
+    [['supabase'], []],
+  ])('%j -> %j', (argv, expected) => {
+    expect(invocationPositionals(inv(argv))).toEqual(expected);
   });
 });
 
@@ -1668,6 +1697,15 @@ describe('invocationFlag', () => {
     expect(flag('supabase stack start --runtime native')).toBe('native');
     expect(flag('supabase stack start --runtime=native')).toBe('native');
     expect(flag('supabase stack start --runtime "docker"')).toBe('docker');
+  });
+
+  it('reads a value for a flag that is not a known value flag', () => {
+    expect(flag('supabase login --token abc', '--token')).toBe('abc');
+    expect(flag('supabase login --token=abc', '--token')).toBe('abc');
+  });
+
+  it('is undefined for a trailing bare flag', () => {
+    expect(flag('supabase login --token', '--token')).toBeUndefined();
   });
 
   it('is undefined when the flag is absent', () => {
