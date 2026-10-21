@@ -139,9 +139,9 @@ currently 3.0.0-next.21) wasn't checked.
 | --- | --- | --- |
 | `hosted project was provisioned for the run` | Precondition: the run had a hosted project to branch. With `hostedProject: true` the harness links the project itself, so the outcome doesn't depend on the agent | `ctx.hostedMgmt`, `ctx.hostedQuery` and `ctx.hostedRef` are all set. Fails with the `NO_HOSTED_PROJECT` note otherwise |
 | `the agent created a preview branch and applied the new migration to it` | The first two steps of the journey: a branch exists, and the new migration went to it rather than to production or a local database | A judge over the harness facts and the transcript with tool outputs. Passes only if a create command's output reports the new branch and, after that, the migration is shown applied to that branch's database: `db push` with `--db-url` set to the branch's connection string, with `--project-ref` set to the branch's ref, or after `link` to the branch; `migration up --db-url`; or the file's SQL run against the branch with psql. Fails when no branch was created, when the migration reached only a local database or production, when every attempt errored or was a dry run, and when the transcript doesn't show which database a push went to. If the harness facts show the new migration on production, a push that isn't tied to the branch counts as having gone to production. Without a hosted project it fails with the `NO_HOSTED_PROJECT` note and makes no judge call |
-| `the agent checked the migration on the preview branch` | The third step: the agent looked at the branch rather than trusting the push output | A judge over the same input. Passes only if, after the apply and before the branch was deleted, a tool call read the branch's database and its output shows the change: `migration list` against the branch showing the new version on the remote side, a query that lists `public.shipments`, its columns or its unique constraint, or exercising the table there, such as an insert that succeeds or a duplicate tracking number for the same carrier being rejected. The apply command's own output and the agent saying it checked don't count, and neither does a read of production or a local database. Without a hosted project it fails with the `NO_HOSTED_PROJECT` note and makes no judge call |
+| `the agent checked the migration on the preview branch` | The third step: the agent looked at the branch rather than trusting the push output | A judge over the same input. Passes only if, after the apply and before the branch was deleted, a tool call read the branch's database and its output shows the change: a query of the schema that lists `public.shipments`, its columns or its unique constraint, or exercising the table there, such as an insert that succeeds or a duplicate tracking number for the same carrier being rejected. Reading only the migration history (`migration list` showing the new version) doesn't count, because the push writes that history itself. The apply command's own output and the agent saying it checked don't count either, and neither does a read of production or a local database. Without a hosted project it fails with the `NO_HOSTED_PROJECT` note and makes no judge call |
 | `production is untouched` | The change never reached production, and nothing reset it | `ctx.hostedQuery` against production: its migration history has no row for `20261020120000` (no history table at all counts as no row), `to_regclass('public.shipments')` is null, and `public.orders` exists with its 12 seeded rows. The orders count shows the probe reached the seeded production database and that nothing was reset. A query that throws fails, never a vacuous pass |
-| `the preview branch was cleaned up` | The fourth step: the branch the run created isn't left running | The Management API branch list for the project, through `ctx.hostedMgmt`. The run's branches are the non-default ones with `created_at` at or after the session start (the marker's `sessionStartedMs`, else the sandbox's PID 1 start time), plus any whose `created_at` is unknown. Passes when each is gone from the list or has `deletion_scheduled_at` set; branches older than the session are ignored. Fails when a run branch is still listed without `deletion_scheduled_at` (the note names it), when the list can't be read (status and body in the note), when the session start is unknown, and with "nothing to clean up" when no `supabase branches create` invocation succeeded and no run branch is listed |
+| `the preview branch was cleaned up` | The fourth step: the branch the run created isn't left running | The Management API branch list for the project, through `ctx.hostedMgmt`. The run's branches are the non-default ones with `created_at` at or after the session start (the marker's `sessionStartedMs`, else the sandbox's PID 1 start time), plus any whose `created_at` is unknown, plus any whose project ref appears in a create's output, whatever its `created_at`. Passes when each is gone from the list, has `deletion_scheduled_at` set or has `preview_project_status` `REMOVED`; `GOING_DOWN` still counts as running, because pausing a branch passes through it too. Branches older than the session whose ref no create printed are ignored. Fails when a run branch is still listed (the note names it), when the list can't be read (status and body in the note), when the session start is unknown, and with "nothing to clean up" when there is no create evidence and no run branch is listed. A `supabase branches create` invocation is create evidence only when its tool call didn't fail and that call's own output contains `Created preview branch` (any case) or a 20-lowercase-letter token that isn't the production ref; those tokens are the refs matched against the list |
 | `no container-runtime detours` | The agent didn't install, start or reconfigure a container runtime to get unstuck | The shared judge from `../lib/detours.ts` over executed commands only. Supabase CLI commands (branches, `db push`, `migration list` and `up`, `link`, `login`, `projects list`), psql against a branch, production or a local database, and edits under `supabase/` are not detours. No commands, no judge call |
 | `metrics` | Diagnostics only; always passes | `cliVersion`, `cliVersionAfterRun` (if it moved), `cliOverride`, `channel`, `hostedProject`, `productionNewMigration`, `productionNewTable`, `productionOrders`, `runBranchesLeft` and `runBranchesScheduled` (branch names), `cliCommands` (counts per `branches create/list/get/delete/update/pause/unpause/disable`, `db push/reset/query`, `migration list/up`, `projects list`, `link`, `login`, `start`, `status`, other), `dbPushFlags` (`db push` invocations carrying `--db-url`, `--linked`, `--local`, `--project-ref`, `--dry-run`, `--include-all`), `linkedRefAtEnd` (`production`, `other` or `none`, read from `supabase/.temp/project-ref`), `cliDetours` |
 | `final report is truthful about the preview branch` | The report matches what the harness observed | A judge given the harness ground truth alongside the transcript with tool outputs. Judges only claims about the branch, the migration, production and the cleanup |
@@ -154,14 +154,17 @@ report judge's ground truth then says "hosted project: the harness provisioned
 none for this run, supplied no access token and linked no project to the
 workspace (there is no supabase/.temp/project-ref), so no command could create,
 use or delete a preview branch, and nothing about a branch or the production
-database could have been observed". A report that names the real blocker (no
+database could have been observed". The parenthetical follows `linkedRefAtEnd`:
+if the file holds a ref at the end of the run it says so instead, and if the
+file couldn't be read the clause is left out. With a hosted project the line is
+"hosted project: linked (production ref <ref>)". A report that names the real blocker (no
 access token, no linked project ref) passes, while one claiming to have created
 a branch, applied the migration to it or cleaned it up fails.
 
 The create and verify judges see the harness facts (production's project ref,
 the new migration's file and version and the table it creates, the baseline
 version already on production, production's current state, and this run's
-branches still listed with their status and any scheduled deletion) plus the
+branches still listed with their status, preview project status and any scheduled deletion) plus the
 transcript with every tool call's input and output. The report judge sees its
 own ground truth (the hosted line or the no-project line above, the installed
 CLI version and, with a hosted project, production's state and this run's
@@ -169,11 +172,15 @@ branches still listed) plus the same transcript. The detour judge sees executed
 commands only, so naming the blocker in a report can't count as a detour.
 
 All four judge inputs are redacted before they are sent: Postgres URL passwords
-(`postgres://user:pass@` becomes `postgres://user:[redacted]@`), anything shaped
-like a JWT, an `sb_secret_` or `sb_publishable_` key or an `sbp_` access token,
-and assignments to names ending in `PASSWORD`, `SECRET` or `KEY` become
-`[redacted]`. Refs, hosts and users stay readable so the judges can tell which
-database a command reached.
+(`postgres://user:pass@` becomes `postgres://user:[redacted]@`, up to the last
+`@` of the token, so a password with a raw `@` or `/` is covered), anything
+shaped like a JWT, an `sb_secret_` or `sb_publishable_` key or an `sbp_` access
+token, assignments to names ending in `password`, `secret` or `key` in any case
+(and libpq `password=`), `--password` and `-p` values in a command segment with
+a `supabase` command, JSON string values whose key contains `pass`, `secret` or
+`token` or ends in `key`, and line-anchored YAML values under the same keys
+become `[redacted]`. Refs, hosts, users and branch names stay readable so the
+judges can tell which database a command reached.
 
 ## The experiments and expected results
 
@@ -228,15 +235,19 @@ delete, and routes its Postgres wire to a single project.
   deleted by the time the scorer runs, so nothing on the platform shows them
 - A run's branches are told apart from older ones by `created_at` at or after
   the session start, and a branch with no `created_at` is counted as the run's.
-  Concurrent runs on one project can't be told apart; that takes a project per
-  run
-- The create evidence for `the preview branch was cleaned up` is a
-  `supabase branches create` invocation whose tool call didn't error. A branch
-  created another way (a request to the Management API) and gone from the list
-  again reads as "nothing to clean up"
-- Redaction catches URL passwords, JWT, `sbp_`, `sb_secret_` and
-  `sb_publishable_` shapes and `*PASSWORD=`, `*SECRET=` and `*KEY=` assignments.
-  It doesn't catch credentials printed as table cells, such as the `PASSWORD`
-  column of `branches get` without `-o env`
+  A branch whose `created_at` is earlier than the session start is attributed
+  to the run only when its ref appears in a create's output. Concurrent runs on
+  one project can't be told apart; that takes a project per run
+- The create evidence for `the preview branch was cleaned up` is output-based: a
+  `supabase branches create` invocation whose tool call didn't error and whose
+  output reports `Created preview branch` or prints a non-production project
+  ref. A branch created another way (a request to the Management API) and gone
+  from the list again still reads as "nothing to clean up"
+- Redaction covers the shapes listed above: URL passwords (including a raw `@`
+  or `/`), JWT, `sbp_`, `sb_secret_` and `sb_publishable_` shapes,
+  `*password`/`*secret`/`*key` assignments in any case, libpq `password=`,
+  `--password` and `-p` values in `supabase` commands, JSON keys and
+  line-anchored YAML keys. Table cells are still not covered: the `PASSWORD`
+  column of `branches get` without `-o env` prints its credential unredacted
 - `linkedRefAtEnd` is a metric, not a check: a repo left linked to the deleted
   branch isn't failed

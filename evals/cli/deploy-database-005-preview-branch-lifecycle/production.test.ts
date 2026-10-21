@@ -211,6 +211,116 @@ describe('readProduction', () => {
     expect(queries).toHaveLength(1);
   });
 
+  describe('strict parsing', () => {
+    const ALL_FLAGS = { has_history: 1, has_new_table: 0, has_orders: 1 };
+    const PROBE_FAILED = (column: string) =>
+      `the production probe got no 0/1 value for ${column}`;
+
+    it('accepts 0 and 1 as numbers or numeric strings in the flags row', async () => {
+      for (const flags of [
+        ALL_FLAGS,
+        { has_history: '1', has_new_table: '0', has_orders: '1' },
+      ]) {
+        const { probe } = await readWith({ ...SEEDED_PRODUCTION, flags });
+        expect(probe).toMatchObject({ ok: true });
+      }
+    });
+
+    it('is not ok, naming the column, for a flags row with only has_orders', async () => {
+      const { probe } = await readWith({
+        ...SEEDED_PRODUCTION,
+        flags: { has_orders: 1 },
+      });
+      expect(probe).toEqual({ ok: false, notes: PROBE_FAILED('has_history') });
+    });
+
+    it('fails the check, rather than passing, for a flags row with only has_orders', async () => {
+      const { probe } = await readWith({
+        ...SEEDED_PRODUCTION,
+        flags: { has_orders: 1 },
+      });
+      expect(checkProductionUntouched(probe)).toMatchObject({
+        name: NAME,
+        passed: false,
+      });
+    });
+
+    it.each(['has_history', 'has_new_table', 'has_orders'])(
+      'is not ok when %s is missing',
+      async (column) => {
+        const { [column]: _dropped, ...flags } = ALL_FLAGS as Record<
+          string,
+          number
+        >;
+        const { probe } = await readWith({ ...SEEDED_PRODUCTION, flags });
+        expect(probe).toEqual({ ok: false, notes: PROBE_FAILED(column) });
+      }
+    );
+
+    it.each([
+      ['null', null],
+      ['undefined', undefined],
+      ['2', 2],
+      ['-1', -1],
+      ['NaN', Number.NaN],
+      ['true', true],
+      ['the string "yes"', 'yes'],
+      ['an empty string', ''],
+      ['the string "2"', '2'],
+    ])('is not ok when a flag is %s', async (_label, value) => {
+      for (const column of ['has_history', 'has_new_table', 'has_orders']) {
+        const { probe, queries } = await readWith({
+          ...SEEDED_PRODUCTION,
+          flags: { ...ALL_FLAGS, [column]: value },
+        });
+        expect(probe).toEqual({ ok: false, notes: PROBE_FAILED(column) });
+        expect(queries).toHaveLength(1);
+      }
+    });
+
+    it.each(['history', 'orders'] as const)(
+      'is not ok when the %s count is null, undefined or not a number',
+      async (which) => {
+        for (const n of [null, undefined, 'many', Number.NaN]) {
+          const { probe } = await readWith({
+            ...SEEDED_PRODUCTION,
+            counts: { [which]: n },
+          });
+          expect(probe.ok).toBe(false);
+          expect(!probe.ok && probe.notes).toContain(
+            'the production probe got no count from'
+          );
+        }
+      }
+    );
+
+    it('fails the check, rather than reading zero rows, for an orders count of null', async () => {
+      const { probe } = await readWith({
+        ...SEEDED_PRODUCTION,
+        counts: { orders: null },
+      });
+      expect(checkProductionUntouched(probe)).toMatchObject({ passed: false });
+    });
+
+    it('fails the check, rather than reading the version as absent, for a history count of null', async () => {
+      const { probe } = await readWith({
+        ...PUSHED_PRODUCTION,
+        counts: { history: null },
+      });
+      expect(probe.ok).toBe(false);
+      expect(checkProductionUntouched(probe)).toMatchObject({
+        name: NAME,
+        passed: false,
+      });
+    });
+
+    it('still reads a zero count as zero', async () => {
+      expect(
+        await stateOf({ ...SEEDED_PRODUCTION, counts: { orders: 0 } })
+      ).toMatchObject({ orderRows: 0 });
+    });
+  });
+
   it('is not ok, naming the missing hosted project, without querying anything when there is none', async () => {
     const hostedQuery = vi.fn(async () => ({ rows: [] }));
     for (const ctx of [

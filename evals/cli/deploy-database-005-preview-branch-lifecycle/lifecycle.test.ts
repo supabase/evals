@@ -46,9 +46,16 @@ describe('describeLifecycleFacts', () => {
   const factsFor = (
     production: ProductionProbe,
     branches: BranchesProbe,
-    sessionStartMs: number | null = SESSION_START
+    sessionStartMs: number | null = SESSION_START,
+    refs: string[] = []
   ) =>
-    describeLifecycleFacts({ ref: REF, production, branches, sessionStartMs });
+    describeLifecycleFacts({
+      ref: REF,
+      production,
+      branches,
+      sessionStartMs,
+      refs,
+    });
 
   it('starts with the production ref, the new migration and the migration already on production', () => {
     const lines = factsFor(productionProbe(), clean);
@@ -63,7 +70,7 @@ describe('describeLifecycleFacts', () => {
     const production = productionProbe();
     expect(factsFor(production, clean).slice(3)).toEqual([
       ...describeProduction(production),
-      ...describeBranches(clean, SESSION_START),
+      ...describeBranches(clean, SESSION_START, []),
     ]);
   });
 
@@ -79,11 +86,11 @@ describe('describeLifecycleFacts', () => {
     const lines = factsFor(production, branches);
     expect(lines.slice(3)).toEqual([
       ...describeProduction(production),
-      ...describeBranches(branches, SESSION_START),
+      ...describeBranches(branches, SESSION_START, []),
     ]);
     expect(lines.slice(3)).not.toEqual([
       ...describeProduction(productionProbe()),
-      ...describeBranches(clean, SESSION_START),
+      ...describeBranches(clean, SESSION_START, []),
     ]);
   });
 
@@ -98,8 +105,24 @@ describe('describeLifecycleFacts', () => {
     };
     expect(factsFor(production, branches, null).slice(3)).toEqual([
       ...describeProduction(production),
-      ...describeBranches(branches, null),
+      ...describeBranches(branches, null, []),
     ]);
+  });
+
+  it('lists a branch older than the session start when a create printed its ref', () => {
+    const skewed: BranchesProbe = {
+      ok: true,
+      branches: [summary({ createdAtMs: SESSION_START - 1_000 })],
+    };
+    expect(
+      factsFor(productionProbe(), skewed, SESSION_START, [BRANCH_REF]).slice(3)
+    ).toEqual([
+      ...describeProduction(productionProbe()),
+      ...describeBranches(skewed, SESSION_START, [BRANCH_REF]),
+    ]);
+    expect(describeBranches(skewed, SESSION_START, [BRANCH_REF])[0]).toContain(
+      'preview-shipments'
+    );
   });
 
   it('gives lines that each start with a dash', () => {
@@ -115,6 +138,7 @@ describe('describeLifecycleFacts', () => {
         production: productionProbe(),
         branches: clean,
         sessionStartMs: SESSION_START,
+        refs: [],
       })[0]
     ).toBe(`- production project ref: ${BRANCH_REF}`);
   });

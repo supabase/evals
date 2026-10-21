@@ -25,8 +25,24 @@ const ORDER_ROWS_SQL = `select count(*)::int as n from public.${BASELINE_TABLE}`
 
 type HostedQuery = NonNullable<LocalStackEvalContext['hostedQuery']>;
 
+const FLAG_VALUES = new Map<unknown, boolean>([
+  [0, false],
+  [1, true],
+  ['0', false],
+  ['1', true],
+]);
+
+function flag(row: Record<string, unknown>, column: string): boolean {
+  const value = FLAG_VALUES.get(row[column]);
+  if (value === undefined) {
+    throw new Error(`the production probe got no 0/1 value for ${column}`);
+  }
+  return value;
+}
+
 async function count(hostedQuery: HostedQuery, sql: string): Promise<number> {
-  const n = Number((await hostedQuery(sql)).rows[0]?.n);
+  const raw = (await hostedQuery(sql)).rows[0]?.n;
+  const n = raw === null || raw === undefined ? Number.NaN : Number(raw);
   if (Number.isNaN(n)) {
     throw new Error(`the production probe got no count from: ${sql}`);
   }
@@ -46,8 +62,9 @@ export async function readProduction(
     if (!flags) {
       return { ok: false, notes: 'the production probe returned no rows' };
     }
-    const hasHistory = Number(flags.has_history) === 1;
-    const ordersPresent = Number(flags.has_orders) === 1;
+    const hasHistory = flag(flags, 'has_history');
+    const newTablePresent = flag(flags, 'has_new_table');
+    const ordersPresent = flag(flags, 'has_orders');
     const newVersionRecorded =
       hasHistory && (await count(hostedQuery, RECORDED_SQL)) > 0;
     const orderRows = ordersPresent
@@ -57,7 +74,7 @@ export async function readProduction(
       ok: true,
       state: {
         newVersionRecorded,
-        newTablePresent: Number(flags.has_new_table) === 1,
+        newTablePresent,
         ordersPresent,
         orderRows,
       },

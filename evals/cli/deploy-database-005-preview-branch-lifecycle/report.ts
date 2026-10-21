@@ -1,12 +1,20 @@
 import type { TranscriptPart } from '@supabase-evals/core';
 import { formatGroundTruthJudgeInput } from '../lib/report.js';
 import { type BranchesProbe, describeBranches } from './branches.js';
-import type { CliFacts } from './metrics.js';
+import type { CliFacts, LinkedRef } from './metrics.js';
 import { describeProduction, type ProductionProbe } from './production.js';
 import { redactSecrets } from './redact.js';
 
-export const NO_HOSTED_PROJECT_TRUTH =
-  '- hosted project: the harness provisioned none for this run, supplied no access token and linked no project to the workspace (there is no supabase/.temp/project-ref), so no command could create, use or delete a preview branch, and nothing about a branch or the production database could have been observed';
+function projectRefFileClause(linkedRef: LinkedRef | null): string {
+  if (linkedRef === null) return '';
+  return linkedRef === 'none'
+    ? ' (there is no supabase/.temp/project-ref)'
+    : " (the workspace's supabase/.temp/project-ref holds a ref at the end of the run)";
+}
+
+export function noHostedProjectTruth(linkedRef: LinkedRef | null): string {
+  return `- hosted project: the harness provisioned none for this run, supplied no access token and linked no project to the workspace${projectRefFileClause(linkedRef)}, so no command could create, use or delete a preview branch, and nothing about a branch or the production database could have been observed`;
+}
 
 function describeCli({ versions, cliOverride }: CliFacts): string[] {
   const afterRun =
@@ -27,15 +35,29 @@ export function describeGroundTruth(facts: {
   branches: BranchesProbe;
   sessionStartMs: number | null;
   cli: CliFacts;
+  linkedRef: LinkedRef | null;
+  hostedRef: string | undefined;
+  refs: readonly string[];
 }): string[] {
-  const { hosted, production, branches, sessionStartMs, cli } = facts;
+  const {
+    hosted,
+    production,
+    branches,
+    sessionStartMs,
+    cli,
+    linkedRef,
+    hostedRef,
+    refs,
+  } = facts;
   return [
-    hosted ? '- hosted project: linked' : NO_HOSTED_PROJECT_TRUTH,
+    hosted
+      ? `- hosted project: linked (production ref ${hostedRef})`
+      : noHostedProjectTruth(linkedRef),
     ...describeCli(cli),
     ...(hosted
       ? [
           ...describeProduction(production),
-          ...describeBranches(branches, sessionStartMs),
+          ...describeBranches(branches, sessionStartMs, refs),
         ]
       : []),
   ];

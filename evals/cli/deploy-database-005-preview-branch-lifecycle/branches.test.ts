@@ -1,19 +1,23 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/deploy-database-005-preview-branch-lifecycle
 import { describe, expect, it } from 'vitest';
 import { findSupabaseInvocations } from '../lib/cli-invocations.js';
+import { extractCommandEntries } from '../lib/detours.js';
 import {
+  type BranchCreates,
   type BranchesProbe,
   type BranchSummary,
   checkBranchCleanedUp,
-  countBranchCreates,
   describeBranches,
   readBranches,
+  readBranchCreates,
   runBranches,
+  splitRunBranches,
 } from './branches.js';
 import {
   apiBranch,
   BRANCH_REF,
   BRANCHES_PATH,
+  DAY_MS,
   DEFAULT_BRANCH,
   DEFAULT_SUMMARY,
   fakeMgmt,
@@ -22,6 +26,7 @@ import {
   OLDER_SUMMARY,
   REF,
   SESSION_START,
+  shellCall,
   summary,
 } from './fakes.js';
 import { NO_HOSTED_PROJECT } from './hosted.js';
@@ -32,6 +37,11 @@ const NO_CREATE =
 const NO_SESSION_START =
   "can't tell this run's branches from older ones: session start time unavailable";
 const CLEAN = "none of this run's branches is left running";
+
+const creates = (n: number, refs: string[] = []): BranchCreates => ({
+  creates: n,
+  refs,
+});
 
 const listed = (...branches: BranchSummary[]): BranchesProbe => ({
   ok: true,
@@ -71,7 +81,7 @@ describe('readBranches', () => {
           projectRef: REF,
           isDefault: true,
           status: 'FUNCTIONS_DEPLOYED',
-          createdAtMs: SESSION_START - 30 * 86_400_000,
+          createdAtMs: SESSION_START - 30 * DAY_MS,
         },
         {
           name: 'preview-shipments',
@@ -83,6 +93,20 @@ describe('readBranches', () => {
         },
       ],
     });
+  });
+
+  it('carries the preview project status of a branch', async () => {
+    const { probe } = await readWith({
+      branches: [apiBranch({ preview_project_status: 'REMOVED' })],
+    });
+    expect(probe.ok && probe.branches[0].previewProjectStatus).toBe('REMOVED');
+  });
+
+  it('leaves previewProjectStatus off a branch that reports none', async () => {
+    const { probe } = await readWith({ branches: [apiBranch()] });
+    expect(probe.ok && probe.branches[0]).not.toHaveProperty(
+      'previewProjectStatus'
+    );
   });
 
   it('leaves deletionScheduledAt off a branch that is not scheduled for deletion', async () => {
@@ -160,7 +184,7 @@ describe('runBranches', () => {
     const before = summary({ name: 'before', createdAtMs: SESSION_START - 1 });
     const atStart = summary({ name: 'at-start', createdAtMs: SESSION_START });
     const after = summary({ name: 'after', createdAtMs: SESSION_START + 1 });
-    expect(runBranches([before, atStart, after], SESSION_START)).toEqual([
+    expect(runBranches([before, atStart, after], SESSION_START, [])).toEqual([
       atStart,
       after,
     ]);
@@ -172,49 +196,118 @@ describe('runBranches', () => {
       isDefault: true,
       createdAtMs: SESSION_START + 1_000,
     });
-    expect(runBranches([newDefault], SESSION_START)).toEqual([]);
+    expect(runBranches([newDefault], SESSION_START, [])).toEqual([]);
   });
 
   it('never counts a default branch with no creation time', () => {
     expect(
       runBranches(
         [summary({ isDefault: true, createdAtMs: undefined })],
-        SESSION_START
+        SESSION_START,
+        []
       )
     ).toEqual([]);
   });
 
   it('counts a non-default branch with no creation time, since it cannot be ruled out', () => {
     const unknown = summary({ name: 'unknown-age', createdAtMs: undefined });
-    expect(runBranches([unknown], SESSION_START)).toEqual([unknown]);
+    expect(runBranches([unknown], SESSION_START, [])).toEqual([unknown]);
   });
 
   it('drops the older pre-session branches and the default branch from a full listing', () => {
     const mine = summary();
     expect(
-      runBranches([DEFAULT_SUMMARY, OLDER_SUMMARY, mine], SESSION_START)
+      runBranches([DEFAULT_SUMMARY, OLDER_SUMMARY, mine], SESSION_START, [])
     ).toEqual([mine]);
   });
 
   it('treats a session start of zero as a real time', () => {
     const mine = summary({ createdAtMs: 1_000 });
-    expect(runBranches([mine], 0)).toEqual([mine]);
+    expect(runBranches([mine], 0, [])).toEqual([mine]);
   });
 
   it('returns nothing for no branches', () => {
-    expect(runBranches([], SESSION_START)).toEqual([]);
+    expect(runBranches([], SESSION_START, [])).toEqual([]);
+  });
+
+  it('keeps a branch older than the session start whose ref a create printed', () => {
+    const older = summary({
+      name: 'skewed',
+      createdAtMs: SESSION_START - DAY_MS,
+    });
+    const other = summary({
+      name: 'other',
+      projectRef: 'mnopqrstuvwxyzabcdef',
+      createdAtMs: SESSION_START - DAY_MS,
+    });
+    expect(runBranches([older, other], SESSION_START, [BRANCH_REF])).toEqual([
+      older,
+    ]);
+  });
+
+  it('never counts the default branch, even when its ref is in the refs', () => {
+    expect(
+      runBranches([DEFAULT_SUMMARY], SESSION_START, [
+        DEFAULT_SUMMARY.projectRef,
+      ])
+    ).toEqual([]);
   });
 });
 
-describe('countBranchCreates', () => {
-  type Entry = string | { command: string; failed?: boolean };
+describe('splitRunBranches', () => {
+  it('keeps a ref-matched older branch in the running list, and a removed or scheduled one in the scheduled list', () => {
+    const skewed = summary({ name: 'skewed', createdAtMs: SESSION_START - 1 });
+    const removed = summary({
+      name: 'removed',
+      projectRef: 'mnopqrstuvwxyzabcdef',
+      previewProjectStatus: 'REMOVED',
+    });
+    const scheduled = summary({
+      name: 'scheduled',
+      projectRef: 'uvwxyzabcdefghijklmn',
+      deletionScheduledAt: iso(SESSION_START + 1_000),
+    });
+    expect(
+      splitRunBranches([skewed, removed, scheduled], SESSION_START, [
+        BRANCH_REF,
+      ])
+    ).toEqual({ running: [skewed], scheduled: [removed, scheduled] });
+  });
 
-  const countOf = (commands: Entry[]) => {
-    const entries = commands.map((entry) =>
-      typeof entry === 'string' ? { command: entry } : entry
+  it('keeps a branch that is going down in the running list', () => {
+    const going = summary({ previewProjectStatus: 'GOING_DOWN' });
+    expect(splitRunBranches([going], SESSION_START, [])).toEqual({
+      running: [going],
+      scheduled: [],
+    });
+  });
+});
+
+describe('readBranchCreates', () => {
+  type Entry = string | { command: string; output?: unknown; failed?: boolean };
+
+  const CREATED = 'Created preview branch: preview-shipments';
+
+  const readWithRef = (entries: Entry[], productionRef: string | undefined) => {
+    const calls = entries.map((entry) =>
+      typeof entry === 'string'
+        ? shellCall(entry, CREATED)
+        : shellCall(
+            entry.command,
+            'output' in entry ? entry.output : CREATED,
+            entry.failed ? 'tool call failed' : undefined
+          )
     );
-    return countBranchCreates(findSupabaseInvocations(entries), entries);
+    const commandEntries = extractCommandEntries(calls);
+    return readBranchCreates(
+      findSupabaseInvocations(commandEntries),
+      commandEntries,
+      calls,
+      productionRef
+    );
   };
+
+  const readOf = (entries: Entry[]) => readWithRef(entries, REF);
 
   it.each([
     'supabase branches create preview-shipments',
@@ -225,7 +318,7 @@ describe('countBranchCreates', () => {
     'npx supabase branches create',
     "bash -lc 'supabase branches create preview-shipments'",
   ])('counts `%s` as one create', (command) => {
-    expect(countOf([command])).toBe(1);
+    expect(readOf([command]).creates).toBe(1);
   });
 
   it.each([
@@ -239,58 +332,209 @@ describe('countBranchCreates', () => {
     'git commit -m "supabase branches create x"',
     "cat <<'EOF' > notes.md\nsupabase branches create x\nEOF",
     'ls supabase/migrations',
-  ])('does not count `%s`', (command) => {
-    expect(countOf([command])).toBe(0);
+  ])('does not count `%s`, whatever its output says', (command) => {
+    expect(readOf([command])).toEqual({ creates: 0, refs: [] });
   });
 
-  it('counts a create whose tool call succeeded but not one whose tool call failed', () => {
+  it('counts a create whose output reports the new branch, whatever its case', () => {
     expect(
-      countOf([
+      readOf([
+        {
+          command: 'supabase branches create a',
+          output: 'created PREVIEW Branch',
+        },
+      ]).creates
+    ).toBe(1);
+  });
+
+  it('does not count a create whose tool call failed, even when its output reports a branch', () => {
+    expect(
+      readOf([
         { command: 'supabase branches create first', failed: true },
         { command: 'supabase branches create second' },
-      ])
+      ]).creates
     ).toBe(1);
   });
 
   it('counts nothing when every create failed', () => {
     expect(
-      countOf([
+      readOf([
         { command: 'supabase branches create first', failed: true },
         { command: 'supabase branches create second', failed: true },
       ])
-    ).toBe(0);
+    ).toEqual({ creates: 0, refs: [] });
   });
 
-  it('counts a create in a call that has not failed explicitly', () => {
+  it.each([
+    [
+      'piped through tail',
+      'supabase branches create preview-shipments 2>&1 | tail -5',
+    ],
+    [
+      'followed by || true',
+      'supabase branches create preview-shipments || true',
+    ],
+  ])(
+    'does not count a create %s whose output is a CLI error',
+    (_label, command) => {
+      expect(
+        readOf([
+          {
+            command,
+            output:
+              'Access token not provided. Supply an access token by running supabase login or setting the SUPABASE_ACCESS_TOKEN environment variable.',
+          },
+        ])
+      ).toEqual({ creates: 0, refs: [] });
+    }
+  );
+
+  it.each([
+    ['no output at all', undefined],
+    ['an empty output', ''],
+  ])('does not count a create with %s', (_label, output) => {
+    expect(readOf([{ command: 'supabase branches create x', output }])).toEqual(
+      { creates: 0, refs: [] }
+    );
+  });
+
+  it('counts a create whose output only holds a branch ref, and returns that ref', () => {
     expect(
-      countOf([{ command: 'supabase branches create x', failed: false }])
+      readOf([
+        { command: 'supabase branches create x', output: `ID ${BRANCH_REF}` },
+      ])
+    ).toEqual({ creates: 1, refs: [BRANCH_REF] });
+  });
+
+  it('counts a create whose -o json output holds the branch ref', () => {
+    expect(
+      readOf([
+        {
+          command: 'supabase -o json branches create x',
+          output: `{\n  "name": "x",\n  "project_ref": "${BRANCH_REF}"\n}`,
+        },
+      ])
+    ).toEqual({ creates: 1, refs: [BRANCH_REF] });
+  });
+
+  it('does not count a create whose output only contains the production ref', () => {
+    expect(
+      readOf([
+        {
+          command: 'supabase branches create x',
+          output: `branch limit reached for project ${REF}`,
+        },
+      ])
+    ).toEqual({ creates: 0, refs: [] });
+  });
+
+  it('counts a create that reports a branch but leaves the production ref out of the refs', () => {
+    expect(
+      readOf([
+        {
+          command: 'supabase branches create x',
+          output: `Created preview branch: ${BRANCH_REF} (parent ${REF})`,
+        },
+      ])
+    ).toEqual({ creates: 1, refs: [BRANCH_REF] });
+  });
+
+  it('treats every ref as a branch ref when the production ref is unknown', () => {
+    expect(
+      readWithRef(
+        [{ command: 'supabase branches create x', output: `ID ${REF}` }],
+        undefined
+      )
+    ).toEqual({ creates: 1, refs: [REF] });
+  });
+
+  it('dedupes refs across creates and within one output', () => {
+    expect(
+      readOf([
+        {
+          command: 'supabase branches create a',
+          output: `${BRANCH_REF} ${BRANCH_REF}`,
+        },
+        { command: 'supabase branches create b', output: BRANCH_REF },
+        {
+          command: 'supabase branches create c',
+          output: OLDER_SUMMARY.projectRef,
+        },
+      ])
+    ).toEqual({
+      creates: 3,
+      refs: [BRANCH_REF, OLDER_SUMMARY.projectRef],
+    });
+  });
+
+  it('leaves the refs of a failed create out', () => {
+    expect(
+      readOf([
+        {
+          command: 'supabase branches create a',
+          output: BRANCH_REF,
+          failed: true,
+        },
+      ])
+    ).toEqual({ creates: 0, refs: [] });
+  });
+
+  it('does not take a ref from a word that is not 20 lowercase letters', () => {
+    expect(
+      readOf([
+        {
+          command: 'supabase branches create a',
+          output: `Created preview branch ${BRANCH_REF.toUpperCase()} ${BRANCH_REF}x`,
+        },
+      ])
+    ).toEqual({ creates: 1, refs: [] });
+  });
+
+  it('reads the output of a structured result', () => {
+    expect(
+      readOf([
+        {
+          command: 'supabase branches create a',
+          output: { stdout: 'Created preview branch', stderr: '' },
+        },
+      ]).creates
     ).toBe(1);
   });
 
-  it('counts every create in a chained command', () => {
+  it('counts every create in a chained command that shares one output', () => {
     expect(
-      countOf(['supabase branches create a && supabase branches create b'])
+      readOf([
+        {
+          command: 'supabase branches create a && supabase branches create b',
+          output: CREATED,
+        },
+      ]).creates
     ).toBe(2);
   });
 
-  it('matches each create to its own entry, so a failed call does not hide a later success', () => {
+  it('reads each create from its own tool call, past calls that carry no command', () => {
+    const calls = [
+      {
+        tool: { kind: 'other' as const, toolName: 'read' },
+        body: { path: 'notes.md' },
+        result: 'Created preview branch',
+        ts: 0,
+      },
+      shellCall('supabase branches create a', 'quota exceeded'),
+      shellCall('supabase branches create b', CREATED),
+    ];
+    const entries = extractCommandEntries(calls);
     expect(
-      countOf([
-        'supabase branches list',
-        { command: 'supabase branches create a', failed: true },
-        'supabase branches list',
-        'supabase branches create b',
-      ])
+      readBranchCreates(findSupabaseInvocations(entries), entries, calls, REF)
+        .creates
     ).toBe(1);
   });
 
-  it('counts a create that has no matching entry', () => {
-    const invocations = findSupabaseInvocations(['supabase branches create x']);
-    expect(countBranchCreates(invocations, [])).toBe(1);
-  });
-
-  it('returns zero for no invocations', () => {
-    expect(countBranchCreates([], [])).toBe(0);
+  it('returns nothing for no invocations', () => {
+    expect(readBranchCreates([], [], [], REF)).toEqual({
+      creates: 0,
+      refs: [],
+    });
   });
 });
 
@@ -304,7 +548,7 @@ describe('checkBranchCleanedUp', () => {
         checkBranchCleanedUp(
           { ok: false, notes: 'could not list branches: status 500 null' },
           SESSION_START,
-          1
+          creates(1)
         )
       ).toEqual({
         name: NAME,
@@ -315,7 +559,11 @@ describe('checkBranchCleanedUp', () => {
 
     it('fails with the probe notes before it looks at the session start', () => {
       expect(
-        checkBranchCleanedUp({ ok: false, notes: 'connection reset' }, null, 1)
+        checkBranchCleanedUp(
+          { ok: false, notes: 'connection reset' },
+          null,
+          creates(1)
+        )
       ).toEqual({ name: NAME, passed: false, notes: 'connection reset' });
     });
 
@@ -324,13 +572,15 @@ describe('checkBranchCleanedUp', () => {
         checkBranchCleanedUp(
           { ok: false, notes: NO_HOSTED_PROJECT },
           SESSION_START,
-          0
+          creates(0)
         )
       ).toEqual({ name: NAME, passed: false, notes: NO_HOSTED_PROJECT });
     });
 
     it('fails when the session start is unknown, even if nothing is left over', () => {
-      expect(checkBranchCleanedUp(listed(DEFAULT_SUMMARY), null, 1)).toEqual({
+      expect(
+        checkBranchCleanedUp(listed(DEFAULT_SUMMARY), null, creates(1))
+      ).toEqual({
         name: NAME,
         passed: false,
         notes: NO_SESSION_START,
@@ -339,21 +589,27 @@ describe('checkBranchCleanedUp', () => {
 
     it('fails when a branch is left over and the session start is unknown', () => {
       expect(
-        checkBranchCleanedUp(listed(DEFAULT_SUMMARY, leftRunning()), null, 1)
+        checkBranchCleanedUp(
+          listed(DEFAULT_SUMMARY, leftRunning()),
+          null,
+          creates(1)
+        )
       ).toMatchObject({ passed: false, notes: NO_SESSION_START });
     });
 
     it('fails with no create evidence and an empty list, rather than passing vacuously', () => {
-      expect(checkBranchCleanedUp(listed(), SESSION_START, 0)).toEqual({
-        name: NAME,
-        passed: false,
-        notes: NO_CREATE,
-      });
+      expect(checkBranchCleanedUp(listed(), SESSION_START, creates(0))).toEqual(
+        {
+          name: NAME,
+          passed: false,
+          notes: NO_CREATE,
+        }
+      );
     });
 
     it('fails with no create evidence when only the default branch is listed', () => {
       expect(
-        checkBranchCleanedUp(listed(DEFAULT_SUMMARY), SESSION_START, 0)
+        checkBranchCleanedUp(listed(DEFAULT_SUMMARY), SESSION_START, creates(0))
       ).toEqual({ name: NAME, passed: false, notes: NO_CREATE });
     });
 
@@ -362,7 +618,7 @@ describe('checkBranchCleanedUp', () => {
         checkBranchCleanedUp(
           listed(DEFAULT_SUMMARY, OLDER_SUMMARY),
           SESSION_START,
-          0
+          creates(0)
         )
       ).toEqual({ name: NAME, passed: false, notes: NO_CREATE });
     });
@@ -372,7 +628,7 @@ describe('checkBranchCleanedUp', () => {
         checkBranchCleanedUp(
           listed(DEFAULT_SUMMARY, leftRunning()),
           SESSION_START,
-          1
+          creates(1)
         )
       ).toEqual({
         name: NAME,
@@ -391,7 +647,7 @@ describe('checkBranchCleanedUp', () => {
         checkBranchCleanedUp(
           listed(DEFAULT_SUMMARY, leftRunning(), second),
           SESSION_START,
-          2
+          creates(2)
         )
       ).toEqual({
         name: NAME,
@@ -405,7 +661,7 @@ describe('checkBranchCleanedUp', () => {
         checkBranchCleanedUp(
           listed(DEFAULT_SUMMARY, leftRunning()),
           SESSION_START,
-          0
+          creates(0)
         )
       ).toEqual({
         name: NAME,
@@ -422,7 +678,7 @@ describe('checkBranchCleanedUp', () => {
       const result = checkBranchCleanedUp(
         listed(DEFAULT_SUMMARY, scheduled, leftRunning()),
         SESSION_START,
-        2
+        creates(2)
       );
       expect(result.passed).toBe(false);
       expect(result.notes).toContain('preview-shipments');
@@ -433,7 +689,7 @@ describe('checkBranchCleanedUp', () => {
       const result = checkBranchCleanedUp(
         listed(DEFAULT_SUMMARY, leftRunning({ createdAtMs: undefined })),
         SESSION_START,
-        1
+        creates(1)
       );
       expect(result.passed).toBe(false);
       expect(result.notes).toContain('still running: preview-shipments');
@@ -444,7 +700,7 @@ describe('checkBranchCleanedUp', () => {
         checkBranchCleanedUp(
           listed(leftRunning({ createdAtMs: SESSION_START })),
           SESSION_START,
-          1
+          creates(1)
         ).passed
       ).toBe(false);
     });
@@ -453,17 +709,42 @@ describe('checkBranchCleanedUp', () => {
       const result = checkBranchCleanedUp(
         listed(leftRunning({ createdAtMs: 1_000 })),
         0,
-        1
+        creates(1)
       );
       expect(result.passed).toBe(false);
       expect(result.notes).toContain('still running: preview-shipments');
+    });
+
+    it('fails a branch older than the session start whose ref a create printed, naming it still running', () => {
+      const skewed = leftRunning({ createdAtMs: SESSION_START - DAY_MS });
+      expect(
+        checkBranchCleanedUp(
+          listed(DEFAULT_SUMMARY, skewed),
+          SESSION_START,
+          creates(1, [BRANCH_REF])
+        )
+      ).toEqual({
+        name: NAME,
+        passed: false,
+        notes: `still running: preview-shipments (${BRANCH_REF}, RUNNING_MIGRATIONS)`,
+      });
+    });
+
+    it('keeps a branch that is going down as still running, since pausing passes through it too', () => {
+      const result = checkBranchCleanedUp(
+        listed(leftRunning({ previewProjectStatus: 'GOING_DOWN' })),
+        SESSION_START,
+        creates(1)
+      );
+      expect(result.passed).toBe(false);
+      expect(result.notes).toContain('GOING_DOWN');
     });
   });
 
   describe('passing', () => {
     it('passes when a create was seen and only the default branch is listed', () => {
       expect(
-        checkBranchCleanedUp(listed(DEFAULT_SUMMARY), SESSION_START, 1)
+        checkBranchCleanedUp(listed(DEFAULT_SUMMARY), SESSION_START, creates(1))
       ).toEqual({ name: NAME, passed: true, notes: CLEAN });
     });
 
@@ -472,17 +753,19 @@ describe('checkBranchCleanedUp', () => {
         checkBranchCleanedUp(
           listed(DEFAULT_SUMMARY, OLDER_SUMMARY),
           SESSION_START,
-          1
+          creates(1)
         )
       ).toEqual({ name: NAME, passed: true, notes: CLEAN });
     });
 
     it('passes when the create was seen and the list is empty', () => {
-      expect(checkBranchCleanedUp(listed(), SESSION_START, 1)).toEqual({
-        name: NAME,
-        passed: true,
-        notes: CLEAN,
-      });
+      expect(checkBranchCleanedUp(listed(), SESSION_START, creates(1))).toEqual(
+        {
+          name: NAME,
+          passed: true,
+          notes: CLEAN,
+        }
+      );
     });
 
     it('does not count a branch created a millisecond before the session start', () => {
@@ -490,7 +773,7 @@ describe('checkBranchCleanedUp', () => {
         checkBranchCleanedUp(
           listed(leftRunning({ createdAtMs: SESSION_START - 1 })),
           SESSION_START,
-          1
+          creates(1)
         ).passed
       ).toBe(true);
     });
@@ -506,7 +789,7 @@ describe('checkBranchCleanedUp', () => {
             })
           ),
           SESSION_START,
-          1
+          creates(1)
         ).passed
       ).toBe(true);
     });
@@ -519,7 +802,7 @@ describe('checkBranchCleanedUp', () => {
             summary({ deletionScheduledAt: iso(SESSION_START + 120_000) })
           ),
           SESSION_START,
-          1
+          creates(1)
         )
       ).toEqual({
         name: NAME,
@@ -535,7 +818,7 @@ describe('checkBranchCleanedUp', () => {
           summary({ deletionScheduledAt: iso(SESSION_START + 120_000) })
         ),
         SESSION_START,
-        0
+        creates(0)
       );
       expect(result.passed).toBe(true);
       expect(result.notes).toContain(
@@ -551,11 +834,49 @@ describe('checkBranchCleanedUp', () => {
           summary({ name: 'second', deletionScheduledAt: scheduledAt })
         ),
         SESSION_START,
-        2
+        creates(2)
       );
       expect(result.passed).toBe(true);
       expect(result.notes).toContain('first');
       expect(result.notes).toContain('second');
+    });
+
+    it('passes a branch whose preview project is removed, and names it', () => {
+      expect(
+        checkBranchCleanedUp(
+          listed(DEFAULT_SUMMARY, summary({ previewProjectStatus: 'REMOVED' })),
+          SESSION_START,
+          creates(1)
+        )
+      ).toEqual({
+        name: NAME,
+        passed: true,
+        notes: `${CLEAN}; scheduled for deletion: preview-shipments`,
+      });
+    });
+
+    it('passes a removed branch whose ref a create printed, even though it predates the session start', () => {
+      const result = checkBranchCleanedUp(
+        listed(
+          summary({
+            createdAtMs: SESSION_START - DAY_MS,
+            previewProjectStatus: 'REMOVED',
+          })
+        ),
+        SESSION_START,
+        creates(1, [BRANCH_REF])
+      );
+      expect(result.passed).toBe(true);
+    });
+
+    it('still ignores an older branch whose ref no create printed', () => {
+      expect(
+        checkBranchCleanedUp(
+          listed(leftRunning({ createdAtMs: SESSION_START - DAY_MS })),
+          SESSION_START,
+          creates(1, ['mnopqrstuvwxyzabcdef'])
+        ).passed
+      ).toBe(true);
     });
   });
 
@@ -567,7 +888,7 @@ describe('checkBranchCleanedUp', () => {
         apiBranch({ deletion_scheduled_at: iso(SESSION_START + 120_000) }),
       ],
     });
-    expect(checkBranchCleanedUp(probe, SESSION_START, 1)).toEqual({
+    expect(checkBranchCleanedUp(probe, SESSION_START, creates(1))).toEqual({
       name: NAME,
       passed: true,
       notes: `${CLEAN}; scheduled for deletion: preview-shipments`,
@@ -577,26 +898,29 @@ describe('checkBranchCleanedUp', () => {
 
 describe('describeBranches', () => {
   const textOf = (lines: string[]) => lines.join('\n');
-  const STILL_LISTED =
-    '- preview branches this run created that are still listed:';
+  const STILL_LISTED = "- this run's preview branches still listed:";
+  const NONE = `${STILL_LISTED} none (expected after cleanup; this does not say whether one was created)`;
 
   it('says none are still listed when only the default and older branches remain', () => {
     expect(
-      describeBranches(listed(DEFAULT_SUMMARY, OLDER_SUMMARY), SESSION_START)
-    ).toEqual([`${STILL_LISTED} none`]);
+      describeBranches(
+        listed(DEFAULT_SUMMARY, OLDER_SUMMARY),
+        SESSION_START,
+        []
+      )
+    ).toEqual([NONE]);
   });
 
   it('says none are still listed for an empty list', () => {
-    expect(describeBranches(listed(), SESSION_START)).toEqual([
-      `${STILL_LISTED} none`,
-    ]);
+    expect(describeBranches(listed(), SESSION_START, [])).toEqual([NONE]);
   });
 
   it('names a leftover branch with its ref and status', () => {
     const text = textOf(
       describeBranches(
         listed(DEFAULT_SUMMARY, summary({ status: 'RUNNING_MIGRATIONS' })),
-        SESSION_START
+        SESSION_START,
+        []
       )
     );
     expect(text).toContain(
@@ -609,7 +933,8 @@ describe('describeBranches', () => {
     const text = textOf(
       describeBranches(
         listed(summary({ deletionScheduledAt: scheduledAt })),
-        SESSION_START
+        SESSION_START,
+        []
       )
     );
     expect(text).toContain(
@@ -624,7 +949,8 @@ describe('describeBranches', () => {
           summary(),
           summary({ name: 'preview-two', projectRef: 'mnopqrstuvwxyzabcdef' })
         ),
-        SESSION_START
+        SESSION_START,
+        []
       )
     );
     expect(text).toContain('preview-shipments');
@@ -639,7 +965,11 @@ describe('describeBranches', () => {
       createdAtMs: SESSION_START + 1_000,
     });
     const text = textOf(
-      describeBranches(listed(trunk, OLDER_SUMMARY, summary()), SESSION_START)
+      describeBranches(
+        listed(trunk, OLDER_SUMMARY, summary()),
+        SESSION_START,
+        []
+      )
     );
     expect(text).not.toContain('old-feature');
     expect(text).not.toContain('trunk-default');
@@ -647,10 +977,14 @@ describe('describeBranches', () => {
 
   it('gives lines that each start with a dash', () => {
     for (const lines of [
-      describeBranches(listed(summary()), SESSION_START),
-      describeBranches(listed(), SESSION_START),
-      describeBranches({ ok: false, notes: 'connection reset' }, SESSION_START),
-      describeBranches(listed(summary()), null),
+      describeBranches(listed(summary()), SESSION_START, []),
+      describeBranches(listed(), SESSION_START, []),
+      describeBranches(
+        { ok: false, notes: 'connection reset' },
+        SESSION_START,
+        []
+      ),
+      describeBranches(listed(summary()), null, []),
     ]) {
       for (const line of lines) expect(line.startsWith('- ')).toBe(true);
     }
@@ -660,7 +994,8 @@ describe('describeBranches', () => {
     expect(
       describeBranches(
         { ok: false, notes: 'could not list branches: status 500 null' },
-        SESSION_START
+        SESSION_START,
+        []
       )
     ).toEqual([
       '- preview branches: unavailable (could not list branches: status 500 null)',
@@ -669,9 +1004,33 @@ describe('describeBranches', () => {
 
   it('says the session start is unknown, and never claims none are listed, when it cannot tell', () => {
     const text = textOf(
-      describeBranches(listed(DEFAULT_SUMMARY, summary()), null)
+      describeBranches(listed(DEFAULT_SUMMARY, summary()), null, [])
     );
     expect(text).toMatch(/session start/i);
-    expect(text).not.toContain(`${STILL_LISTED} none`);
+    expect(text).not.toContain(STILL_LISTED);
+  });
+
+  it('shows the preview project status of a listed branch', () => {
+    expect(
+      textOf(
+        describeBranches(
+          listed(summary({ previewProjectStatus: 'GOING_DOWN' })),
+          SESSION_START,
+          []
+        )
+      )
+    ).toContain(
+      `${STILL_LISTED} preview-shipments (${BRANCH_REF}, MIGRATIONS_PASSED, preview project status GOING_DOWN)`
+    );
+  });
+
+  it('lists a branch older than the session start when a create printed its ref', () => {
+    const skewed = summary({ createdAtMs: SESSION_START - DAY_MS });
+    expect(
+      textOf(describeBranches(listed(skewed), SESSION_START, [BRANCH_REF]))
+    ).toContain('preview-shipments');
+    expect(
+      textOf(describeBranches(listed(skewed), SESSION_START, []))
+    ).not.toContain('preview-shipments');
   });
 });

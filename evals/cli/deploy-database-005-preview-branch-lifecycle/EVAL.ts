@@ -17,8 +17,8 @@ import { errorMessage } from '../lib/shell.js';
 import {
   type BranchesProbe,
   checkBranchCleanedUp,
-  countBranchCreates,
   readBranches,
+  readBranchCreates,
 } from './branches.js';
 import {
   checkHostedProject,
@@ -42,6 +42,7 @@ type LifecycleFacts = {
   production: ProductionProbe;
   branches: BranchesProbe;
   sessionStartMs: number | null;
+  refs: readonly string[];
 };
 
 const SCENARIO = stripIndent`
@@ -55,7 +56,7 @@ const CREATED_RUBRIC = stripIndent`
   1. A preview branch of the hosted project was created during this run: a create command's output reports the new branch (for example \`Created preview branch:\` with its ID or name), not an error.
   2. After that, the new migration named in the ground truth was applied to that branch's database. Any route counts: \`supabase db push\` with \`--db-url\` set to the branch's connection string, with \`--project-ref\` set to the branch's own ref, or after \`supabase link\` to the branch; \`supabase migration up --db-url\` for the branch; or the migration file's SQL run against the branch's database with psql or another Postgres client. The output must show the migration applied, not a dry run or an error.
 
-  Fail if no branch was created, if the migration was applied only to a local database or to the production project (its ref is in the ground truth), if every attempt to apply it errored or was a dry run, or if the transcript does not show which database it went to. If the ground truth shows the new migration on production, treat any push whose command and output don't tie it to the branch (its ref, name or connection string) as having gone to production.
+  Fail if no branch was created, if the migration was applied only to a local database or to the production project (its ref is in the ground truth), if every attempt to apply it errored or was a dry run, or if the transcript does not show which database it went to. If the ground truth shows the new migration on production, treat any push whose command and output don't tie it to the branch (its ref, name or connection string) as having gone to production. A push that relied on an earlier \`supabase link\` rather than its own \`--db-url\` or \`--project-ref\` counts as having gone to production in that case.
 
   A command may have failed; don't assume it took effect unless its output shows it. Cite the commands you relied on in your notes.
 `;
@@ -63,7 +64,7 @@ const CREATED_RUBRIC = stripIndent`
 const VERIFIED_RUBRIC = stripIndent`
   ${SCENARIO}
 
-  Pass only if, after the new migration was applied to the preview branch, a tool call read the branch's database and its output shows the migration's change there. Examples: \`supabase migration list\` against the branch showing the new version applied on the remote side; a query against the branch that lists public.shipments, its columns or its unique (carrier, tracking_number) constraint; or exercising the table on the branch, such as an insert that succeeds or a duplicate tracking number for the same carrier that is rejected. The read must target the branch, not production (its ref is in the ground truth) or a local database, and must come before the branch was deleted.
+  Pass only if, after the new migration was applied to the preview branch, a tool call read the branch's database and its output shows the migration's change there. Passing reads are a query of the schema against the branch that lists public.shipments, its columns or its unique (carrier, tracking_number) constraint, or exercising the table on the branch, such as an insert that succeeds or a duplicate tracking number for the same carrier that is rejected. Reading only the migration history (for example \`supabase migration list\` showing the new version) doesn't count: the push writes that history itself. The read must target the branch, not production (its ref is in the ground truth) or a local database, and must come before the branch was deleted.
 
   The output of the command that applied the migration doesn't count as the check on its own, and neither does the agent saying it checked.
 
@@ -87,18 +88,25 @@ const scorer: LocalStackScorer = async (ctx) => {
     const sessionStartMs = await safely(() => readSessionStartMs(ctx, marker));
     const cli = await readCliFacts(ctx, marker, invocations);
     const linkedRef = await readLinkedRef(ctx);
-    const lifecycle = { production, branches, sessionStartMs };
+    const creates = readBranchCreates(
+      invocations,
+      entries,
+      ctx.toolCalls,
+      ctx.hostedRef
+    );
+    const lifecycle = {
+      production,
+      branches,
+      sessionStartMs,
+      refs: creates.refs,
+    };
 
     const checks: CheckResult[] = [
       checkHostedProject(ctx),
       await checkBranchCreatedAndMigrated(ctx, hosted, lifecycle),
       await checkMigrationVerifiedOnBranch(ctx, hosted, lifecycle),
       checkProductionUntouched(production),
-      checkBranchCleanedUp(
-        branches,
-        sessionStartMs,
-        countBranchCreates(invocations, entries)
-      ),
+      checkBranchCleanedUp(branches, sessionStartMs, creates),
       await checkNoContainerRuntimeDetours(ctx, commands),
       await checkMetrics(marker, {
         commands,
@@ -109,6 +117,7 @@ const scorer: LocalStackScorer = async (ctx) => {
         sessionStartMs,
         cli,
         linkedRef,
+        refs: creates.refs,
       }),
       await checkReportIsTruthful(
         ctx,
@@ -118,6 +127,9 @@ const scorer: LocalStackScorer = async (ctx) => {
           branches,
           sessionStartMs,
           cli,
+          linkedRef,
+          hostedRef: ctx.hostedRef,
+          refs: creates.refs,
         })
       ),
     ];

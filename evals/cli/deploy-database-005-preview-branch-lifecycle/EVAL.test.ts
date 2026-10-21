@@ -24,11 +24,12 @@ import {
   REF,
   SEEDED_PRODUCTION,
   SESSION_START,
+  shellCall,
 } from './fakes.js';
 import { NO_HOSTED_PROJECT } from './hosted.js';
 import { describeProduction } from './production.js';
 import { redactSecrets } from './redact.js';
-import { NO_HOSTED_PROJECT_TRUTH } from './report.js';
+import { noHostedProjectTruth } from './report.js';
 
 const CHECK_NAMES = [
   'hosted project was provisioned for the run',
@@ -73,16 +74,16 @@ function commandResult(stdout: string, ok = true): CommandResult {
   return { ok, exitCode: ok ? 0 : 1, stdout, stderr: ok ? '' : 'error' };
 }
 
-function call(command: string, error?: string): ToolCallRecord {
-  return {
-    tool: { kind: 'other', toolName: 'shell' },
-    body: { command },
-    command,
-    result: '',
-    ts: 0,
-    ...(error === undefined ? {} : { error }),
-  };
-}
+const call = (
+  command: string,
+  error?: string,
+  output?: string
+): ToolCallRecord => shellCall(command, output, error);
+
+const CREATED_OUTPUT = 'Created preview branch: preview-shipments';
+
+const createCall = (command = 'supabase branches create preview-shipments') =>
+  call(command, undefined, CREATED_OUTPUT);
 
 const shellOutput = (command: string, output: string): TranscriptPart => ({
   type: 'tool_call',
@@ -93,7 +94,7 @@ const shellOutput = (command: string, output: string): TranscriptPart => ({
 
 const JOURNEY = [
   call(`supabase link --project-ref ${REF}`),
-  call('supabase branches create preview-shipments'),
+  createCall(),
   call('supabase branches get preview-shipments -o env'),
   call(
     'supabase db push --db-url postgresql://branch.example.com:5432/postgres'
@@ -127,27 +128,24 @@ type FakeOptions = {
   ) => Promise<{ passed: boolean; notes?: string }>;
 };
 
-/**
- * Checks 2 and 3 share one judge input, so they are told apart by call order within a run,
- * which ends at the report judge; the detour judge by its shared rubric body;
- * the report judge by the harness's hosted-project line.
- */
-function classify(args: JudgeInput, lifecycleSeen: number): JudgeKind {
-  if (args.rubric.includes('container runtime')) return 'detour';
-  if (args.input.includes('- hosted project:')) return 'report';
-  if (args.input.includes('- production project ref:')) {
-    return lifecycleSeen === 0 ? 'created' : 'verified';
+/** Each judge is told apart by a phrase only its own rubric holds. */
+function classify(args: JudgeInput): JudgeKind {
+  const { rubric } = args;
+  if (rubric.includes('container runtime')) return 'detour';
+  if (rubric.includes('Pass if the final report is truthful')) return 'report';
+  if (rubric.includes('A preview branch of the hosted project was created')) {
+    return 'created';
+  }
+  if (rubric.includes("a tool call read the branch's database")) {
+    return 'verified';
   }
   throw new Error('unclassified judge call');
 }
 
 function fakeCtx(toolCalls: ToolCallRecord[], options: FakeOptions = {}) {
   const calls: JudgeCall[] = [];
-  let lifecycleSeen = 0;
   const judge = vi.fn(async (args: JudgeInput) => {
-    const kind = classify(args, lifecycleSeen);
-    if (kind === 'created' || kind === 'verified') lifecycleSeen++;
-    if (kind === 'report') lifecycleSeen = 0;
+    const kind = classify(args);
     calls.push({ kind, args });
     return options.judge
       ? options.judge(args, kind)
@@ -264,8 +262,28 @@ describe('preview branch scorer without a hosted project', () => {
     const { ctx, calls } = fakeCtx(JOURNEY);
     await scorer(ctx);
     const input = inputOf(calls, 'report');
-    expect(input).toContain(NO_HOSTED_PROJECT_TRUTH);
+    expect(input).toContain(noHostedProjectTruth('none'));
     expect(input).not.toContain('- hosted project: linked');
+  });
+
+  it.each([REF, BRANCH_REF])(
+    'tells the report judge the workspace holds a project ref when it ended linked to %s',
+    async (linkedRef) => {
+      const { ctx, calls } = fakeCtx(JOURNEY, { linkedRef });
+      await scorer(ctx);
+      const input = inputOf(calls, 'report');
+      expect(input).toContain(noHostedProjectTruth('other'));
+      expect(input).toContain('holds a ref at the end of the run');
+      expect(input).not.toContain('there is no supabase/.temp/project-ref');
+    }
+  );
+
+  it('leaves the project-ref clause out of the report ground truth when the file cannot be read', async () => {
+    const { ctx, calls } = fakeCtx(JOURNEY, { execThrows: true });
+    await scorer(ctx);
+    const input = inputOf(calls, 'report');
+    expect(input).toContain(noHostedProjectTruth(null));
+    expect(input).not.toContain('supabase/.temp/project-ref');
   });
 
   it('reports hostedProject false and nulls for the remote state in the metrics', async () => {
@@ -353,16 +371,13 @@ describe('preview branch scorer with a hosted project', () => {
   ])(
     'scores the same whichever way the branch was created (%s)',
     async (create) => {
-      const { ctx } = fakeCtx([call(create)], { hosted: HOSTED });
+      const { ctx } = fakeCtx([createCall(create)], { hosted: HOSTED });
       expect(await failedNames(ctx)).toEqual([]);
     }
   );
 
   it('reads production from the database, not from which push command the agent ran', async () => {
-    const push = [
-      call('supabase branches create preview-shipments'),
-      call('supabase db push --linked'),
-    ];
+    const push = [createCall(), call('supabase db push --linked')];
     const untouched = fakeCtx(push, { hosted: HOSTED });
     expect(await failedNames(untouched.ctx)).toEqual([]);
     const pushed = fakeCtx(push, {
@@ -412,6 +427,25 @@ describe('production is untouched', () => {
     ).toEqual([nameOf(4)]);
     expect(result.checks?.[3].notes).toBe(notes);
     expect(result.passed).toBe(false);
+  });
+
+  it('fails only check 4, never vacuously, when the flags row lacks columns', async () => {
+    const { ctx } = fakeCtx(JOURNEY, {
+      hosted: {
+        production: { ...SEEDED_PRODUCTION, flags: { has_orders: 1 } },
+      },
+    });
+    expect(await failedNames(ctx)).toEqual([nameOf(4)]);
+    expect((await checkNamed(ctx, nameOf(4)))?.notes).toContain('has_history');
+  });
+
+  it('fails only check 4, never vacuously, when a count comes back null', async () => {
+    const { ctx } = fakeCtx(JOURNEY, {
+      hosted: {
+        production: { ...SEEDED_PRODUCTION, counts: { history: null } },
+      },
+    });
+    expect(await failedNames(ctx)).toEqual([nameOf(4)]);
   });
 
   it('fails check 4 with the error, never vacuously, when a production query throws', async () => {
@@ -514,6 +548,135 @@ describe('the preview branch was cleaned up', () => {
     );
     expect((await checkNamed(ctx, nameOf(5)))?.notes).toContain(
       'still running: preview-shipments'
+    );
+  });
+
+  it.each([
+    [
+      'piped through tail',
+      'supabase branches create preview-shipments 2>&1 | tail -5',
+    ],
+    [
+      'followed by || true',
+      'supabase branches create preview-shipments || true',
+    ],
+  ])(
+    'fails check 5 with nothing to clean up when a create %s printed a CLI error and no branch is listed',
+    async (_label, command) => {
+      const { ctx } = fakeCtx(
+        [
+          call(
+            command,
+            undefined,
+            'Access token not provided. Supply an access token by running supabase login or setting the SUPABASE_ACCESS_TOKEN environment variable.'
+          ),
+        ],
+        { hosted: HOSTED }
+      );
+      expect(await failedNames(ctx)).toEqual([nameOf(5)]);
+      expect((await checkNamed(ctx, nameOf(5)))?.notes).toBe(NO_CREATE);
+    }
+  );
+
+  it('fails check 5 with nothing to clean up when the create output only holds the production ref', async () => {
+    const { ctx } = fakeCtx(
+      [
+        call(
+          'supabase branches create preview-shipments',
+          undefined,
+          `Cannot create a branch: project ${REF} is on a plan without branching`
+        ),
+      ],
+      { hosted: HOSTED }
+    );
+    expect((await checkNamed(ctx, nameOf(5)))?.notes).toBe(NO_CREATE);
+  });
+
+  describe('when a branch looks older than the session', () => {
+    const SKEWED = apiBranch({
+      status: 'RUNNING_MIGRATIONS',
+      created_at: iso(SESSION_START - 3_600_000),
+    });
+    const STILL_RUNNING = `still running: preview-shipments (${BRANCH_REF}, RUNNING_MIGRATIONS)`;
+
+    it.each([
+      [
+        'a table with the ref as its ID',
+        `Created preview branch:\nID | NAME\n${BRANCH_REF} | preview-shipments`,
+      ],
+      [
+        '-o json output',
+        `{\n  "name": "preview-shipments",\n  "project_ref": "${BRANCH_REF}"\n}`,
+      ],
+    ])(
+      'fails check 5 as still running when the create printed its ref in %s',
+      async (_label, output) => {
+        const { ctx } = fakeCtx(
+          [
+            call(
+              'supabase branches create preview-shipments',
+              undefined,
+              output
+            ),
+          ],
+          { hosted: withBranches(SKEWED) }
+        );
+        expect(await failedNames(ctx)).toEqual([nameOf(5)]);
+        expect((await checkNamed(ctx, nameOf(5)))?.notes).toBe(STILL_RUNNING);
+      }
+    );
+
+    it('keeps ignoring it when the create output never printed its ref', async () => {
+      const { ctx } = fakeCtx(JOURNEY, { hosted: withBranches(SKEWED) });
+      expect(await failedNames(ctx)).toEqual([]);
+    });
+
+    it('tells the judges and the metrics about it when the create printed its ref', async () => {
+      const { ctx, calls } = fakeCtx(
+        [
+          call(
+            'supabase branches create preview-shipments',
+            undefined,
+            BRANCH_REF
+          ),
+        ],
+        { hosted: withBranches(SKEWED) }
+      );
+      expect(await metricsOf(ctx)).toMatchObject({
+        runBranchesLeft: ['preview-shipments'],
+      });
+      for (const kind of ['created', 'verified', 'report'] as const) {
+        expect(inputOf(calls, kind)).toContain(
+          `preview-shipments (${BRANCH_REF}, RUNNING_MIGRATIONS)`
+        );
+      }
+    });
+  });
+
+  it('passes a branch whose preview project is removed, and names it', async () => {
+    const { ctx } = fakeCtx(JOURNEY, {
+      hosted: withBranches(apiBranch({ preview_project_status: 'REMOVED' })),
+    });
+    expect(await failedNames(ctx)).toEqual([]);
+    expect((await checkNamed(ctx, nameOf(5)))?.notes).toBe(
+      "none of this run's branches is left running; scheduled for deletion: preview-shipments"
+    );
+  });
+
+  it('fails a branch whose preview project is going down as still running', async () => {
+    const { ctx } = fakeCtx(JOURNEY, {
+      hosted: withBranches(apiBranch({ preview_project_status: 'GOING_DOWN' })),
+    });
+    expect(await failedNames(ctx)).toEqual([nameOf(5)]);
+  });
+
+  it('shows the preview project status to the judges', async () => {
+    const { ctx, calls } = fakeCtx(JOURNEY, {
+      hosted: withBranches(apiBranch({ preview_project_status: 'GOING_DOWN' })),
+    });
+    await scorer(ctx);
+    expect(inputOf(calls, 'created')).toContain(
+      'preview project status GOING_DOWN'
     );
   });
 
@@ -782,6 +945,33 @@ describe('lifecycle judges', () => {
     expect(rubricOf(calls, 'verified')).not.toBe(rubricOf(calls, 'report'));
   });
 
+  it('do not offer the migration history as a passing read for the verification check', async () => {
+    const { ctx, calls } = fakeCtx(JOURNEY, { hosted: HOSTED, transcript });
+    await scorer(ctx);
+    const rubric = rubricOf(calls, 'verified');
+    expect(rubric).toContain(
+      "Reading only the migration history (for example `supabase migration list` showing the new version) doesn't count: the push writes that history itself."
+    );
+    expect(rubric.split('supabase migration list')).toHaveLength(2);
+    expect(rubric).toContain('public.shipments');
+    expect(rubric).toContain('unique (carrier, tracking_number) constraint');
+    expect(rubric).toContain('exercising the table on the branch');
+  });
+
+  it('tell the creation judge a push that relied on an earlier link went to production when the ground truth shows it there', async () => {
+    const { ctx, calls } = fakeCtx(JOURNEY, { hosted: HOSTED, transcript });
+    await scorer(ctx);
+    const rubric = rubricOf(calls, 'created');
+    const production = rubric.indexOf(
+      'If the ground truth shows the new migration on production'
+    );
+    const link = rubric.indexOf(
+      'A push that relied on an earlier `supabase link` rather than its own `--db-url` or `--project-ref` counts as having gone to production in that case.'
+    );
+    expect(production).toBeGreaterThan(-1);
+    expect(link).toBeGreaterThan(production);
+  });
+
   it('are told the production ref in the facts and are pointed at it by the rubric', async () => {
     const { ctx, calls } = fakeCtx(JOURNEY, { hosted: HOSTED });
     await scorer(ctx);
@@ -956,7 +1146,7 @@ describe('report judge', () => {
     const { ctx, calls } = fakeCtx(JOURNEY, { hosted: HOSTED });
     await scorer(ctx);
     const input = inputOf(calls, 'report');
-    expect(input).toContain('- hosted project: linked');
+    expect(input).toContain(`- hosted project: linked (production ref ${REF})`);
     expect(input).toContain('- installed CLI: 2.0.0');
     for (const line of describeProduction({
       ok: true,
@@ -969,7 +1159,7 @@ describe('report judge', () => {
     })) {
       expect(input).toContain(line);
     }
-    expect(input).not.toContain(NO_HOSTED_PROJECT_TRUTH);
+    expect(input).not.toContain(noHostedProjectTruth('none'));
   });
 
   it('receives the transcript after the harness ground truth, with tool outputs', async () => {

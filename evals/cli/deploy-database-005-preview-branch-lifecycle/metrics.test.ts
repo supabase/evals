@@ -450,6 +450,7 @@ describe('checkMetrics', () => {
       sessionStartMs: SESSION_START,
       cli: await readCliFacts(versionCtx, MARKER, invocations),
       linkedRef: 'production',
+      refs: [],
     };
   };
 
@@ -534,6 +535,39 @@ describe('checkMetrics', () => {
         branches: { ok: true, branches: [DEFAULT_SUMMARY, OLDER_SUMMARY] },
       })
     ).toMatchObject({ runBranchesLeft: [], runBranchesScheduled: [] });
+  });
+
+  it('counts a branch older than the session start as left or scheduled when a create printed its ref', async () => {
+    const skewed = summary({
+      name: 'skewed-running',
+      projectRef: 'mnopqrstuvwxyzabcdef',
+      status: 'RUNNING_MIGRATIONS',
+      createdAtMs: SESSION_START - 1_000,
+    });
+    const skewedRemoved = summary({
+      name: 'skewed-removed',
+      projectRef: 'uvwxyzabcdefghijklmn',
+      createdAtMs: SESSION_START - 1_000,
+      previewProjectStatus: 'REMOVED',
+    });
+    const facts = await healthyFacts();
+    const withBoth: Facts = {
+      ...facts,
+      branches: { ok: true, branches: [skewed, skewedRemoved] },
+    };
+    expect(await metricsOf(withBoth)).toMatchObject({
+      runBranchesLeft: [],
+      runBranchesScheduled: [],
+    });
+    expect(
+      await metricsOf({
+        ...withBoth,
+        refs: ['mnopqrstuvwxyzabcdef', 'uvwxyzabcdefghijklmn'],
+      })
+    ).toMatchObject({
+      runBranchesLeft: ['skewed-running'],
+      runBranchesScheduled: ['skewed-removed'],
+    });
   });
 
   it('reports the linked ref as given', async () => {
@@ -624,6 +658,7 @@ describe('checkMetrics', () => {
       sessionStartMs: null,
       cli: await readCliFacts(failing, undefined, []),
       linkedRef: null,
+      refs: [],
     });
     expect(check.passed).toBe(true);
     expect(JSON.parse(check.notes ?? '{}')).toMatchObject({

@@ -1,6 +1,7 @@
 import type {
   LocalStackEvalContext,
   ManagementApiClient,
+  ToolCallRecord,
 } from '@supabase-evals/core';
 import { vi } from 'vitest';
 import type { BranchSummary } from './branches.js';
@@ -16,7 +17,7 @@ export const BRANCH_REF = 'zyxwvutsrqponmlkjihg';
 export const SESSION_START = 1_700_000_000_000;
 export const BRANCHES_PATH = '/v1/projects/{ref}/branches';
 
-const DAY_MS = 86_400_000;
+export const DAY_MS = 86_400_000;
 
 export const iso = (ms: number) => new Date(ms).toISOString();
 
@@ -25,6 +26,8 @@ type HostedQuery = NonNullable<LocalStackEvalContext['hostedQuery']>;
 type QueryKind = 'flags' | 'history' | 'orders';
 
 export type FakeProduction = {
+  flags?: Record<string, unknown>;
+  counts?: Partial<Record<'history' | 'orders', unknown>>;
   hasHistory: boolean;
   versions: string[];
   hasNewTable: boolean;
@@ -67,6 +70,7 @@ export function fakeHostedQuery(db: FakeProduction) {
     const kind = queryKind(sql);
     if (db.failOn === kind) throw db.failWith ?? new Error(`boom: ${kind}`);
     if (kind === 'flags') {
+      if (db.flags) return { rows: [db.flags] };
       return db.noRows
         ? { rows: [] }
         : {
@@ -78,6 +82,9 @@ export function fakeHostedQuery(db: FakeProduction) {
               },
             ],
           };
+    }
+    if (db.counts && kind in db.counts) {
+      return { rows: [{ n: db.counts[kind] }] };
     }
     if (kind === 'history') {
       if (!db.hasHistory) {
@@ -112,6 +119,7 @@ export type ApiBranch = {
   updated_at: string;
   with_data: boolean;
   deletion_scheduled_at?: string;
+  preview_project_status?: string;
 };
 
 export const apiBranch = (overrides: Partial<ApiBranch> = {}): ApiBranch => ({
@@ -196,6 +204,19 @@ export const OLDER_SUMMARY = summary({
   name: 'old-feature',
   projectRef: 'mnopqrstuvwxyzabcdef',
   createdAtMs: SESSION_START - DAY_MS,
+});
+
+export const shellCall = (
+  command: string,
+  output: unknown = '',
+  error?: string
+): ToolCallRecord => ({
+  tool: { kind: 'other', toolName: 'shell' },
+  body: { command },
+  command,
+  result: output,
+  ts: 0,
+  ...(error === undefined ? {} : { error }),
 });
 
 export const productionProbe = (

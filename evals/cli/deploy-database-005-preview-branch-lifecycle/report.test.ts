@@ -5,23 +5,28 @@ import { formatGroundTruthJudgeInput } from '../lib/report.js';
 import { type BranchesProbe, describeBranches } from './branches.js';
 import {
   BRANCH_REF,
+  DAY_MS,
   DEFAULT_SUMMARY,
   productionProbe,
+  REF,
   SESSION_START,
   summary,
 } from './fakes.js';
 import { NO_HOSTED_PROJECT } from './hosted.js';
-import type { CliFacts } from './metrics.js';
+import type { CliFacts, LinkedRef } from './metrics.js';
 import { describeProduction, type ProductionProbe } from './production.js';
 import { redactSecrets } from './redact.js';
 import {
   describeGroundTruth,
   formatReportJudgeInput,
-  NO_HOSTED_PROJECT_TRUTH,
+  noHostedProjectTruth,
 } from './report.js';
 
 const NO_HOSTED_LINE =
   '- hosted project: the harness provisioned none for this run, supplied no access token and linked no project to the workspace (there is no supabase/.temp/project-ref), so no command could create, use or delete a preview branch, and nothing about a branch or the production database could have been observed';
+const HOLDS_A_REF =
+  "the workspace's supabase/.temp/project-ref holds a ref at the end of the run";
+const LINKED = `- hosted project: linked (production ref ${REF})`;
 
 const NO_CLI: CliFacts = { versions: null, cliOverride: [] };
 
@@ -44,15 +49,37 @@ const facts = (
   branches: CLEAN,
   sessionStartMs: SESSION_START as number | null,
   cli: NO_CLI,
+  linkedRef: 'none' as LinkedRef | null,
+  hostedRef: REF as string | undefined,
+  refs: [] as string[],
   ...overrides,
 });
 
 const tail = (lines: string[], count: number) =>
   lines.slice(lines.length - count);
 
-describe('NO_HOSTED_PROJECT_TRUTH', () => {
-  it('says nothing could have created, used or deleted a branch or observed production', () => {
-    expect(NO_HOSTED_PROJECT_TRUTH).toBe(NO_HOSTED_LINE);
+describe('noHostedProjectTruth', () => {
+  it('says nothing could have created, used or deleted a branch or observed production, and that no project-ref file exists, when none is linked', () => {
+    expect(noHostedProjectTruth('none')).toBe(NO_HOSTED_LINE);
+  });
+
+  it.each(['production', 'other'] as const)(
+    'says the workspace holds a project ref at the end of the run when it is linked to %s',
+    (linkedRef) => {
+      const line = noHostedProjectTruth(linkedRef);
+      expect(line).toContain(HOLDS_A_REF);
+      expect(line).not.toContain('there is no supabase/.temp/project-ref');
+      expect(
+        line.startsWith('- hosted project: the harness provisioned none')
+      ).toBe(true);
+      expect(line).toContain('so no command could create, use or delete');
+    }
+  );
+
+  it('says nothing about the project-ref file when it could not be read', () => {
+    const line = noHostedProjectTruth(null);
+    expect(line).not.toContain('supabase/.temp/project-ref');
+    expect(line).toContain('linked no project to the workspace, so no command');
   });
 });
 
@@ -66,6 +93,25 @@ describe('describeGroundTruth without a hosted project', () => {
       })
     );
     expect(lines[0]).toBe(NO_HOSTED_LINE);
+  });
+
+  it.each([
+    ['production', HOLDS_A_REF],
+    ['other', HOLDS_A_REF],
+  ] as const)(
+    'builds the no-project line from the linked ref (%s)',
+    (linkedRef, clause) => {
+      const lines = describeGroundTruth(facts({ hosted: false, linkedRef }));
+      expect(lines[0]).toBe(noHostedProjectTruth(linkedRef));
+      expect(lines[0]).toContain(clause);
+    }
+  );
+
+  it('omits the project-ref clause when the linked ref is unknown', () => {
+    const lines = describeGroundTruth(
+      facts({ hosted: false, linkedRef: null })
+    );
+    expect(lines[0]).toBe(noHostedProjectTruth(null));
   });
 
   it('adds only the CLI line after it', () => {
@@ -82,10 +128,12 @@ describe('describeGroundTruth without a hosted project', () => {
         branches: LEFT_RUNNING,
       })
     );
-    expect(lines).not.toContain('- hosted project: linked');
+    expect(
+      lines.some((line) => line.startsWith('- hosted project: linked'))
+    ).toBe(false);
     for (const line of [
       ...describeProduction(productionProbe()),
-      ...describeBranches(LEFT_RUNNING, SESSION_START),
+      ...describeBranches(LEFT_RUNNING, SESSION_START, []),
     ]) {
       expect(lines).not.toContain(line);
     }
@@ -93,10 +141,34 @@ describe('describeGroundTruth without a hosted project', () => {
 });
 
 describe('describeGroundTruth with a hosted project', () => {
-  it('starts by saying the project is linked and not that none was provisioned', () => {
+  it('starts by saying the project is linked, with the production ref, and not that none was provisioned', () => {
     const lines = describeGroundTruth(facts());
-    expect(lines[0]).toBe('- hosted project: linked');
+    expect(lines[0]).toBe(LINKED);
     expect(lines).not.toContain(NO_HOSTED_LINE);
+  });
+
+  it('names the ref it was given', () => {
+    expect(describeGroundTruth(facts({ hostedRef: BRANCH_REF }))[0]).toBe(
+      `- hosted project: linked (production ref ${BRANCH_REF})`
+    );
+  });
+
+  it('ignores the linked ref when a hosted project exists', () => {
+    expect(describeGroundTruth(facts({ linkedRef: 'other' }))[0]).toBe(LINKED);
+  });
+
+  it('lists a branch older than the session start when a create printed its ref', () => {
+    const skewed: BranchesProbe = {
+      ok: true,
+      branches: [summary({ createdAtMs: SESSION_START - DAY_MS })],
+    };
+    const lines = describeGroundTruth(
+      facts({ branches: skewed, refs: [BRANCH_REF] })
+    );
+    expect(lines.at(-1)).toBe(
+      describeBranches(skewed, SESSION_START, [BRANCH_REF])[0]
+    );
+    expect(lines.at(-1)).toContain('preview-shipments');
   });
 
   it('ends with the production state lines, then the branch lines', () => {
@@ -104,7 +176,7 @@ describe('describeGroundTruth with a hosted project', () => {
     const lines = describeGroundTruth(facts({ production, branches: CLEAN }));
     const expected = [
       ...describeProduction(production),
-      ...describeBranches(CLEAN, SESSION_START),
+      ...describeBranches(CLEAN, SESSION_START, []),
     ];
     expect(tail(lines, expected.length)).toEqual(expected);
   });
@@ -119,12 +191,12 @@ describe('describeGroundTruth with a hosted project', () => {
     );
     const expected = [
       ...describeProduction(production),
-      ...describeBranches(LEFT_RUNNING, SESSION_START),
+      ...describeBranches(LEFT_RUNNING, SESSION_START, []),
     ];
     expect(tail(lines, expected.length)).toEqual(expected);
     expect(expected).not.toEqual([
       ...describeProduction(productionProbe()),
-      ...describeBranches(CLEAN, SESSION_START),
+      ...describeBranches(CLEAN, SESSION_START, []),
     ]);
   });
 
@@ -142,7 +214,7 @@ describe('describeGroundTruth with a hosted project', () => {
     );
     const expected = [
       ...describeProduction(production),
-      ...describeBranches(branches, null),
+      ...describeBranches(branches, null, []),
     ];
     expect(tail(lines, expected.length)).toEqual(expected);
   });
@@ -342,11 +414,9 @@ describe('formatReportJudgeInput', () => {
         output: BRANCH_URL,
       },
     ];
-    expect(
-      formatReportJudgeInput(['- hosted project: linked'], withSecrets)
-    ).toBe(
+    expect(formatReportJudgeInput([LINKED], withSecrets)).toBe(
       redactSecrets(
-        formatGroundTruthJudgeInput(['- hosted project: linked'], withSecrets, {
+        formatGroundTruthJudgeInput([LINKED], withSecrets, {
           includeToolCallOutputs: true,
         })
       )

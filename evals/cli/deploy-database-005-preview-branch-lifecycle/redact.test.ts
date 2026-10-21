@@ -227,6 +227,344 @@ describe('redactSecrets environment-style assignments', () => {
   });
 });
 
+describe('redactSecrets libpq keyword strings', () => {
+  it('redacts the password value and keeps host, user and dbname readable', () => {
+    expect(
+      redactSecrets(
+        `psql "host=${HOST} user=postgres password=hunter2 dbname=postgres"`
+      )
+    ).toBe(
+      `psql "host=${HOST} user=postgres password=${REDACTED} dbname=postgres"`
+    );
+  });
+
+  it.each(['PASSWORD', 'Password', 'password'])(
+    'redacts %s whatever its case',
+    (name) => {
+      expect(redactSecrets(`host=h ${name}=hunter2 dbname=d`)).toBe(
+        `host=h ${name}=${REDACTED} dbname=d`
+      );
+    }
+  );
+
+  it('redacts a password that ends the string', () => {
+    expect(redactSecrets(`psql "host=h user=u password=hunter2"`)).toBe(
+      `psql "host=h user=u password=${REDACTED}"`
+    );
+  });
+
+  it('redacts a single-quoted password with a space', () => {
+    expect(redactSecrets(`psql "host=h password='hunter 2' dbname=d"`)).toBe(
+      `psql "host=h password=${REDACTED} dbname=d"`
+    );
+  });
+});
+
+describe('redactSecrets lowercase and mixed-case assignments', () => {
+  it.each([
+    'pgpassword',
+    'PGPassword',
+    'db_password',
+    'jwt_secret',
+    'Supabase_Jwt_Secret',
+    'anon_key',
+    'ServiceRoleKey',
+  ])('redacts %s=', (name) => {
+    expect(redactSecrets(`${name}=hunter2 supabase db push`)).toBe(
+      `${name}=${REDACTED} supabase db push`
+    );
+  });
+
+  it('leaves a lowercase name that does not end in password, secret or key alone', () => {
+    const text = 'project_ref=abcdefghijklmnopqrst region=eu-west-1';
+    expect(redactSecrets(text)).toBe(text);
+  });
+});
+
+describe('redactSecrets Supabase CLI password flags', () => {
+  it.each([
+    ['--password X', 'supabase db push --password hunter2 --include-all'],
+    ['--password=X', 'supabase db push --password=hunter2 --include-all'],
+    ['-p X', 'supabase db push -p hunter2 --include-all'],
+    ['-p=X', 'supabase db push -p=hunter2 --include-all'],
+    ['--db-password X', 'supabase db push --db-password hunter2 --include-all'],
+  ])(
+    'redacts the value of %s and keeps the rest of the command',
+    (_label, text) => {
+      const output = redactSecrets(text);
+      expect(output).not.toContain('hunter2');
+      expect(output).toMatch(
+        /^supabase db push --?[\w-]+[ =]\[redacted\] --include-all$/
+      );
+    }
+  );
+
+  it('redacts a quoted password value with a space', () => {
+    expect(
+      redactSecrets(`supabase db push --password "hunter 2" --dry-run`)
+    ).toBe(`supabase db push --password ${REDACTED} --dry-run`);
+  });
+
+  it('keeps psql -p, a port, readable', () => {
+    const text = `psql -h ${HOST} -p 5432 -U postgres -c 'select 1'`;
+    expect(redactSecrets(text)).toBe(text);
+  });
+
+  it('keeps a port readable in a segment that only mentions a supabase host', () => {
+    const text = `psql -h db.${REF}.supabase.co -p 5432 -U postgres`;
+    expect(redactSecrets(text)).toBe(text);
+  });
+
+  it.each([
+    'supabase branches list; psql -p 5432',
+    'supabase branches list && psql -p 5432',
+    'supabase branches list || psql -p 5432',
+    'supabase branches list | psql -p 5432',
+    'supabase branches list\npsql -p 5432',
+  ])('redacts -p only in the supabase segment of `%s`', (text) => {
+    expect(redactSecrets(text)).toBe(text);
+  });
+
+  it.each([
+    ['semicolon', ';'],
+    ['and', ' &&'],
+    ['or', ' ||'],
+    ['pipe', ' |'],
+    ['newline', '\n'],
+  ])(
+    'redacts -p after a %s that leads into a supabase segment',
+    (_label, separator) => {
+      expect(
+        redactSecrets(`psql -p 5432${separator} supabase db push -p hunter2`)
+      ).toBe(`psql -p 5432${separator} supabase db push -p ${REDACTED}`);
+    }
+  );
+
+  it.each([
+    ['a numbered command', '1. supabase link -p hunter2'],
+    ['a JSON command field', '"command": "supabase link -p hunter2"'],
+    ['an env prefix', 'SUPABASE_WORKDIR=app supabase link -p hunter2'],
+    ['npx', 'npx supabase link -p hunter2'],
+    ['a shell wrapper', "bash -lc 'supabase link -p hunter2'"],
+  ])('redacts -p in %s', (_label, text) => {
+    const output = redactSecrets(text);
+    expect(output).not.toContain('hunter2');
+    expect(output).toContain(REDACTED);
+  });
+
+  it('keeps --project-ref readable next to a redacted -p', () => {
+    expect(redactSecrets(`supabase link --project-ref ${REF} -p hunter2`)).toBe(
+      `supabase link --project-ref ${REF} -p ${REDACTED}`
+    );
+  });
+});
+
+describe('redactSecrets JSON keys', () => {
+  it('redacts db_pass and keeps the key and the structure', () => {
+    expect(redactSecrets('{"db_pass": "hunter2", "name": "x"}')).toBe(
+      `{"db_pass": "${REDACTED}", "name": "x"}`
+    );
+  });
+
+  it('redacts jwt_secret', () => {
+    expect(redactSecrets('{"jwt_secret":"hunter2"}')).toBe(
+      `{"jwt_secret":"${REDACTED}"}`
+    );
+  });
+
+  it.each([
+    'password',
+    'db_pass',
+    'passphrase',
+    'client_secret',
+    'access_token',
+    'TOKEN',
+    'api_key',
+    'SERVICE_ROLE_KEY',
+    'key',
+  ])('redacts the value of the key %s', (key) => {
+    expect(redactSecrets(`{"${key}": "hunter2"}`)).toBe(
+      `{"${key}": "${REDACTED}"}`
+    );
+  });
+
+  it.each([
+    '{"project_ref": "abcdefghijklmnopqrst"}',
+    '{"name": "preview-shipments"}',
+    '{"status": "RUNNING_MIGRATIONS"}',
+    '{"keyword": "hunter2"}',
+    '{"token": 12345}',
+    '{"secret": null}',
+    '{"db_pass": {"nested": "value"}}',
+  ])('leaves %s alone', (text) => {
+    expect(redactSecrets(text)).toBe(text);
+  });
+
+  it('redacts a key inside a string that was JSON-encoded once more', () => {
+    const output = redactSecrets(
+      JSON.stringify({ output: '{"db_pass": "hunter2", "name": "x"}' })
+    );
+    expect(output).not.toContain('hunter2');
+    expect(output).toContain('db_pass');
+    expect(output).toContain('name');
+  });
+
+  it('redacts every matching key in a pretty-printed object', () => {
+    const output = redactSecrets(
+      JSON.stringify(
+        { host: HOST, db_pass: 'hunter2', jwt_secret: 'hunter3', ref: REF },
+        null,
+        2
+      )
+    );
+    expect(output).not.toContain('hunter');
+    expect(output).toContain(HOST);
+    expect(output).toContain(REF);
+  });
+});
+
+describe('redactSecrets line-anchored YAML', () => {
+  it('redacts an indented db_pass line', () => {
+    expect(redactSecrets('  db_pass: hunter2')).toBe(`  db_pass: ${REDACTED}`);
+  });
+
+  it('redacts SUPABASE_JWT_SECRET at the start of a line', () => {
+    expect(redactSecrets('SUPABASE_JWT_SECRET: hunter2')).toBe(
+      `SUPABASE_JWT_SECRET: ${REDACTED}`
+    );
+  });
+
+  it('redacts matching lines and keeps the others readable', () => {
+    expect(
+      redactSecrets(
+        [
+          'host: db.example.com',
+          'db_pass: hunter2',
+          `ref: ${REF}`,
+          'anon_key: hunter3',
+        ].join('\n')
+      )
+    ).toBe(
+      [
+        'host: db.example.com',
+        `db_pass: ${REDACTED}`,
+        `ref: ${REF}`,
+        `anon_key: ${REDACTED}`,
+      ].join('\n')
+    );
+  });
+
+  it('redacts a quoted value', () => {
+    expect(redactSecrets('  api_token: "hunter 2"')).toBe(
+      `  api_token: ${REDACTED}`
+    );
+  });
+
+  it('redacts matching lines inside a string whose newlines were escaped', () => {
+    const output = redactSecrets(
+      JSON.stringify('db_pass: hunter2\nSUPABASE_JWT_SECRET: hunter3\nhost: h')
+    );
+    expect(output).not.toContain('hunter');
+    expect(output).toContain('host: h');
+  });
+
+  it('does not redact prose that mentions a secret mid-sentence', () => {
+    const text = "the secret: it's fine";
+    expect(redactSecrets(text)).toBe(text);
+  });
+
+  it.each([
+    'Error: the token: was rejected',
+    `project_ref: ${REF}`,
+    'API_URL: http://127.0.0.1:54321',
+    'keyword: hunter2 is not a key name',
+  ])('leaves `%s` alone', (text) => {
+    expect(redactSecrets(text)).toBe(text);
+  });
+});
+
+describe('redactSecrets URL passwords with a raw @ or /', () => {
+  it.each([
+    [
+      'a raw @',
+      'postgresql://u:p@ss@host:5432/postgres',
+      'postgresql://u:[redacted]@host:5432/postgres',
+    ],
+    [
+      'a raw /',
+      'postgresql://u:ab/cd==@host/db',
+      'postgresql://u:[redacted]@host/db',
+    ],
+    [
+      'both',
+      'postgres://u:a/b@c@host:5432/db?sslmode=require',
+      'postgres://u:[redacted]@host:5432/db?sslmode=require',
+    ],
+  ])(
+    'redacts a password with %s up to the last @',
+    (_label, text, expected) => {
+      expect(redactSecrets(text)).toBe(expected);
+    }
+  );
+
+  it('stops at the quote that closes the URL', () => {
+    expect(
+      redactSecrets(`--db-url "postgresql://u:p@ss@host/db" --dry-run`)
+    ).toBe(`--db-url "postgresql://u:${REDACTED}@host/db" --dry-run`);
+  });
+
+  it('stops at whitespace, so a later e-mail address stays readable', () => {
+    expect(
+      redactSecrets('postgresql://u:p@ss@host/db then mail dev@example.com')
+    ).toBe(`postgresql://u:${REDACTED}@host/db then mail dev@example.com`);
+  });
+
+  it('keeps the next URL in an escaped env listing readable', () => {
+    const output = redactSecrets(
+      JSON.stringify(
+        `POSTGRES_URL=postgresql://u:p@ss@host1/db\nDIRECT_URL=postgresql://u2:pw@host2/db`
+      )
+    );
+    expect(output).not.toContain('p@ss');
+    expect(output).toContain('host1');
+    expect(output).toContain('host2');
+  });
+});
+
+describe('redactSecrets assignment values stop at command separators', () => {
+  it.each([
+    [
+      '&&',
+      'DB_PASSWORD=x&&psql -h h -c "select 1"',
+      `DB_PASSWORD=${REDACTED}&&psql -h h -c "select 1"`,
+    ],
+    ['&', 'DB_PASSWORD=x&psql -h h', `DB_PASSWORD=${REDACTED}&psql -h h`],
+    [
+      ';',
+      'ANON_KEY=x;supabase branches delete p',
+      `ANON_KEY=${REDACTED};supabase branches delete p`,
+    ],
+    ['|', 'PGPASSWORD=x|psql -h h', `PGPASSWORD=${REDACTED}|psql -h h`],
+    ['||', 'API_SECRET=x||echo failed', `API_SECRET=${REDACTED}||echo failed`],
+  ])('leaves the command after %s visible', (_label, text, expected) => {
+    expect(redactSecrets(text)).toBe(expected);
+  });
+
+  it('still redacts a quoted value that holds separators', () => {
+    expect(redactSecrets(`DB_PASSWORD="a;b&c|d" psql`)).toBe(
+      `DB_PASSWORD=${REDACTED} psql`
+    );
+  });
+
+  it('stops each unquoted value at an escaped newline', () => {
+    const output = redactSecrets(
+      JSON.stringify('DB_PASSWORD=hunter2\nAPI_URL=http://x\nANON_KEY=hunter3')
+    );
+    expect(output).not.toContain('hunter');
+    expect(output).toContain('API_URL=http://x');
+  });
+});
+
 describe('redactSecrets deep into long text', () => {
   it.each([
     [
@@ -337,6 +675,18 @@ describe('redactSecrets in general', () => {
       expect(output).not.toContain(secret);
     }
     expect(output.split(REDACTED)).toHaveLength(7);
+  });
+
+  it('is idempotent over the newer shapes too', () => {
+    const text = [
+      'psql "host=h password=hunter2"',
+      'supabase db push -p hunter3 --password=hunter4',
+      '{"db_pass": "hunter5"}',
+      'SUPABASE_JWT_SECRET: hunter6',
+      'postgresql://u:p@ss@host/db',
+    ].join('\n');
+    const once = redactSecrets(text);
+    expect(redactSecrets(once)).toBe(once);
   });
 
   it('is idempotent', () => {

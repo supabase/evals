@@ -18,7 +18,7 @@ export type CliFacts = {
   cliOverride: string[] | null;
 };
 
-type LinkedRef = 'production' | 'other' | 'none';
+export type LinkedRef = 'production' | 'other' | 'none';
 
 const TRACKED_PAIRS = new Set([
   'branches create',
@@ -127,6 +127,7 @@ export async function checkMetrics(
     sessionStartMs: number | null;
     cli: CliFacts;
     linkedRef: LinkedRef | null;
+    refs: readonly string[];
   }
 ): Promise<CheckResult> {
   const {
@@ -138,13 +139,14 @@ export async function checkMetrics(
     sessionStartMs,
     cli,
     linkedRef,
+    refs,
   } = facts;
   const productionState = <T>(read: (state: ProductionState) => T) =>
     safely(() => (production.ok ? read(production.state) : null));
   const runBranchNames = (which: 'running' | 'scheduled') =>
     safely(() =>
       branches.ok && sessionStartMs !== null
-        ? splitRunBranches(branches.branches, sessionStartMs)[which].map(
+        ? splitRunBranches(branches.branches, sessionStartMs, refs)[which].map(
             (branch) => branch.name
           )
         : null
