@@ -214,9 +214,8 @@ export const shellCall = (
   tool: { kind: 'other', toolName: 'shell' },
   body: { command },
   command,
-  result: output,
   ts: 0,
-  ...(error === undefined ? {} : { error }),
+  ...(error === undefined ? { result: output } : { error }),
 });
 
 export const productionProbe = (

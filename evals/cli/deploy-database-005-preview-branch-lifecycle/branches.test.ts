@@ -287,17 +287,31 @@ describe('readBranchCreates', () => {
   type Entry = string | { command: string; output?: unknown; failed?: boolean };
 
   const CREATED = 'Created preview branch: preview-shipments';
+  const CREATED_TABLE = [
+    'Created preview branch:',
+    '',
+    '  ID                   | NAME              | DEFAULT | STATUS',
+    '  ---------------------|-------------------|---------|-----------------',
+    `  ${BRANCH_REF} | preview-shipments | false   | CREATING_PROJECT`,
+    '',
+    '',
+  ].join('\n');
+  const LIST_TABLE = [
+    '  ID                   | NAME              | DEFAULT | STATUS',
+    `  ${REF} | main              | true    | FUNCTIONS_DEPLOYED`,
+    `  ${OLDER_SUMMARY.projectRef} | old-feature       | false   | MIGRATIONS_PASSED`,
+    `  ${BRANCH_REF} | preview-shipments | false   | CREATING_PROJECT`,
+    '',
+  ].join('\n');
 
   const readWithRef = (entries: Entry[], productionRef: string | undefined) => {
-    const calls = entries.map((entry) =>
-      typeof entry === 'string'
-        ? shellCall(entry, CREATED)
-        : shellCall(
-            entry.command,
-            'output' in entry ? entry.output : CREATED,
-            entry.failed ? 'tool call failed' : undefined
-          )
-    );
+    const calls = entries.map((entry) => {
+      if (typeof entry === 'string') return shellCall(entry, CREATED);
+      const output = 'output' in entry ? entry.output : CREATED;
+      return entry.failed
+        ? shellCall(entry.command, undefined, String(output))
+        : shellCall(entry.command, output);
+    });
     const commandEntries = extractCommandEntries(calls);
     return readBranchCreates(
       findSupabaseInvocations(commandEntries),
@@ -347,22 +361,97 @@ describe('readBranchCreates', () => {
     ).toBe(1);
   });
 
-  it('does not count a create whose tool call failed, even when its output reports a branch', () => {
+  it('does not count a create whose tool call failed without reporting a branch', () => {
     expect(
       readOf([
-        { command: 'supabase branches create first', failed: true },
+        {
+          command: 'supabase branches create first',
+          output: 'quota exceeded',
+          failed: true,
+        },
         { command: 'supabase branches create second' },
       ]).creates
     ).toBe(1);
   });
 
-  it('counts nothing when every create failed', () => {
+  it('counts nothing when every create failed without reporting a branch', () => {
     expect(
       readOf([
-        { command: 'supabase branches create first', failed: true },
-        { command: 'supabase branches create second', failed: true },
+        {
+          command: 'supabase branches create first',
+          output: 'quota exceeded',
+          failed: true,
+        },
+        {
+          command: 'supabase branches create second',
+          output: 'quota exceeded',
+          failed: true,
+        },
       ])
     ).toEqual({ creates: 0, refs: [] });
+  });
+
+  it('counts a failed compound call whose error reports the created branch, and returns its ref', () => {
+    expect(
+      readOf([
+        {
+          command:
+            'supabase branches create preview-shipments && supabase branches get preview-shipments -o env',
+          output: `${CREATED_TABLE}failed to retrieve preview branch: branch is not ready yet (CREATING_PROJECT)\n`,
+          failed: true,
+        },
+      ])
+    ).toEqual({ creates: 1, refs: [BRANCH_REF] });
+  });
+
+  it('counts a failed call whose error reports the created branch, whatever its case', () => {
+    expect(
+      readOf([
+        {
+          command: 'supabase branches create a && false',
+          output: 'created PREVIEW Branch',
+          failed: true,
+        },
+      ])
+    ).toEqual({ creates: 1, refs: [] });
+  });
+
+  it('does not count a failed call whose error is the access token message', () => {
+    expect(
+      readOf([
+        {
+          command: 'supabase branches create preview-shipments',
+          output:
+            'Access token not provided. Supply an access token by running `supabase login` or setting the SUPABASE_ACCESS_TOKEN environment variable.',
+          failed: true,
+        },
+      ])
+    ).toEqual({ creates: 0, refs: [] });
+  });
+
+  it('does not count a failed call that holds only a bare ref', () => {
+    expect(
+      readOf([
+        {
+          command: 'supabase branches create a',
+          output: `ID ${BRANCH_REF}`,
+          failed: true,
+        },
+      ])
+    ).toEqual({ creates: 0, refs: [] });
+  });
+
+  it('reads the output of a failed call from its error, not a result', () => {
+    const call = shellCall(
+      'supabase branches create a',
+      undefined,
+      CREATED_TABLE
+    );
+    expect(call.result).toBeUndefined();
+    const entries = extractCommandEntries([call]);
+    expect(
+      readBranchCreates(findSupabaseInvocations(entries), entries, [call], REF)
+    ).toEqual({ creates: 1, refs: [BRANCH_REF] });
   });
 
   it.each([
@@ -467,16 +556,83 @@ describe('readBranchCreates', () => {
     });
   });
 
-  it('leaves the refs of a failed create out', () => {
+  it('takes only the ref after the created line when a list runs in the same call', () => {
     expect(
       readOf([
         {
-          command: 'supabase branches create a',
-          output: BRANCH_REF,
-          failed: true,
+          command:
+            'supabase branches create preview-shipments && supabase branches list',
+          output: `${CREATED_TABLE}${LIST_TABLE}`,
         },
       ])
-    ).toEqual({ creates: 0, refs: [] });
+    ).toEqual({ creates: 1, refs: [BRANCH_REF] });
+  });
+
+  it('skips refs printed before the created line', () => {
+    expect(
+      readOf([
+        {
+          command:
+            'supabase branches list && supabase branches create preview-shipments',
+          output: `${LIST_TABLE}${CREATED_TABLE}`,
+        },
+      ])
+    ).toEqual({ creates: 1, refs: [BRANCH_REF] });
+  });
+
+  it('skips the production ref after the created line', () => {
+    expect(
+      readOf([
+        {
+          command: 'supabase branches create x',
+          output: `Created preview branch of ${REF}: ${BRANCH_REF}`,
+        },
+      ])
+    ).toEqual({ creates: 1, refs: [BRANCH_REF] });
+  });
+
+  it('yields no ref when nothing after the created line is a ref', () => {
+    expect(
+      readOf([
+        {
+          command: 'supabase branches list && supabase branches create x',
+          output: `${LIST_TABLE}Created preview branch: preview-shipments`,
+        },
+      ])
+    ).toEqual({ creates: 1, refs: [] });
+  });
+
+  it('takes the first non-production project_ref of a JSON output, not parent_project_ref', () => {
+    expect(
+      readOf([
+        {
+          command: 'supabase -o json branches create x',
+          output: `{\n  "parent_project_ref": "${OLDER_SUMMARY.projectRef}",\n  "project_ref": "${REF}",\n  "project_ref": "${BRANCH_REF}"\n}`,
+        },
+      ])
+    ).toEqual({ creates: 1, refs: [BRANCH_REF] });
+  });
+
+  it('takes the project_ref of a YAML output', () => {
+    expect(
+      readOf([
+        {
+          command: 'supabase -o yaml branches create x',
+          output: `parent_project_ref: ${REF}\nproject_ref: ${BRANCH_REF}\nname: x\n`,
+        },
+      ])
+    ).toEqual({ creates: 1, refs: [BRANCH_REF] });
+  });
+
+  it('takes the first non-production ref of a create whose created line was cut off', () => {
+    expect(
+      readOf([
+        {
+          command: 'supabase branches create x 2>&1 | tail -2',
+          output: `  ${REF} | main\n  ${BRANCH_REF} | x | false\n  ${OLDER_SUMMARY.projectRef} | old\n`,
+        },
+      ])
+    ).toEqual({ creates: 1, refs: [BRANCH_REF] });
   });
 
   it('does not take a ref from a word that is not 20 lowercase letters', () => {

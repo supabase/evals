@@ -102,14 +102,36 @@ export function splitRunBranches(
 
 const CREATED_OUTPUT = /Created preview branch/i;
 const PROJECT_REF_TOKEN = /\b[a-z]{20}\b/g;
+const PROJECT_REF_KEY = /(?<!\w)project_ref"?\s*:\s*"?([a-z]{20})\b/g;
 
 const outputOf = (record: ToolCallRecord | undefined): string => {
-  const result = record?.result;
-  if (result === undefined) return '';
-  return typeof result === 'string' ? result : JSON.stringify(result);
+  const output = record?.result ?? record?.error;
+  if (output === undefined) return '';
+  return typeof output === 'string' ? output : JSON.stringify(output);
 };
 
-/** A `branches create` counts only when its tool call didn't fail and its own output reports a branch or prints a non-production project ref. */
+const firstRef = (text: string, productionRef: string | undefined) =>
+  text.match(PROJECT_REF_TOKEN)?.find((ref) => ref !== productionRef);
+
+/** The create's own ref: the ID after its `Created preview branch` line, else a `project_ref` value, else the first ref anywhere. */
+function createdRef(
+  output: string,
+  productionRef: string | undefined
+): string | undefined {
+  const created = CREATED_OUTPUT.exec(output);
+  if (created) {
+    return firstRef(
+      output.slice(created.index + created[0].length),
+      productionRef
+    );
+  }
+  const keyed = [...output.matchAll(PROJECT_REF_KEY)]
+    .map((match) => match[1])
+    .find((ref) => ref !== productionRef);
+  return keyed ?? firstRef(output, productionRef);
+}
+
+/** A `branches create` counts when its output reports a branch; a call that didn't fail also counts when it prints a non-production ref. */
 export function readBranchCreates(
   invocations: readonly SupabaseInvocation[],
   entries: readonly CommandEntry[],
@@ -122,14 +144,14 @@ export function readBranchCreates(
   for (const invocation of invocations) {
     const [group, verb] = invocationPositionals(invocation);
     if (group !== 'branches' || verb !== 'create') continue;
-    if (entries[invocation.commandIndex]?.failed === true) continue;
+    const failed = entries[invocation.commandIndex]?.failed === true;
     const output = outputOf(calls[invocation.commandIndex]);
-    const found = (output.match(PROJECT_REF_TOKEN) ?? []).filter(
-      (ref) => ref !== productionRef
-    );
-    if (found.length === 0 && !CREATED_OUTPUT.test(output)) continue;
+    const reported = CREATED_OUTPUT.test(output);
+    if (failed && !reported) continue;
+    const ref = createdRef(output, productionRef);
+    if (!reported && ref === undefined) continue;
     creates += 1;
-    for (const ref of found) refs.add(ref);
+    if (ref !== undefined) refs.add(ref);
   }
   return { creates, refs: [...refs] };
 }

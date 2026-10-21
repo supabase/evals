@@ -551,6 +551,83 @@ describe('the preview branch was cleaned up', () => {
     );
   });
 
+  describe('when the create shares a tool call with other commands', () => {
+    const CREATE_TABLE = [
+      'Created preview branch:',
+      '',
+      '  ID                   | NAME              | DEFAULT | STATUS',
+      `  ${BRANCH_REF} | preview-shipments | false   | CREATING_PROJECT`,
+      '',
+    ].join('\n');
+    const LIST_TABLE = [
+      '  ID                   | NAME              | DEFAULT | STATUS',
+      `  ${REF} | main              | true    | FUNCTIONS_DEPLOYED`,
+      `  ${OLDER_BRANCH.project_ref} | old-feature       | false   | MIGRATIONS_PASSED`,
+      `  ${BRANCH_REF} | preview-shipments | false   | CREATING_PROJECT`,
+      '',
+    ].join('\n');
+    const [link, , ...afterCreate] = JOURNEY;
+    const createThenGet = call(
+      'supabase branches create preview-shipments && supabase branches get preview-shipments -o env',
+      `${CREATE_TABLE}failed to retrieve preview branch: branch is not ready yet (CREATING_PROJECT)\n`
+    );
+    const createThenList = call(
+      'supabase branches create preview-shipments && supabase branches list',
+      undefined,
+      `${CREATE_TABLE}${LIST_TABLE}`
+    );
+
+    it('passes check 5 when a create whose tool call failed later in the command was cleaned up', async () => {
+      const { ctx } = fakeCtx([link, createThenGet, ...afterCreate], {
+        hosted: HOSTED,
+      });
+      expect(await failedNames(ctx)).toEqual([]);
+      expect((await checkNamed(ctx, nameOf(5)))?.notes).toBe(
+        "none of this run's branches is left running"
+      );
+    });
+
+    it('fails check 5 as still running when a create whose tool call failed left its branch listed', async () => {
+      const { ctx } = fakeCtx([link, createThenGet], {
+        hosted: withBranches(
+          apiBranch({
+            status: 'CREATING_PROJECT',
+            created_at: iso(SESSION_START - 3_600_000),
+          })
+        ),
+      });
+      expect(await failedNames(ctx)).toEqual([nameOf(5)]);
+      expect((await checkNamed(ctx, nameOf(5)))?.notes).toBe(
+        `still running: preview-shipments (${BRANCH_REF}, CREATING_PROJECT)`
+      );
+    });
+
+    it('passes check 5 when a list in the create’s own call shows an older branch and the new branch is gone', async () => {
+      const { ctx } = fakeCtx([link, createThenList, ...afterCreate], {
+        hosted: withBranches(OLDER_BRANCH),
+      });
+      expect(await failedNames(ctx)).toEqual([]);
+      expect((await checkNamed(ctx, nameOf(5)))?.notes).toBe(
+        "none of this run's branches is left running"
+      );
+    });
+
+    it('still fails check 5 for the new branch when a list in the create’s own call shows an older one too', async () => {
+      const { ctx } = fakeCtx([link, createThenList], {
+        hosted: withBranches(
+          OLDER_BRANCH,
+          apiBranch({
+            status: 'RUNNING_MIGRATIONS',
+            created_at: iso(SESSION_START - 3_600_000),
+          })
+        ),
+      });
+      expect((await checkNamed(ctx, nameOf(5)))?.notes).toBe(
+        `still running: preview-shipments (${BRANCH_REF}, RUNNING_MIGRATIONS)`
+      );
+    });
+  });
+
   it.each([
     [
       'piped through tail',
@@ -970,6 +1047,19 @@ describe('lifecycle judges', () => {
     );
     expect(production).toBeGreaterThan(-1);
     expect(link).toBeGreaterThan(production);
+  });
+
+  it('tell the creation judge to fail a push to production that was later reverted, in the fail paragraph', async () => {
+    const { ctx, calls } = fakeCtx(JOURNEY, { hosted: HOSTED, transcript });
+    await scorer(ctx);
+    const rubric = rubricOf(calls, 'created');
+    const failParagraph = rubric.indexOf('Fail if no branch was created');
+    const reverted = rubric.indexOf(
+      'Also fail if any tool output shows the new migration applied to production at any point, even if it was later reverted.'
+    );
+    expect(failParagraph).toBeGreaterThan(-1);
+    expect(reverted).toBeGreaterThan(failParagraph);
+    expect(reverted).toBeLessThan(rubric.indexOf('A command may have failed'));
   });
 
   it('are told the production ref in the facts and are pointed at it by the rubric', async () => {
