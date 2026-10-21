@@ -250,10 +250,10 @@ describe('checkListedAfterSet reading a call that exited non-zero', () => {
   });
 });
 
-describe('checkListedAfterSet crediting a list by its exit', () => {
+describe('checkListedAfterSet crediting a clean list that checked against the expected names', () => {
   const SET = `/bin/bash -lc '${SET_FILE}'`;
-  const exitedCleanly = (call: number) =>
-    `\`supabase secrets list\` in tool call ${call} exited cleanly`;
+  const checkedExpected = (call: number) =>
+    `\`supabase secrets list\` in tool call ${call} exited cleanly while checking against the expected names`;
   const showedEveryName = (call: number) =>
     `\`supabase secrets list\` in tool call ${call} showed every secret name`;
 
@@ -268,28 +268,41 @@ describe('checkListedAfterSet crediting a list by its exit', () => {
       `/bin/bash -lc "missing=\\$(comm -23 <(grep -v '^#' supabase/functions/.env.production | cut -d= -f1 | sort) <(supabase secrets list -o json | jq -r '.[].name' | sort)); [ -z \\"\\$missing\\" ] && echo 'all 3 present' || echo \\"missing: \\$missing\\""`,
       'all 3 present\n',
     ],
-  ])('passes %s that exited cleanly', (_label, command, output) => {
+    [
+      'a jq -e contains that exited cleanly',
+      `supabase secrets list -o json | jq -e 'map(.name) | contains(["RESEND_API_KEY","STRIPE_SECRET_KEY","STRIPE_WEBHOOK_SECRET"])'`,
+      'true\n',
+    ],
+  ])('passes %s', (_label, command, output) => {
     expect(check([shell(SET, SET_DONE), shell(command, output)])).toEqual({
       name: CONFIRM_CHECK_NAME,
       passed: true,
-      notes: exitedCleanly(2),
+      notes: checkedExpected(2),
     });
   });
 
-  it('passes a list saved to a file and read back in the next call', () => {
+  it('credits a list chained after a set when its output shows every name', () => {
+    expect(
+      check([shell(`${SET_FILE} && ${LIST}`, `${SET_DONE}\n${listTable()}`)])
+    ).toEqual({
+      name: CONFIRM_CHECK_NAME,
+      passed: true,
+      notes: showedEveryName(1),
+    });
+  });
+
+  it('still reads a comparison against the production file that follows a chained set', () => {
     expect(
       check([
-        shell(SET, SET_DONE),
         shell(
-          `/bin/bash -lc 'supabase secrets list > /tmp/secrets.txt 2>&1; echo exit=$?'`,
-          'exit=0\n'
+          `${SET_FILE} && comm -23 <(cut -d= -f1 supabase/functions/.env.production | sort) <(${LIST} -o json | jq -r '.[].name' | sort)`,
+          ''
         ),
-        shell(`/bin/bash -lc 'cat /tmp/secrets.txt'`, listTable()),
       ])
     ).toEqual({
       name: CONFIRM_CHECK_NAME,
       passed: true,
-      notes: exitedCleanly(2),
+      notes: checkedExpected(1),
     });
   });
 
@@ -297,14 +310,17 @@ describe('checkListedAfterSet crediting a list by its exit', () => {
     expect(check(setThenList(LIST)).notes).toBe(showedEveryName(2));
   });
 
-  it('passes a clean list that came after an errored one', () => {
+  it('passes a clean list that checked the names after an errored one', () => {
     expect(
       check([
         shell(SET_FILE, SET_DONE),
         shell(LIST, undefined, NO_TOKEN),
-        shell(LIST, '3\n'),
+        shell(
+          `supabase secrets list -o json | jq -e 'map(.name) | contains(["RESEND_API_KEY","STRIPE_SECRET_KEY","STRIPE_WEBHOOK_SECRET"])'`,
+          'true\n'
+        ),
       ])
-    ).toMatchObject({ passed: true, notes: exitedCleanly(3) });
+    ).toMatchObject({ passed: true, notes: checkedExpected(3) });
   });
 
   it('keeps crediting an errored list whose error holds the whole table', () => {
@@ -334,6 +350,350 @@ describe('checkListedAfterSet crediting a list by its exit', () => {
         shell(LIST, undefined, NO_TOKEN),
       ])
     ).toMatchObject({ passed: false });
+  });
+
+  it('does not credit an errored list that checked against the expected names', () => {
+    expect(
+      check([
+        shell(SET_FILE, SET_DONE),
+        shell(
+          `supabase secrets list -o json | jq -e 'map(.name) | contains(["RESEND_API_KEY","STRIPE_SECRET_KEY","STRIPE_WEBHOOK_SECRET"])'`,
+          undefined,
+          'jq: error: connection refused'
+        ),
+      ])
+    ).toMatchObject({ passed: false });
+  });
+});
+
+describe('checkListedAfterSet crediting a list saved to a file and read back', () => {
+  const SET = `/bin/bash -lc '${SET_FILE}'`;
+  const savedList = (redirect: string) =>
+    `/bin/bash -lc 'supabase secrets list ${redirect}'`;
+  const readBack = (list: number, read: number) =>
+    `\`supabase secrets list\` in tool call ${list} saved its output to a file that tool call ${read} read back showing every secret name`;
+
+  it.each([
+    [
+      'a > redirect with stderr merged',
+      '> /tmp/secrets.txt 2>&1',
+      'cat /tmp/secrets.txt',
+    ],
+    ['a >> redirect', '>> /tmp/secrets.txt', 'cat /tmp/secrets.txt'],
+    ['a redirect with no space', '>/tmp/secrets.txt', 'cat /tmp/secrets.txt'],
+    ['a relative path read back with ./', '> secrets.txt', 'cat ./secrets.txt'],
+    [
+      'a read-back that filters the file',
+      '> /tmp/secrets.txt',
+      "grep -E 'API_KEY|SECRET' /tmp/secrets.txt",
+    ],
+  ])('passes %s', (_label, redirect, read) => {
+    expect(
+      check([
+        shell(SET, SET_DONE),
+        shell(savedList(redirect), ''),
+        shell(`/bin/bash -lc '${read}'`, listTable()),
+      ])
+    ).toEqual({
+      name: CONFIRM_CHECK_NAME,
+      passed: true,
+      notes: readBack(2, 3),
+    });
+  });
+
+  it.each([
+    [
+      'a pipeline',
+      `supabase secrets list -o json | jq -r '.[].name' > names.txt`,
+    ],
+    [
+      'a pipeline inside a double-quoted wrapper',
+      `/bin/bash -lc "supabase secrets list -o json | jq -r '.[].name' > names.txt"`,
+    ],
+    [
+      'a pipeline of three stages',
+      `supabase secrets list -o json | jq -r '.[].name' | sort >> names.txt`,
+    ],
+  ])('passes a list saved by the last stage of %s', (_label, list) => {
+    expect(
+      check([
+        shell(SET, SET_DONE),
+        shell(list, ''),
+        shell('cat names.txt', `${SECRET_NAMES.join('\n')}\n`),
+      ])
+    ).toEqual({
+      name: CONFIRM_CHECK_NAME,
+      passed: true,
+      notes: readBack(2, 3),
+    });
+  });
+
+  it('passes a read-back that is not the call right after the list', () => {
+    expect(
+      check([
+        shell(SET, SET_DONE),
+        shell(savedList('> /tmp/secrets.txt 2>&1'), ''),
+        shell('ls -l /tmp/secrets.txt', '-rw-r--r-- 1 u g 300 secrets.txt'),
+        shell('cat /tmp/secrets.txt', listTable()),
+      ])
+    ).toMatchObject({ passed: true, notes: readBack(2, 4) });
+  });
+
+  it('passes a read-back of a list whose own call carries an error', () => {
+    expect(
+      check([
+        shell(SET, SET_DONE),
+        shell(savedList('> /tmp/secrets.txt 2>&1'), '', 'exit status 1'),
+        shell('cat /tmp/secrets.txt', listTable()),
+      ])
+    ).toMatchObject({ passed: true, notes: readBack(2, 3) });
+  });
+});
+
+describe('checkListedAfterSet refusing a clean exit that checked nothing', () => {
+  const SET = `/bin/bash -lc '${SET_FILE}'`;
+  const UNCHECKED =
+    'the `supabase secrets list` after the last set exited cleanly without checking against the expected names';
+  const savedList = (redirect: string) =>
+    `/bin/bash -lc 'supabase secrets list ${redirect}'`;
+  const allNames = SECRET_NAMES.join(', ');
+
+  it('fails a list whose output was discarded and reported as ok', () => {
+    expect(
+      check([
+        shell(SET, SET_DONE),
+        shell(
+          `/bin/bash -lc 'supabase secrets list >/dev/null 2>&1 && echo "secrets list ok"'`,
+          'secrets list ok\n'
+        ),
+      ])
+    ).toEqual({
+      name: CONFIRM_CHECK_NAME,
+      passed: false,
+      notes: `${UNCHECKED}, and didn't show ${allNames}`,
+    });
+  });
+
+  it('fails a list truncated by head, naming the one name it showed', () => {
+    expect(
+      check([
+        shell(SET, SET_DONE),
+        shell(
+          `/bin/bash -lc 'supabase secrets list | head -n 3'`,
+          listTable(['RESEND_API_KEY'])
+        ),
+      ])
+    ).toEqual({
+      name: CONFIRM_CHECK_NAME,
+      passed: false,
+      notes: `${UNCHECKED}, and showed only RESEND_API_KEY and didn't show STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET`,
+    });
+  });
+
+  it('fails a failed list piped into jq that exited zero with an error text', () => {
+    expect(
+      check([
+        shell(SET, SET_DONE),
+        shell(
+          `/bin/bash -lc "supabase secrets list -o json | jq -r '.[].name'"`,
+          'Unexpected error retrieving project secrets: 503 Service Unavailable\n'
+        ),
+      ])
+    ).toEqual({
+      name: CONFIRM_CHECK_NAME,
+      passed: false,
+      notes: `${UNCHECKED}, and didn't show ${allNames}`,
+    });
+  });
+
+  it('fails a clean list when the other list errored, saying both states', () => {
+    expect(
+      check([
+        shell(SET, SET_DONE),
+        shell(LIST, undefined, NO_TOKEN),
+        shell(`${LIST} | head -n 3`, listTable(['RESEND_API_KEY'])),
+      ])
+    ).toEqual({
+      name: CONFIRM_CHECK_NAME,
+      passed: false,
+      notes:
+        "the 2 `supabase secrets list` runs after the last set errored or exited cleanly without checking against the expected names, and showed only RESEND_API_KEY and didn't show STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET",
+    });
+  });
+
+  it('judges the clean list that showed the most names when several came after the set', () => {
+    expect(
+      check([
+        shell(SET, SET_DONE),
+        shell(`${LIST} | head -n 3`, listTable(['RESEND_API_KEY'])),
+        shell(
+          `${LIST} | head -n 4`,
+          listTable(['RESEND_API_KEY', 'STRIPE_SECRET_KEY'])
+        ),
+      ])
+    ).toEqual({
+      name: CONFIRM_CHECK_NAME,
+      passed: false,
+      notes:
+        "the 2 `supabase secrets list` runs after the last set exited cleanly without checking against the expected names, and showed only RESEND_API_KEY, STRIPE_SECRET_KEY and didn't show STRIPE_WEBHOOK_SECRET",
+    });
+  });
+
+  it.each([
+    [
+      'the file holds an access-token error',
+      [
+        shell(savedList('> /tmp/secrets.txt 2>&1; echo exit=$?'), 'exit=1\n'),
+        shell(`/bin/bash -lc 'cat /tmp/secrets.txt'`, NO_TOKEN),
+      ],
+    ],
+    [
+      'the read-back call does not mention the file',
+      [
+        shell(savedList('> /tmp/secrets.txt 2>&1'), ''),
+        shell('cat /tmp/other.txt', listTable()),
+      ],
+    ],
+    [
+      'the read-back names only some of the secrets',
+      [
+        shell(savedList('> /tmp/secrets.txt 2>&1'), ''),
+        shell('cat /tmp/secrets.txt', listTable(['RESEND_API_KEY'])),
+      ],
+    ],
+    [
+      'the read-back came before the list',
+      [
+        shell('cat /tmp/secrets.txt', listTable()),
+        shell(savedList('> /tmp/secrets.txt 2>&1'), ''),
+      ],
+    ],
+    [
+      'the read-back only mentions a longer file name',
+      [
+        shell(savedList('> /tmp/secrets.txt 2>&1'), ''),
+        shell('cat /tmp/secrets.txt.bak', listTable()),
+      ],
+    ],
+    [
+      'only stderr was redirected',
+      [
+        shell(savedList('2> /tmp/secrets.txt'), ''),
+        shell('cat /tmp/secrets.txt', listTable()),
+      ],
+    ],
+  ])('fails a saved list when %s', (_label, calls) => {
+    const { passed, notes } = check([shell(SET, SET_DONE), ...calls]);
+    expect(passed).toBe(false);
+    expect(notes).toContain('without checking against the expected names');
+  });
+
+  it('fails a saved list whose call errored and whose file holds an access-token error', () => {
+    expect(
+      check([
+        shell(SET, SET_DONE),
+        shell(savedList('> /tmp/secrets.txt 2>&1'), '', 'exit status 1'),
+        shell('cat /tmp/secrets.txt', NO_TOKEN),
+      ])
+    ).toEqual({
+      name: CONFIRM_CHECK_NAME,
+      passed: false,
+      notes: didNotShow(allNames),
+    });
+  });
+
+  const NOTHING_SHOWN = `didn't show ${allNames}`;
+
+  it.each([
+    ['discarded', `${SET_FILE} && ${LIST} >/dev/null`, '', NOTHING_SHOWN],
+    [
+      'truncated by head',
+      `${SET_FILE} && ${LIST} | head -n 3`,
+      listTable(['RESEND_API_KEY']),
+      "showed only RESEND_API_KEY and didn't show STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET",
+    ],
+    [
+      'chained after per-name sets',
+      `supabase secrets set RESEND_API_KEY="$RESEND_API_KEY" STRIPE_SECRET_KEY="$STRIPE_SECRET_KEY" STRIPE_WEBHOOK_SECRET="$STRIPE_WEBHOOK_SECRET" && ${LIST} >/dev/null`,
+      '',
+      NOTHING_SHOWN,
+    ],
+    [
+      'chained after an unset',
+      `supabase secrets unset RESEND_API_KEY STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET && ${LIST} >/dev/null`,
+      '',
+      NOTHING_SHOWN,
+    ],
+  ])(
+    'fails a list %s whose call also holds the write that names the expected names',
+    (_label, command, output, detail) => {
+      expect(check([shell(command, output)])).toEqual({
+        name: CONFIRM_CHECK_NAME,
+        passed: false,
+        notes: `${UNCHECKED}, and ${detail}`,
+      });
+    }
+  );
+
+  it('fails a pipeline whose redirect follows a break after the list', () => {
+    expect(
+      check([
+        shell(SET, SET_DONE),
+        shell(`${LIST} -o json | jq -r '.[].name'; echo done > names.txt`, ''),
+        shell('cat names.txt', `${SECRET_NAMES.join('\n')}\n`),
+      ]).passed
+    ).toBe(false);
+  });
+
+  it('fails a pipeline saved to a file read back with only two of the names', () => {
+    expect(
+      check([
+        shell(SET, SET_DONE),
+        shell(`${LIST} -o json | jq -r '.[].name' > names.txt`, ''),
+        shell('cat names.txt', 'RESEND_API_KEY\nSTRIPE_SECRET_KEY\n'),
+      ])
+    ).toEqual({
+      name: CONFIRM_CHECK_NAME,
+      passed: false,
+      notes: `${UNCHECKED}, and didn't show ${allNames}`,
+    });
+  });
+
+  it('fails a pipeline whose last stage discards its output', () => {
+    expect(
+      check([
+        shell(SET, SET_DONE),
+        shell(`${LIST} -o json | jq -r '.[].name' > /dev/null`, ''),
+        shell('cat /dev/null', `${SECRET_NAMES.join('\n')}\n`),
+      ]).passed
+    ).toBe(false);
+  });
+
+  it('fails a list redirected to /dev/null followed by a call that prints the names from the production file', () => {
+    expect(
+      check([
+        shell(SET, SET_DONE),
+        shell(savedList('> /dev/null 2>&1'), ''),
+        shell(
+          'cut -d= -f1 supabase/functions/.env.production',
+          `${SECRET_NAMES.join('\n')}\n`
+        ),
+      ])
+    ).toEqual({
+      name: CONFIRM_CHECK_NAME,
+      passed: false,
+      notes: `${UNCHECKED}, and didn't show ${allNames}`,
+    });
+  });
+
+  it('fails a list redirected to /dev/null even when a later call mentions /dev/null and shows the names', () => {
+    expect(
+      check([
+        shell(SET, SET_DONE),
+        shell(savedList('>/dev/null'), ''),
+        shell('cat /dev/null; echo done', listTable()),
+      ]).passed
+    ).toBe(false);
   });
 });
 

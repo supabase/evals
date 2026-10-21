@@ -1,5 +1,11 @@
 import type { CheckResult, ToolCallRecord } from '@supabase-evals/core';
-import { commandToolCalls, extractCommandEntries } from '../lib/detours.js';
+import { parse as shellQuoteParse, type ParseEntry } from 'shell-quote';
+import {
+  commandToolCalls,
+  extractCommandEntries,
+  extractCommands,
+  scopedCommandSegments,
+} from '../lib/detours.js';
 import {
   findSupabaseInvocations,
   invocationSubcommand,
@@ -14,6 +20,10 @@ export const CONFIRM_CHECK_NAME =
   "the agent listed the project's secrets after setting them";
 
 const SECRETS_VERBS = new Set(['set', 'unset', 'list']);
+const PRODUCTION_FILE = '.env.production';
+const STDOUT_REDIRECTS = new Set(['>', '>>']);
+const OTHER_FD_RE = /^[2-9]\d*$/;
+const PIPE_RE = /^\s*\|(?!\|)/;
 
 type SecretsVerb = 'set' | 'unset' | 'list';
 
@@ -43,6 +53,79 @@ const missingNames = (text: string) =>
     (name) => !new RegExp(`(?<![A-Za-z0-9_])${name}(?![A-Za-z0-9_])`).test(text)
   );
 
+const escapeRegExp = (text: string) =>
+  text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+type Segment = {
+  text: string;
+  verb?: SecretsVerb;
+  /** A `|` follows this segment directly, joining it to the next one. */
+  piped: boolean;
+};
+
+/** The command's executable segments; `piped` is read from the raw command, so a segment that isn't found there verbatim is never piped. */
+function pipedSegments(command: string): Segment[] {
+  let cursor = 0;
+  return scopedCommandSegments(command).map(({ segment }) => {
+    const verb = findSupabaseInvocations([segment])
+      .map(secretsVerb)
+      .find((v) => v !== undefined);
+    const start = command.indexOf(segment, cursor);
+    if (start === -1) return { text: segment, verb, piped: false };
+    cursor = start + segment.length;
+    return {
+      text: segment,
+      verb,
+      piped: PIPE_RE.test(command.slice(cursor)),
+    };
+  });
+}
+
+/** The command's text outside any `secrets set` or `secrets unset` segment. */
+const textOutsideWrites = (segments: readonly Segment[]) =>
+  segments
+    .filter(({ verb }) => verb !== 'set' && verb !== 'unset')
+    .map(({ text }) => text)
+    .join('\n');
+
+function stdoutTargets(segment: string): string[] {
+  let tokens: ParseEntry[];
+  try {
+    tokens = shellQuoteParse(segment, (key) => `$${key}`);
+  } catch {
+    return [];
+  }
+  return tokens.flatMap((token, i) => {
+    const before = tokens[i - 1];
+    const target = tokens[i + 1];
+    return typeof token === 'object' &&
+      'op' in token &&
+      STDOUT_REDIRECTS.has(token.op) &&
+      !(typeof before === 'string' && OTHER_FD_RE.test(before)) &&
+      typeof target === 'string' &&
+      target !== '' &&
+      target !== '/dev/null'
+      ? [target.replace(/^\.\//, '')]
+      : [];
+  });
+}
+
+/** Files a `secrets list` segment, or the last segment of the pipeline holding it, sends stdout to with `>` or `>>`, other than /dev/null. */
+function listRedirectTargets(segments: readonly Segment[]): string[] {
+  return segments.flatMap(({ verb }, i) => {
+    if (verb !== 'list') return [];
+    let last = i;
+    while (segments[last].piped && last + 1 < segments.length) last++;
+    return [
+      ...stdoutTargets(segments[i].text),
+      ...stdoutTargets(segments[last].text),
+    ];
+  });
+}
+
+const mentionsPath = (command: string, path: string) =>
+  new RegExp(`(?<![\\w.-])${escapeRegExp(path)}(?![\\w.-])`).test(command);
+
 export function checkListedAfterSet(
   hosted: boolean,
   toolCalls: readonly ToolCallRecord[],
@@ -54,6 +137,7 @@ export function checkListedAfterSet(
   if (!hosted) return { name, passed: false, notes: NO_HOSTED_PROJECT };
 
   const calls = commandToolCalls(toolCalls);
+  const commands = extractCommands(toolCalls);
   const verbs = invocations.map((inv) => ({
     verb: secretsVerb(inv),
     commandIndex: inv.commandIndex,
@@ -94,12 +178,37 @@ export function checkListedAfterSet(
       notes: `\`supabase secrets list\` in tool call ${showedAll.commandIndex + 1} showed every secret name`,
     };
   }
-  const exitedCleanly = lists.find(({ errored }) => !errored);
-  if (exitedCleanly) {
+
+  const segmentsOf = (commandIndex: number) =>
+    pipedSegments(commands[commandIndex]);
+
+  for (const { commandIndex } of lists) {
+    const targets = listRedirectTargets(segmentsOf(commandIndex));
+    const readBack = calls.findIndex(
+      (call, i) =>
+        i > commandIndex &&
+        targets.some((path) => mentionsPath(commands[i], path)) &&
+        missingNames(callText(call)).length === 0
+    );
+    if (readBack !== -1) {
+      return {
+        name,
+        passed: true,
+        notes: `\`supabase secrets list\` in tool call ${commandIndex + 1} saved its output to a file that tool call ${readBack + 1} read back showing every secret name`,
+      };
+    }
+  }
+
+  const checked = lists.find(({ commandIndex, errored }) => {
+    if (errored) return false;
+    const text = textOutsideWrites(segmentsOf(commandIndex));
+    return text.includes(PRODUCTION_FILE) || missingNames(text).length === 0;
+  });
+  if (checked) {
     return {
       name,
       passed: true,
-      notes: `\`supabase secrets list\` in tool call ${exitedCleanly.commandIndex + 1} exited cleanly`,
+      notes: `\`supabase secrets list\` in tool call ${checked.commandIndex + 1} exited cleanly while checking against the expected names`,
     };
   }
 
@@ -111,9 +220,13 @@ export function checkListedAfterSet(
     lists.length === 1
       ? 'the `supabase secrets list` after the last set'
       : `the ${lists.length} \`supabase secrets list\` runs after the last set`;
+  const allErrored = lists.every(({ errored }) => errored);
+  const outcome = allErrored
+    ? 'errored and'
+    : `${lists.some(({ errored }) => errored) ? 'errored or ' : ''}exited cleanly without checking against the expected names, and`;
   return {
     name,
     passed: false,
-    notes: `${subject} errored and ${shown.length > 0 ? `showed only ${shown.join(', ')} and ` : ''}didn't show ${best.missing.join(', ')}`,
+    notes: `${subject} ${outcome} ${shown.length > 0 ? `showed only ${shown.join(', ')} and ` : ''}didn't show ${best.missing.join(', ')}`,
   };
 }
