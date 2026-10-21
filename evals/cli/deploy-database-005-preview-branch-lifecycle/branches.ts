@@ -22,7 +22,11 @@ export type BranchSummary = {
   previewProjectStatus?: string;
 };
 
-export type BranchCreates = { creates: number; refs: string[] };
+export type BranchCreates = {
+  creates: number;
+  deletes: number;
+  refs: string[];
+};
 
 export type BranchesProbe =
   | { ok: true; branches: BranchSummary[] }
@@ -101,6 +105,7 @@ export function splitRunBranches(
 }
 
 const CREATED_OUTPUT = /Created preview branch/i;
+const DELETED_OUTPUT = /Deleted preview branch/i;
 const PROJECT_REF_TOKEN = /\b[a-z]{20}\b/g;
 const PROJECT_REF_KEY = /(?<!\w)project_ref"?\s*:\s*"?([a-z]{20})\b/g;
 
@@ -113,25 +118,24 @@ const outputOf = (record: ToolCallRecord | undefined): string => {
 const firstRef = (text: string, productionRef: string | undefined) =>
   text.match(PROJECT_REF_TOKEN)?.find((ref) => ref !== productionRef);
 
-/** The create's own ref: the ID after its `Created preview branch` line, else a `project_ref` value, else the first ref anywhere. */
+const keyedRef = (text: string, productionRef: string | undefined) =>
+  [...text.matchAll(PROJECT_REF_KEY)]
+    .map((match) => match[1])
+    .find((ref) => ref !== productionRef);
+
+/** The create's own ref, read after its `Created preview branch` line when there is one: a `project_ref` value, else the first bare ref. */
 function createdRef(
   output: string,
   productionRef: string | undefined
 ): string | undefined {
   const created = CREATED_OUTPUT.exec(output);
-  if (created) {
-    return firstRef(
-      output.slice(created.index + created[0].length),
-      productionRef
-    );
-  }
-  const keyed = [...output.matchAll(PROJECT_REF_KEY)]
-    .map((match) => match[1])
-    .find((ref) => ref !== productionRef);
-  return keyed ?? firstRef(output, productionRef);
+  const text = created
+    ? output.slice(created.index + created[0].length)
+    : output;
+  return keyedRef(text, productionRef) ?? firstRef(text, productionRef);
 }
 
-/** A `branches create` counts when its output reports a branch; a call that didn't fail also counts when it prints a non-production ref. */
+/** A `branches create` counts when its output reports a branch; a call that didn't fail also counts when it prints a non-production ref. A `branches delete` that didn't fail counts when its output reports the deletion. */
 export function readBranchCreates(
   invocations: readonly SupabaseInvocation[],
   entries: readonly CommandEntry[],
@@ -141,11 +145,18 @@ export function readBranchCreates(
   const calls = commandToolCalls(toolCalls);
   const refs = new Set<string>();
   let creates = 0;
+  let deletes = 0;
   for (const invocation of invocations) {
     const [group, verb] = invocationPositionals(invocation);
-    if (group !== 'branches' || verb !== 'create') continue;
+    if (group !== 'branches' || (verb !== 'create' && verb !== 'delete')) {
+      continue;
+    }
     const failed = entries[invocation.commandIndex]?.failed === true;
     const output = outputOf(calls[invocation.commandIndex]);
+    if (verb === 'delete') {
+      if (!failed && DELETED_OUTPUT.test(output)) deletes += 1;
+      continue;
+    }
     const reported = CREATED_OUTPUT.test(output);
     if (failed && !reported) continue;
     const ref = createdRef(output, productionRef);
@@ -153,7 +164,7 @@ export function readBranchCreates(
     creates += 1;
     if (ref !== undefined) refs.add(ref);
   }
-  return { creates, refs: [...refs] };
+  return { creates, deletes, refs: [...refs] };
 }
 
 const describeBranch = (branch: BranchSummary) =>
@@ -179,7 +190,11 @@ export function checkBranchCleanedUp(
     sessionStartMs,
     evidence.refs
   );
-  if (evidence.creates === 0 && running.length + scheduled.length === 0) {
+  if (
+    evidence.creates === 0 &&
+    evidence.deletes === 0 &&
+    running.length + scheduled.length === 0
+  ) {
     return {
       name,
       passed: false,

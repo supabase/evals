@@ -40,7 +40,14 @@ const CLEAN = "none of this run's branches is left running";
 
 const creates = (n: number, refs: string[] = []): BranchCreates => ({
   creates: n,
+  deletes: 0,
   refs,
+});
+
+const deleted = (n = 1): BranchCreates => ({
+  creates: 0,
+  deletes: n,
+  refs: [],
 });
 
 const listed = (...branches: BranchSummary[]): BranchesProbe => ({
@@ -347,7 +354,7 @@ describe('readBranchCreates', () => {
     "cat <<'EOF' > notes.md\nsupabase branches create x\nEOF",
     'ls supabase/migrations',
   ])('does not count `%s`, whatever its output says', (command) => {
-    expect(readOf([command])).toEqual({ creates: 0, refs: [] });
+    expect(readOf([command])).toEqual({ creates: 0, deletes: 0, refs: [] });
   });
 
   it('counts a create whose output reports the new branch, whatever its case', () => {
@@ -388,7 +395,7 @@ describe('readBranchCreates', () => {
           failed: true,
         },
       ])
-    ).toEqual({ creates: 0, refs: [] });
+    ).toEqual({ creates: 0, deletes: 0, refs: [] });
   });
 
   it('counts a failed compound call whose error reports the created branch, and returns its ref', () => {
@@ -401,7 +408,7 @@ describe('readBranchCreates', () => {
           failed: true,
         },
       ])
-    ).toEqual({ creates: 1, refs: [BRANCH_REF] });
+    ).toEqual({ creates: 1, deletes: 0, refs: [BRANCH_REF] });
   });
 
   it('counts a failed call whose error reports the created branch, whatever its case', () => {
@@ -413,7 +420,7 @@ describe('readBranchCreates', () => {
           failed: true,
         },
       ])
-    ).toEqual({ creates: 1, refs: [] });
+    ).toEqual({ creates: 1, deletes: 0, refs: [] });
   });
 
   it('does not count a failed call whose error is the access token message', () => {
@@ -426,7 +433,7 @@ describe('readBranchCreates', () => {
           failed: true,
         },
       ])
-    ).toEqual({ creates: 0, refs: [] });
+    ).toEqual({ creates: 0, deletes: 0, refs: [] });
   });
 
   it('does not count a failed call that holds only a bare ref', () => {
@@ -438,7 +445,7 @@ describe('readBranchCreates', () => {
           failed: true,
         },
       ])
-    ).toEqual({ creates: 0, refs: [] });
+    ).toEqual({ creates: 0, deletes: 0, refs: [] });
   });
 
   it('reads the output of a failed call from its error, not a result', () => {
@@ -451,7 +458,7 @@ describe('readBranchCreates', () => {
     const entries = extractCommandEntries([call]);
     expect(
       readBranchCreates(findSupabaseInvocations(entries), entries, [call], REF)
-    ).toEqual({ creates: 1, refs: [BRANCH_REF] });
+    ).toEqual({ creates: 1, deletes: 0, refs: [BRANCH_REF] });
   });
 
   it.each([
@@ -474,7 +481,7 @@ describe('readBranchCreates', () => {
               'Access token not provided. Supply an access token by running supabase login or setting the SUPABASE_ACCESS_TOKEN environment variable.',
           },
         ])
-      ).toEqual({ creates: 0, refs: [] });
+      ).toEqual({ creates: 0, deletes: 0, refs: [] });
     }
   );
 
@@ -483,7 +490,7 @@ describe('readBranchCreates', () => {
     ['an empty output', ''],
   ])('does not count a create with %s', (_label, output) => {
     expect(readOf([{ command: 'supabase branches create x', output }])).toEqual(
-      { creates: 0, refs: [] }
+      { creates: 0, deletes: 0, refs: [] }
     );
   });
 
@@ -492,7 +499,7 @@ describe('readBranchCreates', () => {
       readOf([
         { command: 'supabase branches create x', output: `ID ${BRANCH_REF}` },
       ])
-    ).toEqual({ creates: 1, refs: [BRANCH_REF] });
+    ).toEqual({ creates: 1, deletes: 0, refs: [BRANCH_REF] });
   });
 
   it('counts a create whose -o json output holds the branch ref', () => {
@@ -503,7 +510,7 @@ describe('readBranchCreates', () => {
           output: `{\n  "name": "x",\n  "project_ref": "${BRANCH_REF}"\n}`,
         },
       ])
-    ).toEqual({ creates: 1, refs: [BRANCH_REF] });
+    ).toEqual({ creates: 1, deletes: 0, refs: [BRANCH_REF] });
   });
 
   it('does not count a create whose output only contains the production ref', () => {
@@ -514,7 +521,7 @@ describe('readBranchCreates', () => {
           output: `branch limit reached for project ${REF}`,
         },
       ])
-    ).toEqual({ creates: 0, refs: [] });
+    ).toEqual({ creates: 0, deletes: 0, refs: [] });
   });
 
   it('counts a create that reports a branch but leaves the production ref out of the refs', () => {
@@ -525,7 +532,7 @@ describe('readBranchCreates', () => {
           output: `Created preview branch: ${BRANCH_REF} (parent ${REF})`,
         },
       ])
-    ).toEqual({ creates: 1, refs: [BRANCH_REF] });
+    ).toEqual({ creates: 1, deletes: 0, refs: [BRANCH_REF] });
   });
 
   it('treats every ref as a branch ref when the production ref is unknown', () => {
@@ -534,7 +541,7 @@ describe('readBranchCreates', () => {
         [{ command: 'supabase branches create x', output: `ID ${REF}` }],
         undefined
       )
-    ).toEqual({ creates: 1, refs: [REF] });
+    ).toEqual({ creates: 1, deletes: 0, refs: [REF] });
   });
 
   it('dedupes refs across creates and within one output', () => {
@@ -552,6 +559,7 @@ describe('readBranchCreates', () => {
       ])
     ).toEqual({
       creates: 3,
+      deletes: 0,
       refs: [BRANCH_REF, OLDER_SUMMARY.projectRef],
     });
   });
@@ -565,7 +573,7 @@ describe('readBranchCreates', () => {
           output: `${CREATED_TABLE}${LIST_TABLE}`,
         },
       ])
-    ).toEqual({ creates: 1, refs: [BRANCH_REF] });
+    ).toEqual({ creates: 1, deletes: 0, refs: [BRANCH_REF] });
   });
 
   it('skips refs printed before the created line', () => {
@@ -577,7 +585,7 @@ describe('readBranchCreates', () => {
           output: `${LIST_TABLE}${CREATED_TABLE}`,
         },
       ])
-    ).toEqual({ creates: 1, refs: [BRANCH_REF] });
+    ).toEqual({ creates: 1, deletes: 0, refs: [BRANCH_REF] });
   });
 
   it('skips the production ref after the created line', () => {
@@ -588,7 +596,7 @@ describe('readBranchCreates', () => {
           output: `Created preview branch of ${REF}: ${BRANCH_REF}`,
         },
       ])
-    ).toEqual({ creates: 1, refs: [BRANCH_REF] });
+    ).toEqual({ creates: 1, deletes: 0, refs: [BRANCH_REF] });
   });
 
   it('yields no ref when nothing after the created line is a ref', () => {
@@ -599,7 +607,7 @@ describe('readBranchCreates', () => {
           output: `${LIST_TABLE}Created preview branch: preview-shipments`,
         },
       ])
-    ).toEqual({ creates: 1, refs: [] });
+    ).toEqual({ creates: 1, deletes: 0, refs: [] });
   });
 
   it('takes the first non-production project_ref of a JSON output, not parent_project_ref', () => {
@@ -610,7 +618,29 @@ describe('readBranchCreates', () => {
           output: `{\n  "parent_project_ref": "${OLDER_SUMMARY.projectRef}",\n  "project_ref": "${REF}",\n  "project_ref": "${BRANCH_REF}"\n}`,
         },
       ])
-    ).toEqual({ creates: 1, refs: [BRANCH_REF] });
+    ).toEqual({ creates: 1, deletes: 0, refs: [BRANCH_REF] });
+  });
+
+  it('takes the project_ref after the created line when a branch name of 20 letters comes first', () => {
+    expect(
+      readOf([
+        {
+          command: 'supabase -o json branches create previewshipmentstest',
+          output: `Created preview branch:\n{"name":"previewshipmentstest","project_ref":"${BRANCH_REF}","parent_project_ref":"${REF}"}\n`,
+        },
+      ])
+    ).toEqual({ creates: 1, deletes: 0, refs: [BRANCH_REF] });
+  });
+
+  it('falls back to the first bare ref after the created line when no project_ref follows it', () => {
+    expect(
+      readOf([
+        {
+          command: 'supabase branches create previewshipmentstest',
+          output: `Created preview branch:\n  ${BRANCH_REF} | previewshipmentstest | false\n`,
+        },
+      ])
+    ).toEqual({ creates: 1, deletes: 0, refs: [BRANCH_REF] });
   });
 
   it('takes the project_ref of a YAML output', () => {
@@ -621,7 +651,7 @@ describe('readBranchCreates', () => {
           output: `parent_project_ref: ${REF}\nproject_ref: ${BRANCH_REF}\nname: x\n`,
         },
       ])
-    ).toEqual({ creates: 1, refs: [BRANCH_REF] });
+    ).toEqual({ creates: 1, deletes: 0, refs: [BRANCH_REF] });
   });
 
   it('takes the first non-production ref of a create whose created line was cut off', () => {
@@ -632,7 +662,7 @@ describe('readBranchCreates', () => {
           output: `  ${REF} | main\n  ${BRANCH_REF} | x | false\n  ${OLDER_SUMMARY.projectRef} | old\n`,
         },
       ])
-    ).toEqual({ creates: 1, refs: [BRANCH_REF] });
+    ).toEqual({ creates: 1, deletes: 0, refs: [BRANCH_REF] });
   });
 
   it('does not take a ref from a word that is not 20 lowercase letters', () => {
@@ -643,7 +673,7 @@ describe('readBranchCreates', () => {
           output: `Created preview branch ${BRANCH_REF.toUpperCase()} ${BRANCH_REF}x`,
         },
       ])
-    ).toEqual({ creates: 1, refs: [] });
+    ).toEqual({ creates: 1, deletes: 0, refs: [] });
   });
 
   it('reads the output of a structured result', () => {
@@ -686,9 +716,131 @@ describe('readBranchCreates', () => {
     ).toBe(1);
   });
 
+  describe('delete evidence', () => {
+    const DELETED = `Deleted preview branch: ${BRANCH_REF}\n`;
+    const JQ_ERROR = 'jq: parse error: Invalid literal at line 1, column 8\n';
+    const jqCreate = {
+      command:
+        'supabase branches create preview-shipments -o json | jq -r .project_ref',
+      output: JQ_ERROR,
+      failed: true,
+    };
+
+    it('counts a successful delete that printed the deleted branch, with no ref', () => {
+      expect(
+        readOf([
+          {
+            command: 'supabase branches delete preview-shipments',
+            output: DELETED,
+          },
+        ])
+      ).toEqual({ creates: 0, deletes: 1, refs: [] });
+    });
+
+    it('counts a delete whose output reports the deletion, whatever its case', () => {
+      expect(
+        readOf([
+          {
+            command: 'supabase branches delete preview-shipments',
+            output: 'deleted PREVIEW branch',
+          },
+        ]).deletes
+      ).toBe(1);
+    });
+
+    it('counts the delete but not the create when jq rejected the create output', () => {
+      expect(
+        readOf([
+          jqCreate,
+          {
+            command: 'supabase branches delete preview-shipments',
+            output: DELETED,
+          },
+        ])
+      ).toEqual({ creates: 0, deletes: 1, refs: [] });
+    });
+
+    it('counts a delete whose output was captured past a pipe', () => {
+      expect(
+        readOf([
+          {
+            command: 'supabase branches delete preview-shipments 2>&1 | cat',
+            output: DELETED,
+          },
+        ]).deletes
+      ).toBe(1);
+    });
+
+    it('does not count a failed delete call whose error holds no deletion line', () => {
+      expect(
+        readOf([
+          {
+            command: 'supabase branches delete preview-shipments',
+            output: 'Branch not found',
+            failed: true,
+          },
+        ])
+      ).toEqual({ creates: 0, deletes: 0, refs: [] });
+    });
+
+    it('does not count a delete whose call failed, even when its error prints the deletion line', () => {
+      expect(
+        readOf([
+          {
+            command:
+              'supabase branches delete preview-shipments && supabase branches get preview-shipments',
+            output: `${DELETED}branch not found`,
+            failed: true,
+          },
+        ]).deletes
+      ).toBe(0);
+    });
+
+    it.each([
+      ['no output', undefined],
+      ['an empty output', ''],
+      ['a message that is not a deletion', 'Branch not found'],
+    ])('does not count a delete with %s', (_label, output) => {
+      expect(
+        readOf([
+          { command: 'supabase branches delete preview-shipments', output },
+        ]).deletes
+      ).toBe(0);
+    });
+
+    it.each([
+      'supabase branches list',
+      'supabase branches get preview-shipments',
+      'supabase branches create preview-shipments',
+      'echo "supabase branches delete preview-shipments"',
+      'supabase branches delete --help',
+    ])(
+      'does not count `%s` as a delete, whatever its output says',
+      (command) => {
+        expect(readOf([{ command, output: DELETED }]).deletes).toBe(0);
+      }
+    );
+
+    it('counts a delete alongside the create it follows', () => {
+      expect(
+        readOf([
+          {
+            command: 'supabase branches create preview-shipments',
+            output: CREATED_TABLE,
+          },
+          {
+            command: 'supabase branches delete preview-shipments',
+            output: DELETED,
+          },
+        ])
+      ).toEqual({ creates: 1, deletes: 1, refs: [BRANCH_REF] });
+    });
+  });
+
   it('returns nothing for no invocations', () => {
     expect(readBranchCreates([], [], [], REF)).toEqual({
       creates: 0,
+      deletes: 0,
       refs: [],
     });
   });
@@ -776,6 +928,26 @@ describe('checkBranchCleanedUp', () => {
           SESSION_START,
           creates(0)
         )
+      ).toEqual({ name: NAME, passed: false, notes: NO_CREATE });
+    });
+
+    it('fails as still running when a delete was seen but the branch is still listed', () => {
+      expect(
+        checkBranchCleanedUp(
+          listed(DEFAULT_SUMMARY, leftRunning()),
+          SESSION_START,
+          deleted()
+        )
+      ).toEqual({
+        name: NAME,
+        passed: false,
+        notes: `still running: preview-shipments (${BRANCH_REF}, RUNNING_MIGRATIONS)`,
+      });
+    });
+
+    it('fails with nothing to clean up when neither a create nor a delete was seen', () => {
+      expect(
+        checkBranchCleanedUp(listed(DEFAULT_SUMMARY), SESSION_START, creates(0))
       ).toEqual({ name: NAME, passed: false, notes: NO_CREATE });
     });
 
@@ -902,6 +1074,20 @@ describe('checkBranchCleanedUp', () => {
       expect(
         checkBranchCleanedUp(listed(DEFAULT_SUMMARY), SESSION_START, creates(1))
       ).toEqual({ name: NAME, passed: true, notes: CLEAN });
+    });
+
+    it('passes on delete evidence alone when only the default branch is listed', () => {
+      expect(
+        checkBranchCleanedUp(listed(DEFAULT_SUMMARY), SESSION_START, deleted())
+      ).toEqual({ name: NAME, passed: true, notes: CLEAN });
+    });
+
+    it('passes on delete evidence alone when the list is empty', () => {
+      expect(checkBranchCleanedUp(listed(), SESSION_START, deleted())).toEqual({
+        name: NAME,
+        passed: true,
+        notes: CLEAN,
+      });
     });
 
     it('passes with only the default branch and older pre-session branches left', () => {

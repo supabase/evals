@@ -628,6 +628,56 @@ describe('the preview branch was cleaned up', () => {
     });
   });
 
+  describe('when the create output was lost to a pipeline', () => {
+    const JQ_ERROR = 'jq: parse error: Invalid literal at line 1, column 8\n';
+    const jqCreate = call(
+      'supabase branches create preview-shipments -o json | jq -r .project_ref',
+      JQ_ERROR
+    );
+    const deleteCall = call(
+      'supabase branches delete preview-shipments',
+      undefined,
+      `Deleted preview branch: ${BRANCH_REF}\n`
+    );
+    const [link, , ...between] = JOURNEY.slice(0, -1);
+
+    it('passes check 5 when a later delete printed the deleted branch and only the default branch is listed', async () => {
+      const { ctx } = fakeCtx([link, jqCreate, ...between, deleteCall], {
+        hosted: HOSTED,
+      });
+      expect(await failedNames(ctx)).toEqual([]);
+      expect((await checkNamed(ctx, nameOf(5)))?.notes).toBe(
+        "none of this run's branches is left running"
+      );
+    });
+
+    it('fails check 5 as still running when the branch was never deleted and is still listed', async () => {
+      const { ctx } = fakeCtx([link, jqCreate, ...between], {
+        hosted: withBranches(apiBranch({ status: 'CREATING_PROJECT' })),
+      });
+      expect(await failedNames(ctx)).toEqual([nameOf(5)]);
+      expect((await checkNamed(ctx, nameOf(5)))?.notes).toBe(
+        `still running: preview-shipments (${BRANCH_REF}, CREATING_PROJECT)`
+      );
+    });
+
+    it('fails check 5 with nothing to clean up when the delete call failed', async () => {
+      const failedDelete = call(
+        'supabase branches delete preview-shipments',
+        'Branch not found'
+      );
+      const { ctx } = fakeCtx([link, jqCreate, ...between, failedDelete], {
+        hosted: HOSTED,
+      });
+      expect((await checkNamed(ctx, nameOf(5)))?.notes).toBe(NO_CREATE);
+    });
+
+    it('fails check 5 with nothing to clean up when no create and no delete was seen', async () => {
+      const { ctx } = fakeCtx([link, ...between], { hosted: HOSTED });
+      expect((await checkNamed(ctx, nameOf(5)))?.notes).toBe(NO_CREATE);
+    });
+  });
+
   it.each([
     [
       'piped through tail',
