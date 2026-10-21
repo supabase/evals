@@ -384,6 +384,7 @@ async function collectRows(
         product: promptData?.product ?? result.product ?? [],
         topic: promptData?.topic ?? result.topic ?? [],
         source_path: sourcePath,
+        cli_version: result.cliVersion ?? promptData?.cliVersion,
       },
       // Braintrust sums tokens across a trace's spans, so only LLM spans carry
       // them. `aiSdkAgent` records no per-request usage, so its rows show none.
