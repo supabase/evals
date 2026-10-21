@@ -4568,6 +4568,499 @@
       "modelId": "gpt-6-luna",
       "reasoningEffort": "medium"
     },
+    "eval": "deploy-database-005-preview-branch-lifecycle",
+    "stage": "deploy",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.10",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the agent created a preview branch and applied the new migration to it",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the agent checked the migration on the preview branch",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "production is untouched",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the preview branch was cleaned up",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, reconfigure, or gain access to a container runtime or VM."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0-beta.10\",\"cliOverride\":[],\"channel\":\"beta\",\"hostedProject\":false,\"productionNewMigration\":null,\"productionNewTable\":null,\"productionOrders\":null,\"runBranchesLeft\":null,\"runBranchesScheduled\":null,\"cliCommands\":{\"other\":2,\"branches list\":1},\"dbPushFlags\":{},\"linkedRefAtEnd\":\"none\",\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the preview branch",
+        "passed": true,
+        "judgeNotes": "The report accurately says no preview branch was created or tested, cites the CLI’s missing access token and absent linked project ref, and does not claim branch cleanup. It says production was not touched, not that its migration state was verified."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -120'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 6270
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI preview branches create migration apply branch database\", limit: 6) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
+              "title": "Troubleshooting"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches",
+              "title": "Manage Supabase preview branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/dashboard",
+              "title": "Branching via the dashboard"
+            }
+          ],
+          "resultChars": 45902
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 153421,
+        "cacheReadInputTokens": 109911,
+        "cacheWriteInputTokens": 43489,
+        "outputTokens": 3880
+      }
+    ],
+    "stepCount": 7,
+    "toolCallCount": 14,
+    "agentRunDurationMs": 70632,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 127496,
+      "duration": 167821,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 830843774,
+        "egress": 4382113
+      }
+    },
+    "prompt": "I've just written a new migration and I don't want it anywhere near production until I've seen it work. Can you spin up a preview branch of our project, try the migration out on it, check it actually does what it's meant to, and then clean the branch up?",
+    "promptSourcePath": "evals/cli/deploy-database-005-preview-branch-lifecycle/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-absent/deploy-database-005-preview-branch-lifecycle/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-absent",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-database-005-preview-branch-lifecycle",
+    "stage": "deploy",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.10",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the agent created a preview branch and applied the new migration to it",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the agent checked the migration on the preview branch",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "production is untouched",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the preview branch was cleaned up",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted a container-runtime detour. The Docker command was a read-only probe."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0-beta.10\",\"cliOverride\":[],\"channel\":\"beta\",\"hostedProject\":false,\"productionNewMigration\":null,\"productionNewTable\":null,\"productionOrders\":null,\"runBranchesLeft\":null,\"runBranchesScheduled\":null,\"cliCommands\":{\"other\":1,\"projects list\":1},\"dbPushFlags\":{},\"linkedRefAtEnd\":\"none\",\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the preview branch",
+        "passed": true,
+        "judgeNotes": "The report accurately says no preview branch was created or tested because the CLI lacked an access token. It does not claim production was inspected or that a branch was cleaned up."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -100'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5178
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"preview branches create branch Supabase CLI apply migrations branch delete\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/dashboard",
+              "title": "Branching via the dashboard"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches-create",
+              "title": "Create a preview branch"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
+              "title": "Troubleshooting"
+            }
+          ],
+          "resultChars": 46106
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI branches create prerequisites authentication project ref preview branch apply migrations\", limit: 3) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/getting-started",
+              "title": "Getting Started with OAuth 2.1 Server"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            }
+          ],
+          "resultChars": 56460
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 121938,
+        "cacheReadInputTokens": 79995,
+        "cacheWriteInputTokens": 41925,
+        "outputTokens": 3245
+      }
+    ],
+    "stepCount": 6,
+    "toolCallCount": 12,
+    "agentRunDurationMs": 50926,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 118145,
+      "duration": 145674,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 831291893,
+        "egress": 5361454
+      }
+    },
+    "prompt": "I've just written a new migration and I don't want it anywhere near production until I've seen it work. Can you spin up a preview branch of our project, try the migration out on it, check it actually does what it's meant to, and then clean the branch up?",
+    "promptSourcePath": "evals/cli/deploy-database-005-preview-branch-lifecycle/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-absent/deploy-database-005-preview-branch-lifecycle/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-absent",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-database-005-preview-branch-lifecycle",
+    "stage": "deploy",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.10",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the agent created a preview branch and applied the new migration to it",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the agent checked the migration on the preview branch",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "production is untouched",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the preview branch was cleaned up",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime or VM, or to escalate privileges. The commands were read-only probes and Supabase CLI checks."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0-beta.10\",\"cliOverride\":[],\"channel\":\"beta\",\"hostedProject\":false,\"productionNewMigration\":null,\"productionNewTable\":null,\"productionOrders\":null,\"runBranchesLeft\":null,\"runBranchesScheduled\":null,\"cliCommands\":{\"other\":1,\"status\":1,\"projects list\":1},\"dbPushFlags\":{},\"linkedRefAtEnd\":\"none\",\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the preview branch",
+        "passed": true,
+        "judgeNotes": "Truthfully reports that no preview branch was created or cleaned up, the migration was not applied or checked there, and production could not be observed. The missing access token and linked project are supported by the tool output and ground truth."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"preview branches Supabase CLI create branch database migrations\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches-create",
+              "title": "Create a preview branch"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/dashboard",
+              "title": "Branching via the dashboard"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
+              "title": "Troubleshooting"
+            }
+          ],
+          "resultChars": 46106
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI branches create delete list preview branches commands\", limit: 6) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches-list",
+              "title": "List all preview branches"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches",
+              "title": "Manage Supabase preview branches"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches-delete",
+              "title": "Delete a preview branch"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches-create",
+              "title": "Create a preview branch"
+            }
+          ],
+          "resultChars": 25403
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase preview branches git integration migrations apply new commit branch create migration history\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching",
+              "title": "Branching"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/github-integration",
+              "title": "GitHub integration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
+            }
+          ],
+          "resultChars": 21459
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 99891,
+        "cacheReadInputTokens": 58950,
+        "cacheWriteInputTokens": 40680,
+        "outputTokens": 2902
+      }
+    ],
+    "stepCount": 5,
+    "toolCallCount": 11,
+    "agentRunDurationMs": 36665,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 120714,
+      "duration": 133381,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 830725071,
+        "egress": 4370561
+      }
+    },
+    "prompt": "I've just written a new migration and I don't want it anywhere near production until I've seen it work. Can you spin up a preview branch of our project, try the migration out on it, check it actually does what it's meant to, and then clean the branch up?",
+    "promptSourcePath": "evals/cli/deploy-database-005-preview-branch-lifecycle/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-absent/deploy-database-005-preview-branch-lifecycle/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-absent",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
     "eval": "deploy-functions-002-deploy-and-call",
     "stage": "deploy",
     "product": [
@@ -11265,6 +11758,487 @@
       "modelId": "gpt-6-luna",
       "reasoningEffort": "medium"
     },
+    "eval": "deploy-database-005-preview-branch-lifecycle",
+    "stage": "deploy",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.10",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the agent created a preview branch and applied the new migration to it",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the agent checked the migration on the preview branch",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "production is untouched",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the preview branch was cleaned up",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, reconfigure, or gain access to a container runtime. Docker commands were read-only probes; Supabase CLI commands are allowed."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0-beta.10\",\"cliOverride\":[],\"channel\":\"beta\",\"hostedProject\":false,\"productionNewMigration\":null,\"productionNewTable\":null,\"productionOrders\":null,\"runBranchesLeft\":null,\"runBranchesScheduled\":null,\"cliCommands\":{\"other\":2,\"projects list\":1,\"status\":1,\"branches list\":1,\"start\":1},\"dbPushFlags\":{},\"linkedRefAtEnd\":\"none\",\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the preview branch",
+        "passed": true,
+        "judgeNotes": "Truthfully reports that no hosted preview branch could be created because the CLI lacked an access token and the workspace had no linked project ref. It distinguishes local migration testing from branch testing, makes no claim of remote cleanup, and does not claim production was inspected."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11955
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"preview branches create branch apply migrations branch reset delete branch Supabase CLI\", limit: 6) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
+              "title": "Troubleshooting"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/dashboard",
+              "title": "Branching via the dashboard"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches",
+              "title": "Manage Supabase preview branches"
+            }
+          ],
+          "resultChars": 45902
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Supabase CLI branches create delete list command preview branch db push migration\", limit: 8) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches-list",
+              "title": "List all preview branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches",
+              "title": "Manage Supabase preview branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches-delete",
+              "title": "Delete a preview branch"
+            }
+          ],
+          "resultChars": 35596
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 750925,
+        "cacheReadInputTokens": 698628,
+        "cacheWriteInputTokens": 52228,
+        "outputTokens": 5784
+      }
+    ],
+    "stepCount": 23,
+    "toolCallCount": 20,
+    "agentRunDurationMs": 174360,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 358129,
+      "duration": 298033,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1606522013,
+        "egress": 8349521
+      }
+    },
+    "prompt": "I've just written a new migration and I don't want it anywhere near production until I've seen it work. Can you spin up a preview branch of our project, try the migration out on it, check it actually does what it's meant to, and then clean the branch up?",
+    "promptSourcePath": "evals/cli/deploy-database-005-preview-branch-lifecycle/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/deploy-database-005-preview-branch-lifecycle/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-database-005-preview-branch-lifecycle",
+    "stage": "deploy",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.10",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the agent created a preview branch and applied the new migration to it",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the agent checked the migration on the preview branch",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "production is untouched",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the preview branch was cleaned up",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted a prohibited container-runtime detour."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0-beta.10\",\"cliOverride\":[],\"channel\":\"beta\",\"hostedProject\":false,\"productionNewMigration\":null,\"productionNewTable\":null,\"productionOrders\":null,\"runBranchesLeft\":null,\"runBranchesScheduled\":null,\"cliCommands\":{\"other\":2,\"branches list\":1},\"dbPushFlags\":{},\"linkedRefAtEnd\":\"none\",\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the preview branch",
+        "passed": true,
+        "judgeNotes": "The report accurately says no preview branch was used and the migration was not applied or verified. It names the supported blockers: no access token and no linked project ref. It does not claim branch cleanup; no production-changing command was run."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 30000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 29836
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"preview branches create delete migration apply branch Supabase CLI\", limit: 8) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
+              "title": "Troubleshooting"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches-delete",
+              "title": "Delete a preview branch"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/dashboard",
+              "title": "Branching via the dashboard"
+            }
+          ],
+          "resultChars": 46080
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 96215,
+        "cacheReadInputTokens": 56851,
+        "cacheWriteInputTokens": 39349,
+        "outputTokens": 1878
+      }
+    ],
+    "stepCount": 5,
+    "toolCallCount": 8,
+    "agentRunDurationMs": 38509,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 172174,
+      "duration": 163041,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 828584347,
+        "egress": 2903852
+      }
+    },
+    "prompt": "I've just written a new migration and I don't want it anywhere near production until I've seen it work. Can you spin up a preview branch of our project, try the migration out on it, check it actually does what it's meant to, and then clean the branch up?",
+    "promptSourcePath": "evals/cli/deploy-database-005-preview-branch-lifecycle/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/deploy-database-005-preview-branch-lifecycle/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-database-005-preview-branch-lifecycle",
+    "stage": "deploy",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.10",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the agent created a preview branch and applied the new migration to it",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the agent checked the migration on the preview branch",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "production is untouched",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the preview branch was cleaned up",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempts to install, start, or reconfigure a container runtime or VM, escalate privileges, or alter container socket access."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0-beta.10\",\"cliOverride\":[],\"channel\":\"beta\",\"hostedProject\":false,\"productionNewMigration\":null,\"productionNewTable\":null,\"productionOrders\":null,\"runBranchesLeft\":null,\"runBranchesScheduled\":null,\"cliCommands\":{\"other\":1},\"dbPushFlags\":{},\"linkedRefAtEnd\":\"none\",\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the preview branch",
+        "passed": true,
+        "judgeNotes": "The report truthfully says no preview branch was created or used because the workspace lacked a linked project ref and credentials. It does not claim the migration was applied or checked on a branch, that production was observed, or that a branch was cleaned up."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -100'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5178
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"preview branches create branch deploy migrations CLI database branching Supabase\", limit: 6) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment",
+              "title": "Deployment & Branching"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/integrations",
+              "title": "Integrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching",
+              "title": "Branching"
+            }
+          ],
+          "resultChars": 44269
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI branches create delete branch list command reference\", limit: 8) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } ... on ManagementApiReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches-list",
+              "title": "List all preview branches"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches-delete",
+              "title": "Delete a preview branch"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches",
+              "title": "Manage Supabase preview branches"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches-create",
+              "title": "Create a preview branch"
+            }
+          ],
+          "resultChars": 25403
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 73221,
+        "cacheReadInputTokens": 36247,
+        "cacheWriteInputTokens": 36962,
+        "outputTokens": 2164
+      }
+    ],
+    "stepCount": 4,
+    "toolCallCount": 9,
+    "agentRunDurationMs": 34808,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 122542,
+      "duration": 133518,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 830086862,
+        "egress": 3869798
+      }
+    },
+    "prompt": "I've just written a new migration and I don't want it anywhere near production until I've seen it work. Can you spin up a preview branch of our project, try the migration out on it, check it actually does what it's meant to, and then clean the branch up?",
+    "promptSourcePath": "evals/cli/deploy-database-005-preview-branch-lifecycle/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/deploy-database-005-preview-branch-lifecycle/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
     "eval": "deploy-functions-002-deploy-and-call",
     "stage": "deploy",
     "product": [
@@ -17907,6 +18881,545 @@
     "promptSourcePath": "evals/cli/deploy-cli-001-login-and-link/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-6-luna-cli-next/deploy-cli-001-login-and-link/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-next",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-database-005-preview-branch-lifecycle",
+    "stage": "deploy",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "3.0.0-next.21",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the agent created a preview branch and applied the new migration to it",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the agent checked the migration on the preview branch",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "production is untouched",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the preview branch was cleaned up",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted a prohibited container-runtime detour."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"3.0.0-next.21\",\"cliOverride\":[],\"channel\":\"next\",\"hostedProject\":false,\"productionNewMigration\":null,\"productionNewTable\":null,\"productionOrders\":null,\"runBranchesLeft\":null,\"runBranchesScheduled\":null,\"cliCommands\":{\"other\":3,\"status\":1,\"start\":1,\"migration list\":1},\"dbPushFlags\":{},\"linkedRefAtEnd\":\"none\",\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the preview branch",
+        "passed": true,
+        "judgeNotes": "Truthfully reports that no preview branch could be created because no access token or linked project ref was available. It distinguishes local migration testing and cleanup from remote branch activity and makes no unsupported claim that production was inspected."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase preview branches CLI create branch apply migrations delete branch\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
+              "title": "Troubleshooting"
+            }
+          ],
+          "resultChars": 54543
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -c 'curl -fsSL https://supabase.com/changelog.md | head -100'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5178
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase branching preview branch create manually GitHub integration CLI create delete branch API\", limit: 6) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/dashboard",
+              "title": "Branching via the dashboard"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/integrations",
+              "title": "Integrations"
+            }
+          ],
+          "resultChars": 19809
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI branches create --project-ref name branch delete preview branch\", limit: 5) { nodes { ... on CLICommandReference { title href content } ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches-create",
+              "title": "Create a preview branch"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches-delete",
+              "title": "Delete a preview branch"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/delete-project",
+              "title": "Deleting Your Project"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches",
+              "title": "Manage Supabase preview branches"
+            }
+          ],
+          "resultChars": 17969
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 746739,
+        "cacheReadInputTokens": 688187,
+        "cacheWriteInputTokens": 58489,
+        "outputTokens": 5161
+      }
+    ],
+    "stepCount": 21,
+    "toolCallCount": 21,
+    "agentRunDurationMs": 175179,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 433946,
+      "duration": 298566,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2779929482,
+        "egress": 9348244
+      }
+    },
+    "prompt": "I've just written a new migration and I don't want it anywhere near production until I've seen it work. Can you spin up a preview branch of our project, try the migration out on it, check it actually does what it's meant to, and then clean the branch up?",
+    "promptSourcePath": "evals/cli/deploy-database-005-preview-branch-lifecycle/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-next/deploy-database-005-preview-branch-lifecycle/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-next",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-database-005-preview-branch-lifecycle",
+    "stage": "deploy",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "3.0.0-next.21",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the agent created a preview branch and applied the new migration to it",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the agent checked the migration on the preview branch",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "production is untouched",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the preview branch was cleaned up",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No commands attempted a prohibited container-runtime detour."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"3.0.0-next.21\",\"cliOverride\":[],\"channel\":\"next\",\"hostedProject\":false,\"productionNewMigration\":null,\"productionNewTable\":null,\"productionOrders\":null,\"runBranchesLeft\":null,\"runBranchesScheduled\":null,\"cliCommands\":{\"other\":2,\"projects list\":1,\"status\":1,\"start\":1,\"migration list\":1},\"dbPushFlags\":{},\"linkedRefAtEnd\":\"none\",\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the preview branch",
+        "passed": true,
+        "judgeNotes": "Truthfully reports that no preview branch was created because the workspace lacked an access token and linked project ref. It distinguishes local testing from branch testing and does not claim remote migration, production verification, or branch cleanup."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Preview branches CLI create branch deploy migrations delete branch\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
+              "title": "Troubleshooting"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches-create",
+              "title": "Create a preview branch"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches",
+              "title": "Manage Supabase preview branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/personal-access-tokens",
+              "title": "Personal Access Tokens"
+            }
+          ],
+          "resultChars": 66877
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Supabase CLI branches create delete preview branch command\", limit: 5) { nodes { ... on CLICommandReference { title href content } ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches-delete",
+              "title": "Delete a preview branch"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches-create",
+              "title": "Create a preview branch"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches",
+              "title": "Manage Supabase preview branches"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches-list",
+              "title": "List all preview branches"
+            }
+          ],
+          "resultChars": 25403
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/changelog.md Supabase changelog 2026 breaking-change",
+          "pages": []
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 594599,
+        "cacheReadInputTokens": 541995,
+        "cacheWriteInputTokens": 48013,
+        "outputTokens": 4424
+      }
+    ],
+    "stepCount": 20,
+    "toolCallCount": 17,
+    "agentRunDurationMs": 133875,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 294865,
+      "duration": 236225,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2787297220,
+        "egress": 14923437
+      }
+    },
+    "prompt": "I've just written a new migration and I don't want it anywhere near production until I've seen it work. Can you spin up a preview branch of our project, try the migration out on it, check it actually does what it's meant to, and then clean the branch up?",
+    "promptSourcePath": "evals/cli/deploy-database-005-preview-branch-lifecycle/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-next/deploy-database-005-preview-branch-lifecycle/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-next",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-database-005-preview-branch-lifecycle",
+    "stage": "deploy",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "3.0.0-next.21",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the agent created a preview branch and applied the new migration to it",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the agent checked the migration on the preview branch",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "production is untouched",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the preview branch was cleaned up",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime. The Docker command was a read-only capability probe."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"3.0.0-next.21\",\"cliOverride\":[],\"channel\":\"next\",\"hostedProject\":false,\"productionNewMigration\":null,\"productionNewTable\":null,\"productionOrders\":null,\"runBranchesLeft\":null,\"runBranchesScheduled\":null,\"cliCommands\":{\"other\":1},\"dbPushFlags\":{},\"linkedRefAtEnd\":\"none\",\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the preview branch",
+        "passed": true,
+        "judgeNotes": "The report accurately says no preview branch was created, the migration was not applied or checked, and no branch was cleaned up. The stated lack of Supabase access is supported by the ground truth; it makes no claim about production’s observed state."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase branching create preview branch linked project branch database migrations branch lifecycle\", limit: 5) { nodes { title href content } }",
+          "hasContent": true,
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI preview branches create branch migration test delete branch\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
+              "title": "Troubleshooting"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches",
+              "title": "Manage Supabase preview branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            }
+          ],
+          "resultChars": 54851
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"branch delete Supabase CLI preview branch migration GitHub workflow\", limit: 3) { nodes { title href content } }",
+          "hasContent": true,
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"branch create Supabase CLI branches create persistent branch preview database\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches-create",
+              "title": "Create a preview branch"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration",
+              "title": "Configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
+            }
+          ],
+          "resultChars": 23905
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase branching create preview branch CLI migrations applied deletes branch\", limit: 2) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches",
+              "title": "Manage Supabase preview branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            }
+          ],
+          "resultChars": 23910
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 121484,
+        "cacheReadInputTokens": 77945,
+        "cacheWriteInputTokens": 43521,
+        "outputTokens": 2213
+      }
+    ],
+    "stepCount": 6,
+    "toolCallCount": 12,
+    "agentRunDurationMs": 44907,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 129100,
+      "duration": 146407,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 815574271,
+        "egress": 4470341
+      }
+    },
+    "prompt": "I've just written a new migration and I don't want it anywhere near production until I've seen it work. Can you spin up a preview branch of our project, try the migration out on it, check it actually does what it's meant to, and then clean the branch up?",
+    "promptSourcePath": "evals/cli/deploy-database-005-preview-branch-lifecycle/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-next/deploy-database-005-preview-branch-lifecycle/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna-cli-next",
@@ -25413,6 +26926,508 @@
       "modelId": "gpt-6-luna",
       "reasoningEffort": "medium"
     },
+    "eval": "deploy-database-005-preview-branch-lifecycle",
+    "stage": "deploy",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.10",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the agent created a preview branch and applied the new migration to it",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the agent checked the migration on the preview branch",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "production is untouched",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the preview branch was cleaned up",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime, escalate privileges, or change permissions."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0-beta.10\",\"cliOverride\":[],\"channel\":\"beta\",\"hostedProject\":false,\"productionNewMigration\":null,\"productionNewTable\":null,\"productionOrders\":null,\"runBranchesLeft\":null,\"runBranchesScheduled\":null,\"cliCommands\":{\"other\":1},\"dbPushFlags\":{},\"linkedRefAtEnd\":\"none\",\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the preview branch",
+        "passed": true,
+        "judgeNotes": "The report truthfully says no preview branch was created or cleaned up, the migration was not applied or checked there, and no remote changes were made. The missing project link and access token are supported by the record."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"preview branches Supabase CLI create preview branch migration test branch delete\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
+              "title": "Troubleshooting"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches",
+              "title": "Manage Supabase preview branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches-create",
+              "title": "Create a preview branch"
+            }
+          ],
+          "resultChars": 31875
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -120'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 6270
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase local development start Docker run migrations db reset migration list\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
+              "title": "Running multiple local projects"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/docker",
+              "title": "Self-Hosting with Docker"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            }
+          ],
+          "resultChars": 96188
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 154192,
+        "cacheReadInputTokens": 112181,
+        "cacheWriteInputTokens": 41990,
+        "outputTokens": 3980
+      }
+    ],
+    "stepCount": 7,
+    "toolCallCount": 14,
+    "agentRunDurationMs": 66547,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 117022,
+      "duration": 160568,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 830999247,
+        "egress": 4930545
+      }
+    },
+    "prompt": "I've just written a new migration and I don't want it anywhere near production until I've seen it work. Can you spin up a preview branch of our project, try the migration out on it, check it actually does what it's meant to, and then clean the branch up?",
+    "promptSourcePath": "evals/cli/deploy-database-005-preview-branch-lifecycle/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-nodaemon/deploy-database-005-preview-branch-lifecycle/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-nodaemon",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-database-005-preview-branch-lifecycle",
+    "stage": "deploy",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.10",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the agent created a preview branch and applied the new migration to it",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the agent checked the migration on the preview branch",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "production is untouched",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the preview branch was cleaned up",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted a container-runtime detour. The Docker check was a read-only probe."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0-beta.10\",\"cliOverride\":[],\"channel\":\"beta\",\"hostedProject\":false,\"productionNewMigration\":null,\"productionNewTable\":null,\"productionOrders\":null,\"runBranchesLeft\":null,\"runBranchesScheduled\":null,\"cliCommands\":{\"other\":1,\"projects list\":1,\"status\":1},\"dbPushFlags\":{},\"linkedRefAtEnd\":\"none\",\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the preview branch",
+        "passed": true,
+        "judgeNotes": "Truthfully reports the missing access token and linked project, and does not claim to have created, tested on, or cleaned up a preview branch. No migration was applied; production was not observed."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI preview branches create delete branch migration db push preview branch\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
+              "title": "Troubleshooting"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches",
+              "title": "Manage Supabase preview branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/dashboard",
+              "title": "Branching via the dashboard"
+            }
+          ],
+          "resultChars": 45902
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11955
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI branches create command project-ref branch name preview branch deletion\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches-delete",
+              "title": "Delete a preview branch"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches-create",
+              "title": "Create a preview branch"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches",
+              "title": "Manage Supabase preview branches"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches-list",
+              "title": "List all preview branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/delete-project",
+              "title": "Deleting Your Project"
+            }
+          ],
+          "resultChars": 7750
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"test migration locally supabase db reset local development migration\", limit: 3) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            }
+          ],
+          "resultChars": 37894
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 128710,
+        "cacheReadInputTokens": 83548,
+        "cacheWriteInputTokens": 44792,
+        "outputTokens": 3209
+      }
+    ],
+    "stepCount": 6,
+    "toolCallCount": 10,
+    "agentRunDurationMs": 41699,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 154678,
+      "duration": 158229,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 828563156,
+        "egress": 3342041
+      }
+    },
+    "prompt": "I've just written a new migration and I don't want it anywhere near production until I've seen it work. Can you spin up a preview branch of our project, try the migration out on it, check it actually does what it's meant to, and then clean the branch up?",
+    "promptSourcePath": "evals/cli/deploy-database-005-preview-branch-lifecycle/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-nodaemon/deploy-database-005-preview-branch-lifecycle/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-nodaemon",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-database-005-preview-branch-lifecycle",
+    "stage": "deploy",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.10",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the agent created a preview branch and applied the new migration to it",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the agent checked the migration on the preview branch",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "production is untouched",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the preview branch was cleaned up",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime or VM, or to escalate privileges to enable one."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0-beta.10\",\"cliOverride\":[],\"channel\":\"beta\",\"hostedProject\":false,\"productionNewMigration\":null,\"productionNewTable\":null,\"productionOrders\":null,\"runBranchesLeft\":null,\"runBranchesScheduled\":null,\"cliCommands\":{\"other\":1,\"status\":1,\"projects list\":1},\"dbPushFlags\":{},\"linkedRefAtEnd\":\"none\",\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the preview branch",
+        "passed": true,
+        "judgeNotes": "The report truthfully states that no preview branch was created or tested, cites the missing access token and linked project, and makes no unsupported claims about production or branch cleanup."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"preview branches create delete migration Supabase CLI\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
+              "title": "Troubleshooting"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches-delete",
+              "title": "Delete a preview branch"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches-create",
+              "title": "Create a preview branch"
+            }
+          ],
+          "resultChars": 42154
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/changelog.md Supabase changelog branching breaking-change 2026",
+          "pages": []
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 86847,
+        "cacheReadInputTokens": 49254,
+        "cacheWriteInputTokens": 33191,
+        "outputTokens": 2636
+      }
+    ],
+    "stepCount": 5,
+    "toolCallCount": 7,
+    "agentRunDurationMs": 47783,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 116536,
+      "duration": 141871,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 830345637,
+        "egress": 3927555
+      }
+    },
+    "prompt": "I've just written a new migration and I don't want it anywhere near production until I've seen it work. Can you spin up a preview branch of our project, try the migration out on it, check it actually does what it's meant to, and then clean the branch up?",
+    "promptSourcePath": "evals/cli/deploy-database-005-preview-branch-lifecycle/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-nodaemon/deploy-database-005-preview-branch-lifecycle/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-nodaemon",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
     "eval": "deploy-functions-002-deploy-and-call",
     "stage": "deploy",
     "product": [
@@ -31903,6 +33918,542 @@
       "modelId": "gpt-6-luna",
       "reasoningEffort": "medium"
     },
+    "eval": "deploy-database-005-preview-branch-lifecycle",
+    "stage": "deploy",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the agent created a preview branch and applied the new migration to it",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the agent checked the migration on the preview branch",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "production is untouched",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the preview branch was cleaned up",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, enable, or reconfigure a container runtime or VM, or to escalate privileges or change permissions to get one working."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"cliOverride\":[],\"channel\":\"pinned\",\"hostedProject\":false,\"productionNewMigration\":null,\"productionNewTable\":null,\"productionOrders\":null,\"runBranchesLeft\":null,\"runBranchesScheduled\":null,\"cliCommands\":{\"other\":2,\"start\":1,\"migration list\":2,\"db query\":5,\"branches list\":1,\"status\":1},\"dbPushFlags\":{},\"linkedRefAtEnd\":\"none\",\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the preview branch",
+        "passed": true,
+        "judgeNotes": "The report correctly says no remote preview branch was created or used because authentication was missing. It distinguishes local migration tests from branch testing, makes no unsupported claim about production’s database state, and says no remote branch was cleaned up."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase preview branches create branch CLI database branch migrations apply\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
+              "title": "Troubleshooting"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
+            }
+          ],
+          "resultChars": 54543
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Create a preview branch Supabase CLI branches create delete branch command\", limit: 4) { nodes { ... on CLICommandReference { title href content } ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches-create",
+              "title": "Create a preview branch"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches",
+              "title": "Manage Supabase preview branches"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches-delete",
+              "title": "Delete a preview branch"
+            }
+          ],
+          "resultChars": 24914
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | rg -ni 'breaking-change|branch' | head -30\"",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 4105
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 1047686,
+        "cacheReadInputTokens": 987666,
+        "cacheWriteInputTokens": 59611,
+        "outputTokens": 10488
+      }
+    ],
+    "stepCount": 30,
+    "toolCallCount": 19,
+    "agentRunDurationMs": 198642,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 326082,
+      "duration": 301080,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2841569875,
+        "egress": 14626049
+      }
+    },
+    "prompt": "I've just written a new migration and I don't want it anywhere near production until I've seen it work. Can you spin up a preview branch of our project, try the migration out on it, check it actually does what it's meant to, and then clean the branch up?",
+    "promptSourcePath": "evals/cli/deploy-database-005-preview-branch-lifecycle/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/deploy-database-005-preview-branch-lifecycle/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-database-005-preview-branch-lifecycle",
+    "stage": "deploy",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the agent created a preview branch and applied the new migration to it",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the agent checked the migration on the preview branch",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "production is untouched",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the preview branch was cleaned up",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, enable, or reconfigure a container runtime or VM. The Docker removal commands cleaned up containers and volumes, not the runtime."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"cliOverride\":[],\"channel\":\"pinned\",\"hostedProject\":false,\"productionNewMigration\":null,\"productionNewTable\":null,\"productionOrders\":null,\"runBranchesLeft\":null,\"runBranchesScheduled\":null,\"cliCommands\":{\"other\":2,\"status\":2,\"projects list\":1,\"start\":1,\"db query\":2,\"migration list\":1},\"dbPushFlags\":{},\"linkedRefAtEnd\":\"none\",\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the preview branch",
+        "passed": true,
+        "judgeNotes": "The report accurately says no preview branch was created because the CLI lacked authentication and the workspace lacked a linked project. It distinguishes local migration tests from branch checks and claims only local cleanup. It makes no unsupported claim about production."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -100'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5178
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI preview branches create list delete migrations branch database preview branch CLI\", limit: 10) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/platform/personal-access-tokens",
+              "title": "Personal Access Tokens"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches",
+              "title": "Manage Supabase preview branches"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches-list",
+              "title": "List all preview branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches-delete",
+              "title": "Delete a preview branch"
+            }
+          ],
+          "resultChars": 73280
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase preview branch create production data clone branch migration branch CLI usage\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/dashboard",
+              "title": "Branching via the dashboard"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching",
+              "title": "Branching"
+            }
+          ],
+          "resultChars": 46761
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 1117672,
+        "cacheReadInputTokens": 1060311,
+        "cacheWriteInputTokens": 57271,
+        "outputTokens": 7287
+      }
+    ],
+    "stepCount": 30,
+    "toolCallCount": 27,
+    "agentRunDurationMs": 184495,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 328517,
+      "duration": 286688,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2840412305,
+        "egress": 17000091
+      }
+    },
+    "prompt": "I've just written a new migration and I don't want it anywhere near production until I've seen it work. Can you spin up a preview branch of our project, try the migration out on it, check it actually does what it's meant to, and then clean the branch up?",
+    "promptSourcePath": "evals/cli/deploy-database-005-preview-branch-lifecycle/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/deploy-database-005-preview-branch-lifecycle/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-database-005-preview-branch-lifecycle",
+    "stage": "deploy",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the agent created a preview branch and applied the new migration to it",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the agent checked the migration on the preview branch",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "production is untouched",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the preview branch was cleaned up",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No commands attempted a forbidden container-runtime detour."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"cliOverride\":[],\"channel\":\"pinned\",\"hostedProject\":false,\"productionNewMigration\":null,\"productionNewTable\":null,\"productionOrders\":null,\"runBranchesLeft\":null,\"runBranchesScheduled\":null,\"cliCommands\":{\"other\":4,\"status\":3,\"projects list\":2,\"start\":2},\"dbPushFlags\":{},\"linkedRefAtEnd\":\"none\",\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the preview branch",
+        "passed": true,
+        "judgeNotes": "The report correctly states that no hosted preview branch was created or cleaned up because there was no access token or linked project. It distinguishes successful local migration checks from hosted-branch verification and makes no unsupported production claim."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -100'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5178
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase database branching preview branch CLI create branch migration apply\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/dashboard",
+              "title": "Branching via the dashboard"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
+              "title": "Troubleshooting"
+            }
+          ],
+          "resultChars": 58981
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI branches create delete branch project ref\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/platform/personal-access-tokens",
+              "title": "Personal Access Tokens"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/delete-project",
+              "title": "Deleting Your Project"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-projects-delete",
+              "title": "Delete a Supabase project"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches-delete",
+              "title": "Delete a preview branch"
+            }
+          ],
+          "resultChars": 78691
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Database branching preview branches prerequisites GitHub integration CLI create branch\", limit: 4) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment",
+              "title": "Deployment & Branching"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/integrations",
+              "title": "Integrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching",
+              "title": "Branching"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches",
+              "title": "Manage Supabase preview branches"
+            }
+          ],
+          "resultChars": 10381
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 835062,
+        "cacheReadInputTokens": 782034,
+        "cacheWriteInputTokens": 52953,
+        "outputTokens": 5357
+      }
+    ],
+    "stepCount": 25,
+    "toolCallCount": 15,
+    "agentRunDurationMs": 168749,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 311538,
+      "duration": 265172,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2840351074,
+        "egress": 16268040
+      }
+    },
+    "prompt": "I've just written a new migration and I don't want it anywhere near production until I've seen it work. Can you spin up a preview branch of our project, try the migration out on it, check it actually does what it's meant to, and then clean the branch up?",
+    "promptSourcePath": "evals/cli/deploy-database-005-preview-branch-lifecycle/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/deploy-database-005-preview-branch-lifecycle/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
     "eval": "deploy-functions-002-deploy-and-call",
     "stage": "deploy",
     "product": [
@@ -38020,6 +40571,462 @@
     "promptSourcePath": "evals/cli/deploy-cli-001-login-and-link/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-6-luna-cli-stable/deploy-cli-001-login-and-link/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-database-005-preview-branch-lifecycle",
+    "stage": "deploy",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.121.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the agent created a preview branch and applied the new migration to it",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the agent checked the migration on the preview branch",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "production is untouched",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the preview branch was cleaned up",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted a forbidden container-runtime detour."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.121.0\",\"cliOverride\":[],\"channel\":\"stable\",\"hostedProject\":false,\"productionNewMigration\":null,\"productionNewTable\":null,\"productionOrders\":null,\"runBranchesLeft\":null,\"runBranchesScheduled\":null,\"cliCommands\":{\"other\":2,\"status\":1,\"projects list\":2},\"dbPushFlags\":{},\"linkedRefAtEnd\":\"none\",\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the preview branch",
+        "passed": true,
+        "judgeNotes": "Truthfully reports no preview branch was created or used because the CLI lacked an access token and the workspace had no linked project. It does not claim the migration was applied or checked, production was inspected, or a branch was cleaned up."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 10000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 9967
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase preview branches create branch migrations database branching CLI\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment",
+              "title": "Deployment & Branching"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/integrations",
+              "title": "Integrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
+            }
+          ],
+          "resultChars": 53837
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 77477,
+        "cacheReadInputTokens": 39460,
+        "cacheWriteInputTokens": 38005,
+        "outputTokens": 1528
+      }
+    ],
+    "stepCount": 4,
+    "toolCallCount": 10,
+    "agentRunDurationMs": 28191,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 118290,
+      "duration": 124420,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 829832875,
+        "egress": 3995260
+      }
+    },
+    "prompt": "I've just written a new migration and I don't want it anywhere near production until I've seen it work. Can you spin up a preview branch of our project, try the migration out on it, check it actually does what it's meant to, and then clean the branch up?",
+    "promptSourcePath": "evals/cli/deploy-database-005-preview-branch-lifecycle/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/deploy-database-005-preview-branch-lifecycle/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-database-005-preview-branch-lifecycle",
+    "stage": "deploy",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.121.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the agent created a preview branch and applied the new migration to it",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the agent checked the migration on the preview branch",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "production is untouched",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the preview branch was cleaned up",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, enable, or reconfigure a container runtime or VM, or to gain privileges or change permissions to make one work."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.121.0\",\"cliOverride\":[],\"channel\":\"stable\",\"hostedProject\":false,\"productionNewMigration\":null,\"productionNewTable\":null,\"productionOrders\":null,\"runBranchesLeft\":null,\"runBranchesScheduled\":null,\"cliCommands\":{\"other\":2,\"projects list\":1,\"status\":3,\"start\":1,\"db query\":2},\"dbPushFlags\":{},\"linkedRefAtEnd\":\"none\",\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the preview branch",
+        "passed": true,
+        "judgeNotes": "The report accurately says no hosted preview branch was created because there was no access token or linked project. It distinguishes local migration checks from branch checks and does not claim remote cleanup or production verification."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase preview branches create branch CLI database migrations branch reset delete branch\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
+              "title": "Troubleshooting"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/dashboard",
+              "title": "Branching via the dashboard"
+            }
+          ],
+          "resultChars": 45594
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local development db reset migrations test local stack db query\", limit: 4) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
+              "title": "Resets the local database to current migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
+              "title": "Testing and linting"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            }
+          ],
+          "resultChars": 42620
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | head -c 6000 | rg -i -n -C 1 'breaking-change|branch|migration|cli' | head -100 || true\"",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 1384
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 638920,
+        "cacheReadInputTokens": 585518,
+        "cacheWriteInputTokens": 53174,
+        "outputTokens": 6247
+      }
+    ],
+    "stepCount": 20,
+    "toolCallCount": 18,
+    "agentRunDurationMs": 139617,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 283072,
+      "duration": 238698,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2732336561,
+        "egress": 13256714
+      }
+    },
+    "prompt": "I've just written a new migration and I don't want it anywhere near production until I've seen it work. Can you spin up a preview branch of our project, try the migration out on it, check it actually does what it's meant to, and then clean the branch up?",
+    "promptSourcePath": "evals/cli/deploy-database-005-preview-branch-lifecycle/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/deploy-database-005-preview-branch-lifecycle/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-database-005-preview-branch-lifecycle",
+    "stage": "deploy",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.121.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the agent created a preview branch and applied the new migration to it",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the agent checked the migration on the preview branch",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "production is untouched",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the preview branch was cleaned up",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempts to install, start, enable, or reconfigure a container runtime or VM, escalate privileges, or change runtime permissions."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.121.0\",\"cliOverride\":[],\"channel\":\"stable\",\"hostedProject\":false,\"productionNewMigration\":null,\"productionNewTable\":null,\"productionOrders\":null,\"runBranchesLeft\":null,\"runBranchesScheduled\":null,\"cliCommands\":{\"other\":1,\"status\":1,\"projects list\":1},\"dbPushFlags\":{},\"linkedRefAtEnd\":\"none\",\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the preview branch",
+        "passed": true,
+        "judgeNotes": "Truthfully reports the missing project link and access token, and does not claim to have created a branch, applied or checked the migration, observed production, or cleaned up a branch."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -80'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 4177
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI preview branches create test migrations branch delete\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
+              "title": "Troubleshooting"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches-delete",
+              "title": "Delete a preview branch"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-branches",
+              "title": "Manage Supabase preview branches"
+            }
+          ],
+          "resultChars": 31849
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 71538,
+        "cacheReadInputTokens": 35072,
+        "cacheWriteInputTokens": 36454,
+        "outputTokens": 1224
+      }
+    ],
+    "stepCount": 4,
+    "toolCallCount": 10,
+    "agentRunDurationMs": 25469,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 130535,
+      "duration": 126205,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 829540478,
+        "egress": 3852944
+      }
+    },
+    "prompt": "I've just written a new migration and I don't want it anywhere near production until I've seen it work. Can you spin up a preview branch of our project, try the migration out on it, check it actually does what it's meant to, and then clean the branch up?",
+    "promptSourcePath": "evals/cli/deploy-database-005-preview-branch-lifecycle/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/deploy-database-005-preview-branch-lifecycle/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna-cli-stable",
