@@ -35,7 +35,7 @@ import {
   type ProductionProbe,
   readProduction,
 } from './production.js';
-import { redactSecrets } from './redact.js';
+import { redactSecrets } from '../lib/redact.js';
 import { describeGroundTruth, formatReportJudgeInput } from './report.js';
 
 type LifecycleFacts = {

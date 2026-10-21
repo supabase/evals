@@ -28,7 +28,7 @@ import {
 } from './fakes.js';
 import { NO_HOSTED_PROJECT } from './hosted.js';
 import { describeProduction } from './production.js';
-import { redactSecrets } from './redact.js';
+import { redactSecrets } from '../lib/redact.js';
 import { noHostedProjectTruth } from './report.js';
 
 const CHECK_NAMES = [

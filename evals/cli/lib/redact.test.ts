@@ -1,9 +1,11 @@
-// Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/deploy-database-005-preview-branch-lifecycle
-import { describe, expect, it } from 'vitest';
-import { redactSecrets } from './redact.js';
+// Run: pnpm --filter @supabase-evals/framework exec vitest run --root ../.. evals/cli/lib
+import { describe, expect, it, vi } from 'vitest';
+import { readProjectKeys, redactSecrets } from './redact.js';
 
 const REF = 'abcdefghijklmnopqrst';
 const BRANCH_REF = 'zyxwvutsrqponmlkjihg';
+const API_KEYS_PATH = '/v1/projects/{ref}/api-keys';
+const FUNCTION_URL = `https://${REF}.supabase.co/functions/v1/shipping-quote`;
 const REDACTED = '[redacted]';
 const PASSWORD = 'not-a-real-password-123';
 const OTHER_PASSWORD = 'also-not-a-real-password-456';
@@ -14,18 +16,18 @@ const b64url = (text: string) => Buffer.from(text).toString('base64url');
 const JWT = [
   b64url('{"alg":"HS256","typ":"JWT"}'),
   b64url(`{"iss":"supabase","ref":"${REF}","role":"anon"}`),
-  'bm90LWEtcmVhbC1zaWduYXR1cmU',
+  'c2lnbmF0dXJl',
 ].join('.');
 
 const JWT_URLSAFE = [
   b64url('{"alg":"HS256","typ":"JWT"}'),
   b64url('{"note":"~~~???>>>","role":"service_role"}'),
-  'bm90_YS1yZWFs-c2ln',
+  'c2ln_bmF0-dXJl',
 ].join('.');
 
-const SB_SECRET = 'sb_secret_not_a_real_key_do_not_use';
-const SB_PUBLISHABLE = 'sb_publishable_not_a_real_key_do_not_use';
-const SBP = `sbp_${'e'.repeat(40)}`;
+const SB_SECRET = `sb_secret_${'N7UND0UgjKTVK-Uodkm0Hg'}_${'xYvsjUkD'}`;
+const SB_PUBLISHABLE = `sb_publishable_${'ACJWlzQHlZjBrEguHvfOxg'}_${'3BJgxAaH'}`;
+const SBP = `sbp_${'0123456789abcdef'.repeat(2)}01234567`;
 
 const filler = (length: number) => 'lorem ipsum '.repeat(length / 12 + 1);
 
@@ -34,6 +36,95 @@ function expectRedacted(output: string, secret: string, ...kept: string[]) {
   expect(output).toContain(REDACTED);
   for (const text of kept) expect(output).toContain(text);
 }
+
+describe('redactSecrets with known secret values', () => {
+  const SECRET = 'project-anon-key-value';
+  const OTHER = 'project-service-key-value';
+
+  it('replaces every occurrence of a known secret', () => {
+    expect(redactSecrets(`key=${SECRET}; again ${SECRET}`, [SECRET])).toBe(
+      `key=${REDACTED}; again ${REDACTED}`
+    );
+  });
+
+  it('replaces each of several secrets', () => {
+    expect(redactSecrets(`${SECRET} and ${OTHER}`, [SECRET, OTHER])).toBe(
+      `${REDACTED} and ${REDACTED}`
+    );
+  });
+
+  it('replaces a secret that sits inside a longer token', () => {
+    expect(redactSecrets(`prefix${SECRET}suffix`, [SECRET])).toBe(
+      `prefix${REDACTED}suffix`
+    );
+  });
+
+  it('matches a secret containing regex metacharacters literally', () => {
+    const secret = 'a.b+c*d(e)[f]$g^h|i?{j}\\k';
+    expect(redactSecrets(`token ${secret} end`, [secret])).toBe(
+      `token ${REDACTED} end`
+    );
+  });
+
+  it('does not treat a dot in a secret as a wildcard', () => {
+    expect(redactSecrets('abcdXefgh', ['abcd.efgh'])).toBe('abcdXefgh');
+  });
+
+  it.each([
+    ['shorter first', ['abcdefgh', 'abcdefghijkl']],
+    ['longer first', ['abcdefghijkl', 'abcdefgh']],
+  ])(
+    'redacts the whole longer secret when a shorter one is its prefix (%s)',
+    (_label, secrets) => {
+      expect(redactSecrets('key abcdefghijkl end', secrets)).toBe(
+        `key ${REDACTED} end`
+      );
+    }
+  );
+
+  it('ignores empty secrets instead of collapsing the text', () => {
+    expect(redactSecrets('plain text', [''])).toBe('plain text');
+  });
+
+  it('ignores secrets shorter than 8 characters', () => {
+    expect(redactSecrets('short 1234567 here', ['short', '1234567'])).toBe(
+      'short 1234567 here'
+    );
+  });
+
+  it('redacts a secret of exactly 8 characters', () => {
+    expect(redactSecrets('value 12345678 here', ['12345678'])).toBe(
+      `value ${REDACTED} here`
+    );
+  });
+
+  it('leaves the text alone when there are no secrets and nothing key-shaped', () => {
+    expect(redactSecrets('nothing to hide', [])).toBe('nothing to hide');
+  });
+
+  it('returns an empty string for empty text', () => {
+    expect(redactSecrets('', [SECRET])).toBe('');
+  });
+
+  it('redacts known secrets and key-shaped strings in the same text', () => {
+    expect(redactSecrets(`${SECRET} then ${JWT}`, [SECRET])).toBe(
+      `${REDACTED} then ${REDACTED}`
+    );
+  });
+});
+
+describe('redactSecrets known values together with patterns', () => {
+  it('redacts a known value with no recognisable shape alongside a URL password', () => {
+    expect(
+      redactSecrets(
+        `leaked opaque-value-1 and postgresql://app:${PASSWORD}@${HOST}:5432/postgres`,
+        ['opaque-value-1']
+      )
+    ).toBe(
+      `leaked ${REDACTED} and postgresql://app:${REDACTED}@${HOST}:5432/postgres`
+    );
+  });
+});
 
 describe('redactSecrets Postgres URLs', () => {
   it('replaces only the password and keeps the user, host, port and database readable', () => {
@@ -121,6 +212,10 @@ describe('redactSecrets Postgres URLs', () => {
 });
 
 describe('redactSecrets key shapes', () => {
+  it('redacts a JWT', () => {
+    expect(redactSecrets(JWT)).toBe(REDACTED);
+  });
+
   it('redacts a JWT and keeps the bearer header', () => {
     expect(redactSecrets(`Authorization: Bearer ${JWT}`)).toBe(
       `Authorization: Bearer ${REDACTED}`
@@ -147,6 +242,12 @@ describe('redactSecrets key shapes', () => {
     );
   });
 
+  it('redacts an sb_secret_ key assigned to an environment variable', () => {
+    expect(redactSecrets(`SUPABASE_SECRET_KEY=${SB_SECRET}`)).toBe(
+      `SUPABASE_SECRET_KEY=${REDACTED}`
+    );
+  });
+
   it('redacts an sb_publishable_ key', () => {
     expect(redactSecrets(`apikey: ${SB_PUBLISHABLE}`)).toBe(
       `apikey: ${REDACTED}`
@@ -169,6 +270,12 @@ describe('redactSecrets key shapes', () => {
     expect(redactSecrets(`${SBP} ${SBP}\n${JWT}\n${JWT_URLSAFE}`)).toBe(
       `${REDACTED} ${REDACTED}\n${REDACTED}\n${REDACTED}`
     );
+  });
+
+  it('redacts all four shapes in one text', () => {
+    expect(
+      redactSecrets([JWT, SB_SECRET, SB_PUBLISHABLE, SBP].join(' | '))
+    ).toBe([REDACTED, REDACTED, REDACTED, REDACTED].join(' | '));
   });
 });
 
@@ -593,9 +700,14 @@ describe('redactSecrets deep into long text', () => {
     expect(redactSecrets(text)).toBe(text.replace(PASSWORD, REDACTED));
   });
 });
-
 describe('redactSecrets leaves evidence readable', () => {
   it.each([
+    ['the function path', '/functions/v1/shipping-quote'],
+    ['a function URL with the project ref', FUNCTION_URL],
+    ['a deploy command', 'supabase functions deploy shipping-quote --use-api'],
+    ['a source path', 'supabase/functions/shipping-quote/index.ts'],
+    ['a quote body', '{"quoteCents":810,"currency":"EUR"}'],
+    ['a CLI notice', 'Access token not provided. Run `supabase login`.'],
     ['a 20-letter project ref', `--project-ref ${REF}`],
     ['a project ref in a user name', `postgres.${REF}`],
     ['a project host', `db.${REF}.supabase.co`],
@@ -693,5 +805,82 @@ describe('redactSecrets in general', () => {
     const text = `postgresql://u:${PASSWORD}@h:5432/db ${SBP} PGPASSWORD=${OTHER_PASSWORD} ${JWT}`;
     const once = redactSecrets(text);
     expect(redactSecrets(once)).toBe(once);
+  });
+});
+
+describe('readProjectKeys', () => {
+  const rows = [
+    { name: 'anon', api_key: 'anon-key-value', type: 'legacy' },
+    { name: 'service_role', api_key: 'service-role-key-value', type: 'legacy' },
+    { name: 'default', api_key: 'publishable-key-value', type: 'publishable' },
+    { name: 'default', api_key: 'secret-key-value-xyz', type: 'secret' },
+  ];
+
+  const fakeGet = (response: {
+    data?: unknown;
+    error?: unknown;
+    status?: number;
+  }) =>
+    vi.fn(async (_path: string, _opts?: unknown) => ({
+      data: response.data,
+      error: response.error,
+      response: { status: response.status ?? 200 },
+    }));
+
+  const ctxOf = (GET: ReturnType<typeof fakeGet>) => ({
+    hostedRef: REF,
+    hostedMgmt: { GET } as never,
+  });
+
+  it('returns the value of every key the project lists, whatever its type', async () => {
+    const GET = fakeGet({ data: rows });
+    expect([...(await readProjectKeys(ctxOf(GET)))].sort()).toEqual(
+      rows.map(({ api_key }) => api_key).sort()
+    );
+  });
+
+  it('reads the keys once from the api-keys endpoint of the hosted project', async () => {
+    const GET = fakeGet({ data: rows });
+    await readProjectKeys(ctxOf(GET));
+    expect(GET).toHaveBeenCalledTimes(1);
+    expect(GET).toHaveBeenCalledWith(
+      API_KEYS_PATH,
+      expect.objectContaining({ params: { path: { ref: REF } } })
+    );
+  });
+
+  it('skips rows that carry no key value', async () => {
+    const GET = fakeGet({
+      data: [
+        { name: 'anon', api_key: 'anon-key-value', type: 'legacy' },
+        { name: 'masked', api_key: null, type: 'secret' },
+        { name: 'blank', api_key: '', type: 'secret' },
+        { name: 'absent', type: 'publishable' },
+      ],
+    });
+    expect(await readProjectKeys(ctxOf(GET))).toEqual(['anon-key-value']);
+  });
+
+  it('returns an empty list without calling the API when there is no hosted project', async () => {
+    const GET = fakeGet({ data: rows });
+    expect(await readProjectKeys({})).toEqual([]);
+    expect(await readProjectKeys({ hostedRef: REF })).toEqual([]);
+    expect(await readProjectKeys({ hostedMgmt: { GET } as never })).toEqual([]);
+    expect(GET).not.toHaveBeenCalled();
+  });
+
+  it('returns an empty list when the API answers with an error', async () => {
+    const GET = fakeGet({
+      error: { message: 'keys unavailable' },
+      status: 500,
+    });
+    expect(await readProjectKeys(ctxOf(GET))).toEqual([]);
+  });
+
+  it('returns an empty list instead of rejecting when the lookup throws', async () => {
+    const GET = vi.fn(async (_path: string, _opts?: unknown) => {
+      throw new Error('connection reset');
+    });
+    await expect(readProjectKeys(ctxOf(GET as never))).resolves.toEqual([]);
   });
 });

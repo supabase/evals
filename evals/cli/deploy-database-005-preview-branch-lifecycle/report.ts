@@ -3,7 +3,7 @@ import { formatGroundTruthJudgeInput } from '../lib/report.js';
 import { type BranchesProbe, describeBranches } from './branches.js';
 import type { CliFacts, LinkedRef } from './metrics.js';
 import { describeProduction, type ProductionProbe } from './production.js';
-import { redactSecrets } from './redact.js';
+import { redactSecrets } from '../lib/redact.js';
 
 function projectRefFileClause(linkedRef: LinkedRef | null): string {
   if (linkedRef === null) return '';

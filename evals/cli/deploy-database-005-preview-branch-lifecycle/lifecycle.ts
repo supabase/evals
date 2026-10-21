@@ -2,7 +2,7 @@ import type { TranscriptPart } from '@supabase-evals/core';
 import { formatGroundTruthJudgeInput } from '../lib/report.js';
 import { type BranchesProbe, describeBranches } from './branches.js';
 import { describeProduction, type ProductionProbe } from './production.js';
-import { redactSecrets } from './redact.js';
+import { redactSecrets } from '../lib/redact.js';
 import {
   BASELINE_TABLE,
   BASELINE_VERSION,

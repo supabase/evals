@@ -173,7 +173,8 @@ CLI version and, with a hosted project, production's state and this run's
 branches still listed) plus the same transcript. The detour judge sees executed
 commands only, so naming the blocker in a report can't count as a detour.
 
-All four judge inputs are redacted before they are sent: Postgres URL passwords
+All four judge inputs are redacted before they are sent, with the shared
+`../lib/redact.ts`: Postgres URL passwords
 (`postgres://user:pass@` becomes `postgres://user:[redacted]@`, up to the last
 `@` of the token, so a password with a raw `@` or `/` is covered), anything
 shaped like a JWT, an `sb_secret_` or `sb_publishable_` key or an `sbp_` access

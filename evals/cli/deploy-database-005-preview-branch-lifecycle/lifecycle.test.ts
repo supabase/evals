@@ -17,7 +17,7 @@ import {
   formatLifecycleJudgeInput,
 } from './lifecycle.js';
 import { describeProduction, type ProductionProbe } from './production.js';
-import { redactSecrets } from './redact.js';
+import { redactSecrets } from '../lib/redact.js';
 
 const PASSWORD = 'not-a-real-password-123';
 const SBP = `sbp_${'e'.repeat(40)}`;

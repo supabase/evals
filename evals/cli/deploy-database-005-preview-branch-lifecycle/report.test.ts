@@ -15,7 +15,7 @@ import {
 import { NO_HOSTED_PROJECT } from './hosted.js';
 import type { CliFacts, LinkedRef } from './metrics.js';
 import { describeProduction, type ProductionProbe } from './production.js';
-import { redactSecrets } from './redact.js';
+import { redactSecrets } from '../lib/redact.js';
 import {
   describeGroundTruth,
   formatReportJudgeInput,
