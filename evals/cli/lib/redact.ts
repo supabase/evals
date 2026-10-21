@@ -53,8 +53,71 @@ const SHORT_PASSWORD_FLAG = new RegExp(
 const SEGMENT_SEPARATOR = /(\|\||&&|[;|\n])/;
 const SUPABASE_COMMAND = /(?:^|[\s'"(=])supabase(?=\s)/;
 
+const HAS_SEPARATOR = /[|│]/;
+const LINE_BREAK = /(\n|(?:\\r)?\\n)/;
+const CELL_SEPARATOR = /([|│])/;
+const LINE_EDGES = /^([\s"\\]*)(.*?)([\s"\\}\],]*)$/;
+const CELL_EDGES = /^(\s*)(.*?)(\s*)$/;
+const SECRET_HEADER = /(?<![A-Z0-9])(?:PASSWORD|SECRET|TOKEN|KEY)(?![A-Z0-9])/;
+const DASHES_ONLY = /^[\s\-─]*$/;
+
 const escapeRegExp = (text: string) =>
   text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const isSecretHeader = (cell: string) =>
+  cell === cell.toUpperCase() && SECRET_HEADER.test(cell);
+
+/** Rewrites the cells under upper-case `PASSWORD`/`SECRET`/`TOKEN`/`KEY` headers through `visit`, keeping padding and separators. */
+function mapSecretCells(
+  text: string,
+  visit: (value: string) => string
+): string {
+  if (!HAS_SEPARATOR.test(text)) return text;
+  const parts = text.split(LINE_BREAK);
+  let columns: number[] = [];
+  let width = 0;
+  for (let at = 0; at < parts.length; at += 2) {
+    if (!HAS_SEPARATOR.test(parts[at])) {
+      columns = [];
+      continue;
+    }
+    const [, lead = '', body = '', tail = ''] =
+      LINE_EDGES.exec(parts[at]) ?? [];
+    const cells = body.split(CELL_SEPARATOR);
+    const separators = (cells.length - 1) / 2;
+    if (columns.length > 0 && separators === width) {
+      const isDashRow = cells.every(
+        (cell, index) => index % 2 === 1 || DASHES_ONLY.test(cell)
+      );
+      if (isDashRow) continue;
+      for (const column of columns) {
+        const [, before = '', value = '', after = ''] =
+          CELL_EDGES.exec(cells[column * 2]) ?? [];
+        if (value !== '') cells[column * 2] = before + visit(value) + after;
+      }
+      parts[at] = lead + cells.join('') + tail;
+      continue;
+    }
+    width = separators;
+    columns = [];
+    cells.forEach((cell, index) => {
+      if (index % 2 === 0 && isSecretHeader(cell.trim())) {
+        columns.push(index / 2);
+      }
+    });
+  }
+  return parts.join('');
+}
+
+/** The trimmed, non-empty cells of table columns headed by an upper-case `PASSWORD`, `SECRET`, `TOKEN` or `KEY` word, such as the `PASSWORD` column of `supabase branches get`. */
+export function tableSecretValues(text: string): string[] {
+  const values = new Set<string>();
+  mapSecretCells(text, (value) => {
+    values.add(value);
+    return value;
+  });
+  return [...values];
+}
 
 function redactKnownSecrets(
   text: string,
@@ -85,13 +148,13 @@ function redactShortPasswordFlags(text: string): string {
     .join('');
 }
 
-/** Replaces the known secret values, then Postgres URL passwords, JWTs, Supabase keys, secret-named assignments, flags, JSON keys and YAML lines with `[redacted]`, leaving refs, hosts and users readable. */
+/** Replaces the known secret values, then secret table columns, Postgres URL passwords, JWTs, Supabase keys, secret-named assignments, flags, JSON keys and YAML lines with `[redacted]`, leaving refs, hosts and users readable. */
 export function redactSecrets(
   text: string,
   knownSecrets: readonly string[] = []
 ): string {
   return redactShortPasswordFlags(
-    redactKnownSecrets(text, knownSecrets)
+    mapSecretCells(redactKnownSecrets(text, knownSecrets), () => REDACTED)
       .replace(POSTGRES_URL_PASSWORD, `$1${REDACTED}@`)
       .replace(KEY_SHAPES, REDACTED)
       .replace(JSON_SECRET, `$1${REDACTED}$2"`)

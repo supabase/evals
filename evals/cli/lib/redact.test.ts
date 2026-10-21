@@ -1,6 +1,6 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --root ../.. evals/cli/lib
 import { describe, expect, it, vi } from 'vitest';
-import { readProjectKeys, redactSecrets } from './redact.js';
+import { readProjectKeys, redactSecrets, tableSecretValues } from './redact.js';
 
 const REF = 'abcdefghijklmnopqrst';
 const BRANCH_REF = 'zyxwvutsrqponmlkjihg';
@@ -757,6 +757,306 @@ describe('redactSecrets leaves evidence readable', () => {
       'supabase branches delete preview-shipments --yes',
     ].join('\n');
     expect(redactSecrets(text)).toBe(text);
+  });
+});
+
+describe('redactSecrets table columns', () => {
+  const TABLE_PASSWORD = 'Xk9...realpass';
+  const TABLE_JWT_SECRET = 'super-secret-jwt-value';
+  const TABLE_HOST = 'db.abcdefghijklmnopqrst.supabase.co';
+
+  const BRANCH_TABLE = [
+    '',
+    '  ',
+    '   HOST                          | PORT | USER                          | PASSWORD         | JWT SECRET       | POSTGRES VERSION | STATUS         ',
+    '  -------------------------------|------|-------------------------------|------------------|------------------|------------------|----------------',
+    `   ${TABLE_HOST} | 5432 | postgres                 | ${TABLE_PASSWORD}   | ${TABLE_JWT_SECRET} | 15.8.1.054 | ACTIVE_HEALTHY `,
+  ].join('\n');
+
+  const REDACTED_ROW = `   ${TABLE_HOST} | 5432 | postgres                 | ${REDACTED}   | ${REDACTED} | 15.8.1.054 | ACTIVE_HEALTHY `;
+
+  const PSQL_DESCRIBE = [
+    '                          Table "public.shipments"',
+    '    Column     |           Type           | Collation | Nullable | Default',
+    '---------------+--------------------------+-----------+----------+---------',
+    ' id            | bigint                   |           | not null |',
+    ' tracking_number | text                   |           | not null |',
+    'Indexes:',
+    '    "shipments_carrier_tracking_number_key" UNIQUE CONSTRAINT, btree (carrier, tracking_number)',
+  ].join('\n');
+
+  const LOWER_CASE_TABLE = [
+    ' key          | value',
+    '--------------+-------------------',
+    ' site_name    | storefront-prod',
+    ' feature_flag | enabled-everywhere',
+  ].join('\n');
+
+  const API_KEYS_TABLE = [
+    '',
+    '   NAME         | API KEY',
+    '  --------------|--------------------------',
+    '   anon         | plain-anon-key-value',
+    '   service_role | plain-service-role-value',
+  ].join('\n');
+
+  const cellsOf = (line: string) => line.split('|').map((cell) => cell.trim());
+
+  it('redacts the password and JWT secret cells and keeps the other columns readable', () => {
+    const output = redactSecrets(BRANCH_TABLE);
+    expect(output).not.toContain(TABLE_PASSWORD);
+    expect(output).not.toContain(TABLE_JWT_SECRET);
+    const lines = output.split('\n');
+    expect(lines[lines.length - 1]).toBe(REDACTED_ROW);
+    expect(cellsOf(lines[lines.length - 1])).toEqual([
+      TABLE_HOST,
+      '5432',
+      'postgres',
+      REDACTED,
+      REDACTED,
+      '15.8.1.054',
+      'ACTIVE_HEALTHY',
+    ]);
+  });
+
+  it('leaves the header and the dashes row as they are', () => {
+    const input = BRANCH_TABLE.split('\n');
+    const output = redactSecrets(BRANCH_TABLE).split('\n');
+    expect(output.slice(0, 4)).toEqual(input.slice(0, 4));
+  });
+
+  it('redacts the same cells when the table is a JSON-escaped string', () => {
+    const output = redactSecrets(JSON.stringify(BRANCH_TABLE));
+    expect(output).not.toContain(TABLE_PASSWORD);
+    expect(output).not.toContain(TABLE_JWT_SECRET);
+    expect(JSON.parse(output)).toBe(redactSecrets(BRANCH_TABLE));
+  });
+
+  it('redacts a table with CRLF line endings, real or escaped', () => {
+    const crlf = API_KEYS_TABLE.replaceAll('\n', '\r\n');
+    for (const text of [crlf, JSON.stringify(crlf)]) {
+      const output = redactSecrets(text);
+      expect(output).not.toContain('plain-anon-key-value');
+      expect(output).not.toContain('plain-service-role-value');
+      expect(tableSecretValues(text)).toEqual([
+        'plain-anon-key-value',
+        'plain-service-role-value',
+      ]);
+    }
+  });
+
+  it('redacts the same cells when the table sits inside a JSON object', () => {
+    const output = redactSecrets(JSON.stringify({ stdout: BRANCH_TABLE }));
+    expect(output).not.toContain(TABLE_PASSWORD);
+    expect(output).not.toContain(TABLE_JWT_SECRET);
+    expect(JSON.parse(output)).toEqual({ stdout: redactSecrets(BRANCH_TABLE) });
+  });
+
+  it('redacts a secret column that is the last one on its line, inside a JSON string', () => {
+    const output = redactSecrets(JSON.stringify(API_KEYS_TABLE));
+    expect(output).not.toContain('plain-anon-key-value');
+    expect(output).not.toContain('plain-service-role-value');
+    expect(JSON.parse(output)).toBe(redactSecrets(API_KEYS_TABLE));
+  });
+
+  it('redacts a projects api-keys table and keeps the names', () => {
+    const output = redactSecrets(API_KEYS_TABLE);
+    expect(output).not.toContain('plain-anon-key-value');
+    expect(output).not.toContain('plain-service-role-value');
+    expect(output).toContain(`   anon         | ${REDACTED}`);
+    expect(output).toContain(`   service_role | ${REDACTED}`);
+  });
+
+  it('redacts the first column when it is the secret one', () => {
+    const output = redactSecrets(
+      [
+        'KEY VALUE | NAME',
+        '----------|-----',
+        'first-secret-value | anon',
+      ].join('\n')
+    );
+    expect(output).toBe(
+      ['KEY VALUE | NAME', '----------|-----', `${REDACTED} | anon`].join('\n')
+    );
+  });
+
+  it('redacts a row whose secret cell is wider than its header', () => {
+    const output = redactSecrets(
+      [
+        'USER | PASSWORD',
+        '-----|---------',
+        'postgres | a-much-longer-password-than-the-header',
+      ].join('\n')
+    );
+    expect(output).toContain(`postgres | ${REDACTED}`);
+    expect(output).not.toContain('a-much-longer-password');
+  });
+
+  it.each([
+    'PASSWORD',
+    'DB PASSWORD',
+    'JWT SECRET',
+    'API KEY',
+    'KEY VALUE',
+    'ACCESS TOKEN',
+    'SERVICE_ROLE_KEY',
+  ])('treats a %s column as secret', (header) => {
+    const output = redactSecrets(
+      [`NAME | ${header}`, '-----|-----', 'anon | plain-cell-value'].join('\n')
+    );
+    expect(output).toBe(
+      [`NAME | ${header}`, '-----|-----', `anon | ${REDACTED}`].join('\n')
+    );
+  });
+
+  it.each([
+    'KEYS',
+    'MONKEY',
+    'PASSWORDLESS',
+    'TOKENS',
+    'STATUS',
+    'Password',
+    'jwt secret',
+  ])('does not treat a %s column as secret', (header) => {
+    const table = [
+      `NAME | ${header}`,
+      '-----|-----',
+      'anon | plain-cell-value',
+    ].join('\n');
+    expect(redactSecrets(table)).toBe(table);
+  });
+
+  it('accepts the box drawing separator in the header and rows', () => {
+    const output = redactSecrets(
+      ['NAME │ API KEY', '─────│────────', 'anon │ plain-cell-value'].join('\n')
+    );
+    expect(output).toBe(
+      ['NAME │ API KEY', '─────│────────', `anon │ ${REDACTED}`].join('\n')
+    );
+  });
+
+  it('redacts every secret column of a header with several', () => {
+    const output = redactSecrets(
+      [
+        'A | PASSWORD | B | TOKEN',
+        '--|---|--|--',
+        '1 | pw-value | 2 | tk-value',
+      ].join('\n')
+    );
+    expect(output).toBe(
+      [
+        'A | PASSWORD | B | TOKEN',
+        '--|---|--|--',
+        `1 | ${REDACTED} | 2 | ${REDACTED}`,
+      ].join('\n')
+    );
+  });
+
+  it('leaves a psql \\d table alone', () => {
+    expect(redactSecrets(PSQL_DESCRIBE)).toBe(PSQL_DESCRIBE);
+  });
+
+  it('leaves a lower-case key | value table alone', () => {
+    expect(redactSecrets(LOWER_CASE_TABLE)).toBe(LOWER_CASE_TABLE);
+  });
+
+  it('stops at a line with no separators', () => {
+    const output = redactSecrets(
+      [
+        API_KEYS_TABLE,
+        '',
+        'note | plain-after-the-table',
+        'more | plain-after-the-table',
+      ].join('\n')
+    );
+    expect(output).not.toContain('plain-anon-key-value');
+    expect(output).toContain('note | plain-after-the-table');
+    expect(output).toContain('more | plain-after-the-table');
+  });
+
+  it('stops at a line with a different number of separators', () => {
+    const output = redactSecrets(
+      [API_KEYS_TABLE, 'a | b | c', 'note | plain-after-the-table'].join('\n')
+    );
+    expect(output).toContain('a | b | c');
+    expect(output).toContain('note | plain-after-the-table');
+  });
+
+  it('stops at a following non-table line when the text is a JSON-escaped string', () => {
+    const output = redactSecrets(
+      JSON.stringify(
+        [API_KEYS_TABLE, 'Done.', 'note | plain-after-the-table'].join('\n')
+      )
+    );
+    expect(output).not.toContain('plain-anon-key-value');
+    expect(output).toContain('note | plain-after-the-table');
+  });
+
+  it('redacts a second table that follows the first', () => {
+    const output = redactSecrets(
+      [
+        API_KEYS_TABLE,
+        '',
+        'ID | PASSWORD',
+        '---|---',
+        'one | second-table-password',
+      ].join('\n')
+    );
+    expect(output).not.toContain('plain-anon-key-value');
+    expect(output).not.toContain('second-table-password');
+    expect(output).toContain(`one | ${REDACTED}`);
+  });
+
+  it('leaves empty secret cells alone', () => {
+    const table = ['NAME | PASSWORD', '-----|---------', 'anon | '].join('\n');
+    expect(redactSecrets(table)).toBe(table);
+  });
+
+  it('is idempotent over a table', () => {
+    const once = redactSecrets(BRANCH_TABLE);
+    expect(redactSecrets(once)).toBe(once);
+  });
+
+  describe('tableSecretValues', () => {
+    it('returns the password and JWT secret cell values', () => {
+      expect(tableSecretValues(BRANCH_TABLE)).toEqual([
+        TABLE_PASSWORD,
+        TABLE_JWT_SECRET,
+      ]);
+    });
+
+    it('returns the same values from a JSON-escaped table', () => {
+      expect(tableSecretValues(JSON.stringify(BRANCH_TABLE))).toEqual([
+        TABLE_PASSWORD,
+        TABLE_JWT_SECRET,
+      ]);
+    });
+
+    it('returns every row of a secret column, skipping empty cells', () => {
+      expect(tableSecretValues(API_KEYS_TABLE)).toEqual([
+        'plain-anon-key-value',
+        'plain-service-role-value',
+      ]);
+      expect(
+        tableSecretValues(
+          ['A | PASSWORD', '-|-', 'x | ', 'y | pw-two'].join('\n')
+        )
+      ).toEqual(['pw-two']);
+    });
+
+    it('returns nothing for psql tables, lower-case headers and text without a table', () => {
+      expect(tableSecretValues(PSQL_DESCRIBE)).toEqual([]);
+      expect(tableSecretValues(LOWER_CASE_TABLE)).toEqual([]);
+      expect(tableSecretValues('')).toEqual([]);
+      expect(tableSecretValues('PASSWORD=hunter2')).toEqual([]);
+    });
+
+    it('returns the values of tables in several outputs without repeating one', () => {
+      expect(tableSecretValues(`${BRANCH_TABLE}\n\n${BRANCH_TABLE}`)).toEqual([
+        TABLE_PASSWORD,
+        TABLE_JWT_SECRET,
+      ]);
+    });
   });
 });
 

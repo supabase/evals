@@ -128,6 +128,7 @@ export async function checkMetrics(
     cli: CliFacts;
     linkedRef: LinkedRef | null;
     refs: readonly string[];
+    nowMs: number;
   }
 ): Promise<CheckResult> {
   const {
@@ -140,15 +141,16 @@ export async function checkMetrics(
     cli,
     linkedRef,
     refs,
+    nowMs,
   } = facts;
   const productionState = <T>(read: (state: ProductionState) => T) =>
     safely(() => (production.ok ? read(production.state) : null));
   const runBranchNames = (which: 'running' | 'scheduled') =>
     safely(() =>
       branches.ok && sessionStartMs !== null
-        ? splitRunBranches(branches.branches, sessionStartMs, refs)[which].map(
-            (branch) => branch.name
-          )
+        ? splitRunBranches(branches.branches, sessionStartMs, refs, nowMs)[
+            which
+          ].map((branch) => branch.name)
         : null
     );
   const cliVersionAfterRun = await safely(

@@ -65,11 +65,13 @@ export function describeGroundTruth(facts: {
 
 export function formatReportJudgeInput(
   groundTruth: readonly string[],
-  transcript: TranscriptPart[]
+  transcript: TranscriptPart[],
+  knownSecrets: readonly string[] = []
 ): string {
   return redactSecrets(
     formatGroundTruthJudgeInput(groundTruth, transcript, {
       includeToolCallOutputs: true,
-    })
+    }),
+    knownSecrets
   );
 }

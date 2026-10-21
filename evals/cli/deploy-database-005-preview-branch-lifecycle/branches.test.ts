@@ -22,6 +22,7 @@ import {
   DEFAULT_SUMMARY,
   fakeMgmt,
   iso,
+  NOW,
   OLDER_BRANCH,
   OLDER_SUMMARY,
   REF,
@@ -275,18 +276,66 @@ describe('splitRunBranches', () => {
       deletionScheduledAt: iso(SESSION_START + 1_000),
     });
     expect(
-      splitRunBranches([skewed, removed, scheduled], SESSION_START, [
-        BRANCH_REF,
-      ])
+      splitRunBranches(
+        [skewed, removed, scheduled],
+        SESSION_START,
+        [BRANCH_REF],
+        NOW
+      )
     ).toEqual({ running: [skewed], scheduled: [removed, scheduled] });
   });
 
   it('keeps a branch that is going down in the running list', () => {
     const going = summary({ previewProjectStatus: 'GOING_DOWN' });
-    expect(splitRunBranches([going], SESSION_START, [])).toEqual({
+    expect(splitRunBranches([going], SESSION_START, [], NOW)).toEqual({
       running: [going],
       scheduled: [],
     });
+  });
+});
+
+describe('splitRunBranches scheduled deletions', () => {
+  const MINUTE = 60_000;
+  const inWindow = summary({
+    name: 'in-window',
+    projectRef: 'mnopqrstuvwxyzabcdef',
+    deletionScheduledAt: iso(NOW + 59 * MINUTE),
+  });
+  const tooLate = summary({
+    name: 'too-late',
+    projectRef: 'uvwxyzabcdefghijklmn',
+    deletionScheduledAt: iso(NOW + 180 * MINUTE),
+  });
+  const unparsable = summary({
+    name: 'unparsable',
+    projectRef: 'bcdefghijklmnopqrstu',
+    deletionScheduledAt: 'not-a-date',
+  });
+  const stale = summary({
+    name: 'stale',
+    projectRef: 'cdefghijklmnopqrstuv',
+    createdAtMs: undefined,
+    deletionScheduledAt: iso(SESSION_START - MINUTE),
+  });
+
+  it('lists a branch as scheduled only when its time parses, is not before the session start and is within 65 minutes of now', () => {
+    expect(
+      splitRunBranches(
+        [inWindow, tooLate, unparsable, stale],
+        SESSION_START,
+        [],
+        NOW
+      )
+    ).toEqual({
+      running: [tooLate, unparsable, stale],
+      scheduled: [inWindow],
+    });
+  });
+
+  it('judges the same branches against the scoring time it is given', () => {
+    expect(
+      splitRunBranches([tooLate], SESSION_START, [], NOW + 130 * MINUTE)
+    ).toEqual({ running: [], scheduled: [tooLate] });
   });
 });
 
@@ -856,7 +905,8 @@ describe('checkBranchCleanedUp', () => {
         checkBranchCleanedUp(
           { ok: false, notes: 'could not list branches: status 500 null' },
           SESSION_START,
-          creates(1)
+          creates(1),
+          NOW
         )
       ).toEqual({
         name: NAME,
@@ -870,7 +920,8 @@ describe('checkBranchCleanedUp', () => {
         checkBranchCleanedUp(
           { ok: false, notes: 'connection reset' },
           null,
-          creates(1)
+          creates(1),
+          NOW
         )
       ).toEqual({ name: NAME, passed: false, notes: 'connection reset' });
     });
@@ -880,14 +931,15 @@ describe('checkBranchCleanedUp', () => {
         checkBranchCleanedUp(
           { ok: false, notes: NO_HOSTED_PROJECT },
           SESSION_START,
-          creates(0)
+          creates(0),
+          NOW
         )
       ).toEqual({ name: NAME, passed: false, notes: NO_HOSTED_PROJECT });
     });
 
     it('fails when the session start is unknown, even if nothing is left over', () => {
       expect(
-        checkBranchCleanedUp(listed(DEFAULT_SUMMARY), null, creates(1))
+        checkBranchCleanedUp(listed(DEFAULT_SUMMARY), null, creates(1), NOW)
       ).toEqual({
         name: NAME,
         passed: false,
@@ -900,24 +952,30 @@ describe('checkBranchCleanedUp', () => {
         checkBranchCleanedUp(
           listed(DEFAULT_SUMMARY, leftRunning()),
           null,
-          creates(1)
+          creates(1),
+          NOW
         )
       ).toMatchObject({ passed: false, notes: NO_SESSION_START });
     });
 
     it('fails with no create evidence and an empty list, rather than passing vacuously', () => {
-      expect(checkBranchCleanedUp(listed(), SESSION_START, creates(0))).toEqual(
-        {
-          name: NAME,
-          passed: false,
-          notes: NO_CREATE,
-        }
-      );
+      expect(
+        checkBranchCleanedUp(listed(), SESSION_START, creates(0), NOW)
+      ).toEqual({
+        name: NAME,
+        passed: false,
+        notes: NO_CREATE,
+      });
     });
 
     it('fails with no create evidence when only the default branch is listed', () => {
       expect(
-        checkBranchCleanedUp(listed(DEFAULT_SUMMARY), SESSION_START, creates(0))
+        checkBranchCleanedUp(
+          listed(DEFAULT_SUMMARY),
+          SESSION_START,
+          creates(0),
+          NOW
+        )
       ).toEqual({ name: NAME, passed: false, notes: NO_CREATE });
     });
 
@@ -926,7 +984,8 @@ describe('checkBranchCleanedUp', () => {
         checkBranchCleanedUp(
           listed(DEFAULT_SUMMARY, OLDER_SUMMARY),
           SESSION_START,
-          creates(0)
+          creates(0),
+          NOW
         )
       ).toEqual({ name: NAME, passed: false, notes: NO_CREATE });
     });
@@ -936,7 +995,8 @@ describe('checkBranchCleanedUp', () => {
         checkBranchCleanedUp(
           listed(DEFAULT_SUMMARY, leftRunning()),
           SESSION_START,
-          deleted()
+          deleted(),
+          NOW
         )
       ).toEqual({
         name: NAME,
@@ -947,7 +1007,12 @@ describe('checkBranchCleanedUp', () => {
 
     it('fails with nothing to clean up when neither a create nor a delete was seen', () => {
       expect(
-        checkBranchCleanedUp(listed(DEFAULT_SUMMARY), SESSION_START, creates(0))
+        checkBranchCleanedUp(
+          listed(DEFAULT_SUMMARY),
+          SESSION_START,
+          creates(0),
+          NOW
+        )
       ).toEqual({ name: NAME, passed: false, notes: NO_CREATE });
     });
 
@@ -956,7 +1021,8 @@ describe('checkBranchCleanedUp', () => {
         checkBranchCleanedUp(
           listed(DEFAULT_SUMMARY, leftRunning()),
           SESSION_START,
-          creates(1)
+          creates(1),
+          NOW
         )
       ).toEqual({
         name: NAME,
@@ -975,7 +1041,8 @@ describe('checkBranchCleanedUp', () => {
         checkBranchCleanedUp(
           listed(DEFAULT_SUMMARY, leftRunning(), second),
           SESSION_START,
-          creates(2)
+          creates(2),
+          NOW
         )
       ).toEqual({
         name: NAME,
@@ -989,7 +1056,8 @@ describe('checkBranchCleanedUp', () => {
         checkBranchCleanedUp(
           listed(DEFAULT_SUMMARY, leftRunning()),
           SESSION_START,
-          creates(0)
+          creates(0),
+          NOW
         )
       ).toEqual({
         name: NAME,
@@ -1006,7 +1074,8 @@ describe('checkBranchCleanedUp', () => {
       const result = checkBranchCleanedUp(
         listed(DEFAULT_SUMMARY, scheduled, leftRunning()),
         SESSION_START,
-        creates(2)
+        creates(2),
+        NOW
       );
       expect(result.passed).toBe(false);
       expect(result.notes).toContain('preview-shipments');
@@ -1017,7 +1086,8 @@ describe('checkBranchCleanedUp', () => {
       const result = checkBranchCleanedUp(
         listed(DEFAULT_SUMMARY, leftRunning({ createdAtMs: undefined })),
         SESSION_START,
-        creates(1)
+        creates(1),
+        NOW
       );
       expect(result.passed).toBe(false);
       expect(result.notes).toContain('still running: preview-shipments');
@@ -1028,7 +1098,8 @@ describe('checkBranchCleanedUp', () => {
         checkBranchCleanedUp(
           listed(leftRunning({ createdAtMs: SESSION_START })),
           SESSION_START,
-          creates(1)
+          creates(1),
+          NOW
         ).passed
       ).toBe(false);
     });
@@ -1037,7 +1108,8 @@ describe('checkBranchCleanedUp', () => {
       const result = checkBranchCleanedUp(
         listed(leftRunning({ createdAtMs: 1_000 })),
         0,
-        creates(1)
+        creates(1),
+        NOW
       );
       expect(result.passed).toBe(false);
       expect(result.notes).toContain('still running: preview-shipments');
@@ -1049,7 +1121,8 @@ describe('checkBranchCleanedUp', () => {
         checkBranchCleanedUp(
           listed(DEFAULT_SUMMARY, skewed),
           SESSION_START,
-          creates(1, [BRANCH_REF])
+          creates(1, [BRANCH_REF]),
+          NOW
         )
       ).toEqual({
         name: NAME,
@@ -1062,7 +1135,8 @@ describe('checkBranchCleanedUp', () => {
       const result = checkBranchCleanedUp(
         listed(leftRunning({ previewProjectStatus: 'GOING_DOWN' })),
         SESSION_START,
-        creates(1)
+        creates(1),
+        NOW
       );
       expect(result.passed).toBe(false);
       expect(result.notes).toContain('GOING_DOWN');
@@ -1072,18 +1146,30 @@ describe('checkBranchCleanedUp', () => {
   describe('passing', () => {
     it('passes when a create was seen and only the default branch is listed', () => {
       expect(
-        checkBranchCleanedUp(listed(DEFAULT_SUMMARY), SESSION_START, creates(1))
+        checkBranchCleanedUp(
+          listed(DEFAULT_SUMMARY),
+          SESSION_START,
+          creates(1),
+          NOW
+        )
       ).toEqual({ name: NAME, passed: true, notes: CLEAN });
     });
 
     it('passes on delete evidence alone when only the default branch is listed', () => {
       expect(
-        checkBranchCleanedUp(listed(DEFAULT_SUMMARY), SESSION_START, deleted())
+        checkBranchCleanedUp(
+          listed(DEFAULT_SUMMARY),
+          SESSION_START,
+          deleted(),
+          NOW
+        )
       ).toEqual({ name: NAME, passed: true, notes: CLEAN });
     });
 
     it('passes on delete evidence alone when the list is empty', () => {
-      expect(checkBranchCleanedUp(listed(), SESSION_START, deleted())).toEqual({
+      expect(
+        checkBranchCleanedUp(listed(), SESSION_START, deleted(), NOW)
+      ).toEqual({
         name: NAME,
         passed: true,
         notes: CLEAN,
@@ -1095,19 +1181,20 @@ describe('checkBranchCleanedUp', () => {
         checkBranchCleanedUp(
           listed(DEFAULT_SUMMARY, OLDER_SUMMARY),
           SESSION_START,
-          creates(1)
+          creates(1),
+          NOW
         )
       ).toEqual({ name: NAME, passed: true, notes: CLEAN });
     });
 
     it('passes when the create was seen and the list is empty', () => {
-      expect(checkBranchCleanedUp(listed(), SESSION_START, creates(1))).toEqual(
-        {
-          name: NAME,
-          passed: true,
-          notes: CLEAN,
-        }
-      );
+      expect(
+        checkBranchCleanedUp(listed(), SESSION_START, creates(1), NOW)
+      ).toEqual({
+        name: NAME,
+        passed: true,
+        notes: CLEAN,
+      });
     });
 
     it('does not count a branch created a millisecond before the session start', () => {
@@ -1115,7 +1202,8 @@ describe('checkBranchCleanedUp', () => {
         checkBranchCleanedUp(
           listed(leftRunning({ createdAtMs: SESSION_START - 1 })),
           SESSION_START,
-          creates(1)
+          creates(1),
+          NOW
         ).passed
       ).toBe(true);
     });
@@ -1131,7 +1219,8 @@ describe('checkBranchCleanedUp', () => {
             })
           ),
           SESSION_START,
-          creates(1)
+          creates(1),
+          NOW
         ).passed
       ).toBe(true);
     });
@@ -1144,7 +1233,8 @@ describe('checkBranchCleanedUp', () => {
             summary({ deletionScheduledAt: iso(SESSION_START + 120_000) })
           ),
           SESSION_START,
-          creates(1)
+          creates(1),
+          NOW
         )
       ).toEqual({
         name: NAME,
@@ -1160,7 +1250,8 @@ describe('checkBranchCleanedUp', () => {
           summary({ deletionScheduledAt: iso(SESSION_START + 120_000) })
         ),
         SESSION_START,
-        creates(0)
+        creates(0),
+        NOW
       );
       expect(result.passed).toBe(true);
       expect(result.notes).toContain(
@@ -1176,7 +1267,8 @@ describe('checkBranchCleanedUp', () => {
           summary({ name: 'second', deletionScheduledAt: scheduledAt })
         ),
         SESSION_START,
-        creates(2)
+        creates(2),
+        NOW
       );
       expect(result.passed).toBe(true);
       expect(result.notes).toContain('first');
@@ -1188,7 +1280,8 @@ describe('checkBranchCleanedUp', () => {
         checkBranchCleanedUp(
           listed(DEFAULT_SUMMARY, summary({ previewProjectStatus: 'REMOVED' })),
           SESSION_START,
-          creates(1)
+          creates(1),
+          NOW
         )
       ).toEqual({
         name: NAME,
@@ -1206,7 +1299,8 @@ describe('checkBranchCleanedUp', () => {
           })
         ),
         SESSION_START,
-        creates(1, [BRANCH_REF])
+        creates(1, [BRANCH_REF]),
+        NOW
       );
       expect(result.passed).toBe(true);
     });
@@ -1216,7 +1310,115 @@ describe('checkBranchCleanedUp', () => {
         checkBranchCleanedUp(
           listed(leftRunning({ createdAtMs: SESSION_START - DAY_MS })),
           SESSION_START,
-          creates(1, ['mnopqrstuvwxyzabcdef'])
+          creates(1, ['mnopqrstuvwxyzabcdef']),
+          NOW
+        ).passed
+      ).toBe(true);
+    });
+  });
+
+  describe('a deletion scheduled by force=false', () => {
+    const MINUTE = 60_000;
+    const scheduledAt = (ms: number) =>
+      summary({ deletionScheduledAt: iso(ms) });
+    const checkAt = (branch: BranchSummary, sessionStartMs = SESSION_START) =>
+      checkBranchCleanedUp(listed(branch), sessionStartMs, creates(1), NOW);
+
+    it('counts a deletion scheduled 59 minutes after scoring time', () => {
+      expect(checkAt(scheduledAt(NOW + 59 * MINUTE))).toEqual({
+        name: NAME,
+        passed: true,
+        notes: `${CLEAN}; scheduled for deletion: preview-shipments`,
+      });
+    });
+
+    it('counts a deletion scheduled 65 minutes after scoring time, the edge of the grace period slack', () => {
+      expect(checkAt(scheduledAt(NOW + 65 * MINUTE)).passed).toBe(true);
+    });
+
+    it('counts a deletion scheduled in the very millisecond of the session start', () => {
+      expect(checkAt(scheduledAt(SESSION_START)).passed).toBe(true);
+    });
+
+    it('fails a deletion scheduled 3 hours after scoring time, naming the time and why', () => {
+      const at = iso(NOW + 180 * MINUTE);
+      const result = checkAt(scheduledAt(NOW + 180 * MINUTE));
+      expect(result).toEqual({
+        name: NAME,
+        passed: false,
+        notes: `still running: preview-shipments (${BRANCH_REF}, MIGRATIONS_PASSED, deletion scheduled ${at}, not counted: more than 65 minutes after scoring time)`,
+      });
+    });
+
+    it('fails a deletion scheduled a millisecond past the 65 minute edge', () => {
+      const result = checkAt(scheduledAt(NOW + 65 * MINUTE + 1));
+      expect(result.passed).toBe(false);
+      expect(result.notes).toContain('more than 65 minutes after scoring time');
+    });
+
+    it('fails an unparsable scheduled time, naming it and why', () => {
+      const result = checkAt(
+        summary({ deletionScheduledAt: 'soon, after the grace period' })
+      );
+      expect(result).toEqual({
+        name: NAME,
+        passed: false,
+        notes: `still running: preview-shipments (${BRANCH_REF}, MIGRATIONS_PASSED, deletion scheduled soon, after the grace period, not counted: not a date)`,
+      });
+    });
+
+    it('fails a deletion scheduled before the session start, naming the time and why', () => {
+      const at = iso(SESSION_START - MINUTE);
+      const result = checkAt(
+        summary({
+          createdAtMs: undefined,
+          deletionScheduledAt: at,
+        })
+      );
+      expect(result).toEqual({
+        name: NAME,
+        passed: false,
+        notes: `still running: preview-shipments (${BRANCH_REF}, MIGRATIONS_PASSED, deletion scheduled ${at}, not counted: before the session start)`,
+      });
+    });
+
+    it('names a rejected branch next to a branch whose schedule counts', () => {
+      const good = summary({
+        name: 'scheduled-fine',
+        projectRef: 'mnopqrstuvwxyzabcdef',
+        deletionScheduledAt: iso(NOW + MINUTE),
+      });
+      const result = checkBranchCleanedUp(
+        listed(good, scheduledAt(NOW + 180 * MINUTE)),
+        SESSION_START,
+        creates(2),
+        NOW
+      );
+      expect(result.passed).toBe(false);
+      expect(result.notes).toContain('still running: preview-shipments');
+      expect(result.notes).not.toContain('scheduled-fine');
+    });
+
+    it('measures the grace period from the scoring time it is given', () => {
+      const branch = scheduledAt(NOW + 180 * MINUTE);
+      expect(checkAt(branch).passed).toBe(false);
+      expect(
+        checkBranchCleanedUp(
+          listed(branch),
+          SESSION_START,
+          creates(1),
+          NOW + 130 * MINUTE
+        ).passed
+      ).toBe(true);
+    });
+
+    it('still counts a removed preview project whose scheduled time is out of range', () => {
+      expect(
+        checkAt(
+          summary({
+            previewProjectStatus: 'REMOVED',
+            deletionScheduledAt: iso(NOW + 180 * MINUTE),
+          })
         ).passed
       ).toBe(true);
     });
@@ -1230,11 +1432,13 @@ describe('checkBranchCleanedUp', () => {
         apiBranch({ deletion_scheduled_at: iso(SESSION_START + 120_000) }),
       ],
     });
-    expect(checkBranchCleanedUp(probe, SESSION_START, creates(1))).toEqual({
-      name: NAME,
-      passed: true,
-      notes: `${CLEAN}; scheduled for deletion: preview-shipments`,
-    });
+    expect(checkBranchCleanedUp(probe, SESSION_START, creates(1), NOW)).toEqual(
+      {
+        name: NAME,
+        passed: true,
+        notes: `${CLEAN}; scheduled for deletion: preview-shipments`,
+      }
+    );
   });
 });
 

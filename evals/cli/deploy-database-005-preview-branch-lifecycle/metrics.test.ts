@@ -14,6 +14,7 @@ import {
   BRANCH_REF,
   DEFAULT_SUMMARY,
   iso,
+  NOW,
   OLDER_SUMMARY,
   productionProbe,
   REF,
@@ -451,6 +452,7 @@ describe('checkMetrics', () => {
       cli: await readCliFacts(versionCtx, MARKER, invocations),
       linkedRef: 'production',
       refs: [],
+      nowMs: NOW,
     };
   };
 
@@ -570,6 +572,32 @@ describe('checkMetrics', () => {
     });
   });
 
+  it('reports a scheduled deletion as scheduled only when it is in the grace window', async () => {
+    const at = (
+      name: string,
+      projectRef: string,
+      deletionScheduledAt: string
+    ) => summary({ name, projectRef, deletionScheduledAt });
+    const facts = await healthyFacts();
+    expect(
+      await metricsOf({
+        ...facts,
+        branches: {
+          ok: true,
+          branches: [
+            at('in-window', 'mnopqrstuvwxyzabcdef', iso(NOW + 59 * 60_000)),
+            at('too-late', 'uvwxyzabcdefghijklmn', iso(NOW + 180 * 60_000)),
+            at('unparsable', 'bcdefghijklmnopqrstu', 'not-a-date'),
+            at('stale', 'cdefghijklmnopqrstuv', iso(SESSION_START - 1_000)),
+          ],
+        },
+      })
+    ).toMatchObject({
+      runBranchesLeft: ['too-late', 'unparsable', 'stale'],
+      runBranchesScheduled: ['in-window'],
+    });
+  });
+
   it('reports the linked ref as given', async () => {
     for (const linkedRef of ['production', 'other', 'none', null] as const) {
       expect(
@@ -659,6 +687,7 @@ describe('checkMetrics', () => {
       cli: await readCliFacts(failing, undefined, []),
       linkedRef: null,
       refs: [],
+      nowMs: NOW,
     });
     expect(check.passed).toBe(true);
     expect(JSON.parse(check.notes ?? '{}')).toMatchObject({

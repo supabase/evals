@@ -29,11 +29,13 @@ export function describeLifecycleFacts(facts: {
 
 export function formatLifecycleJudgeInput(
   facts: readonly string[],
-  transcript: TranscriptPart[]
+  transcript: TranscriptPart[],
+  knownSecrets: readonly string[] = []
 ): string {
   return redactSecrets(
     formatGroundTruthJudgeInput(facts, transcript, {
       includeToolCallOutputs: true,
-    })
+    }),
+    knownSecrets
   );
 }

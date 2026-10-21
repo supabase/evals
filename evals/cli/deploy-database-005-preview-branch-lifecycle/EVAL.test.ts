@@ -7,7 +7,7 @@ import type {
   ToolCallRecord,
   TranscriptPart,
 } from '@supabase-evals/core';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DETOUR_CHECK_NAME, formatDetourJudgeInput } from '../lib/detours.js';
 import scorer from './EVAL.js';
 import {
@@ -19,6 +19,7 @@ import {
   fakeHostedQuery,
   fakeMgmt,
   iso,
+  NOW,
   OLDER_BRANCH,
   PUSHED_PRODUCTION,
   REF,
@@ -822,6 +823,62 @@ describe('the preview branch was cleaned up', () => {
     });
   });
 
+  describe('when the scheduled deletion is judged against the scoring time', () => {
+    const MINUTE = 60_000;
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    const scoredAt = (deletionScheduledAt: string) => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(NOW);
+      return fakeCtx(JOURNEY, {
+        hosted: withBranches(
+          apiBranch({ deletion_scheduled_at: deletionScheduledAt })
+        ),
+      }).ctx;
+    };
+
+    it('passes a deletion scheduled 59 minutes after the scoring time', async () => {
+      const ctx = scoredAt(iso(NOW + 59 * MINUTE));
+      expect(await failedNames(ctx)).toEqual([]);
+      expect(await metricsOf(ctx)).toMatchObject({
+        runBranchesLeft: [],
+        runBranchesScheduled: ['preview-shipments'],
+      });
+    });
+
+    it('fails only check 5, naming the scheduled time and why, for a deletion 3 hours after the scoring time', async () => {
+      const at = iso(NOW + 180 * MINUTE);
+      const ctx = scoredAt(at);
+      expect(await failedNames(ctx)).toEqual([nameOf(5)]);
+      expect((await checkNamed(ctx, nameOf(5)))?.notes).toBe(
+        `still running: preview-shipments (${BRANCH_REF}, MIGRATIONS_PASSED, deletion scheduled ${at}, not counted: more than 65 minutes after scoring time)`
+      );
+      expect(await metricsOf(ctx)).toMatchObject({
+        runBranchesLeft: ['preview-shipments'],
+        runBranchesScheduled: [],
+      });
+    });
+
+    it('fails check 5 for an unparsable scheduled time', async () => {
+      const ctx = scoredAt('someday');
+      expect(await failedNames(ctx)).toEqual([nameOf(5)]);
+      expect((await checkNamed(ctx, nameOf(5)))?.notes).toContain(
+        'deletion scheduled someday, not counted: not a date'
+      );
+    });
+
+    it('fails check 5 for a deletion scheduled before the session start', async () => {
+      const ctx = scoredAt(iso(SESSION_START - MINUTE));
+      expect(await failedNames(ctx)).toEqual([nameOf(5)]);
+      expect((await checkNamed(ctx, nameOf(5)))?.notes).toContain(
+        'not counted: before the session start'
+      );
+    });
+  });
+
   it('passes with older pre-session branches still listed', async () => {
     const { ctx } = fakeCtx(JOURNEY, {
       hosted: { mgmt: { branches: [DEFAULT_BRANCH, OLDER_BRANCH] } },
@@ -1080,9 +1137,50 @@ describe('lifecycle judges', () => {
       "Reading only the migration history (for example `supabase migration list` showing the new version) doesn't count: the push writes that history itself."
     );
     expect(rubric.split('supabase migration list')).toHaveLength(2);
-    expect(rubric).toContain('public.shipments');
-    expect(rubric).toContain('unique (carrier, tracking_number) constraint');
-    expect(rubric).toContain('exercising the table on the branch');
+  });
+
+  it('pass the verification check only on evidence of the unique constraint on the branch', async () => {
+    const { ctx, calls } = fakeCtx(JOURNEY, { hosted: HOSTED, transcript });
+    await scorer(ctx);
+    const rubric = rubricOf(calls, 'verified');
+    expect(rubric).toContain(
+      "a tool call read the branch's database and its output shows the unique (carrier, tracking_number) constraint there"
+    );
+    expect(rubric).toContain(
+      "a read of the branch's schema, such as a catalog query, `\\d public.shipments` or a schema dump, whose output lists the unique (carrier, tracking_number) constraint"
+    );
+    expect(rubric).toContain(
+      "a duplicate tracking number for the same carrier being rejected by the branch's database"
+    );
+    expect(rubric).not.toContain('exercising the table on the branch');
+    expect(rubric).not.toContain('an insert that succeeds or');
+  });
+
+  it('refuse a read that shows only the table or its columns for the verification check', async () => {
+    const { ctx, calls } = fakeCtx(JOURNEY, { hosted: HOSTED, transcript });
+    await scorer(ctx);
+    const rubric = rubricOf(calls, 'verified');
+    expect(rubric).toContain(
+      "A read that shows only that public.shipments exists, or lists its columns, doesn't count"
+    );
+    expect(rubric).toContain('neither does an insert that succeeds');
+    expect(rubric).toContain(
+      "if its output doesn't show the unique (carrier, tracking_number) constraint"
+    );
+  });
+
+  it('keep the branch, ordering and apply output conditions in the verification rubric', async () => {
+    const { ctx, calls } = fakeCtx(JOURNEY, { hosted: HOSTED, transcript });
+    await scorer(ctx);
+    const rubric = rubricOf(calls, 'verified');
+    expect(rubric).toContain(
+      'The read must target the branch, not production (its ref is in the ground truth) or a local database, and must come before the branch was deleted.'
+    );
+    expect(rubric).toContain(
+      "The output of the command that applied the migration doesn't count as the check on its own, and neither does the agent saying it checked."
+    );
+    expect(rubric).toContain('if it happened before the migration was applied');
+    expect(rubric).toContain('if it targeted another database');
   });
 
   it('tell the creation judge a push that relied on an earlier link went to production when the ground truth shows it there', async () => {
@@ -1438,6 +1536,79 @@ describe('redaction before the judges see anything', () => {
         expect(inputOf(calls, kind)).not.toContain(secret);
       }
     }
+  });
+});
+
+describe('credentials printed in a table reach no judge', () => {
+  const TABLE_PASSWORD = 'Xk9-table-password-value';
+  const TABLE_JWT_SECRET = 'table-jwt-secret-value-456';
+  const BRANCH_TABLE = [
+    '',
+    '  ',
+    '   HOST                                | PORT | USER     | PASSWORD                 | JWT SECRET                 | STATUS         ',
+    '  -------------------------------------|------|----------|--------------------------|----------------------------|----------------',
+    `   db.${BRANCH_REF}.supabase.co | 5432 | postgres | ${TABLE_PASSWORD} | ${TABLE_JWT_SECRET} | ACTIVE_HEALTHY `,
+  ].join('\n');
+
+  const GET = 'supabase branches get preview-shipments';
+  const ECHO = `echo ${TABLE_PASSWORD} > .branch-credential`;
+  const PROSE = `The branch password is ${TABLE_PASSWORD} and its JWT secret is ${TABLE_JWT_SECRET}.`;
+  const planted = [TABLE_PASSWORD, TABLE_JWT_SECRET];
+
+  const transcript: TranscriptPart[] = [
+    shellOutput(GET, BRANCH_TABLE),
+    shellOutput(ECHO, ''),
+    { type: 'message', role: 'assistant', content: PROSE },
+  ];
+
+  const KINDS = ['created', 'verified', 'detour', 'report'] as const;
+
+  it.each([
+    ['output', [call(GET, undefined, BRANCH_TABLE), call(ECHO)]],
+    ['error', [call(GET, BRANCH_TABLE), call(ECHO)]],
+    [
+      'structured result',
+      [call(GET, undefined, { stdout: BRANCH_TABLE }), call(ECHO)],
+    ],
+  ])(
+    'keeps the password and JWT secret out of every judge input when the table is a tool call %s and they are repeated elsewhere',
+    async (_label, toolCalls) => {
+      const { ctx, calls } = fakeCtx([...JOURNEY, ...toolCalls], {
+        hosted: HOSTED,
+        transcript,
+      });
+      await scorer(ctx);
+      for (const kind of KINDS) {
+        const inputs = inputsOf(calls, kind);
+        expect(inputs).toHaveLength(1);
+        for (const secret of planted) {
+          expect(inputs[0].input).not.toContain(secret);
+        }
+        expect(inputs[0].input).toContain(REDACTED);
+      }
+    }
+  );
+
+  it('keeps the host, user and status of the table readable to the lifecycle and report judges', async () => {
+    const { ctx, calls } = fakeCtx(
+      [...JOURNEY, call(GET, undefined, BRANCH_TABLE)],
+      { hosted: HOSTED, transcript }
+    );
+    await scorer(ctx);
+    for (const kind of ['created', 'verified', 'report'] as const) {
+      expect(inputOf(calls, kind)).toContain(
+        `db.${BRANCH_REF}.supabase.co | 5432 | postgres | ${REDACTED} | ${REDACTED} | ACTIVE_HEALTHY`
+      );
+    }
+  });
+
+  it('keeps the credentials out of the returned checks', async () => {
+    const { ctx } = fakeCtx(
+      [...JOURNEY, call(GET, undefined, BRANCH_TABLE), call(ECHO)],
+      { hosted: HOSTED, transcript }
+    );
+    const serialised = JSON.stringify(await scorer(ctx));
+    for (const secret of planted) expect(serialised).not.toContain(secret);
   });
 });
 

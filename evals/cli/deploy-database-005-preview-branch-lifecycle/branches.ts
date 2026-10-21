@@ -73,9 +73,28 @@ export async function readBranches(
   }
 }
 
-const isGone = (branch: BranchSummary) =>
-  Boolean(branch.deletionScheduledAt) ||
-  branch.previewProjectStatus === 'REMOVED';
+const GRACE_PERIOD_SLACK_MS = 65 * 60_000;
+
+/** Why a branch's scheduled deletion can't be trusted as this run's cleanup: the API schedules a `force=false` delete one hour out. */
+function rejectedSchedule(
+  branch: BranchSummary,
+  sessionStartMs: number,
+  nowMs: number
+): string | undefined {
+  if (!branch.deletionScheduledAt) return undefined;
+  const scheduledMs = Date.parse(branch.deletionScheduledAt);
+  if (Number.isNaN(scheduledMs)) return 'not a date';
+  if (scheduledMs < sessionStartMs) return 'before the session start';
+  if (scheduledMs > nowMs + GRACE_PERIOD_SLACK_MS) {
+    return 'more than 65 minutes after scoring time';
+  }
+  return undefined;
+}
+
+const isGone = (branch: BranchSummary, sessionStartMs: number, nowMs: number) =>
+  branch.previewProjectStatus === 'REMOVED' ||
+  (Boolean(branch.deletionScheduledAt) &&
+    rejectedSchedule(branch, sessionStartMs, nowMs) === undefined);
 
 /** Non-default branches created since the session started, of unknown age, or whose ref a create printed. */
 export function runBranches(
@@ -95,12 +114,14 @@ export function runBranches(
 export function splitRunBranches(
   branches: readonly BranchSummary[],
   sessionStartMs: number,
-  refs: readonly string[]
+  refs: readonly string[],
+  nowMs: number
 ): { running: BranchSummary[]; scheduled: BranchSummary[] } {
   const mine = runBranches(branches, sessionStartMs, refs);
+  const gone = (branch: BranchSummary) => isGone(branch, sessionStartMs, nowMs);
   return {
-    running: mine.filter((branch) => !isGone(branch)),
-    scheduled: mine.filter(isGone),
+    running: mine.filter((branch) => !gone(branch)),
+    scheduled: mine.filter(gone),
   };
 }
 
@@ -109,7 +130,7 @@ const DELETED_OUTPUT = /Deleted preview branch/i;
 const PROJECT_REF_TOKEN = /\b[a-z]{20}\b/g;
 const PROJECT_REF_KEY = /(?<!\w)project_ref"?\s*:\s*"?([a-z]{20})\b/g;
 
-const outputOf = (record: ToolCallRecord | undefined): string => {
+export const outputOf = (record: ToolCallRecord | undefined): string => {
   const output = record?.result ?? record?.error;
   if (output === undefined) return '';
   return typeof output === 'string' ? output : JSON.stringify(output);
@@ -167,13 +188,14 @@ export function readBranchCreates(
   return { creates, deletes, refs: [...refs] };
 }
 
-const describeBranch = (branch: BranchSummary) =>
-  `${branch.name} (${branch.projectRef}, ${branch.status}${branch.previewProjectStatus ? `, preview project status ${branch.previewProjectStatus}` : ''}${branch.deletionScheduledAt ? `, deletion scheduled ${branch.deletionScheduledAt}` : ''})`;
+const describeBranch = (branch: BranchSummary, rejection?: string) =>
+  `${branch.name} (${branch.projectRef}, ${branch.status}${branch.previewProjectStatus ? `, preview project status ${branch.previewProjectStatus}` : ''}${branch.deletionScheduledAt ? `, deletion scheduled ${branch.deletionScheduledAt}` : ''}${rejection ? `, not counted: ${rejection}` : ''})`;
 
 export function checkBranchCleanedUp(
   probe: BranchesProbe,
   sessionStartMs: number | null,
-  evidence: BranchCreates
+  evidence: BranchCreates,
+  nowMs: number
 ): CheckResult {
   const name = 'the preview branch was cleaned up';
   if (!probe.ok) return { name, passed: false, notes: probe.notes };
@@ -188,7 +210,8 @@ export function checkBranchCleanedUp(
   const { running, scheduled } = splitRunBranches(
     probe.branches,
     sessionStartMs,
-    evidence.refs
+    evidence.refs,
+    nowMs
   );
   if (
     evidence.creates === 0 &&
@@ -206,7 +229,14 @@ export function checkBranchCleanedUp(
     return {
       name,
       passed: false,
-      notes: `still running: ${running.map(describeBranch).join(', ')}`,
+      notes: `still running: ${running
+        .map((branch) =>
+          describeBranch(
+            branch,
+            rejectedSchedule(branch, sessionStartMs, nowMs)
+          )
+        )
+        .join(', ')}`,
     };
   }
   return {
@@ -232,7 +262,7 @@ export function describeBranches(
     ];
   }
   const listed = runBranches(probe.branches, sessionStartMs, refs).map(
-    describeBranch
+    (branch) => describeBranch(branch)
   );
   return [
     `- this run's preview branches still listed: ${listed.length > 0 ? listed.join(', ') : 'none (expected after cleanup; this does not say whether one was created)'}`,

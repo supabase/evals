@@ -15,6 +15,7 @@ import {
 export const REF = 'abcdefghijklmnopqrst';
 export const BRANCH_REF = 'zyxwvutsrqponmlkjihg';
 export const SESSION_START = 1_700_000_000_000;
+export const NOW = SESSION_START + 600_000;
 export const BRANCHES_PATH = '/v1/projects/{ref}/branches';
 
 export const DAY_MS = 86_400_000;
