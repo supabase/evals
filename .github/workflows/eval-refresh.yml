@@ -539,7 +539,7 @@ jobs:
         env:
           BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
           BRAINTRUST_PROJECT_ID: ${{ secrets.BRAINTRUST_PROJECT_ID }}
-        run: pnpm upload-braintrust
+        run: pnpm upload-braintrust --runs "${{ needs.prepare.outputs.runs }}"
 
       - name: Upload exported results
         if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
