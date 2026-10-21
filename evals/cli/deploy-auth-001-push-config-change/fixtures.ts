@@ -6,7 +6,7 @@ import type {
   ToolCallRecord,
 } from '@supabase-evals/core';
 import { vi } from 'vitest';
-import { type HostedFacts, NO_HOSTED_PROJECT } from '../lib/hosted.js';
+import { type HostedFacts, NO_HOSTED_PROJECT } from './hosted.js';
 
 export type ExecCtx = Pick<LocalStackEvalContext, 'exec'>;
 

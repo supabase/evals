@@ -203,7 +203,11 @@ describe('parsePasswordPolicy with checkRepoPasswordPolicy', () => {
   it.each(PASSING)('accepts %s', (_, toml) => {
     const policy = parsePasswordPolicy(toml);
 
-    expect(policy).toEqual({ ok: true, minPasswordLength: 10 });
+    expect(policy).toEqual({
+      ok: true,
+      minPasswordLength: 10,
+      conflictingRemotes: [],
+    });
     expect(checkRepoPasswordPolicy(policy)).toMatchObject({
       name: REPO_POLICY_CHECK_NAME,
       passed: true,
@@ -213,7 +217,11 @@ describe('parsePasswordPolicy with checkRepoPasswordPolicy', () => {
   it.each(WRONG_VALUE)('rejects %s', (_, toml, value) => {
     const policy = parsePasswordPolicy(toml);
 
-    expect(policy).toEqual({ ok: true, minPasswordLength: value });
+    expect(policy).toEqual({
+      ok: true,
+      minPasswordLength: value,
+      conflictingRemotes: [],
+    });
     const check = checkRepoPasswordPolicy(policy);
     expect(check).toMatchObject({
       name: REPO_POLICY_CHECK_NAME,
@@ -262,6 +270,119 @@ describe('parsePasswordPolicy with checkRepoPasswordPolicy', () => {
   });
 });
 
+const withRemotes = (base: string | number, remotes: string) =>
+  `${seedWith(base)}\n${remotes}`;
+
+const remoteAuth = (name: string, value: string | number) => `[remotes.${name}]
+project_id = "abcdefghijklmnopqrst"
+
+[remotes.${name}.auth]
+minimum_password_length = ${value}
+`;
+
+describe('[remotes.<name>] overrides', () => {
+  it('fails when an override of 6 would reach the project, naming the block and the value', () => {
+    const policy = parsePasswordPolicy(withRemotes(10, remoteAuth('prod', 6)));
+
+    expect(policy).toEqual({
+      ok: true,
+      minPasswordLength: 10,
+      conflictingRemotes: [{ name: 'prod', value: 6 }],
+    });
+    const check = checkRepoPasswordPolicy(policy);
+    expect(check).toMatchObject({
+      name: REPO_POLICY_CHECK_NAME,
+      passed: false,
+    });
+    expect(notesOf(check)).toBe(
+      '[remotes.prod] overrides auth.minimum_password_length with 6'
+    );
+  });
+
+  it('fails on the base value when it is 6 even though an override holds 10', () => {
+    const policy = parsePasswordPolicy(withRemotes(6, remoteAuth('prod', 10)));
+
+    expect(policy).toMatchObject({ ok: true, minPasswordLength: 6 });
+    expect(checkRepoPasswordPolicy(policy)).toEqual({
+      name: REPO_POLICY_CHECK_NAME,
+      passed: false,
+      notes: 'auth.minimum_password_length is 6, not 10',
+    });
+  });
+
+  it('passes when the override also holds 10', () => {
+    const policy = parsePasswordPolicy(withRemotes(10, remoteAuth('prod', 10)));
+
+    expect(policy).toEqual({
+      ok: true,
+      minPasswordLength: 10,
+      conflictingRemotes: [],
+    });
+    expect(checkRepoPasswordPolicy(policy).passed).toBe(true);
+  });
+
+  it.each([
+    [
+      'a remote that only overrides [db]',
+      '[remotes.staging]\nproject_id = "abcdefghijklmnopqrst"\n\n[remotes.staging.db]\nmajor_version = 17\n',
+    ],
+    [
+      'a remote whose [auth] leaves the length alone',
+      '[remotes.staging.auth]\nenable_signup = false\n',
+    ],
+  ])('passes with %s', (_, remotes) => {
+    const policy = parsePasswordPolicy(withRemotes(10, remotes));
+
+    expect(policy).toMatchObject({ ok: true, conflictingRemotes: [] });
+    expect(checkRepoPasswordPolicy(policy).passed).toBe(true);
+  });
+
+  it.each([
+    ['remotes set to a number', `remotes = 5\n${seedWith(10)}`],
+    [
+      'remotes declared as an array of tables',
+      withRemotes(10, '[[remotes]]\nproject_id = "a"\n'),
+    ],
+    ['a remote set to a number', withRemotes(10, '[remotes]\nprod = 5\n')],
+    [
+      'a remote auth set to a number',
+      withRemotes(10, '[remotes.prod]\nauth = 5\n'),
+    ],
+  ])('ignores %s', (_, toml) => {
+    const policy = parsePasswordPolicy(toml);
+
+    expect(policy).toEqual({
+      ok: true,
+      minPasswordLength: 10,
+      conflictingRemotes: [],
+    });
+    expect(checkRepoPasswordPolicy(policy).passed).toBe(true);
+  });
+
+  it('joins every conflicting override in the notes with "; "', () => {
+    const policy = parsePasswordPolicy(
+      withRemotes(
+        10,
+        `${remoteAuth('prod', 6)}\n${remoteAuth('staging', 10)}\n${remoteAuth('preview', 8)}`
+      )
+    );
+
+    expect(checkRepoPasswordPolicy(policy).notes).toBe(
+      '[remotes.prod] overrides auth.minimum_password_length with 6; [remotes.preview] overrides auth.minimum_password_length with 8'
+    );
+  });
+
+  it('shows a non-numeric override as JSON', () => {
+    const policy = parsePasswordPolicy(
+      withRemotes(10, remoteAuth('prod', '"10"'))
+    );
+
+    expect(checkRepoPasswordPolicy(policy).notes).toBe(
+      '[remotes.prod] overrides auth.minimum_password_length with "10"'
+    );
+  });
+});
+
 describe('checkRepoPasswordPolicy', () => {
   it('fails with the policy notes when the config could not be read', () => {
     const policy: RepoPasswordPolicy = {
@@ -288,7 +409,11 @@ describe('the seeded config.toml', () => {
   it('requires 6 and fails the repo check until the agent edits it', () => {
     const policy = parsePasswordPolicy(SEED_CONFIG);
 
-    expect(policy).toEqual({ ok: true, minPasswordLength: 6 });
+    expect(policy).toEqual({
+      ok: true,
+      minPasswordLength: 6,
+      conflictingRemotes: [],
+    });
     expect(checkRepoPasswordPolicy(policy).passed).toBe(false);
   });
 });
@@ -300,6 +425,7 @@ describe('readRepoPasswordPolicy', () => {
     expect(await readRepoPasswordPolicy(ctx)).toEqual({
       ok: true,
       minPasswordLength: 10,
+      conflictingRemotes: [],
     });
     expect(calls).toEqual([READ_CONFIG_COMMAND]);
   });

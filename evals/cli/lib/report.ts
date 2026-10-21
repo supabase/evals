@@ -22,10 +22,3 @@ export function formatGroundTruthJudgeInput(
 export function mentionsNumber(text: string, n: number): boolean {
   return new RegExp(`(?<!\\d)${n}(?!\\d)`).test(text);
 }
-
-const ACCESS_TOKEN_REGEX = /sbp_(oauth_|v0_)?[a-f0-9]{40}/g;
-
-/** Replaces every Supabase access token in text sent to a judge. */
-export function maskAccessTokens(text: string): string {
-  return text.replace(ACCESS_TOKEN_REGEX, '[redacted access token]');
-}

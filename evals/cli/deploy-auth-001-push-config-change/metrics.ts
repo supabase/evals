@@ -7,10 +7,9 @@ import {
   invocationVerb,
   type SupabaseInvocation,
 } from '../lib/cli-invocations.js';
-import type { HostedFacts } from '../lib/hosted.js';
 import type { readCliVersions } from '../lib/metrics.js';
 import type { RepoPasswordPolicy } from './config.js';
-import type { ProjectPasswordPolicy } from './hosted.js';
+import type { HostedFacts, ProjectPasswordPolicy } from './hosted.js';
 
 export type ConfigCounts = {
   configPush: number;

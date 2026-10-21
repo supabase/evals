@@ -1,12 +1,18 @@
-import type { HostedFacts } from '../lib/hosted.js';
-import type { RepoPasswordPolicy } from './config.js';
-import type { ProjectPasswordPolicy } from './hosted.js';
+import { formatTomlValue, type RepoPasswordPolicy } from './config.js';
+import type { HostedFacts, ProjectPasswordPolicy } from './hosted.js';
 
 function describeRepoLength(repo: RepoPasswordPolicy): string {
   if (!repo.ok) return `unreadable (${repo.notes})`;
   const value = repo.minPasswordLength;
-  if (value === undefined) return 'not set';
-  return typeof value === 'number' ? String(value) : JSON.stringify(value);
+  const base = value === undefined ? 'not set' : formatTomlValue(value);
+  if (repo.conflictingRemotes.length === 0) return base;
+  const overrides = repo.conflictingRemotes
+    .map(
+      (remote) =>
+        `[remotes.${remote.name}] overrides it with ${formatTomlValue(remote.value)}`
+    )
+    .join('; ');
+  return `${base} (${overrides})`;
 }
 
 function describeProjectLength(project: ProjectPasswordPolicy): string {
@@ -29,4 +35,11 @@ export function describeGroundTruth(
     `- repo supabase/config.toml auth.minimum_password_length: ${describeRepoLength(repo)}`,
     `- hosted project password_min_length: ${describeProjectLength(project)}`,
   ];
+}
+
+const ACCESS_TOKEN_REGEX = /sbp_(oauth_|v0_)?[a-f0-9]{40}/g;
+
+/** Replaces every Supabase access token in text sent to a judge. */
+export function maskAccessTokens(text: string): string {
+  return text.replace(ACCESS_TOKEN_REGEX, '[redacted access token]');
 }

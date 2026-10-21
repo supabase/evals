@@ -85,10 +85,13 @@ unless noted.
 - It asks "Do you want to push auth config to remote?" for each changed
   resource. Pinned 2.117.0's help says a non-interactive run (no TTY, `--yes`,
   or piped stdin with no answer) defaults to proceeding. Stable, beta and next
-  skip each change in a non-TTY shell unless given `--yes`, `SUPABASE_YES` or a
-  piped "y", printing "Skipped auth: no affirmative confirmation received. Pass
-  --yes (or set SUPABASE_YES) to approve." So a bare `config push` from an
-  agent's shell writes on pinned and writes nothing on the other three.
+  skip each change unless given `--yes`, `SUPABASE_YES` or a piped "y", and
+  print one of two lines. With stdin not a TTY (an agent's shell): "Skipped
+  auth: no affirmative confirmation received. Pass --yes (or set SUPABASE_YES)
+  to approve." With stdin a TTY but output redirected: "Skipped auth:
+  confirmation unavailable with redirected output. Pass --yes (or set
+  SUPABASE_YES) to approve." So a bare `config push` from an agent's shell
+  writes on pinned and writes nothing on the other three.
 - The project ref comes from `--project-ref`, then `SUPABASE_PROJECT_ID`, then
   `supabase/.temp/project-ref`. With none it fails with "Cannot find project
   ref. Have you run supabase link?"
@@ -110,8 +113,8 @@ project.
 
 | check | what it proves | how it's measured |
 | --- | --- | --- |
-| `a hosted project is available to push to` | the run had a project to push to | `ctx.hostedRef` and `ctx.hostedMgmt` are both set (`readHostedFacts` in `../lib/hosted.ts`). Otherwise it fails, and the notes name CLI-2754 and say there is no hosted project in CI until the staging org lands |
-| `the repo's Supabase config requires passwords of at least 10 characters` | the change lives in the repo, so a later push won't revert it | `cat supabase/config.toml`, parsed as TOML with `smol-toml`. It passes only when `auth.minimum_password_length` is the number 10, in any TOML spelling: a trailing comment, `[ auth ]`, `["auth"]`, an inline table or a dotted key, and TOML's other spellings of the number 10 (`10.0`, `0xA`, `1_0`). It fails for 6, 8 or 12, for a value that appears only in a comment, in `[auth.email]` or inside a string, for a missing file, and for a file that no longer parses; the notes say which. It fails the string `"10"` because the CLI's config schema decodes `minimum_password_length` as a number and would reject the file too. An `auth` that isn't a table (`auth = 5`, `[[auth]]`) counts as not set |
+| `a hosted project is available to push to` | the run had a project to push to | `ctx.hostedRef` and `ctx.hostedMgmt` are both set (`readHostedFacts` in `hosted.ts`). Otherwise it fails, and the notes say the run has no hosted project and point at CLI-2754, which tracks adding one to CI |
+| `the repo's Supabase config requires passwords of at least 10 characters` | the change lives in the repo, so a later push won't revert it | `cat supabase/config.toml`, parsed as TOML with `smol-toml`. It passes only when `auth.minimum_password_length` is the number 10, in any TOML spelling: a trailing comment, `[ auth ]`, `["auth"]`, an inline table or a dotted key, and TOML's other spellings of the number 10 (`10.0`, `0xA`, `1_0`). It fails for 6, 8 or 12, for a value that appears only in a comment, in `[auth.email]` or inside a string, for a missing file, and for a file that no longer parses; the notes say which. It fails the string `"10"` because the CLI's config schema decodes `minimum_password_length` as a number and would reject the file too. An `auth` that isn't a table (`auth = 5`, `[[auth]]`) counts as not set. A `[remotes.<name>]` block that overrides `auth.minimum_password_length` with anything but 10 fails too, because the CLI merges the override over the base config for the project whose `project_id` matches and would push it there; an override that also holds 10 is fine, and a `remotes` or `remotes.<name>` that isn't a table is ignored. Base 6 with only an override at 10 fails as well: the user asked for the repo's config to require 10, and local dev would stay at 6 |
 | `the project requires passwords of at least 10 characters` | the change reached the hosted project | `GET /v1/projects/{ref}/config/auth` through `ctx.hostedMgmt`. It passes only when `password_min_length` is 10. No hosted project, an API error, null or any other value fails, and the notes say which. A change made by calling the Management API directly instead of `config push` still passes, because the end state is what's scored |
 | `no container-runtime detours` | no Docker or runtime workarounds for a task that needs none | the shared detour judge from `../lib/detours.ts` over executed commands only. Supabase CLI commands (`config push`, `config diff`, `config pull`, `link`, `login`, `projects list`), editing files under `supabase/`, reading environment variables and calling the Management API with `curl` are not detours. With no commands it passes without a judge call |
 | `metrics` | diagnostics only | always passes; the fields are listed below |
@@ -122,7 +125,7 @@ returns one failing `scorer evaluated the config push` check.
 
 Both judges get their input (the executed commands or the transcript) with any
 `sbp_` access token replaced by `[redacted access token]` (`maskAccessTokens` in
-`../lib/report.ts`), so a token an agent prints or types never reaches the judge
+`report.ts`), so a token an agent prints or types never reaches the judge
 provider.
 
 `metrics` fields, each computed independently: `hostedProject`,
@@ -138,7 +141,9 @@ The report judge's ground truth is three lines:
 - `- hosted project available to push to: <ref>`, or `none (<why>)`
 - `- repo supabase/config.toml auth.minimum_password_length: <value>` (a number
   as itself, including `Infinity` and `NaN`; anything else as JSON), or `not
-  set`, or `unreadable (<why>)`
+  set`, or `unreadable (<why>)`; when a `[remotes.<name>]` block overrides the
+  value with something other than 10, a suffix such as ` ([remotes.prod]
+  overrides it with 6)`
 - `- hosted project password_min_length: <value>`, or `not set (null)`, or
   `unavailable (<why>)`
 
@@ -155,8 +160,9 @@ claims the project requires 10 characters when the ground truth shows otherwise
 or shows no hosted project, claims the repo's config was changed when the ground
 truth shows it wasn't, names a project ref that doesn't match or that the agent
 never saw in a tool output, or blames something the tools didn't report. A claim
-that a push succeeded after "Skipped auth: no affirmative confirmation received"
-output is false. The judge ignores claims about anything else.
+that a push succeeded after either "Skipped auth: no affirmative confirmation
+received" or "Skipped auth: confirmation unavailable with redirected output" is
+false. The judge ignores claims about anything else.
 
 ## The experiments and expected results
 

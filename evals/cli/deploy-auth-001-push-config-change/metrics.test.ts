@@ -165,7 +165,11 @@ describe('countConfigInvocations', () => {
 describe('checkMetrics', () => {
   const FACTS = {
     hosted: HOSTED_OK,
-    repo: { ok: true as const, minPasswordLength: 6 as unknown },
+    repo: {
+      ok: true as const,
+      minPasswordLength: 6 as unknown,
+      conflictingRemotes: [],
+    },
     project: { ok: true as const, minPasswordLength: 10 as number | null },
     counts: {
       configPush: 3,
@@ -227,7 +231,11 @@ describe('checkMetrics', () => {
     const metrics = metricsOf(
       checkMetrics(MARKER, {
         ...FACTS,
-        repo: { ok: true, minPasswordLength: undefined },
+        repo: {
+          ok: true,
+          minPasswordLength: undefined,
+          conflictingRemotes: [],
+        },
       })
     );
 

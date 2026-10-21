@@ -1,7 +1,6 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/deploy-auth-001-push-config-change
 import type { ManagementApiClient } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
-import { NO_HOSTED_PROJECT } from '../lib/hosted.js';
 import { mentionsNumber } from '../lib/report.js';
 import {
   apiError,
@@ -11,9 +10,12 @@ import {
   HOSTED_REF,
 } from './fixtures.js';
 import {
+  checkHostedProject,
   checkProjectPasswordPolicy,
   HOSTED_CHECK_NAME,
+  NO_HOSTED_PROJECT,
   PROJECT_POLICY_CHECK_NAME,
+  readHostedFacts,
   readProjectPasswordPolicy,
 } from './hosted.js';
 
@@ -27,6 +29,61 @@ describe('hosted constants', () => {
     expect(PROJECT_POLICY_CHECK_NAME).toBe(
       'the project requires passwords of at least 10 characters'
     );
+  });
+});
+
+describe('readHostedFacts', () => {
+  it('returns the hosted ref when both the ref and the management client are set', () => {
+    const { mgmt } = fakeMgmt(authConfig(10));
+
+    expect(
+      readHostedFacts({ hostedRef: HOSTED_REF, hostedMgmt: mgmt })
+    ).toEqual({ ok: true, ref: HOSTED_REF });
+  });
+
+  it.each<[name: string, ctxFor: (mgmt: ManagementApiClient) => HostedCtx]>([
+    ['the ref is missing', (mgmt) => ({ hostedMgmt: mgmt })],
+    ['the management client is missing', () => ({ hostedRef: HOSTED_REF })],
+    ['both are missing', () => ({})],
+    ['the ref is empty', (mgmt) => ({ hostedRef: '', hostedMgmt: mgmt })],
+  ])('reports no hosted project when %s', (_, ctxFor) => {
+    const { mgmt } = fakeMgmt(authConfig(10));
+
+    expect(readHostedFacts(ctxFor(mgmt))).toEqual({
+      ok: false,
+      notes: NO_HOSTED_PROJECT,
+    });
+  });
+
+  it('states the missing hosted project and points at CLI-2754', () => {
+    expect(NO_HOSTED_PROJECT).toContain('no hosted project');
+    expect(NO_HOSTED_PROJECT).toContain('CLI-2754');
+  });
+});
+
+describe('checkHostedProject', () => {
+  it('passes when a hosted project is available', () => {
+    expect(checkHostedProject({ ok: true, ref: HOSTED_REF })).toEqual({
+      name: HOSTED_CHECK_NAME,
+      passed: true,
+    });
+  });
+
+  it('fails with the reason from the hosted facts', () => {
+    expect(
+      checkHostedProject({ ok: false, notes: 'platform-lite did not start' })
+    ).toEqual({
+      name: HOSTED_CHECK_NAME,
+      passed: false,
+      notes: 'platform-lite did not start',
+    });
+  });
+
+  it('fails and names CLI-2754 when the run has no hosted project', () => {
+    const check = checkHostedProject(readHostedFacts({}));
+
+    expect(check.passed).toBe(false);
+    expect(notesOf(check)).toContain('CLI-2754');
   });
 });
 

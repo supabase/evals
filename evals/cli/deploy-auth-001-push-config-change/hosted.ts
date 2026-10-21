@@ -1,10 +1,32 @@
 import type { CheckResult, LocalStackEvalContext } from '@supabase-evals/core';
-import { NO_HOSTED_PROJECT } from '../lib/hosted.js';
 import { errorMessage, truncate } from '../lib/shell.js';
 import { REQUIRED_MIN_PASSWORD_LENGTH } from './config.js';
 
 export const HOSTED_CHECK_NAME = 'a hosted project is available to push to';
 export const PROJECT_POLICY_CHECK_NAME = `the project requires passwords of at least ${REQUIRED_MIN_PASSWORD_LENGTH} characters`;
+
+/** Whether the run has a hosted project, with the reason when it doesn't. */
+export type HostedFacts =
+  | { ok: true; ref: string }
+  | { ok: false; notes: string };
+
+export const NO_HOSTED_PROJECT =
+  'the run has no hosted project (CLI-2754 tracks adding one to CI)';
+
+export function readHostedFacts(
+  ctx: Pick<LocalStackEvalContext, 'hostedRef' | 'hostedMgmt'>
+): HostedFacts {
+  return ctx.hostedRef && ctx.hostedMgmt
+    ? { ok: true, ref: ctx.hostedRef }
+    : { ok: false, notes: NO_HOSTED_PROJECT };
+}
+
+export function checkHostedProject(hosted: HostedFacts): CheckResult {
+  const name = HOSTED_CHECK_NAME;
+  return hosted.ok
+    ? { name, passed: true }
+    : { name, passed: false, notes: hosted.notes };
+}
 
 export type ProjectPasswordPolicy =
   | { ok: true; minPasswordLength: number | null }
