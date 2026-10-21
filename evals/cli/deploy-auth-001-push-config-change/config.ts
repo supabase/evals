@@ -3,6 +3,7 @@ import { parse } from 'smol-toml';
 import { describeFailure, errorMessage } from '../lib/shell.js';
 
 export const CONFIG_PATH = 'supabase/config.toml';
+export const SEED_PROJECT_ID = 'orders-app';
 export const REQUIRED_MIN_PASSWORD_LENGTH = 10;
 export const REPO_POLICY_CHECK_NAME = `the repo's Supabase config requires passwords of at least ${REQUIRED_MIN_PASSWORD_LENGTH} characters`;
 

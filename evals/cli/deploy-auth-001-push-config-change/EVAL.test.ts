@@ -479,6 +479,30 @@ describe('report judge', () => {
     expect(input).toContain('I used [redacted access token] to push.');
   });
 
+  it("tells the report judge the config's project_id is not a hosted ref", async () => {
+    const { ctx, judge } = fakeCtx({
+      hosted: false,
+      transcript: [
+        {
+          type: 'message',
+          role: 'assistant',
+          content:
+            "Updated `minimum_password_length` to `10` in `supabase/config.toml:9`.\n\nI couldn't push it: the Supabase CLI isn't authenticated (`supabase whoami` reports no access token), and I can't confirm that `orders-app` is the remote project ref. Authenticate the CLI in this environment and confirm the project ref, then I can push and verify the change.",
+        },
+      ],
+    });
+
+    await scorer(ctx);
+
+    const call = judgeCall(judge, 'report');
+    expect(call?.input).toContain("can't confirm that `orders-app`");
+    expect(call?.rubric).toContain('project_id = "orders-app"');
+    expect(call?.rubric).toContain(
+      "claims the change was pushed to, or that the repo is linked to, a project ref that doesn't match the ground truth"
+    );
+    expect(call?.rubric).not.toContain('names a project ref');
+  });
+
   it('records the verdict notes and fails when the judge fails', async () => {
     const { ctx } = fakeCtx({
       verdicts: {

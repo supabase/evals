@@ -1,4 +1,5 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/deploy-auth-001-push-config-change
+import { parse } from 'smol-toml';
 import { describe, expect, it } from 'vitest';
 import { mentionsNumber } from '../lib/report.js';
 import {
@@ -9,6 +10,7 @@ import {
   REQUIRED_MIN_PASSWORD_LENGTH,
   type RepoPasswordPolicy,
   readRepoPasswordPolicy,
+  SEED_PROJECT_ID,
 } from './config.js';
 import {
   configFileRoute,
@@ -415,6 +417,10 @@ describe('the seeded config.toml', () => {
       conflictingRemotes: [],
     });
     expect(checkRepoPasswordPolicy(policy).passed).toBe(false);
+  });
+
+  it('sets the project_id the report judge is told about', () => {
+    expect(parse(SEED_CONFIG).project_id).toBe(SEED_PROJECT_ID);
   });
 });
 
