@@ -428,6 +428,37 @@ describe('checkListedAfterSet crediting a list saved to a file and read back', (
     });
   });
 
+  const checkedAfterSave = (list: number, file: string, read: number) =>
+    `\`supabase secrets list\` in tool call ${list} was saved to ${file} and checked against the expected names in tool call ${read}`;
+
+  it.each([
+    [
+      'a name count',
+      `/bin/bash -lc 'supabase secrets list > /tmp/secrets-list.txt'`,
+      '/tmp/secrets-list.txt',
+      `/bin/bash -lc "grep -cwE 'RESEND_API_KEY|STRIPE_SECRET_KEY|STRIPE_WEBHOOK_SECRET' /tmp/secrets-list.txt"`,
+      '3\n',
+    ],
+    [
+      'a diff against the production file',
+      `/bin/bash -lc "supabase secrets list -o json | jq -r '.[].name' | sort > /tmp/remote-names.txt"`,
+      '/tmp/remote-names.txt',
+      `/bin/bash -lc "grep -v '^#' supabase/functions/.env.production | cut -d= -f1 | sort | diff - /tmp/remote-names.txt && echo 'all 3 names match'"`,
+      'all 3 names match\n',
+    ],
+  ])(
+    'passes a saved list whose clean read-back is %s',
+    (_label, list, file, read, output) => {
+      expect(
+        check([shell(SET, SET_DONE), shell(list, ''), shell(read, output)])
+      ).toEqual({
+        name: CONFIRM_CHECK_NAME,
+        passed: true,
+        notes: checkedAfterSave(2, file, 3),
+      });
+    }
+  );
+
   it('passes a read-back that is not the call right after the list', () => {
     expect(
       check([
@@ -586,6 +617,52 @@ describe('checkListedAfterSet refusing a clean exit that checked nothing', () =>
     const { passed, notes } = check([shell(SET, SET_DONE), ...calls]);
     expect(passed).toBe(false);
     expect(notes).toContain('without checking against the expected names');
+  });
+
+  it.each([
+    [
+      'the name count call carries an error',
+      `grep -cwE 'RESEND_API_KEY|STRIPE_SECRET_KEY|STRIPE_WEBHOOK_SECRET' /tmp/secrets-list.txt`,
+      '3\n',
+      'exit status 1',
+    ],
+    [
+      'the call mentions the file but neither the names nor the production file',
+      'wc -l /tmp/secrets-list.txt',
+      '5 /tmp/secrets-list.txt\n',
+      undefined,
+    ],
+    [
+      'the name count is of a different file',
+      `grep -cwE 'RESEND_API_KEY|STRIPE_SECRET_KEY|STRIPE_WEBHOOK_SECRET' /tmp/other.txt`,
+      '3\n',
+      undefined,
+    ],
+  ])('fails a saved list when %s', (_label, read, output, error) => {
+    expect(
+      check([
+        shell(SET, SET_DONE),
+        shell(savedList('> /tmp/secrets-list.txt'), ''),
+        shell(read, output, error),
+      ])
+    ).toEqual({
+      name: CONFIRM_CHECK_NAME,
+      passed: false,
+      notes: `${UNCHECKED}, and didn't show ${allNames}`,
+    });
+  });
+
+  it('fails a saved list whose name count ran before the list', () => {
+    expect(
+      check([
+        shell(SET, SET_DONE),
+        shell(
+          `grep -cwE 'RESEND_API_KEY|STRIPE_SECRET_KEY|STRIPE_WEBHOOK_SECRET' /tmp/secrets-list.txt`,
+          '3\n'
+        ),
+        shell(savedList('> /tmp/secrets-list.txt'), ''),
+      ]).passed
+    ).toBe(false);
   });
 
   it('fails a saved list whose call errored and whose file holds an access-token error', () => {

@@ -81,12 +81,14 @@ function pipedSegments(command: string): Segment[] {
   });
 }
 
-/** The command's text outside any `secrets set` or `secrets unset` segment. */
-const textOutsideWrites = (segments: readonly Segment[]) =>
-  segments
+/** Whether the command text outside any `secrets set` or `secrets unset` segment names every secret or mentions the production file. */
+function checksExpectedNames(segments: readonly Segment[]): boolean {
+  const text = segments
     .filter(({ verb }) => verb !== 'set' && verb !== 'unset')
     .map(({ text }) => text)
     .join('\n');
+  return text.includes(PRODUCTION_FILE) || missingNames(text).length === 0;
+}
 
 function stdoutTargets(segment: string): string[] {
   let tokens: ParseEntry[];
@@ -184,26 +186,30 @@ export function checkListedAfterSet(
 
   for (const { commandIndex } of lists) {
     const targets = listRedirectTargets(segmentsOf(commandIndex));
-    const readBack = calls.findIndex(
-      (call, i) =>
-        i > commandIndex &&
-        targets.some((path) => mentionsPath(commands[i], path)) &&
-        missingNames(callText(call)).length === 0
-    );
-    if (readBack !== -1) {
-      return {
-        name,
-        passed: true,
-        notes: `\`supabase secrets list\` in tool call ${commandIndex + 1} saved its output to a file that tool call ${readBack + 1} read back showing every secret name`,
-      };
+    for (let i = commandIndex + 1; i < calls.length; i++) {
+      const file = targets.find((path) => mentionsPath(commands[i], path));
+      if (file === undefined) continue;
+      if (missingNames(callText(calls[i])).length === 0) {
+        return {
+          name,
+          passed: true,
+          notes: `\`supabase secrets list\` in tool call ${commandIndex + 1} saved its output to a file that tool call ${i + 1} read back showing every secret name`,
+        };
+      }
+      if (calls[i].error === undefined && checksExpectedNames(segmentsOf(i))) {
+        return {
+          name,
+          passed: true,
+          notes: `\`supabase secrets list\` in tool call ${commandIndex + 1} was saved to ${file} and checked against the expected names in tool call ${i + 1}`,
+        };
+      }
     }
   }
 
-  const checked = lists.find(({ commandIndex, errored }) => {
-    if (errored) return false;
-    const text = textOutsideWrites(segmentsOf(commandIndex));
-    return text.includes(PRODUCTION_FILE) || missingNames(text).length === 0;
-  });
+  const checked = lists.find(
+    ({ commandIndex, errored }) =>
+      !errored && checksExpectedNames(segmentsOf(commandIndex))
+  );
   if (checked) {
     return {
       name,
