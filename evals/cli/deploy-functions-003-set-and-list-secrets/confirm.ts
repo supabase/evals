@@ -6,13 +6,12 @@ import {
   invocationVerb,
   type SupabaseInvocation,
 } from '../lib/cli-invocations.js';
+import { stripTerminalEscapes } from './echo.js';
 import { NO_HOSTED_PROJECT } from './hosted.js';
 import { SECRET_NAMES } from './seed.js';
 
 export const CONFIRM_CHECK_NAME =
   "the agent listed the project's secrets after setting them";
-
-const ANSI_SGR = /\x1b\[[0-9;]*m/g;
 
 const SECRETS_VERBS = new Set(['set', 'unset', 'list']);
 
@@ -36,7 +35,7 @@ function resultText(result: unknown): string {
 
 /** A call's result and error together: a command that exits non-zero keeps its output in `error`. */
 function callText({ result, error }: ToolCallRecord): string {
-  return `${resultText(result)}\n${error ?? ''}`.replace(ANSI_SGR, '');
+  return stripTerminalEscapes(`${resultText(result)}\n${error ?? ''}`);
 }
 
 const missingNames = (text: string) =>
@@ -70,10 +69,14 @@ export function checkListedAfterSet(
   const lists = verbs
     .slice(lastWrite + 1)
     .filter(({ verb }) => verb === 'list')
-    .map(({ commandIndex }) => ({
-      commandIndex,
-      missing: missingNames(callText(calls[commandIndex])),
-    }));
+    .map(({ commandIndex }) => {
+      const call = calls[commandIndex];
+      return {
+        commandIndex,
+        errored: call.error !== undefined,
+        missing: missingNames(callText(call)),
+      };
+    });
   if (lists.length === 0) {
     return {
       name,
@@ -83,18 +86,34 @@ export function checkListedAfterSet(
     };
   }
 
+  const showedAll = lists.find(({ missing }) => missing.length === 0);
+  if (showedAll) {
+    return {
+      name,
+      passed: true,
+      notes: `\`supabase secrets list\` in tool call ${showedAll.commandIndex + 1} showed every secret name`,
+    };
+  }
+  const exitedCleanly = lists.find(({ errored }) => !errored);
+  if (exitedCleanly) {
+    return {
+      name,
+      passed: true,
+      notes: `\`supabase secrets list\` in tool call ${exitedCleanly.commandIndex + 1} exited cleanly`,
+    };
+  }
+
   const best = lists.reduce((a, b) =>
     b.missing.length < a.missing.length ? b : a
   );
-  return best.missing.length === 0
-    ? {
-        name,
-        passed: true,
-        notes: `\`supabase secrets list\` in tool call ${best.commandIndex + 1} showed every secret name`,
-      }
-    : {
-        name,
-        passed: false,
-        notes: `the \`supabase secrets list\` after the last set didn't show: ${best.missing.join(', ')}`,
-      };
+  const shown = SECRET_NAMES.filter((n) => !best.missing.includes(n));
+  const subject =
+    lists.length === 1
+      ? 'the `supabase secrets list` after the last set'
+      : `the ${lists.length} \`supabase secrets list\` runs after the last set`;
+  return {
+    name,
+    passed: false,
+    notes: `${subject} errored and ${shown.length > 0 ? `showed only ${shown.join(', ')} and ` : ''}didn't show ${best.missing.join(', ')}`,
+  };
 }

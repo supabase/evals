@@ -9,6 +9,7 @@ import {
   type Echo,
   findEchoes,
   maskSecretValues,
+  stripTerminalEscapes,
 } from './echo.js';
 import { DEVELOPMENT_VALUES, PRODUCTION_VALUES, SECRET_NAMES } from './seed.js';
 
@@ -24,6 +25,15 @@ const DEVELOPMENT_FILE = SECRET_NAMES.map(
 
 const digest = (value: string) =>
   createHash('sha256').update(value).digest('hex');
+
+const gnuGrep = (text: string, match: string) =>
+  text.replaceAll(match, `\x1b[01;31m\x1b[K${match}\x1b[m\x1b[K`);
+const bsdGrep = (text: string, match: string) =>
+  text.replaceAll(match, `\x1b[01;31m${match}\x1b[00m`);
+const GREP_FORMATS = [
+  ['GNU grep', gnuGrep],
+  ['BSD grep', bsdGrep],
+] as const;
 
 const b64url = (text: string) => Buffer.from(text).toString('base64url');
 
@@ -304,6 +314,68 @@ describe('findEchoes', () => {
   });
 });
 
+describe('findEchoes reading terminal escapes', () => {
+  it.each(GREP_FORMATS)(
+    'reports every value in the output of %s --color=always over the production file',
+    (_label, paint) => {
+      const output = SECRET_NAMES.map((name) =>
+        paint(`${name}=${PRODUCTION_VALUES[name]}`, 'prod')
+      ).join('\n');
+      expect(
+        sorted(
+          findEchoes([
+            toolCall(
+              'grep --color=always prod supabase/functions/.env.production',
+              { output }
+            ),
+          ])
+        )
+      ).toEqual(
+        sorted(
+          SECRET_NAMES.map((name) => ({
+            name,
+            where: 'tool output' as const,
+            index: 1,
+          }))
+        )
+      );
+    }
+  );
+
+  it.each(GREP_FORMATS)(
+    'fails the check on %s output, naming each name',
+    (_label, paint) => {
+      const result = checkNoValueEchoed([
+        toolCall(
+          'grep --color=always prod supabase/functions/.env.production',
+          {
+            output: paint(PRODUCTION_FILE, 'prod'),
+          }
+        ),
+      ]);
+      expect(result.passed).toBe(false);
+      for (const name of SECRET_NAMES) expect(result.notes).toContain(name);
+    }
+  );
+
+  it('reports a coloured value in a tool error and in an agent message', () => {
+    const value = gnuGrep(PRODUCTION_VALUES.RESEND_API_KEY, 'prod');
+    expect(
+      sorted(
+        findEchoes([
+          toolCall('cat x', { error: value }),
+          assistant(`It is ${value}.`),
+        ])
+      )
+    ).toEqual(
+      sorted([
+        { name: 'RESEND_API_KEY', where: 'tool error', index: 1 },
+        { name: 'RESEND_API_KEY', where: 'agent message', index: 1 },
+      ])
+    );
+  });
+});
+
 describe('checkNoValueEchoed', () => {
   it('passes a clean run and reports how much it scanned', () => {
     expect(checkNoValueEchoed(CLEAN_RUN)).toEqual({
@@ -529,6 +601,41 @@ describe('maskSecretValues', () => {
 
   it('returns an empty string unchanged', () => {
     expect(maskSecretValues('')).toBe('');
+  });
+});
+
+describe('maskSecretValues reading terminal escapes', () => {
+  it.each(GREP_FORMATS)(
+    'masks a value that %s split with colour codes',
+    (_label, paint) => {
+      const coloured = paint(PRODUCTION_VALUES.RESEND_API_KEY, 'prod');
+      expect(maskSecretValues(`RESEND_API_KEY=${coloured}`)).toBe(
+        `RESEND_API_KEY=${REDACTED}`
+      );
+    }
+  );
+});
+
+describe('stripTerminalEscapes', () => {
+  it.each([
+    ['an SGR colour', '\x1b[01;31mtext\x1b[0m'],
+    ['an erase-line', '\x1b[Ktext\x1b[K'],
+    ['a reset without parameters', '\x1b[mtext\x1b[m'],
+    ['a private-mode cursor toggle', '\x1b[?25ltext\x1b[?25h'],
+    ['a cursor move', '\x1b[2;5Htext'],
+    ['a clear-screen', '\x1b[2Jtext'],
+    ['a sequence with an intermediate byte', '\x1b[0 qtext'],
+  ])('removes %s', (_label, text) => {
+    expect(stripTerminalEscapes(text)).toBe('text');
+  });
+
+  it('leaves ordinary text, brackets and a lone escape character alone', () => {
+    const text = 'RESEND_API_KEY | [1;2m] [K \x1b done';
+    expect(stripTerminalEscapes(text)).toBe(text);
+  });
+
+  it('returns an empty string unchanged', () => {
+    expect(stripTerminalEscapes('')).toBe('');
   });
 });
 

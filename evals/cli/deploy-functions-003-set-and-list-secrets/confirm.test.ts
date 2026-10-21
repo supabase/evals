@@ -69,8 +69,12 @@ const check = (calls: ToolCallRecord[], hosted = true) =>
 const NO_SET = 'no `supabase secrets set` ran';
 const NO_LIST_AFTER_SET =
   'no `supabase secrets list` ran after the last `supabase secrets set`';
-const didNotShow = (names: string) =>
-  `the \`supabase secrets list\` after the last set didn't show: ${names}`;
+const NO_TOKEN =
+  'Access token not provided. Supply an access token by running `supabase login` or setting the SUPABASE_ACCESS_TOKEN environment variable.';
+const ERRORED = 'the `supabase secrets list` after the last set errored and';
+const didNotShow = (names: string) => `${ERRORED} didn't show ${names}`;
+const showedOnly = (shown: string, names: string) =>
+  `${ERRORED} showed only ${shown} and didn't show ${names}`;
 
 describe('CONFIRM_CHECK_NAME', () => {
   it('names the confirm half of the journey', () => {
@@ -240,8 +244,96 @@ describe('checkListedAfterSet reading a call that exited non-zero', () => {
       ])
     ).toMatchObject({
       passed: false,
-      notes: didNotShow('STRIPE_WEBHOOK_SECRET'),
+      notes:
+        "the 2 `supabase secrets list` runs after the last set errored and showed only RESEND_API_KEY, STRIPE_SECRET_KEY and didn't show STRIPE_WEBHOOK_SECRET",
     });
+  });
+});
+
+describe('checkListedAfterSet crediting a list by its exit', () => {
+  const SET = `/bin/bash -lc '${SET_FILE}'`;
+  const exitedCleanly = (call: number) =>
+    `\`supabase secrets list\` in tool call ${call} exited cleanly`;
+  const showedEveryName = (call: number) =>
+    `\`supabase secrets list\` in tool call ${call} showed every secret name`;
+
+  it.each([
+    [
+      'a list piped to a name count',
+      `/bin/bash -lc "supabase secrets list -o json | jq -r '.[].name' | grep -cxE 'RESEND_API_KEY|STRIPE_SECRET_KEY|STRIPE_WEBHOOK_SECRET'"`,
+      '3\n',
+    ],
+    [
+      'a comm diff that prints a summary',
+      `/bin/bash -lc "missing=\\$(comm -23 <(grep -v '^#' supabase/functions/.env.production | cut -d= -f1 | sort) <(supabase secrets list -o json | jq -r '.[].name' | sort)); [ -z \\"\\$missing\\" ] && echo 'all 3 present' || echo \\"missing: \\$missing\\""`,
+      'all 3 present\n',
+    ],
+  ])('passes %s that exited cleanly', (_label, command, output) => {
+    expect(check([shell(SET, SET_DONE), shell(command, output)])).toEqual({
+      name: CONFIRM_CHECK_NAME,
+      passed: true,
+      notes: exitedCleanly(2),
+    });
+  });
+
+  it('passes a list saved to a file and read back in the next call', () => {
+    expect(
+      check([
+        shell(SET, SET_DONE),
+        shell(
+          `/bin/bash -lc 'supabase secrets list > /tmp/secrets.txt 2>&1; echo exit=$?'`,
+          'exit=0\n'
+        ),
+        shell(`/bin/bash -lc 'cat /tmp/secrets.txt'`, listTable()),
+      ])
+    ).toEqual({
+      name: CONFIRM_CHECK_NAME,
+      passed: true,
+      notes: exitedCleanly(2),
+    });
+  });
+
+  it('says the list showed every name when it did, even though it also exited cleanly', () => {
+    expect(check(setThenList(LIST)).notes).toBe(showedEveryName(2));
+  });
+
+  it('passes a clean list that came after an errored one', () => {
+    expect(
+      check([
+        shell(SET_FILE, SET_DONE),
+        shell(LIST, undefined, NO_TOKEN),
+        shell(LIST, '3\n'),
+      ])
+    ).toMatchObject({ passed: true, notes: exitedCleanly(3) });
+  });
+
+  it('keeps crediting an errored list whose error holds the whole table', () => {
+    expect(
+      check([shell(SET_FILE, SET_DONE), shell(LIST, undefined, listTable())])
+    ).toMatchObject({ passed: true, notes: showedEveryName(2) });
+  });
+
+  it('fails a list whose call errored and named none of the secrets', () => {
+    expect(
+      check([shell(SET_FILE, SET_DONE), shell(LIST, undefined, NO_TOKEN)])
+    ).toEqual({
+      name: CONFIRM_CHECK_NAME,
+      passed: false,
+      notes: didNotShow(
+        'RESEND_API_KEY, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET'
+      ),
+    });
+  });
+
+  it('does not credit a clean list that ran before the last set', () => {
+    expect(
+      check([
+        shell(SET_FILE, SET_DONE),
+        shell(LIST, '3\n'),
+        shell(SET_FILE, SET_DONE),
+        shell(LIST, undefined, NO_TOKEN),
+      ])
+    ).toMatchObject({ passed: false });
   });
 });
 
@@ -265,15 +357,42 @@ describe('checkListedAfterSet reading ANSI-styled output', () => {
     }
   );
 
+  it('reads names that GNU grep --color=always wrapped in SGR and erase-line sequences', () => {
+    const gnu = SECRET_NAMES.map(
+      (name) => `\x1b[01;31m\x1b[K${name}\x1b[m\x1b[K | ${fakeDigest(name)}`
+    ).join('\n');
+    expect(
+      check([
+        shell(SET_FILE, SET_DONE),
+        shell(
+          `/bin/bash -lc "supabase secrets list | grep --color=always -E 'RESEND_API_KEY|STRIPE_SECRET_KEY|STRIPE_WEBHOOK_SECRET'"`,
+          undefined,
+          gnu
+        ),
+      ])
+    ).toMatchObject({
+      passed: true,
+      notes: '`supabase secrets list` in tool call 2 showed every secret name',
+    });
+  });
+
   it('still fails a name that is only a prefix of a longer styled name', () => {
     expect(
-      check(
-        setThenListWith(
+      check([
+        shell(SET_FILE, SET_DONE),
+        shell(
           LIST,
+          undefined,
           `\x1b[1mRESEND_API_KEY\x1b[0m\n\x1b[1mSTRIPE_SECRET_KEY_BACKUP\x1b[0m\n\x1b[1mSTRIPE_WEBHOOK_SECRET\x1b[0m`
-        )
-      )
-    ).toMatchObject({ passed: false, notes: didNotShow('STRIPE_SECRET_KEY') });
+        ),
+      ])
+    ).toMatchObject({
+      passed: false,
+      notes: showedOnly(
+        'RESEND_API_KEY, STRIPE_WEBHOOK_SECRET',
+        'STRIPE_SECRET_KEY'
+      ),
+    });
   });
 });
 
@@ -405,38 +524,49 @@ describe('checkListedAfterSet failing runs', () => {
     ).toMatchObject({ passed: false, notes: NO_LIST_AFTER_SET });
   });
 
-  it('fails a list that did not show one name, naming it', () => {
+  it('fails an errored list that did not show one name, naming it and the names it showed', () => {
     expect(
-      check(
-        setThenListWith(
+      check([
+        shell(SET_FILE, SET_DONE),
+        shell(
           LIST,
+          undefined,
           listTable(['RESEND_API_KEY', 'STRIPE_SECRET_KEY'])
-        )
-      )
+        ),
+      ])
     ).toEqual({
       name: CONFIRM_CHECK_NAME,
       passed: false,
-      notes: didNotShow('STRIPE_WEBHOOK_SECRET'),
+      notes: showedOnly(
+        'RESEND_API_KEY, STRIPE_SECRET_KEY',
+        'STRIPE_WEBHOOK_SECRET'
+      ),
     });
   });
 
-  it('names every name a list did not show', () => {
-    const { notes } = check(
-      setThenListWith(LIST, listTable(['RESEND_API_KEY']))
-    );
-    expect(notes).toContain(didNotShow(''));
-    expect(notes).toContain('STRIPE_SECRET_KEY');
-    expect(notes).toContain('STRIPE_WEBHOOK_SECRET');
-    expect(notes).not.toContain('RESEND_API_KEY');
-  });
-
-  it('judges the list that showed the most names when several came after the set', () => {
+  it('names every name an errored list showed and every name it did not', () => {
     const { notes } = check([
       shell(SET_FILE, SET_DONE),
-      shell(LIST, listTable(['RESEND_API_KEY', 'STRIPE_SECRET_KEY'])),
-      shell(LIST, listTable(['RESEND_API_KEY'])),
+      shell(LIST, undefined, listTable(['RESEND_API_KEY'])),
     ]);
-    expect(notes).toBe(didNotShow('STRIPE_WEBHOOK_SECRET'));
+    expect(notes).toBe(
+      showedOnly('RESEND_API_KEY', 'STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET')
+    );
+  });
+
+  it('judges the errored list that showed the most names when several came after the set', () => {
+    const { notes } = check([
+      shell(SET_FILE, SET_DONE),
+      shell(
+        LIST,
+        undefined,
+        listTable(['RESEND_API_KEY', 'STRIPE_SECRET_KEY'])
+      ),
+      shell(LIST, undefined, listTable(['RESEND_API_KEY'])),
+    ]);
+    expect(notes).toBe(
+      "the 2 `supabase secrets list` runs after the last set errored and showed only RESEND_API_KEY, STRIPE_SECRET_KEY and didn't show STRIPE_WEBHOOK_SECRET"
+    );
   });
 
   it('does not credit a list that showed all three names before the last set', () => {
@@ -445,27 +575,32 @@ describe('checkListedAfterSet failing runs', () => {
         shell(SET_FILE, SET_DONE),
         shell(LIST, listTable()),
         shell(SET_FILE, SET_DONE),
-        shell(LIST, listTable(['RESEND_API_KEY'])),
+        shell(LIST, undefined, listTable(['RESEND_API_KEY'])),
       ])
     ).toMatchObject({ passed: false });
   });
 
   it('counts a name only as a whole word in the list output', () => {
     expect(
-      check(
-        setThenListWith(
+      check([
+        shell(SET_FILE, SET_DONE),
+        shell(
           LIST,
+          undefined,
           listTable([
             'RESEND_API_KEY',
             'STRIPE_SECRET_KEY_BACKUP',
             'STRIPE_WEBHOOK_SECRET',
           ])
-        )
-      )
+        ),
+      ])
     ).toEqual({
       name: CONFIRM_CHECK_NAME,
       passed: false,
-      notes: didNotShow('STRIPE_SECRET_KEY'),
+      notes: showedOnly(
+        'RESEND_API_KEY, STRIPE_WEBHOOK_SECRET',
+        'STRIPE_SECRET_KEY'
+      ),
     });
   });
 
@@ -473,11 +608,18 @@ describe('checkListedAfterSet failing runs', () => {
     ['null', null],
     ['undefined', undefined],
     ['an empty string', ''],
-  ])('treats a list result of %s as showing no names', (_label, result) => {
-    const { passed, notes } = check(setThenListWith(LIST, result));
-    expect(passed).toBe(false);
-    for (const name of SECRET_NAMES) expect(notes).toContain(name);
-  });
+  ])(
+    'treats an errored list with a result of %s as showing no names',
+    (_label, result) => {
+      expect(
+        check([shell(SET_FILE, SET_DONE), shell(LIST, result, NO_TOKEN)])
+      ).toEqual({
+        name: CONFIRM_CHECK_NAME,
+        passed: false,
+        notes: didNotShow(SECRET_NAMES.join(', ')),
+      });
+    }
+  );
 
   it('fails with NO_HOSTED_PROJECT without a hosted project, even for a run that would pass', () => {
     expect(check(setThenList(LIST), false)).toEqual({

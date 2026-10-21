@@ -1,4 +1,5 @@
-import { readFileSync } from 'node:fs';
+import { parseEnv } from 'node:util';
+import { readEnvVariable } from '@supabase-evals/core';
 
 export const SECRET_NAMES = [
   'RESEND_API_KEY',
@@ -8,31 +9,14 @@ export const SECRET_NAMES = [
 
 export type SecretName = (typeof SECRET_NAMES)[number];
 
-/** KEY=VALUE lines; comments (#) and blank lines skipped; value trimmed. */
-export function parseEnvFile(text: string): Record<string, string> {
-  const entries: Record<string, string> = {};
-  for (const raw of text.split('\n')) {
-    const line = raw.trim();
-    if (line === '' || line.startsWith('#')) continue;
-    const at = line.indexOf('=');
-    if (at === -1) continue;
-    entries[line.slice(0, at).trim()] = line.slice(at + 1).trim();
-  }
-  return entries;
-}
+/** The variables of dotenv text, as Node parses them. */
+export const parseEnvFile = (text: string): Record<string, string> =>
+  parseEnv(text) as Record<string, string>;
 
 function readValues(file: string): Readonly<Record<SecretName, string>> {
-  const text = readFileSync(
-    new URL(`./local/supabase/functions/${file}`, import.meta.url),
-    'utf8'
-  );
-  const parsed = parseEnvFile(text);
-  const missing = SECRET_NAMES.filter((name) => parsed[name] === undefined);
-  if (missing.length > 0) {
-    throw new Error(`${file} is missing ${missing.join(', ')}`);
-  }
+  const path = new URL(`./local/supabase/functions/${file}`, import.meta.url);
   return Object.fromEntries(
-    SECRET_NAMES.map((name) => [name, parsed[name]])
+    SECRET_NAMES.map((name) => [name, readEnvVariable(path, name)])
   ) as Record<SecretName, string>;
 }
 
