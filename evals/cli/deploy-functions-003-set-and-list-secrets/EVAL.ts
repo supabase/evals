@@ -40,7 +40,7 @@ const scorer: LocalStackScorer = async (ctx) => {
     const checks: CheckResult[] = [
       checkHostedProject(ctx),
       checkProductionValues(secrets),
-      checkListedAfterSet(hosted, ctx.toolCalls),
+      checkListedAfterSet(hosted, ctx.toolCalls, invocations),
       checkNoValueEchoed(ctx.transcript),
       await checkNoContainerRuntimeDetours(ctx, commands),
       await checkMetrics(marker, {

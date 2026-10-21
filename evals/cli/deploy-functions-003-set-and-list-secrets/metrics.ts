@@ -5,12 +5,15 @@ import type {
   TranscriptPart,
 } from '@supabase-evals/core';
 import {
+  invocationPositionals,
+  invocationSubcommand,
+  invocationVerb,
   listCliOverrides,
   type SupabaseInvocation,
 } from '../lib/cli-invocations.js';
 import { findCliDetourCommands } from '../lib/detours.js';
 import { readCliVersions, safely } from '../lib/metrics.js';
-import { positionalWords, secretsVerb } from './confirm.js';
+import { secretsVerb } from './confirm.js';
 import { countCodexRedactions, findEchoes } from './echo.js';
 import { type SecretsProbe, secretStates } from './hosted.js';
 
@@ -49,8 +52,9 @@ export async function readCliFacts(
   };
 }
 
-function commandKey(argv: readonly string[]): string {
-  const [first = '', second = ''] = positionalWords(argv);
+function commandKey(inv: SupabaseInvocation): string {
+  const first = invocationVerb(inv) ?? '';
+  const second = invocationSubcommand(inv) ?? '';
   const key = COMMAND_GROUPS.has(first) ? `${first} ${second}` : first;
   return TRACKED_COMMANDS.has(key) ? key : 'other';
 }
@@ -60,8 +64,8 @@ export function countCliCommands(
   invocations: readonly SupabaseInvocation[]
 ): Record<string, number> {
   const counts: Record<string, number> = {};
-  for (const { argv } of invocations) {
-    const key = commandKey(argv);
+  for (const inv of invocations) {
+    const key = commandKey(inv);
     counts[key] = (counts[key] ?? 0) + 1;
   }
   return counts;
@@ -73,15 +77,17 @@ export function setForms(invocations: readonly SupabaseInvocation[]): {
   inlinePairs: number;
 } {
   const forms = { envFile: 0, inlinePairs: 0 };
-  for (const { argv } of invocations) {
-    if (secretsVerb(argv) !== 'set') continue;
+  for (const inv of invocations) {
+    if (secretsVerb(inv) !== 'set') continue;
     if (
-      argv.some((arg) => arg === '--env-file' || arg.startsWith('--env-file='))
+      inv.argv.some(
+        (arg) => arg === '--env-file' || arg.startsWith('--env-file=')
+      )
     ) {
       forms.envFile++;
     }
     if (
-      positionalWords(argv)
+      invocationPositionals(inv)
         .slice(2)
         .some((word) => word.includes('='))
     ) {

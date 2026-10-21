@@ -67,10 +67,15 @@ export function checkNoValueEchoed(
   const messages = transcript.filter(
     (part) => part.type === 'message' && part.role === 'assistant'
   ).length;
+  const markers = countCodexRedactions(transcript);
   return {
     name,
     passed: true,
-    notes: `no production value in ${calls} tool calls or ${messages} agent messages`,
+    notes: `no production value in ${calls} tool calls or ${messages} agent messages${
+      markers > 0
+        ? `; ${markers} Codex ${CODEX_MARKER} marker(s) the scan can't read`
+        : ''
+    }`,
   };
 }
 
@@ -86,7 +91,7 @@ export function maskSecretValues(text: string): string {
   return masked.replace(KEY_SHAPES, REDACTED);
 }
 
-/** Occurrences of Codex's `[REDACTED_SECRET]` marker across tool inputs, outputs and messages. */
+/** Occurrences of Codex's `[REDACTED_SECRET]` marker across tool inputs, outputs, errors and messages. */
 export function countCodexRedactions(
   transcript: readonly TranscriptPart[]
 ): number {
@@ -94,7 +99,7 @@ export function countCodexRedactions(
   for (const part of transcript) {
     const texts =
       part.type === 'tool_call'
-        ? [toText(part.input), toText(part.output)]
+        ? [toText(part.input), toText(part.output), part.error ?? '']
         : [part.content];
     for (const text of texts) total += text.split(CODEX_MARKER).length - 1;
   }

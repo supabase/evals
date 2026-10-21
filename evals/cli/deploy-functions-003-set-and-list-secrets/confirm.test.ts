@@ -2,6 +2,8 @@
 import { createHash } from 'node:crypto';
 import type { ToolCallRecord } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
+import { findSupabaseInvocations } from '../lib/cli-invocations.js';
+import { extractCommandEntries } from '../lib/detours.js';
 import { CONFIRM_CHECK_NAME, checkListedAfterSet } from './confirm.js';
 import { NO_HOSTED_PROJECT } from './hosted.js';
 import { SECRET_NAMES } from './seed.js';
@@ -31,12 +33,17 @@ const listJson = (names: readonly string[] = SECRET_NAMES) =>
     }))
   );
 
-function shell(command: string, result?: unknown): ToolCallRecord {
+function shell(
+  command: string,
+  result?: unknown,
+  error?: string
+): ToolCallRecord {
   return {
     tool: { kind: 'other', toolName: 'shell' },
     body: { command },
     command,
     result,
+    error,
     ts: 0,
   };
 }
@@ -193,6 +200,96 @@ describe('checkListedAfterSet passing runs', () => {
 
   it('passes a set that is followed by a list in a bash -lc wrapper', () => {
     expect(check(setThenList(`bash -lc '${LIST}'`)).passed).toBe(true);
+  });
+});
+
+describe('checkListedAfterSet reading a call that exited non-zero', () => {
+  const CHAINED_LIST = `${LIST} && ${LIST} -o json | jq -e 'length == 3'`;
+
+  it('reads the list table from the error of a call that exited non-zero', () => {
+    expect(
+      check([
+        shell(SET_FILE, SET_DONE),
+        shell(CHAINED_LIST, undefined, listTable()),
+      ])
+    ).toMatchObject({ passed: true });
+  });
+
+  it('reads names split between a call result and its error', () => {
+    expect(
+      check([
+        shell(SET_FILE, SET_DONE),
+        shell(
+          CHAINED_LIST,
+          listTable(['RESEND_API_KEY']),
+          listTable(['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'])
+        ),
+      ]).passed
+    ).toBe(true);
+  });
+
+  it('fails a list whose error shows only some names, naming the rest', () => {
+    expect(
+      check([
+        shell(SET_FILE, SET_DONE),
+        shell(
+          CHAINED_LIST,
+          undefined,
+          listTable(['RESEND_API_KEY', 'STRIPE_SECRET_KEY'])
+        ),
+      ])
+    ).toMatchObject({
+      passed: false,
+      notes: didNotShow('STRIPE_WEBHOOK_SECRET'),
+    });
+  });
+});
+
+describe('checkListedAfterSet reading ANSI-styled output', () => {
+  const styledTable = (open: string) =>
+    [
+      'NAME | DIGEST',
+      ...SECRET_NAMES.map(
+        (name) => `${open}${name}\x1b[0m | ${fakeDigest(name)}`
+      ),
+    ].join('\n');
+
+  it.each([
+    ['bold', '\x1b[1m'],
+    ['a colour with two parameters', '\x1b[1;32m'],
+    ['a 256-colour foreground', '\x1b[38;5;2m'],
+  ])(
+    'passes a list table whose names are wrapped in %s codes',
+    (_label, open) => {
+      expect(check(setThenListWith(LIST, styledTable(open))).passed).toBe(true);
+    }
+  );
+
+  it('still fails a name that is only a prefix of a longer styled name', () => {
+    expect(
+      check(
+        setThenListWith(
+          LIST,
+          `\x1b[1mRESEND_API_KEY\x1b[0m\n\x1b[1mSTRIPE_SECRET_KEY_BACKUP\x1b[0m\n\x1b[1mSTRIPE_WEBHOOK_SECRET\x1b[0m`
+        )
+      )
+    ).toMatchObject({ passed: false, notes: didNotShow('STRIPE_SECRET_KEY') });
+  });
+});
+
+describe('checkListedAfterSet with pre-parsed invocations', () => {
+  const calls = setThenList(LIST);
+  const parsed = findSupabaseInvocations(extractCommandEntries(calls));
+
+  it('credits the invocations it is given', () => {
+    expect(checkListedAfterSet(true, calls, parsed).passed).toBe(true);
+  });
+
+  it('reads the invocations it is given rather than parsing the calls again', () => {
+    expect(checkListedAfterSet(true, calls, [])).toMatchObject({
+      passed: false,
+      notes: NO_SET,
+    });
   });
 });
 
