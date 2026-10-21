@@ -774,6 +774,203 @@ describe('checkListedAfterSet refusing a clean exit that checked nothing', () =>
   });
 });
 
+describe('checkListedAfterSet counting the expected names only where they consume the list', () => {
+  const PROD = 'supabase/functions/.env.production';
+  const NAMES = `'RESEND_API_KEY|STRIPE_SECRET_KEY|STRIPE_WEBHOOK_SECRET'`;
+  const SAVED = '/tmp/secrets-list.txt';
+  const UNCHECKED =
+    'exited cleanly without checking against the expected names';
+  const checkedExpected = (call: number) =>
+    `\`supabase secrets list\` in tool call ${call} exited cleanly while checking against the expected names`;
+  const checkedAfterSave = (list: number, read: number) =>
+    `\`supabase secrets list\` in tool call ${list} was saved to ${SAVED} and checked against the expected names in tool call ${read}`;
+
+  const bashLc = (script: string) =>
+    script.includes("'")
+      ? `/bin/bash -lc "${script.replace(/(["\\$`])/g, '\\$1')}"`
+      : `/bin/bash -lc '${script}'`;
+  type Case = readonly [label: string, script: string, output: string];
+  const bothForms = (cases: readonly Case[]): Case[] =>
+    cases.flatMap(([label, script, output]): Case[] => [
+      [label, script, output],
+      [`${label} in a bash -lc wrapper`, bashLc(script), output],
+    ]);
+
+  const SET = bashLc(SET_FILE);
+
+  it.each(
+    bothForms([
+      [
+        'a discarded list followed by an unrelated mention of the production file',
+        `supabase secrets list >/dev/null 2>&1; ls ${PROD}`,
+        `${PROD}\n`,
+      ],
+      ['a list sent to /dev/null with nothing else', `${LIST} >/dev/null`, ''],
+      [
+        'a discarded list followed by a name count of the production file',
+        `${LIST} >/dev/null 2>&1 && grep -cxE ${NAMES} ${PROD}`,
+        '3\n',
+      ],
+      [
+        'a list preceded by a test of the production file',
+        `test -f ${PROD} && ${LIST} | head -n 3`,
+        listTable(['RESEND_API_KEY']),
+      ],
+      [
+        'a list preceded by a variable holding the production file',
+        `F=${PROD}; supabase secrets set --env-file "$F" && ${LIST} | head -n 3`,
+        `${SET_DONE}\n${listTable(['RESEND_API_KEY'])}`,
+      ],
+      [
+        'a truncated list followed by a name count of the production file',
+        `${LIST} | head -n 3; cut -d= -f1 ${PROD}`,
+        listTable(['RESEND_API_KEY']),
+      ],
+      [
+        'a list given the production file as a global flag',
+        `supabase --env-file ${PROD} secrets list | head -n 3`,
+        listTable(['RESEND_API_KEY']),
+      ],
+      [
+        'a list in a process substitution followed by an unrelated mention',
+        `cat <(${LIST} | head -n 3); cut -d= -f1 ${PROD}`,
+        listTable(['RESEND_API_KEY']),
+      ],
+      [
+        'a list whose stdout is discarded before a name count',
+        `${LIST} >/dev/null | grep -cxE ${NAMES}`,
+        '0\n',
+      ],
+      [
+        'a list whose stdout and stderr are discarded before a name count',
+        `${LIST} >/dev/null 2>&1 | grep -cxE ${NAMES}`,
+        '0\n',
+      ],
+      [
+        'a list sent to /dev/null with &> before a name count',
+        `${LIST} &>/dev/null | grep -cxE ${NAMES}`,
+        '0\n',
+      ],
+      [
+        'a list sent to /dev/null with 1> before a name count',
+        `${LIST} 1>/dev/null | grep -cxE ${NAMES}`,
+        '0\n',
+      ],
+      [
+        'a list with stderr merged into stdout then discarded before a name count',
+        `${LIST} 2>&1 >/dev/null | grep -cxE ${NAMES}`,
+        '0\n',
+      ],
+    ])
+  )('fails %s', (_label, command, output) => {
+    const { passed, notes } = check([
+      shell(SET, SET_DONE),
+      shell(command, output),
+    ]);
+    expect(passed).toBe(false);
+    expect(notes).toContain(UNCHECKED);
+  });
+
+  it.each(
+    bothForms([
+      [
+        'a list piped to a diff against a process substitution of the production file',
+        `supabase secrets list -o json | jq -r '.[].name' | sort | diff - <(grep -v '^#' ${PROD} | cut -d= -f1 | sort) && echo ok`,
+        'ok\n',
+      ],
+      [
+        'a jq -e check whose last stage discards its output',
+        `supabase secrets list -o json | jq -e 'map(.name) | contains(["RESEND_API_KEY","STRIPE_SECRET_KEY","STRIPE_WEBHOOK_SECRET"])' >/dev/null && echo ok`,
+        'ok\n',
+      ],
+      [
+        'a list with only stderr discarded before a name count',
+        `${LIST} 2>/dev/null | grep -cxE ${NAMES}`,
+        '3\n',
+      ],
+      [
+        'a list in a process substitution whose enclosing pipeline names the expected names',
+        `echo ${NAMES} | grep -cxEf - <(${LIST} -o json | jq -r '.[].name')`,
+        '3\n',
+      ],
+      [
+        'a diff of a process substitution against a sibling that holds the production file',
+        `diff <(${LIST} -o json | jq -r '.[].name' | sort) <(cut -d= -f1 ${PROD} | sort) && echo ok`,
+        'ok\n',
+      ],
+    ])
+  )('passes %s', (_label, command, output) => {
+    expect(check([shell(SET, SET_DONE), shell(command, output)])).toEqual({
+      name: CONFIRM_CHECK_NAME,
+      passed: true,
+      notes: checkedExpected(2),
+    });
+  });
+
+  const savedList = bashLc(`${LIST} > ${SAVED}`);
+
+  it.each(
+    bothForms([
+      [
+        'a read-back that tests the production file before counting lines',
+        `test -f ${PROD} && wc -l ${SAVED}`,
+        `5 ${SAVED}\n`,
+      ],
+      [
+        'a read-back followed by an unrelated mention of the production file',
+        `wc -l ${SAVED}; cut -d= -f1 ${PROD}`,
+        `5 ${SAVED}\n`,
+      ],
+      [
+        'a read-back preceded by an unrelated name count of the production file',
+        `grep -cxE ${NAMES} ${PROD} && wc -l ${SAVED}`,
+        `3\n5 ${SAVED}\n`,
+      ],
+      [
+        'a read-back in a process substitution followed by an unrelated mention',
+        `cat <(wc -l ${SAVED}); cut -d= -f1 ${PROD}`,
+        `5 ${SAVED}\n`,
+      ],
+    ])
+  )('fails a saved list with %s', (_label, read, output) => {
+    expect(
+      check([shell(SET, SET_DONE), shell(savedList, ''), shell(read, output)])
+    ).toEqual({
+      name: CONFIRM_CHECK_NAME,
+      passed: false,
+      notes: `the \`supabase secrets list\` after the last set ${UNCHECKED}, and didn't show ${SECRET_NAMES.join(', ')}`,
+    });
+  });
+
+  it.each(
+    bothForms([
+      [
+        'a read-back piped to a name count',
+        `cat ${SAVED} | grep -cxE ${NAMES}`,
+        '3\n',
+      ],
+      [
+        'a read-back fed the expected names in the same pipeline',
+        `echo ${NAMES} | grep -cxEf - ${SAVED}`,
+        '3\n',
+      ],
+      [
+        'a diff of a process substitution of the file against one of the production file',
+        `diff <(cut -d= -f1 ${PROD} | sort) <(sort ${SAVED}) && echo ok`,
+        'ok\n',
+      ],
+    ])
+  )('passes a saved list with %s', (_label, read, output) => {
+    expect(
+      check([shell(SET, SET_DONE), shell(savedList, ''), shell(read, output)])
+    ).toEqual({
+      name: CONFIRM_CHECK_NAME,
+      passed: true,
+      notes: checkedAfterSave(2, 3),
+    });
+  });
+});
+
 describe('checkListedAfterSet reading ANSI-styled output', () => {
   const styledTable = (open: string) =>
     [
