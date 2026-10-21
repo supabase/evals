@@ -4,8 +4,8 @@ Helpers used by more than one eval under `evals/cli/`. This directory has no
 `PROMPT.md`, so eval discovery skips it — never add one, or a `local/` dir.
 
 What belongs here: pure and probe helpers (`shell.ts`, `stack.ts`,
-`projects.ts`, `markers.ts`, `metrics.ts`), shared judge policy text and
-input formatters (`detours.ts`, `report.ts`).
+`projects.ts`, `markers.ts`, `metrics.ts`, `migrations.ts`), shared judge
+policy text and input formatters (`detours.ts`, `report.ts`).
 
 What stays in each eval's `EVAL.ts`: check composition, every `ctx.judge()`
 call, its scenario-specific rubric text, and `export default`. Scenario-only
@@ -40,7 +40,11 @@ status, since a call's error reflects its last command.
 `findSupabaseInvocations` also recognises `pnpm supabase`, `bun x supabase` and
 `yarn supabase`, drops the fd number of a redirect (`2>&1`), and sets
 `experimentalStack` when `SUPABASE_EXPERIMENTAL_STACK` is enabled in the
-invocation's prefix or an earlier `export` in the same command.
+invocation's prefix, an earlier `export` in the same command, or the
+`sandboxEnv` option. Scorers should pass
+`(await ctx.environmentMarker())?.env` as `sandboxEnv` so the experiment's env
+counts.
+`invocationPositionals` returns an invocation's positional arguments, verb first, so a scorer can read a subcommand such as the `list` in `projects list`.
 `commandToolCalls` returns the tool calls behind `extractCommands`' entries, so
 an invocation's `commandIndex` maps back to its result.
 
@@ -48,6 +52,18 @@ Invocation attribution (`cli-invocations.ts`) starts from a tool call's `cwd`
 only when the agent parser records one (Codex, OpenCode); a `cd` persisting
 across separate tool calls in a persistent shell (e.g. Claude Code) is not
 tracked.
+
+`migrations.ts` finds the migration file that creates a table (comments,
+string literals and dollar-quoted bodies masked, `create [unlogged] table`
+accepted) in a project directory, and checks its version is in the stack's
+`supabase_migrations.schema_migrations`.
+
+`redact.ts` replaces known secret values and secret-shaped text (URL passwords,
+keys, flags, JSON and YAML fields, and the cells of table columns under an
+upper-case `PASSWORD`, `SECRET`, `TOKEN` or `KEY` header) with `[redacted]`
+before it reaches a judge or report; `tableSecretValues` returns those cell
+values so a scorer can pass them back as known secrets, and `readProjectKeys`
+lists the hosted project's key values to pass as the known ones.
 
 Tests live beside each module; run them with:
 

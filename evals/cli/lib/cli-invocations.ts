@@ -6,7 +6,7 @@ import {
   skipEnvOptions,
 } from './detours.js';
 
-/** The CLI state-home variables an invocation set in its own prefix, resolved to absolute paths. */
+/** The CLI state-home variables an invocation ran with (its own prefix or `sandboxEnv`), resolved to absolute paths. */
 export type InvocationEnv = {
   SUPABASE_HOME?: string;
   HOME?: string;
@@ -22,7 +22,7 @@ export type SupabaseInvocation = {
   cwd?: string;
   /** A `SUPABASE_WORKDIR=<dir>` assignment prefixing the invocation. */
   workdir?: string;
-  /** `SUPABASE_HOME`/`HOME`/`TMPDIR` assignments prefixing the invocation; values that could not be resolved to a path are dropped. */
+  /** `SUPABASE_HOME`/`HOME`/`TMPDIR` assignments prefixing the invocation, or from `sandboxEnv`; values that could not be resolved to a path are dropped. */
   env?: InvocationEnv;
   /** The runner spec (e.g. `npx --yes supabase@2.120.0`, `npm i -g supabase@2.120.0`) when the invocation ran an explicitly versioned `supabase` through a package runner or a global install earlier in the run. */
   runner?: string;
@@ -30,7 +30,7 @@ export type SupabaseInvocation = {
   globalInstall?: 'active' | 'removed';
   /** The tool call's completion time (epoch ms), present only when the agent parser records it. */
   at?: number;
-  /** Set when `SUPABASE_EXPERIMENTAL_STACK` was enabled (anything but empty, `0` or `false`) in the invocation's own prefix or by an earlier `export` in the same command. */
+  /** Set when `SUPABASE_EXPERIMENTAL_STACK` was enabled (anything but empty, `0` or `false`) in the invocation's own prefix, by an earlier `export` in the same command, or in `sandboxEnv`. */
   experimentalStack?: true;
 };
 
@@ -45,6 +45,17 @@ export type CommandEntry = {
 const SHELL_EXPANSION_RE = /[$`]/;
 const ENV_ASSIGNMENT_RE = /^[A-Za-z_][A-Za-z0-9_]*=/;
 const PASSTHROUGH_WORDS = new Set(['exec', 'command', 'time', 'nohup']);
+const SETSID_LONG_FLAGS = new Set(['--fork', '--wait', '--ctty']);
+const SETSID_SHORT_FLAGS_RE = /^-[fwc]+$/;
+const STDBUF_VALUE_FLAGS = new Set([
+  '-i',
+  '-o',
+  '-e',
+  '--input',
+  '--output',
+  '--error',
+]);
+const STDBUF_ATTACHED_VALUE_RE = /^(?:-[ioe].+|--(?:input|output|error)=)/;
 const PACKAGE_RUNNERS = new Set(['npx', 'bunx']);
 const NPM_EXEC_VERBS = new Set(['exec', 'x']);
 const INSTALLERS = new Set(['npm', 'pnpm', 'bun']);
@@ -99,6 +110,10 @@ const VALUE_FLAGS = new Set([
   '--output-format',
   '--network-id',
   '--dns-resolver',
+  '--project-ref',
+  '--env-file',
+  '--log-level',
+  '--agent',
   '--runtime',
   '--exclude',
   '-x',
@@ -207,6 +222,27 @@ function skipRunnerOptions(
   return { next: i, packageAt };
 }
 
+function skipSetsidOptions(argv: readonly string[], start: number): number {
+  let i = start;
+  for (;;) {
+    const flag = argv[i] ?? '';
+    if (flag === '--') return i + 1;
+    if (SETSID_LONG_FLAGS.has(flag) || SETSID_SHORT_FLAGS_RE.test(flag)) i++;
+    else return i;
+  }
+}
+
+function skipStdbufOptions(argv: readonly string[], start: number): number {
+  let i = start;
+  for (;;) {
+    const flag = argv[i] ?? '';
+    if (flag === '--') return i + 1;
+    if (STDBUF_VALUE_FLAGS.has(flag)) i += 2;
+    else if (STDBUF_ATTACHED_VALUE_RE.test(flag)) i++;
+    else return i;
+  }
+}
+
 function stripPrefixes(
   argv: readonly string[],
   seedEnv: RawEnv = {}
@@ -258,6 +294,10 @@ function stripPrefixes(
       i++;
     } else if (word === 'timeout') {
       i += 2;
+    } else if (word === 'setsid') {
+      i = skipSetsidOptions(argv, i + 1);
+    } else if (word === 'stdbuf') {
+      i = skipStdbufOptions(argv, i + 1);
     } else if (runnerSkip > 0) {
       runnerStart = i;
       npmExec = word === 'npm';
@@ -380,6 +420,19 @@ function isEnvName(name: string): name is EnvName {
   return (TRACKED_VARIABLES as readonly string[]).includes(name);
 }
 
+function sandboxShellState(
+  sandboxEnv: Readonly<Record<string, string>>
+): Pick<ShellState, 'vars' | 'exported'> {
+  const vars: RawEnv = {};
+  const exported = new Set<EnvName>();
+  for (const [name, value] of Object.entries(sandboxEnv)) {
+    if (!isEnvName(name)) continue;
+    vars[name] = value;
+    exported.add(name);
+  }
+  return { vars, exported };
+}
+
 function exportedEnv(state: ShellState): RawEnv {
   const env: RawEnv = {};
   for (const name of state.exported) {
@@ -461,11 +514,15 @@ export function isStartInvocation(inv: SupabaseInvocation): boolean {
  * until a global uninstall or the next global install (both close the span),
  * whatever the entry's `failed` status; whether the install still in effect
  * took effect is reconciled by `listCliOverrides`.
- * `--help`/`-h` invocations are skipped.
+ * `--help`/`-h` invocations are skipped. `sandboxEnv` is the environment the
+ * sandbox ran with: its tracked variables start each command exported, and the
+ * command's own prefixes and `export`s override them.
  */
 export function findSupabaseInvocations(
-  commands: readonly (string | CommandEntry)[]
+  commands: readonly (string | CommandEntry)[],
+  options: { sandboxEnv?: Readonly<Record<string, string>> } = {}
 ): SupabaseInvocation[] {
+  const sandboxState = sandboxShellState(options.sandboxEnv ?? {});
   const invocations: SupabaseInvocation[] = [];
   let globalRunner: string | undefined;
   let globalInvocations: SupabaseInvocation[] = [];
@@ -477,8 +534,7 @@ export function findSupabaseInvocations(
     const command = typeof entry === 'string' ? entry : entry.command;
     let state: ShellState = {
       cwd: typeof entry === 'string' ? undefined : entry.cwd,
-      vars: {},
-      exported: new Set(),
+      ...sandboxState,
     };
     const at = typeof entry === 'string' ? undefined : entry.at;
     const enclosing: ShellState[] = [];
@@ -573,11 +629,24 @@ export function invocationFlag(
   return flagValue(inv.argv, flag);
 }
 
+/** The invocation's positional arguments, verb first, with flags and their values dropped. */
+export function invocationPositionals(inv: SupabaseInvocation): string[] {
+  return positionals(inv.argv);
+}
+
 /** The subcommand an invocation ran, e.g. `stop` or `stack destroy`. */
 export function invocationVerb(inv: SupabaseInvocation): string | undefined {
   const [first, second] = positionals(inv.argv);
   if (first === 'stack' && second !== undefined) return `stack ${second}`;
   return first;
+}
+
+/** The positional after the verb, e.g. `serve` for `functions serve`. */
+export function invocationSubcommand(
+  inv: SupabaseInvocation
+): string | undefined {
+  const [first, second, third] = positionals(inv.argv);
+  return first === 'stack' && second !== undefined ? third : second;
 }
 
 // Only `stop` takes `--project-id` as a local stack name; elsewhere it is a remote ref or unsupported.

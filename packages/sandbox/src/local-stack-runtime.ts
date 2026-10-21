@@ -13,7 +13,11 @@ import {
   type McpServerConfig,
 } from '@supabase-evals/core';
 import { isRecord } from '@supabase-evals/core/json';
-import { assertAgentResolves, DockerSandbox } from './docker-sandbox.js';
+import {
+  assertAgentResolves,
+  DockerSandbox,
+  PROXY_CA_ENV_NAMES,
+} from './docker-sandbox.js';
 import { createAgentEnvironment } from './agent-environment.js';
 import {
   computeExcludedServices,
@@ -80,6 +84,13 @@ export interface LocalStackRuntimeOptions {
    * cannot pre-start a stack or link a hosted project without Docker.
    */
   docker?: DockerState;
+  /**
+   * Environment variables set for every process in the local-stack sandbox,
+   * including the harness's setup and login shells. Meant for feature flags
+   * such as `SUPABASE_EXPERIMENTAL_STACK`, not secrets: the agent can read
+   * them. Names the harness manages itself (e.g. `PATH`) are rejected.
+   */
+  env?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -122,9 +133,23 @@ const UNREACHABLE_DOCKER_HOST = 'tcp://127.0.0.1:1';
  */
 const DEFAULT_MCP_FEATURES = ['docs'];
 
+const HARNESS_MANAGED_ENV_NAMES = new Set([
+  'PATH',
+  'HOME',
+  'DOCKER_HOST',
+  'NPM_CONFIG_PREFIX',
+  'SUPABASE_ACCESS_TOKEN',
+  'SUPABASE_PROFILE',
+  'SUPABASE_PROJECT_ID',
+  'SUPABASE_DB_PASSWORD',
+  'PGSSLMODE',
+  ...PROXY_CA_ENV_NAMES,
+]);
+
 export function localStackRuntime(
   options: LocalStackRuntimeOptions = {}
 ): LocalStackRuntime {
+  assertValidEnv(options.env);
   const spec =
     options.cliVersion !== undefined && !isExactCliVersion(options.cliVersion)
       ? options.cliVersion
@@ -159,6 +184,7 @@ export function localStackRuntime(
           localDir,
           skills,
           mounts,
+          env: options.env,
           localStack: {
             includeServices,
             projectRunning,
@@ -202,7 +228,13 @@ export function localStackRuntime(
         try {
           await writeLocalStackMarkerViaExec(
             (command) => session.scoringContext.exec(command),
-            buildLocalStackMarker(docker, version, sessionStartedMs, channel)
+            buildLocalStackMarker(
+              docker,
+              version,
+              sessionStartedMs,
+              channel,
+              options.env
+            )
           );
         } catch (err) {
           console.warn(
@@ -233,6 +265,7 @@ export function localStackRuntime(
         network: 'host',
         mounts,
         mountDockerSocket: false,
+        env: options.env,
       });
 
       try {
@@ -308,7 +341,13 @@ export function localStackRuntime(
         await sandbox.writeRootFile(
           LOCAL_STACK_MARKER_PATH,
           JSON.stringify(
-            buildLocalStackMarker(docker, version, sessionStartedMs, channel)
+            buildLocalStackMarker(
+              docker,
+              version,
+              sessionStartedMs,
+              channel,
+              options.env
+            )
           ),
           '0444'
         );
@@ -347,6 +386,25 @@ export function localStackRuntime(
   };
 }
 
+function assertValidEnv(env: LocalStackRuntimeOptions['env']): void {
+  for (const name of Object.keys(env ?? {})) {
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
+      throw new Error(
+        `localStackRuntime env name ${JSON.stringify(name)} is not a valid environment variable name; ` +
+          'use letters, digits and underscores, and do not start with a digit.'
+      );
+    }
+    if (HARNESS_MANAGED_ENV_NAMES.has(name)) {
+      throw new Error(
+        `localStackRuntime env cannot set ${name}: the harness manages it.` +
+          (name === 'DOCKER_HOST'
+            ? ' Control Docker availability with the `docker` option instead.'
+            : '')
+      );
+    }
+  }
+}
+
 // Log-line id (see run-eval.ts's PLAN line): default options read as
 // 'local-stack', otherwise the non-default bits are appended, e.g.
 // 'local-stack-beta-absent'.
@@ -358,17 +416,21 @@ function buildRuntimeId(options: LocalStackRuntimeOptions): string {
   return bits.length > 0 ? `local-stack-${bits.join('-')}` : 'local-stack';
 }
 
-function buildLocalStackMarker(
+export function buildLocalStackMarker(
   docker: DockerState,
   cliVersion: string,
   sessionStartedMs: number,
-  channel?: string
+  channel?: string,
+  env?: Readonly<Record<string, string>>
 ): LocalStackEnvironmentMarker {
   return {
     runtime: 'local-stack',
     channel,
     cliVersion,
     docker,
+    ...(env !== undefined && Object.keys(env).length > 0
+      ? { env: { ...env } }
+      : {}),
     sessionStartedMs,
   };
 }
@@ -829,7 +891,10 @@ function isLocalStackEnvironmentMarker(
       value.docker === 'no-daemon' ||
       value.docker === 'absent') &&
     typeof value.sessionStartedMs === 'number' &&
-    (value.channel === undefined || typeof value.channel === 'string')
+    (value.channel === undefined || typeof value.channel === 'string') &&
+    (value.env === undefined ||
+      (isRecord(value.env) &&
+        Object.values(value.env).every((entry) => typeof entry === 'string')))
   );
 }
 

@@ -15,6 +15,7 @@ import {
   modelUsageSchema,
   type AgentUsage,
   type JudgeCall,
+  type SandboxUsage,
 } from '@supabase-evals/core/eval-metadata';
 import {
   normalizeExperimentName,
@@ -82,7 +83,6 @@ interface PendingRow {
   transcript: TranscriptPart[];
   toolLabels: (string | undefined)[];
   metadata: Record<string, unknown>;
-  tags: string[];
   metrics: Record<string, number>;
   /** The run's `session-archive.tar.gz`, when the harness wrote one. */
   sessionArchivePath?: string;
@@ -227,6 +227,22 @@ export function judgeMetrics(
   return metrics;
 }
 
+/** Vercel Sandbox usage as run-level metrics. Unreported fields stay missing. */
+export function sandboxMetrics(
+  usage: SandboxUsage | undefined
+): Record<string, number> {
+  const metrics: Record<string, number> = {};
+  const set = (key: string, value: number | undefined) => {
+    if (value !== undefined) metrics[key] = value;
+  };
+  set('sandbox_active_cpu_ms', usage?.activeCpuDurationMs);
+  set('sandbox_duration_ms', usage?.duration);
+  set('sandbox_memory_mb', usage?.memory);
+  set('sandbox_egress_bytes', usage?.networkTransfer?.egress);
+  set('sandbox_ingress_bytes', usage?.networkTransfer?.ingress);
+  return metrics;
+}
+
 function toolLabels(toolCalls: unknown): (string | undefined)[] {
   if (!Array.isArray(toolCalls)) {
     return [];
@@ -265,6 +281,26 @@ function prUrl(): Record<string, string> {
   const prNumber = process.env.GITHUB_REF?.match(/^refs\/pull\/(\d+)\//)?.[1];
   return repo && prNumber
     ? { pr_url: `https://github.com/${repo}/pull/${prNumber}` }
+    : {};
+}
+
+export function relatedPrLines(urls: string[]) {
+  return urls.length
+    ? [
+        '**Related PRs:**',
+        '',
+        ...urls.map((url) => `- [#${url.split('/').pop()}](${url})`),
+        '',
+      ]
+    : ['**Related PRs:** (none)', ''];
+}
+
+export function ciRunUrl() {
+  const { GITHUB_SERVER_URL, GITHUB_REPOSITORY, GITHUB_RUN_ID } = process.env;
+  return GITHUB_SERVER_URL && GITHUB_REPOSITORY && GITHUB_RUN_ID
+    ? {
+        ci_run_url: `${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}`,
+      }
     : {};
 }
 
@@ -341,12 +377,10 @@ async function collectRows(
         cli_version: result.cliVersion ?? promptData?.cliVersion,
         skills: result.skills,
         docs: result.docs,
+        product: promptData?.product ?? result.product ?? [],
+        topic: promptData?.topic ?? result.topic ?? [],
         source_path: sourcePath,
       },
-      tags: [
-        ...(promptData?.product ?? result.product ?? []),
-        ...(promptData?.topic ?? result.topic ?? []),
-      ].map(String),
       // Braintrust sums tokens across a trace's spans, so only LLM spans carry
       // them. `aiSdkAgent` records no per-request usage, so its rows show none.
       // https://braintrust.dev/docs/reference/sql/query-structure#summary
@@ -358,6 +392,7 @@ async function collectRows(
         ...(typeof result.toolCallCount === 'number'
           ? { tool_call_count: result.toolCallCount }
           : {}),
+        ...sandboxMetrics(result.sandboxUsage),
       },
       promptTime: sec(result.agentPromptAt),
       agentEndTime: sec(result.agentRunEndedAt),
@@ -425,7 +460,7 @@ export interface SpanSink {
  * https://github.com/braintrustdata/braintrust-coding-agent-plugins/blob/c0346dcdb16ae9f136b3abf83efb6458191f9300/bt-daemon/src/translate/claude.rs#L1173-L1300
  * https://github.com/braintrustdata/braintrust-spec/blob/b068e39112e081e45b6070e035877f1e2e83f9b7/skills/instrumentation-spec/references/features/eval-spans.md#trace-shape
  *
- * An LLM span starts where the previous span ended, since the agent only
+ * An LLM span starts where the latest earlier span ended, since the agent only
  * writes a request's timestamps once its blocks finish generating. Braintrust's
  * Claude Code translator starts it at the first block instead, which leaves the
  * generation time as a gap. Their Codex translator does what we do.
@@ -499,6 +534,15 @@ export function logTranscript(
   });
   task.log({ input: row.prompt, output: row.agentReport });
   let latestTime = taskStart;
+  // A backgrounded command can end after later requests, so each request
+  // starts at the latest edge before it.
+  const edges = taskStart === undefined ? [] : [taskStart];
+  const mark = (time: number | undefined) => {
+    if (time !== undefined) {
+      edges.push(time);
+    }
+    latestTime = latest(latestTime, time);
+  };
   let toolIndex = 0;
   // Seeded with the prompt, which the transcript omits.
   const history: Record<string, unknown>[] = row.prompt
@@ -523,10 +567,8 @@ export function logTranscript(
       open.usage ??= part.usage;
       return open;
     }
-    const startTime =
-      latestTime === undefined || at === undefined
-        ? (latestTime ?? at)
-        : Math.min(latestTime, at);
+    const before = at === undefined ? [] : edges.filter((edge) => edge <= at);
+    const startTime = before.length ? Math.max(...before) : (at ?? latestTime);
     const request: Request = {
       id,
       span: task.startSpan({
@@ -566,7 +608,7 @@ export function logTranscript(
           ? `${message.content}\n${part.content}`
           : part.content;
       }
-      latestTime = latest(latestTime, at);
+      mark(at);
       continue;
     }
     if (part.requestId) {
@@ -587,7 +629,8 @@ export function logTranscript(
     }
     const label = row.toolLabels[toolIndex++];
     const endTime = sec(part.resultTs) ?? at;
-    latestTime = latest(latestTime, endTime);
+    mark(at);
+    mark(endTime);
     const span = task.startSpan({
       name: label ? `${part.name}: ${label}` : part.name,
       type: 'tool',
@@ -732,6 +775,7 @@ async function main() {
         // Duplicated from repo_info because grouping only reads metadata.
         ...(info?.branch ? { branch: info.branch } : {}),
         ...prUrl(),
+        ...ciRunUrl(),
       },
     });
 
@@ -758,7 +802,6 @@ async function main() {
             : {}),
         },
         ...(Object.keys(row.metrics).length ? { metrics: row.metrics } : {}),
-        ...(row.tags.length ? { tags: row.tags } : {}),
       });
       logTranscript(root, row);
       root.end(row.endTime ? { endTime: row.endTime } : undefined);
@@ -783,10 +826,14 @@ async function main() {
   console.log(`🔗 All experiments in this run → ${runUrl}`);
   // https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#adding-a-job-summary
   if (process.env.GITHUB_STEP_SUMMARY) {
+    // Manual runs get PR_URLS from eval-refresh.yml's branch lookup.
+    const { pr_url } = prUrl();
+    const prUrls = pr_url
+      ? [pr_url]
+      : (process.env.PR_URLS?.split(' ').filter(Boolean) ?? []);
     const lines = [
-      '## Braintrust',
-      '',
-      `[All experiments in this run](${runUrl})`,
+      ...relatedPrLines(prUrls),
+      `**Braintrust experiments:** [(view all)](${runUrl})`,
       '',
       ...uploaded.map(({ name, url }) => `- [${name}](${url})`),
       '',

@@ -56,7 +56,7 @@ const SANDBOX_GID = 1000;
  * firewall proxy. Containers don't inherit them.
  * @see https://vercel.com/docs/sandbox/concepts#proxy-ca-certificates
  */
-const PROXY_CA_ENV_NAMES = [
+export const PROXY_CA_ENV_NAMES = [
   'AWS_CA_BUNDLE',
   'CARGO_HTTP_CAINFO',
   'CURL_CA_BUNDLE',
@@ -82,6 +82,14 @@ export function proxyCaArgs(env: NodeJS.ProcessEnv = process.env): string[] {
   }
   for (const bundle of bundles) args.push('--volume', `${bundle}:${bundle}:ro`);
   return args;
+}
+
+/** `docker run` args that set container-level env vars. */
+export function envArgs(env: Readonly<Record<string, string>> = {}): string[] {
+  return Object.entries(env).flatMap(([name, value]) => [
+    '--env',
+    `${name}=${value}`,
+  ]);
 }
 
 /**
@@ -137,6 +145,8 @@ export interface DockerSandboxOptions {
    * blocked from inside it.
    */
   mountDockerSocket?: boolean;
+  /** Container-level env inherited by every command in the sandbox. */
+  env?: Readonly<Record<string, string>>;
 }
 
 export interface RunCommandOptions {
@@ -151,6 +161,7 @@ export class DockerSandbox {
   private image: string;
   private mounts: readonly SandboxMount[];
   private mountDockerSocket: boolean;
+  private env: Readonly<Record<string, string>>;
   readonly workdir: string;
   /**
    * Env vars injected into every `runShell` (non-root) command — both the
@@ -165,6 +176,7 @@ export class DockerSandbox {
     this.image = options.image ?? DEFAULT_IMAGE;
     this.mounts = options.mounts ?? [];
     this.mountDockerSocket = options.mountDockerSocket !== false;
+    this.env = options.env ?? {};
     this.workdir = `${WORKSPACE_BASE}-${randomUUID().slice(0, 8)}`;
   }
 
@@ -206,6 +218,8 @@ export class DockerSandbox {
             mount.readonly === false ? '' : ':ro'
           }`,
         ]),
+        // Before proxyCaArgs so the harness's own values win a name clash.
+        ...envArgs(this.env),
         ...proxyCaArgs(),
         '--workdir',
         this.workdir,

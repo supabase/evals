@@ -7,8 +7,6 @@ import { describe, expect, it } from 'vitest';
 import {
   checkMigrationApplied,
   findNotesMigration,
-  maskSqlLiteralsAndComments,
-  stripSqlComments,
   type NotesMigrationProbe,
 } from './migrations.js';
 import type { StackProbe } from '../lib/stack.js';
@@ -69,58 +67,6 @@ const RESOLVED_STACK: StackProbe = {
   dbUrl: 'postgresql://postgres:postgres@localhost:5432/postgres',
   runtime: 'native',
 };
-
-describe('stripSqlComments', () => {
-  it('strips a line comment to end of line', () => {
-    expect(stripSqlComments('select 1; -- a comment\nselect 2;')).toBe(
-      'select 1; \nselect 2;'
-    );
-  });
-
-  it('strips a block comment', () => {
-    expect(stripSqlComments('select /* skip me */ 1;')).toBe('select   1;');
-  });
-
-  it('replaces a block comment with whitespace so adjacent tokens stay apart', () => {
-    expect(stripSqlComments('create/**/table notes (id int);')).toBe(
-      'create table notes (id int);'
-    );
-  });
-
-  it('strips a nested block comment', () => {
-    expect(
-      stripSqlComments('select /* outer /* inner */ still outer */ 1;')
-    ).toBe('select   1;');
-  });
-
-  it('does not treat -- inside a single-quoted string as a comment', () => {
-    expect(stripSqlComments(`select '--not a comment';`)).toBe(
-      `select '--not a comment';`
-    );
-  });
-
-  it('does not treat /* inside a single-quoted string as a comment', () => {
-    expect(stripSqlComments(`select '/* not a comment */';`)).toBe(
-      `select '/* not a comment */';`
-    );
-  });
-
-  it('does not swallow real SQL following -- inside a dollar-quoted body', () => {
-    const sql = `create function f() returns void as $$\n-- comment inside body\nselect 1;\n$$ language sql;\ncreate table public.notes (id uuid);`;
-    expect(stripSqlComments(sql)).toContain('create table public.notes');
-  });
-
-  it('does not swallow real SQL following -- inside a tagged dollar-quoted body', () => {
-    const sql = `create function f() returns void as $tag$\n-- looks like a comment\n$tag$ language sql;\ncreate table public.notes (id uuid);`;
-    expect(stripSqlComments(sql)).toContain('create table public.notes');
-  });
-
-  it('preserves a doubled single quote inside a string literal', () => {
-    expect(stripSqlComments(`select 'it''s -- fine';`)).toBe(
-      `select 'it''s -- fine';`
-    );
-  });
-});
 
 describe('findNotesMigration', () => {
   it('fails when supabase/migrations does not exist', async () => {
@@ -268,20 +214,6 @@ describe('findNotesMigration', () => {
       fileContents: { '20240101000000_create_notes.sql': sql },
     });
     expect((await findNotesMigration(ctx)).ok).toBe(true);
-  });
-});
-
-describe('maskSqlLiteralsAndComments', () => {
-  it('empties single-quoted literals, including doubled-quote escapes', () => {
-    expect(maskSqlLiteralsAndComments(`select 'it''s', 'x'; -- c`)).toBe(
-      `select '', ''; `
-    );
-  });
-
-  it('empties dollar-quoted bodies but keeps double-quoted identifiers', () => {
-    expect(
-      maskSqlLiteralsAndComments('select $t$body$t$ from "public"."notes";')
-    ).toBe('select $t$$t$ from "public"."notes";');
   });
 });
 

@@ -4,6 +4,8 @@ import {
   findSupabaseInvocations,
   invocationDirectory,
   invocationFlag,
+  invocationPositionals,
+  invocationSubcommand,
   invocationTargetUnresolved,
   invocationTargets,
   invocationTargetsDir,
@@ -88,6 +90,53 @@ describe('findSupabaseInvocations', () => {
       ['supabase', 'status'],
       ['supabase', 'stop'],
     ]);
+  });
+
+  it.each([
+    'setsid supabase functions serve --env-file .env',
+    'setsid -f supabase functions serve --env-file .env',
+    'setsid --fork --wait supabase functions serve --env-file .env',
+    'setsid -w -c supabase functions serve --env-file .env',
+    'setsid --ctty supabase functions serve --env-file .env',
+    'setsid nohup supabase functions serve --env-file .env > log 2>&1 &',
+    'nohup setsid supabase functions serve --env-file .env &',
+    'stdbuf -oL supabase functions serve --env-file .env',
+    'stdbuf -o L supabase functions serve --env-file .env',
+    'stdbuf -i0 -oL -eL supabase functions serve --env-file .env',
+    'stdbuf -i 0 -o L -e L supabase functions serve --env-file .env',
+    'stdbuf --output=L --error=0 supabase functions serve --env-file .env',
+    'stdbuf --input=0 supabase functions serve --env-file .env',
+    'nohup stdbuf -oL supabase functions serve --env-file .env &',
+    'setsid stdbuf -oL timeout 30 supabase functions serve --env-file .env',
+    'setsid -fw supabase functions serve --env-file .env',
+    'setsid -- supabase functions serve --env-file .env',
+    'stdbuf --output L supabase functions serve --env-file .env',
+    'stdbuf -oL -- supabase functions serve --env-file .env',
+  ])('finds the serve behind the wrappers of %s', (command) => {
+    expect(findSupabaseInvocations([command]).map(({ argv }) => argv)).toEqual([
+      ['supabase', 'functions', 'serve', '--env-file', '.env'],
+    ]);
+  });
+
+  it('finds the invocation behind setsid and stdbuf option terminators', () => {
+    expect(
+      findSupabaseInvocations([
+        'setsid -f -- stdbuf -o L -- supabase start',
+      ]).map(({ argv }) => argv)
+    ).toEqual([['supabase', 'start']]);
+  });
+
+  it('keeps the env prefixes and working directory of a wrapped invocation', () => {
+    const [found] = findSupabaseInvocations([
+      {
+        command:
+          'SUPABASE_HOME=/tmp/sb setsid -f stdbuf -oL supabase functions serve',
+        cwd: '/home/agent/app',
+      },
+    ]);
+
+    expect(found?.env).toEqual({ SUPABASE_HOME: '/tmp/sb' });
+    expect(found?.cwd).toBe('/home/agent/app');
   });
 
   it('strips pnpm exec, yarn and yarn dlx', () => {
@@ -481,10 +530,92 @@ describe('invocationVerb', () => {
     [['supabase', 'stack', 'restart', '--stack', 'x'], 'stack restart'],
     [['supabase', 'stack', '--stack', 'x', 'destroy'], 'stack destroy'],
     [['supabase', '--debug', 'start'], 'start'],
+    [['supabase', '--agent', 'no', 'start'], 'start'],
+    [
+      ['supabase', '--project-ref', 'abcdefghijklmnopqrst', 'secrets', 'list'],
+      'secrets',
+    ],
     [['supabase', 'stack'], 'stack'],
     [['supabase'], undefined],
   ])('%j -> %s', (argv, verb) => {
     expect(invocationVerb(inv(argv))).toBe(verb);
+  });
+});
+
+describe('invocationPositionals', () => {
+  it.each([
+    [
+      ['supabase', 'projects', 'list'],
+      ['projects', 'list'],
+    ],
+    [
+      ['supabase', '--debug', 'projects', 'ls', '-o', 'json'],
+      ['projects', 'ls'],
+    ],
+    [
+      ['supabase', 'projects', '--output', 'json', 'list'],
+      ['projects', 'list'],
+    ],
+    [
+      ['supabase', 'projects', '-o=json', 'list'],
+      ['projects', 'list'],
+    ],
+    [
+      ['supabase', '--workdir', 'a', 'link', 'abc'],
+      ['link', 'abc'],
+    ],
+    [
+      [
+        'supabase',
+        'functions',
+        'serve',
+        '--env-file',
+        'supabase/functions/.env.local',
+      ],
+      ['functions', 'serve'],
+    ],
+    [['supabase'], []],
+  ])('%j -> %j', (argv, expected) => {
+    expect(invocationPositionals(inv(argv))).toEqual(expected);
+  });
+});
+
+describe('invocationSubcommand', () => {
+  it.each([
+    [['supabase', 'functions', 'serve'], 'serve'],
+    [['supabase', '--workdir', 'app', 'functions', 'serve'], 'serve'],
+    [['supabase', '--debug', 'functions', 'serve'], 'serve'],
+    [['supabase', 'functions', '--debug', 'serve'], 'serve'],
+    [['supabase', 'functions', '--workdir', 'app', 'serve'], 'serve'],
+    [['supabase', 'functions', '--workdir=app', 'serve'], 'serve'],
+    [['supabase', 'functions', 'serve', '--env-file', '.env'], 'serve'],
+    [
+      ['supabase', '--project-ref', 'abcdefghijklmnopqrst', 'secrets', 'list'],
+      'list',
+    ],
+    [['supabase', 'functions', 'serve', 'nightly-digest'], 'serve'],
+    [['supabase', 'functions', 'deploy', 'nightly-digest'], 'deploy'],
+    [['supabase', 'functions'], undefined],
+    [['supabase', 'functions', '--debug'], undefined],
+    [['supabase', 'start'], undefined],
+    [['supabase', 'stack', 'destroy', '--stack', 'x'], undefined],
+    [['supabase', 'stack', 'start', 'extra'], 'extra'],
+    [['supabase'], undefined],
+  ])('%j -> %s', (argv, subcommand) => {
+    expect(invocationSubcommand(inv(argv))).toBe(subcommand);
+  });
+
+  it.each([
+    'npx --yes supabase@2.120.0 functions serve --no-verify-jwt',
+    'bunx supabase functions serve',
+    'timeout 30 supabase --workdir app functions serve',
+    'SUPABASE_HOME=/tmp/sb supabase functions serve',
+  ])('reads the subcommand of the normalised invocation of %s', (command) => {
+    const [found] = findSupabaseInvocations([command]);
+
+    expect(found).toBeDefined();
+    expect(invocationVerb(found)).toBe('functions');
+    expect(invocationSubcommand(found)).toBe('serve');
   });
 });
 
@@ -1482,6 +1613,101 @@ describe('experimentalStack', () => {
   });
 });
 
+describe('sandboxEnv', () => {
+  const STACK = { SUPABASE_EXPERIMENTAL_STACK: '1' };
+  const first = (
+    command: string,
+    sandboxEnv: Record<string, string>,
+    cwd?: string
+  ) => findSupabaseInvocations([{ command, cwd }], { sandboxEnv })[0];
+
+  it('sets experimentalStack on a plain invocation', () => {
+    expect(first('supabase start', STACK).experimentalStack).toBe(true);
+  });
+
+  it('applies to every command', () => {
+    expect(
+      findSupabaseInvocations(['supabase start', 'supabase stack list'], {
+        sandboxEnv: STACK,
+      }).map(({ experimentalStack }) => experimentalStack)
+    ).toEqual([true, true]);
+  });
+
+  it('leaves experimentalStack unset when the flag is falsy', () => {
+    expect(
+      first('supabase start', { SUPABASE_EXPERIMENTAL_STACK: '0' })
+        .experimentalStack
+    ).toBeUndefined();
+  });
+
+  it.each([
+    'SUPABASE_EXPERIMENTAL_STACK=0 supabase start',
+    'env SUPABASE_EXPERIMENTAL_STACK=0 supabase start',
+    'export SUPABASE_EXPERIMENTAL_STACK=0 && supabase start',
+    'env -u SUPABASE_EXPERIMENTAL_STACK supabase start',
+    'env -i supabase start',
+  ])('is overridden by %s', (command) => {
+    expect(first(command, STACK).experimentalStack).toBeUndefined();
+  });
+
+  it('does not carry an override into the next command', () => {
+    expect(
+      findSupabaseInvocations(
+        [
+          'export SUPABASE_EXPERIMENTAL_STACK=0 && supabase start',
+          'supabase start',
+        ],
+        { sandboxEnv: STACK }
+      ).map(({ experimentalStack }) => experimentalStack)
+    ).toEqual([undefined, true]);
+  });
+
+  it('restores the sandbox value when a subshell closes', () => {
+    expect(
+      findSupabaseInvocations(
+        [
+          '(export SUPABASE_EXPERIMENTAL_STACK=0; supabase start); supabase start',
+        ],
+        { sandboxEnv: STACK }
+      ).map(({ experimentalStack }) => experimentalStack)
+    ).toEqual([undefined, true]);
+  });
+
+  it('ignores names it does not track', () => {
+    expect(
+      first('supabase start', {
+        SUPABASE_ACCESS_TOKEN: 'token',
+        SUPABASE_PROFILE: 'staging',
+        EVAL_FLAG: '1',
+      })
+    ).toEqual({ commandIndex: 0, argv: ['supabase', 'start'] });
+  });
+
+  it('records SUPABASE_HOME resolved like an inline assignment', () => {
+    expect(
+      first('supabase start', { SUPABASE_HOME: '/sandbox/.home' }).env
+    ).toEqual({ SUPABASE_HOME: '/sandbox/.home' });
+    const fromSandbox = first(
+      'supabase start',
+      { SUPABASE_HOME: '.home' },
+      '/w'
+    );
+    const inline = findSupabaseInvocations([
+      { command: 'SUPABASE_HOME=.home supabase start', cwd: '/w' },
+    ])[0];
+    expect(fromSandbox.env).toEqual({ SUPABASE_HOME: '/w/.home' });
+    expect(fromSandbox.env).toEqual(inline.env);
+  });
+
+  it('lets an inline SUPABASE_HOME win', () => {
+    expect(
+      first('SUPABASE_HOME=/inline supabase start', {
+        SUPABASE_HOME: '/sandbox/.home',
+      }).env
+    ).toEqual({ SUPABASE_HOME: '/inline' });
+  });
+});
+
 describe('invocationFlag', () => {
   const flag = (command: string, name = '--runtime') =>
     invocationFlag(findSupabaseInvocations([command])[0], name);
@@ -1490,6 +1716,15 @@ describe('invocationFlag', () => {
     expect(flag('supabase stack start --runtime native')).toBe('native');
     expect(flag('supabase stack start --runtime=native')).toBe('native');
     expect(flag('supabase stack start --runtime "docker"')).toBe('docker');
+  });
+
+  it('reads a value for a flag that is not a known value flag', () => {
+    expect(flag('supabase login --token abc', '--token')).toBe('abc');
+    expect(flag('supabase login --token=abc', '--token')).toBe('abc');
+  });
+
+  it('is undefined for a trailing bare flag', () => {
+    expect(flag('supabase login --token', '--token')).toBeUndefined();
   });
 
   it('is undefined when the flag is absent', () => {

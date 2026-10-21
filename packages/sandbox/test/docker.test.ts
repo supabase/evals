@@ -172,6 +172,33 @@ describe.runIf(process.env.SANDBOX_DOCKER_TESTS)(
     );
 
     it(
+      'container env reaches root, node, and login-shell commands',
+      { timeout: TEST_TIMEOUT_MS },
+      async () => {
+        const image = await ensureSupabaseSandboxImage();
+        const sandbox = await DockerSandbox.create({
+          image,
+          env: { EVAL_FLAG: 'on' },
+        });
+        try {
+          const probe = 'printf %s "$EVAL_FLAG"';
+          const results = [
+            await sandbox.runShell(probe),
+            await sandbox.runShell(`bash -lc '${probe}'`),
+            await sandbox.runShellAsRoot(probe),
+          ];
+          expect(results.map((result) => result.stdout)).toEqual([
+            'on',
+            'on',
+            'on',
+          ]);
+        } finally {
+          await sandbox.stop();
+        }
+      }
+    );
+
+    it(
       'installs a local skill into the workspace with the skills CLI',
       { timeout: TEST_TIMEOUT_MS },
       async () => {

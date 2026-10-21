@@ -1,9 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  ciRunUrl,
   experimentName,
   judgeMetrics,
   logTranscript,
+  relatedPrLines,
   runViewUrl,
+  sandboxMetrics,
   unwrapShell,
   type SpanSink,
   tokenMetrics,
@@ -58,6 +61,29 @@ describe('tokenMetrics', () => {
   });
 });
 
+describe('sandboxMetrics', () => {
+  it('maps reported usage and omits what is missing', () => {
+    expect(
+      sandboxMetrics({
+        activeCpuDurationMs: 271497,
+        duration: 278288,
+        memory: 8192,
+        networkTransfer: { ingress: 2057723077, egress: 13804285 },
+      })
+    ).toEqual({
+      sandbox_active_cpu_ms: 271497,
+      sandbox_duration_ms: 278288,
+      sandbox_memory_mb: 8192,
+      sandbox_egress_bytes: 13804285,
+      sandbox_ingress_bytes: 2057723077,
+    });
+    expect(sandboxMetrics({ memory: 8192 })).toEqual({
+      sandbox_memory_mb: 8192,
+    });
+    expect(sandboxMetrics(undefined)).toEqual({});
+  });
+});
+
 describe('experimentName', () => {
   it('appends the short sha and stamp', () => {
     expect(experimentName('grok-4.6', 'aefa8348abc', '20260923T1339Z')).toBe(
@@ -77,6 +103,39 @@ describe('utcStamp', () => {
     expect(utcStamp(new Date('2026-09-23T13:39:07.123Z'))).toBe(
       '20260923T1339Z'
     );
+  });
+});
+
+describe('relatedPrLines', () => {
+  it('lists related PRs or none', () => {
+    expect(
+      relatedPrLines([
+        'https://github.com/supabase/evals/pull/386',
+        'https://github.com/supabase/evals/pull/384',
+      ])
+    ).toEqual([
+      '**Related PRs:**',
+      '',
+      '- [#386](https://github.com/supabase/evals/pull/386)',
+      '- [#384](https://github.com/supabase/evals/pull/384)',
+      '',
+    ]);
+    expect(relatedPrLines([])).toEqual(['**Related PRs:** (none)', '']);
+  });
+});
+
+describe('ciRunUrl', () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('links the CI run when a run ID is present', () => {
+    vi.stubEnv('GITHUB_SERVER_URL', 'https://github.com');
+    vi.stubEnv('GITHUB_REPOSITORY', 'supabase/evals');
+    vi.stubEnv('GITHUB_RUN_ID', '123');
+    expect(ciRunUrl()).toEqual({
+      ci_run_url: 'https://github.com/supabase/evals/actions/runs/123',
+    });
+    vi.stubEnv('GITHUB_RUN_ID', '');
+    expect(ciRunUrl()).toEqual({});
   });
 });
 
@@ -276,6 +335,54 @@ describe('logTranscript', () => {
       start: at,
       end: 108,
     });
+  });
+
+  it('starts LLM spans during a backgrounded command at the previous edge', () => {
+    const root: RecordedSpan = { children: [] };
+    const message = (requestId: string, s: number) => ({
+      type: 'message' as const,
+      role: 'assistant' as const,
+      content: requestId,
+      ts: (100 + s) * 1000,
+      requestId,
+    });
+    logTranscript(recorder(root), {
+      prompt: 'go',
+      agentReport: '',
+      checks: [],
+      judgeCalls: [],
+      passed: true,
+      modelId: 'm',
+      startTime: 100,
+      toolLabels: [],
+      transcript: [
+        {
+          type: 'tool_call',
+          name: 'Bash',
+          input: {},
+          id: 't1',
+          ts: 104_000,
+          resultTs: 120_000,
+          requestId: 'r1',
+        },
+        message('r2', 8),
+        message('r3', 12),
+        message('r4', 25),
+      ],
+    });
+    expect(
+      root.children[0]?.children.map(({ name, start, end }) => [
+        name,
+        start,
+        end,
+      ])
+    ).toEqual([
+      ['m', 100, 104],
+      ['Bash', 104, 120],
+      ['m', 104, 108],
+      ['m', 108, 112],
+      ['m', 120, 125],
+    ]);
   });
 
   it('ends setup at a leading non-assistant message and starts task there', () => {
