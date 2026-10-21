@@ -24,7 +24,7 @@ import {
   readDeployment,
 } from './hosted.js';
 import { checkMetrics, readCliFacts } from './metrics.js';
-import { readProjectKeys, redactSecrets } from './redact.js';
+import { readProjectKeys, redactSecrets } from '../lib/redact.js';
 import { describeGroundTruth, formatReportJudgeInput } from './report.js';
 import { checkQuotesAnswered, probeQuotes } from './responses.js';
 import {

@@ -530,6 +530,11 @@ describe('invocationVerb', () => {
     [['supabase', 'stack', 'restart', '--stack', 'x'], 'stack restart'],
     [['supabase', 'stack', '--stack', 'x', 'destroy'], 'stack destroy'],
     [['supabase', '--debug', 'start'], 'start'],
+    [['supabase', '--agent', 'no', 'start'], 'start'],
+    [
+      ['supabase', '--project-ref', 'abcdefghijklmnopqrst', 'secrets', 'list'],
+      'secrets',
+    ],
     [['supabase', 'stack'], 'stack'],
     [['supabase'], undefined],
   ])('%j -> %s', (argv, verb) => {
@@ -559,6 +564,16 @@ describe('invocationPositionals', () => {
       ['supabase', '--workdir', 'a', 'link', 'abc'],
       ['link', 'abc'],
     ],
+    [
+      [
+        'supabase',
+        'functions',
+        'serve',
+        '--env-file',
+        'supabase/functions/.env.local',
+      ],
+      ['functions', 'serve'],
+    ],
     [['supabase'], []],
   ])('%j -> %j', (argv, expected) => {
     expect(invocationPositionals(inv(argv))).toEqual(expected);
@@ -574,6 +589,10 @@ describe('invocationSubcommand', () => {
     [['supabase', 'functions', '--workdir', 'app', 'serve'], 'serve'],
     [['supabase', 'functions', '--workdir=app', 'serve'], 'serve'],
     [['supabase', 'functions', 'serve', '--env-file', '.env'], 'serve'],
+    [
+      ['supabase', '--project-ref', 'abcdefghijklmnopqrst', 'secrets', 'list'],
+      'list',
+    ],
     [['supabase', 'functions', 'serve', 'nightly-digest'], 'serve'],
     [['supabase', 'functions', 'deploy', 'nightly-digest'], 'deploy'],
     [['supabase', 'functions'], undefined],
