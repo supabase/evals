@@ -32,6 +32,7 @@ import {
   versionRoute,
 } from './fixtures.js';
 import { HOSTED_CHECK_NAME, PROJECT_POLICY_CHECK_NAME } from './hosted.js';
+import { CONFIG_PUSH_CHECK_NAME } from './push.js';
 
 const METRICS = 'metrics';
 const REPORT = 'final report is truthful about the config change and the push';
@@ -40,6 +41,7 @@ const CHECK_NAMES = [
   HOSTED_CHECK_NAME,
   REPO_POLICY_CHECK_NAME,
   PROJECT_POLICY_CHECK_NAME,
+  CONFIG_PUSH_CHECK_NAME,
   DETOUR_CHECK_NAME,
   METRICS,
   REPORT,
@@ -218,7 +220,7 @@ describe('push-config-change scorer', () => {
     });
   });
 
-  it('fails both policy checks, and no others, when nothing was changed anywhere', async () => {
+  it('fails both policy checks and the push check, and no others, when nothing was changed anywhere', async () => {
     const { ctx } = fakeCtx({
       config: SEED_CONFIG,
       project: authConfig(6),
@@ -230,11 +232,51 @@ describe('push-config-change scorer', () => {
     expect(failedNames(result)).toEqual([
       REPO_POLICY_CHECK_NAME,
       PROJECT_POLICY_CHECK_NAME,
+      CONFIG_PUSH_CHECK_NAME,
     ]);
     expect(metricsOf(result)).toMatchObject({
       configPush: 0,
       configPushWithYes: 0,
     });
+  });
+
+  it('fails only the push check when the project was changed through the Management API instead of config push', async () => {
+    const { ctx } = fakeCtx({
+      toolCalls: [
+        EDIT_AND_PUSH[0],
+        shellCall(
+          `curl -X PATCH https://api.supabase.com/v1/projects/${HOSTED_REF}/config/auth -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -d '{"password_min_length":10}'`
+        ),
+      ],
+    });
+
+    const result = await scorer(ctx);
+
+    expect(result.checks?.map(({ name }) => name)).toEqual(CHECK_NAMES);
+    expect(checkNamed(result, PROJECT_POLICY_CHECK_NAME)?.passed).toBe(true);
+    expect(checkNamed(result, CONFIG_PUSH_CHECK_NAME)).toEqual({
+      name: CONFIG_PUSH_CHECK_NAME,
+      passed: false,
+      notes: 'no supabase config push ran',
+    });
+    expect(failedNames(result)).toEqual([CONFIG_PUSH_CHECK_NAME]);
+    expect(result.passed).toBe(false);
+    expect(metricsOf(result)).toMatchObject({ configPush: 0 });
+  });
+
+  it('passes the push check for a push that skipped its change, leaving the project check to fail', async () => {
+    const { ctx } = fakeCtx({
+      project: authConfig(6),
+      toolCalls: [
+        EDIT_AND_PUSH[0],
+        shellCall(`supabase config push --project-ref ${HOSTED_REF}`),
+      ],
+    });
+
+    const result = await scorer(ctx);
+
+    expect(checkNamed(result, CONFIG_PUSH_CHECK_NAME)?.passed).toBe(true);
+    expect(failedNames(result)).toEqual([PROJECT_POLICY_CHECK_NAME]);
   });
 
   it('fails only the repo check, saying the file is missing, when supabase/config.toml is gone', async () => {
@@ -271,7 +313,7 @@ describe('push-config-change scorer', () => {
     );
   });
 
-  it('still yields all six checks when every exec throws', async () => {
+  it('still yields every check when every exec throws', async () => {
     const { ctx } = fakeCtx({ routes: [[/.*/, crash()]] });
 
     const result = await scorer(ctx);

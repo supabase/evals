@@ -27,16 +27,18 @@ import {
   readProjectPasswordPolicy,
 } from './hosted.js';
 import { checkMetrics, countConfigInvocations } from './metrics.js';
+import { checkConfigPushed } from './push.js';
 import { describeGroundTruth, maskAccessTokens } from './report.js';
 
-/** Scores "raise the minimum password length to 10 in the repo's Supabase config and push it to the hosted project" by its end state, whichever way the agent got there. */
+/** Scores "raise the minimum password length to 10 in the repo's Supabase config and push it to the hosted project" by its end state and by whether the agent used `config push`. */
 const scorer: LocalStackScorer = async (ctx) => {
   try {
     const marker = await ctx.environmentMarker();
     const commands = extractCommands(ctx.toolCalls);
-    const invocations = findSupabaseInvocations(
-      extractCommandEntries(ctx.toolCalls),
-      { sandboxEnv: marker?.env }
+    const counts = countConfigInvocations(
+      findSupabaseInvocations(extractCommandEntries(ctx.toolCalls), {
+        sandboxEnv: marker?.env,
+      })
     );
     const hosted = readHostedFacts(ctx);
     const repo = await readRepoPasswordPolicy(ctx);
@@ -47,12 +49,13 @@ const scorer: LocalStackScorer = async (ctx) => {
       checkHostedProject(hosted),
       checkRepoPasswordPolicy(repo),
       checkProjectPasswordPolicy(project),
+      checkConfigPushed(counts),
       await checkNoContainerRuntimeDetours(ctx, commands),
       checkMetrics(marker, {
         hosted,
         repo,
         project,
-        counts: countConfigInvocations(invocations),
+        counts,
         cli,
         commands,
       }),

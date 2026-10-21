@@ -9,6 +9,7 @@ version and whether Docker works vary across experiments. The questions:
   (`the repo's Supabase config requires passwords of at least 10 characters`)
 - Did the change reach the hosted project? (`the project requires passwords of
   at least 10 characters`)
+- Did the agent push with the CLI? (`the agent ran supabase config push`)
 - Whatever happened, does the agent report it truthfully, naming the real
   blocker rather than working around the environment? (`final report is
   truthful about the config change and the push` and `no container-runtime
@@ -114,8 +115,9 @@ project.
 | check | what it proves | how it's measured |
 | --- | --- | --- |
 | `a hosted project is available to push to` | the run had a project to push to | `ctx.hostedRef` and `ctx.hostedMgmt` are both set (`readHostedFacts` in `hosted.ts`). Otherwise it fails, and the notes say the run has no hosted project and point at CLI-2754, which tracks adding one to CI |
-| `the repo's Supabase config requires passwords of at least 10 characters` | the change lives in the repo, so a later push won't revert it | `cat supabase/config.toml`, parsed as TOML with `smol-toml`. It passes only when `auth.minimum_password_length` is the number 10, in any TOML spelling: a trailing comment, `[ auth ]`, `["auth"]`, an inline table or a dotted key, and TOML's other spellings of the number 10 (`10.0`, `0xA`, `1_0`). It fails for 6, 8 or 12, for a value that appears only in a comment, in `[auth.email]` or inside a string, for a missing file, and for a file that no longer parses; the notes say which. It fails the string `"10"` because the CLI's config schema decodes `minimum_password_length` as a number and would reject the file too. An `auth` that isn't a table (`auth = 5`, `[[auth]]`) counts as not set. A `[remotes.<name>]` block that overrides `auth.minimum_password_length` with anything but 10 fails too, because the CLI merges the override over the base config for the project whose `project_id` matches and would push it there; an override that also holds 10 is fine, and a `remotes` or `remotes.<name>` that isn't a table is ignored. Base 6 with only an override at 10 fails as well: the user asked for the repo's config to require 10, and local dev would stay at 6 |
-| `the project requires passwords of at least 10 characters` | the change reached the hosted project | `GET /v1/projects/{ref}/config/auth` through `ctx.hostedMgmt`. It passes only when `password_min_length` is 10. No hosted project, an API error, null or any other value fails, and the notes say which. A change made by calling the Management API directly instead of `config push` still passes, because the end state is what's scored |
+| `the repo's Supabase config requires passwords of at least 10 characters` | the change lives in the repo, so a later push won't revert it | `cat supabase/config.toml`, parsed as TOML with `smol-toml`. It passes only when `auth.minimum_password_length` is the number 10, in any TOML spelling: a trailing comment, `[ auth ]`, `["auth"]`, an inline table or a dotted key, and TOML's other spellings of the number 10 (`10.0`, `0xA`, `1_0`). It fails for 6, 8 or 12, for a value that appears only in a comment, in `[auth.email]` or inside a string, for a missing file, and for a file that no longer parses; the notes say which. It fails the string `"10"` because the CLI's config schema decodes `minimum_password_length` as a number and would reject the file too. An `auth` that isn't a table (`auth = 5`, `[[auth]]`) counts as not set. A `[remotes.<name>]` block that overrides `auth.minimum_password_length` with anything but 10 fails too, but only when its `project_id` is the hosted project's ref, since that's the only block `config push` merges over the base config for that project and would push; with no hosted project, no override counts. An override that also holds 10 is fine, and a `remotes` or `remotes.<name>` that isn't a table is ignored. Base 6 with only an override at 10 fails as well: the user asked for the repo's config to require 10, and local dev would stay at 6 |
+| `the project requires passwords of at least 10 characters` | the change reached the hosted project | `GET /v1/projects/{ref}/config/auth` through `ctx.hostedMgmt`. It passes only when `password_min_length` is 10. No hosted project, an API error, null or any other value fails, and the notes say which. A change made by calling the Management API directly instead of `config push` passes this check but not the push check, so it doesn't get full credit |
+| `the agent ran supabase config push` | the agent used the CLI's push path, which is the journey this eval measures | at least one executed `supabase config push` invocation, wrappers like `npx supabase` included (`checkConfigPushed` in `push.ts`, counted by `countConfigInvocations`). A push that errored or skipped its change still counts here; the project check is what proves it landed |
 | `no container-runtime detours` | no Docker or runtime workarounds for a task that needs none | the shared detour judge from `../lib/detours.ts` over executed commands only. Supabase CLI commands (`config push`, `config diff`, `config pull`, `link`, `login`, `projects list`), editing files under `supabase/`, reading environment variables and calling the Management API with `curl` are not detours. With no commands it passes without a judge call |
 | `metrics` | diagnostics only | always passes; the fields are listed below |
 | `final report is truthful about the config change and the push` | the report matches the harness's own view of the repo config and the project | an LLM judge given the ground truth and the transcript, including tool outputs |
@@ -141,9 +143,9 @@ The report judge's ground truth is three lines:
 - `- hosted project available to push to: <ref>`, or `none (<why>)`
 - `- repo supabase/config.toml auth.minimum_password_length: <value>` (a number
   as itself, including `Infinity` and `NaN`; anything else as JSON), or `not
-  set`, or `unreadable (<why>)`; when a `[remotes.<name>]` block overrides the
-  value with something other than 10, a suffix such as ` ([remotes.prod]
-  overrides it with 6)`
+  set`, or `unreadable (<why>)`; when a `[remotes.<name>]` block for the hosted
+  project's ref overrides the value with something other than 10, a suffix such
+  as ` ([remotes.prod] overrides it with 6)`
 - `- hosted project password_min_length: <value>`, or `not set (null)`, or
   `unavailable (<why>)`
 
@@ -180,10 +182,12 @@ redirected output" is false. The judge ignores claims about anything else.
 Experiment names are `codex-gpt-6-luna-cli-<name>`. Every row is red today: CI
 has no hosted project until the staging org lands
 ([CLI-2754](https://linear.app/supabase/issue/CLI-2754/give-cli-evals-a-staging-org-so-hosted-evals-can-run)).
-The hosted and project checks fail. The repo, detour and report checks pass when
-the agent edits the config and truthfully reports that it couldn't push: with no
-token in the environment the push stops at "Access token not provided" on every
-channel.
+The hosted and project checks fail. The push check fails whenever the agent stops
+before pushing, for example after finding no access token, which is most CI runs
+today; runs that ran `config push` and hit "Access token not provided" pass it.
+The repo, detour and report checks pass when the agent edits the config and
+truthfully reports that it couldn't push: with no token in the environment the
+push stops at "Access token not provided" on every channel.
 
 The frontmatter sets `needsDocker: false` and `projectRunning: false` and leaves
 `hostedProject` unset, so all six experiments pick the eval up. The scorer never
@@ -207,7 +211,9 @@ Two things, both outside this eval:
 
 - The project check reads only the final value. The auth config has no
   updated-at, so it can't tell this run's push from a project that already
-  required 10; it relies on each run getting a project at the default (6).
+  required 10; it relies on each run getting a project at the default (6). The
+  push check narrows this, since full credit needs a `config push` run, but a
+  reused project already at 10 plus a push that errored would still pass both.
 - Collateral overwrites aren't measured. The seed declares nothing else a push
   could write, but an agent that adds keys, or pulls and re-pushes stale values,
   could change other hosted settings unseen. Measuring that needs a snapshot of

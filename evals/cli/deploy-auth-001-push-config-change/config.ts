@@ -23,10 +23,14 @@ const isTable = (value: unknown): value is Record<string, unknown> =>
 export const formatTomlValue = (value: unknown): string =>
   typeof value === 'number' ? String(value) : JSON.stringify(value);
 
-function readConflictingRemotes(remotes: unknown): RemoteOverride[] {
-  if (!isTable(remotes)) return [];
+function readConflictingRemotes(
+  remotes: unknown,
+  linkedRef: string | undefined
+): RemoteOverride[] {
+  if (!linkedRef || !isTable(remotes)) return [];
   return Object.entries(remotes).flatMap(([name, remote]) => {
-    const auth = isTable(remote) ? remote.auth : undefined;
+    if (!isTable(remote) || remote.project_id !== linkedRef) return [];
+    const auth = remote.auth;
     const value = isTable(auth) ? auth.minimum_password_length : undefined;
     return value === undefined || value === REQUIRED_MIN_PASSWORD_LENGTH
       ? []
@@ -34,8 +38,11 @@ function readConflictingRemotes(remotes: unknown): RemoteOverride[] {
   });
 }
 
-/** Reads `auth.minimum_password_length` and any conflicting `[remotes.<name>]` override from the TOML text; a TOML parse error, including an integer outside the safe range, makes it not ok. */
-export function parsePasswordPolicy(text: string): RepoPasswordPolicy {
+/** Reads `auth.minimum_password_length` and any conflicting `[remotes.<name>]` override whose `project_id` is `linkedRef`, the only block `config push` merges; a TOML parse error, including an integer outside the safe range, makes it not ok. */
+export function parsePasswordPolicy(
+  text: string,
+  linkedRef?: string
+): RepoPasswordPolicy {
   try {
     const { auth, remotes } = parse(text);
     return {
@@ -43,7 +50,7 @@ export function parsePasswordPolicy(text: string): RepoPasswordPolicy {
       minPasswordLength: isTable(auth)
         ? auth.minimum_password_length
         : undefined,
-      conflictingRemotes: readConflictingRemotes(remotes),
+      conflictingRemotes: readConflictingRemotes(remotes, linkedRef),
     };
   } catch (error) {
     return {
@@ -54,11 +61,11 @@ export function parsePasswordPolicy(text: string): RepoPasswordPolicy {
 }
 
 export async function readRepoPasswordPolicy(
-  ctx: Pick<LocalStackEvalContext, 'exec'>
+  ctx: Pick<LocalStackEvalContext, 'exec' | 'hostedRef'>
 ): Promise<RepoPasswordPolicy> {
   try {
     const result = await ctx.exec(`cat ${CONFIG_PATH}`);
-    if (result.ok) return parsePasswordPolicy(result.stdout);
+    if (result.ok) return parsePasswordPolicy(result.stdout, ctx.hostedRef);
     if (result.stderr.includes('No such file or directory')) {
       return { ok: false, notes: `${CONFIG_PATH} is missing` };
     }

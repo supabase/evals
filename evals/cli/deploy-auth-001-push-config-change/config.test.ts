@@ -16,6 +16,7 @@ import {
   configFileRoute,
   crash,
   fakeExec,
+  HOSTED_REF,
   initTemplateWith,
   MISSING_CONFIG,
   READ_CONFIG_COMMAND,
@@ -275,16 +276,24 @@ describe('parsePasswordPolicy with checkRepoPasswordPolicy', () => {
 const withRemotes = (base: string | number, remotes: string) =>
   `${seedWith(base)}\n${remotes}`;
 
-const remoteAuth = (name: string, value: string | number) => `[remotes.${name}]
-project_id = "abcdefghijklmnopqrst"
-
+const remoteAuth = (
+  name: string,
+  value: string | number,
+  projectId: string | null = HOSTED_REF
+) => `[remotes.${name}]
+${projectId === null ? '' : `project_id = "${projectId}"\n`}
 [remotes.${name}.auth]
 minimum_password_length = ${value}
 `;
 
+const OTHER_REF = 'zyxwvutsrqponmlkjihg';
+
 describe('[remotes.<name>] overrides', () => {
-  it('fails when an override of 6 would reach the project, naming the block and the value', () => {
-    const policy = parsePasswordPolicy(withRemotes(10, remoteAuth('prod', 6)));
+  it('fails when an override of 6 for the linked project would reach it, naming the block and the value', () => {
+    const policy = parsePasswordPolicy(
+      withRemotes(10, remoteAuth('prod', 6)),
+      HOSTED_REF
+    );
 
     expect(policy).toEqual({
       ok: true,
@@ -301,8 +310,50 @@ describe('[remotes.<name>] overrides', () => {
     );
   });
 
+  it('passes when the override of 6 belongs to another project', () => {
+    const policy = parsePasswordPolicy(
+      withRemotes(10, remoteAuth('staging', 6, OTHER_REF)),
+      HOSTED_REF
+    );
+
+    expect(policy).toEqual({
+      ok: true,
+      minPasswordLength: 10,
+      conflictingRemotes: [],
+    });
+    expect(checkRepoPasswordPolicy(policy).passed).toBe(true);
+  });
+
+  it('passes when there is no linked project, whatever the override holds', () => {
+    const policy = parsePasswordPolicy(withRemotes(10, remoteAuth('prod', 6)));
+
+    expect(policy).toEqual({
+      ok: true,
+      minPasswordLength: 10,
+      conflictingRemotes: [],
+    });
+    expect(checkRepoPasswordPolicy(policy).passed).toBe(true);
+  });
+
+  it('passes when the override of 6 has no project_id', () => {
+    const policy = parsePasswordPolicy(
+      withRemotes(10, remoteAuth('prod', 6, null)),
+      HOSTED_REF
+    );
+
+    expect(policy).toEqual({
+      ok: true,
+      minPasswordLength: 10,
+      conflictingRemotes: [],
+    });
+    expect(checkRepoPasswordPolicy(policy).passed).toBe(true);
+  });
+
   it('fails on the base value when it is 6 even though an override holds 10', () => {
-    const policy = parsePasswordPolicy(withRemotes(6, remoteAuth('prod', 10)));
+    const policy = parsePasswordPolicy(
+      withRemotes(6, remoteAuth('prod', 10)),
+      HOSTED_REF
+    );
 
     expect(policy).toMatchObject({ ok: true, minPasswordLength: 6 });
     expect(checkRepoPasswordPolicy(policy)).toEqual({
@@ -313,7 +364,10 @@ describe('[remotes.<name>] overrides', () => {
   });
 
   it('passes when the override also holds 10', () => {
-    const policy = parsePasswordPolicy(withRemotes(10, remoteAuth('prod', 10)));
+    const policy = parsePasswordPolicy(
+      withRemotes(10, remoteAuth('prod', 10)),
+      HOSTED_REF
+    );
 
     expect(policy).toEqual({
       ok: true,
@@ -326,14 +380,14 @@ describe('[remotes.<name>] overrides', () => {
   it.each([
     [
       'a remote that only overrides [db]',
-      '[remotes.staging]\nproject_id = "abcdefghijklmnopqrst"\n\n[remotes.staging.db]\nmajor_version = 17\n',
+      `[remotes.staging]\nproject_id = "${HOSTED_REF}"\n\n[remotes.staging.db]\nmajor_version = 17\n`,
     ],
     [
       'a remote whose [auth] leaves the length alone',
-      '[remotes.staging.auth]\nenable_signup = false\n',
+      `[remotes.staging]\nproject_id = "${HOSTED_REF}"\n\n[remotes.staging.auth]\nenable_signup = false\n`,
     ],
   ])('passes with %s', (_, remotes) => {
-    const policy = parsePasswordPolicy(withRemotes(10, remotes));
+    const policy = parsePasswordPolicy(withRemotes(10, remotes), HOSTED_REF);
 
     expect(policy).toMatchObject({ ok: true, conflictingRemotes: [] });
     expect(checkRepoPasswordPolicy(policy).passed).toBe(true);
@@ -343,15 +397,18 @@ describe('[remotes.<name>] overrides', () => {
     ['remotes set to a number', `remotes = 5\n${seedWith(10)}`],
     [
       'remotes declared as an array of tables',
-      withRemotes(10, '[[remotes]]\nproject_id = "a"\n'),
+      withRemotes(10, `[[remotes]]\nproject_id = "${HOSTED_REF}"\n`),
     ],
     ['a remote set to a number', withRemotes(10, '[remotes]\nprod = 5\n')],
     [
       'a remote auth set to a number',
-      withRemotes(10, '[remotes.prod]\nauth = 5\n'),
+      withRemotes(
+        10,
+        `[remotes.prod]\nproject_id = "${HOSTED_REF}"\nauth = 5\n`
+      ),
     ],
   ])('ignores %s', (_, toml) => {
-    const policy = parsePasswordPolicy(toml);
+    const policy = parsePasswordPolicy(toml, HOSTED_REF);
 
     expect(policy).toEqual({
       ok: true,
@@ -361,12 +418,13 @@ describe('[remotes.<name>] overrides', () => {
     expect(checkRepoPasswordPolicy(policy).passed).toBe(true);
   });
 
-  it('joins every conflicting override in the notes with "; "', () => {
+  it('joins every conflicting override for the linked project in the notes with "; "', () => {
     const policy = parsePasswordPolicy(
       withRemotes(
         10,
-        `${remoteAuth('prod', 6)}\n${remoteAuth('staging', 10)}\n${remoteAuth('preview', 8)}`
-      )
+        `${remoteAuth('prod', 6)}\n${remoteAuth('staging', 10)}\n${remoteAuth('other', 7, OTHER_REF)}\n${remoteAuth('preview', 8)}`
+      ),
+      HOSTED_REF
     );
 
     expect(checkRepoPasswordPolicy(policy).notes).toBe(
@@ -376,7 +434,8 @@ describe('[remotes.<name>] overrides', () => {
 
   it('shows a non-numeric override as JSON', () => {
     const policy = parsePasswordPolicy(
-      withRemotes(10, remoteAuth('prod', '"10"'))
+      withRemotes(10, remoteAuth('prod', '"10"')),
+      HOSTED_REF
     );
 
     expect(checkRepoPasswordPolicy(policy).notes).toBe(
@@ -434,6 +493,22 @@ describe('readRepoPasswordPolicy', () => {
       conflictingRemotes: [],
     });
     expect(calls).toEqual([READ_CONFIG_COMMAND]);
+  });
+
+  it('judges remote overrides against ctx.hostedRef', async () => {
+    const toml = withRemotes(10, remoteAuth('prod', 6));
+    const { ctx } = fakeExec([configFileRoute(toml)]);
+
+    expect(
+      await readRepoPasswordPolicy({ ...ctx, hostedRef: HOSTED_REF })
+    ).toEqual({
+      ok: true,
+      minPasswordLength: 10,
+      conflictingRemotes: [{ name: 'prod', value: 6 }],
+    });
+    expect(await readRepoPasswordPolicy(ctx)).toMatchObject({
+      conflictingRemotes: [],
+    });
   });
 
   it('reports a missing file as supabase/config.toml is missing', async () => {
