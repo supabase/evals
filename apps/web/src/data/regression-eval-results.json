@@ -38,17 +38,17 @@
       {
         "name": "user with JWT reads only their own rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"996faa0d-5f20-4c09-9e45-2c626b40e8fb\",\"metric\":\"steps_a_mviggsb8\",\"value\":111}]"
+        "notes": "status 200: [{\"user_id\":\"c73c3623-42a5-4ca3-b5f6-46fae99d56a4\",\"metric\":\"steps_a_mvhr1yrt\",\"value\":111}]"
       },
       {
         "name": "user cannot read another user's rows by passing user_id",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"996faa0d-5f20-4c09-9e45-2c626b40e8fb\",\"metric\":\"steps_a_mviggsb8\",\"value\":111}]"
+        "notes": "status 200: [{\"user_id\":\"c73c3623-42a5-4ca3-b5f6-46fae99d56a4\",\"metric\":\"steps_a_mvhr1yrt\",\"value\":111}]"
       },
       {
         "name": "service key bypasses RLS to read the target user's rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"425f5bef-93f7-46fa-8739-a1264efd060e\",\"metric\":\"steps_b_mviggsb8\",\"value\":222}]"
+        "notes": "status 200: [{\"user_id\":\"c2ef6c7b-5ba7-4bad-81db-3191e4207497\",\"metric\":\"steps_b_mvhr1yrt\",\"value\":222}]"
       },
       {
         "name": "non-service key is not granted service access",
@@ -85,7 +85,7 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"@supabase/server withSupabase Edge Function multi auth\", limit: 8) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content methodName language } } } }",
+          "query": "query { searchDocs(query: \"@supabase/server Edge Functions withSupabase multi auth\", limit: 10) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
@@ -97,36 +97,9 @@
               "title": "Which package to use"
             },
             {
-              "url": "https://supabase.com/docs/guides/functions/examples/resumable-websockets",
-              "title": "Resumable WebSockets with Edge Functions"
+              "url": "https://supabase.com/docs/guides/functions/recursive-functions",
+              "title": "Recursive / Nested Function Calls"
             },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
-              "title": "Migrating to publishable and secret API keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/functions",
-              "title": "Edge Functions"
-            }
-          ],
-          "resultChars": 45246
-        },
-        {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | rg -in -C 2 'breaking-change|@supabase/server|edge function|auth' | head -100\"",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 6395
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"@supabase/server withSupabase API key Edge Functions multi auth credentials\", limit: 10) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content methodName language } } } }",
-          "hasContent": true,
-          "pages": [
             {
               "url": "https://supabase.com/docs/guides/functions/auth",
               "title": "Securing Edge Functions"
@@ -134,6 +107,93 @@
             {
               "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
               "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/resumable-websockets",
+              "title": "Resumable WebSockets with Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions",
+              "title": "Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres/serverless-drivers",
+              "title": "Serverless drivers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/secure-data",
+              "title": "Securing your data"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai-tools/byo-mcp",
+              "title": "Deploy MCP servers"
+            }
+          ],
+          "resultChars": 80501
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11955
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Edge Functions verify_jwt config.toml verify_jwt false service role secret key apikey\", limit: 8) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/function-configuration",
+              "title": "Function Configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-envoy",
+              "title": "Envoy API Gateway"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth",
+              "title": "Securing Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-functions",
+              "title": "Self-Hosted Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/api-keys",
+              "title": "API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/signing-keys",
+              "title": "JWT Signing Keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/cloudflare-turnstile",
+              "title": "CAPTCHA support with Cloudflare Turnstile"
+            }
+          ],
+          "resultChars": 107554
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"withSupabase @supabase/server authentication strategies Edge Functions API key\", limit: 8) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth",
+              "title": "Securing Edge Functions"
             },
             {
               "url": "https://supabase.com/docs/guides/functions/auth-legacy-jwt",
@@ -144,53 +204,85 @@
               "title": "Environment variables"
             },
             {
+              "url": "https://supabase.com/docs/guides/database/secure-data",
+              "title": "Securing your data"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/api-keys",
+              "title": "API keys"
+            },
+            {
               "url": "https://supabase.com/docs/guides/auth/choosing-a-server-package",
               "title": "Which package to use"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-keys",
+              "title": "New API Keys and Asymmetric Authentication"
             }
           ],
-          "resultChars": 37695
+          "resultChars": 70737
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"@supabase/server verify_jwt false auth secret user authMode supabaseAdmin userClaims\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "query": "query { searchDocs(query: \"@supabase/server withSupabase user access token API key middleware SupabaseServerClient\", limit: 12) { nodes { ... on Guide { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/functions/auth",
-              "title": "Securing Edge Functions"
+              "url": "https://supabase.com/docs/guides/auth/choosing-a-server-package",
+              "title": "Which package to use"
             },
             {
               "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
               "title": "Migrating to publishable and secret API keys"
             },
             {
-              "url": "https://supabase.com/docs/guides/functions/function-configuration",
-              "title": "Function Configuration"
+              "url": "https://supabase.com/docs/guides/functions/auth",
+              "title": "Securing Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-keys",
+              "title": "New API Keys and Asymmetric Authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/custom-oidc",
+              "title": "Custom OIDC provider"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/s3/authentication",
+              "title": "S3 Authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/connect-to-postgres",
+              "title": "Integrating with Supabase Database (Postgres)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
             }
           ],
-          "resultChars": 23980
+          "resultChars": 71397
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 437454,
-        "cacheReadInputTokens": 381700,
-        "cacheWriteInputTokens": 55712,
-        "outputTokens": 10662
+        "inputTokens": 948707,
+        "cacheReadInputTokens": 879778,
+        "cacheWriteInputTokens": 68860,
+        "outputTokens": 11364
       }
     ],
-    "stepCount": 14,
-    "toolCallCount": 18,
-    "agentRunDurationMs": 122982,
+    "stepCount": 23,
+    "toolCallCount": 26,
+    "agentRunDurationMs": 182703,
     "sandboxUsage": {
-      "activeCpuDurationMs": 258245,
-      "duration": 276684,
+      "activeCpuDurationMs": 400712,
+      "duration": 385204,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 2058569978,
-        "egress": 11964958
+        "ingress": 2047682882,
+        "egress": 9910444
       }
     },
     "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project,\nreachable over HTTP at `/functions/v1/user-stats`.\n\nImplement it with the **`@supabase/server`** package, which is built for exactly\nthis kind of multi-auth Edge Function. Import it directly in your function:\n\n```ts\nimport { withSupabase } from \"npm:@supabase/server\";\n```\n\nOur product stores per-user metrics in a `user_stats` table that already exists\n(see `supabase/migrations/`), protected by row-level security so a user can read\nonly their own rows.\n\nTwo very different callers need to hit this one endpoint:\n\n1. **Our mobile app**, acting for a signed-in user. It sends that user's\n   Supabase access token. The endpoint should return the user's own stats.\n\n2. **Our internal billing service**, a trusted backend with no signed-in user.\n   It authenticates with the project's secret (service-role) key in the `apikey`\n   header, and names the target user with a `user_id` in the JSON request body.\n   It needs that user's stats.\n\nReturn the matching rows as JSON. The endpoint must be secure: only ever serve\nstats to a caller that is genuinely entitled to them, and turn away callers that\nare not.",
@@ -222,7 +314,7 @@
     "suite": "regression",
     "interface": "cli",
     "cliVersion": "2.117.0",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "seed rows present",
@@ -232,27 +324,27 @@
       {
         "name": "rejects request with no credentials",
         "passed": true,
-        "notes": "status 401: {\"error\":\"Unauthorized\"}"
+        "notes": "status 401: {\"source\":\"@supabase/server\",\"code\":\"MISSING_CREDENTIALS\",\"message\":\"[@supabase/server] No credentials found on the request. This endpoint accepts auth mode(s):"
       },
       {
         "name": "user with JWT reads only their own rows",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"b2a3a275-aaa8-49e1-8437-a5daa5fd6bef\",\"metric\":\"steps_a_mvigkhib\",\"value\":111}]"
+        "notes": "status 200: [{\"user_id\":\"20278bec-3552-4e20-90e2-33baf4bffd9c\",\"metric\":\"steps_a_mvhqzmw8\",\"value\":111}]"
       },
       {
         "name": "user cannot read another user's rows by passing user_id",
         "passed": true,
-        "notes": "status 200: [{\"user_id\":\"b2a3a275-aaa8-49e1-8437-a5daa5fd6bef\",\"metric\":\"steps_a_mvigkhib\",\"value\":111}]"
+        "notes": "status 200: [{\"user_id\":\"20278bec-3552-4e20-90e2-33baf4bffd9c\",\"metric\":\"steps_a_mvhqzmw8\",\"value\":111}]"
       },
       {
         "name": "service key bypasses RLS to read the target user's rows",
-        "passed": false,
-        "notes": "status 401: {\"error\":\"Unauthorized\"}"
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"5d0459e9-5026-43e3-8a52-5b5f6b18a8d3\",\"metric\":\"steps_b_mvhqzmw8\",\"value\":222}]"
       },
       {
         "name": "non-service key is not granted service access",
         "passed": true,
-        "notes": "status 401: {\"error\":\"Unauthorized\"}"
+        "notes": "status 401: {\"source\":\"@supabase/server\",\"code\":\"INVALID_API_KEY\",\"message\":\"[@supabase/server] The apikey header matched no key configured for auth mode(s): \\\"user\\\", \\\"se"
       },
       {
         "name": "rejects an unverified (forged) user token",
@@ -262,7 +354,7 @@
       {
         "name": "a user token in the apikey slot is not treated as the service key",
         "passed": true,
-        "notes": "status 401: {\"error\":\"Unauthorized\"}"
+        "notes": "status 401: {\"source\":\"@supabase/server\",\"code\":\"INVALID_API_KEY\",\"message\":\"[@supabase/server] The apikey header matched no key configured for auth mode(s): \\\"user\\\", \\\"se"
       },
       {
         "name": "implementation uses @supabase/server",
@@ -283,59 +375,322 @@
     "docs": {
       "calls": [
         {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"@supabase/server withSupabase multi auth Edge Functions\", limit: 5) { nodes { ... on Guide { title href content } } }",
+          "hasContent": true,
+          "pages": []
+        },
+        {
           "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 30000'",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -160'",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 29836
+          "resultChars": 8268
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"@supabase/server withSupabase Edge Functions auth service role user token\", limit: 10) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content methodName language } } } }",
+          "query": "query { searchDocs(query: \"Edge Functions authentication service role apikey authorization user JWT RLS\", limit: 5) { nodes { ... on Guide { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
-              "title": "Migrating to publishable and secret API keys"
+              "url": "https://supabase.com/docs/guides/getting-started/api-keys",
+              "title": "API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth",
+              "title": "Securing Edge Functions"
             },
             {
               "url": "https://supabase.com/docs/guides/functions/auth-legacy-jwt",
               "title": "Integrating With Supabase Auth"
             },
             {
+              "url": "https://supabase.com/docs/guides/functions/auth-headers",
+              "title": "Authorization headers"
+            }
+          ],
+          "resultChars": 30665
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs \"withSupabase\" \"@supabase/server\"",
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Edge Function auth user secret modes withSupabase auth array\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
               "url": "https://supabase.com/docs/guides/functions/auth",
               "title": "Securing Edge Functions"
             },
             {
-              "url": "https://supabase.com/docs/guides/functions/examples/resumable-websockets",
-              "title": "Resumable WebSockets with Edge Functions"
+              "url": "https://supabase.com/docs/guides/functions/auth-legacy-jwt",
+              "title": "Integrating With Supabase Auth"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/users",
-              "title": "Users"
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/recursive-functions",
+              "title": "Recursive / Nested Function Calls"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/storage-caching",
+              "title": "Integrating with Supabase Storage"
             }
           ],
-          "resultChars": 45507
+          "resultChars": 40270
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"@supabase/server withSupabase Edge Function example user client service role keys\", limit: 10) { nodes { ... on Guide { title href content subsections { nodes { title href content } } } } }",
+          "query": "query { searchDocs(query: \"legacy service_role key @supabase/server secret auth\", limit: 5) { nodes { ... on Guide { title href content } } } }",
           "hasContent": true,
-          "pages": []
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-keys",
+              "title": "New API Keys and Asymmetric Authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/schema/custom-roles",
+              "title": "Custom Roles"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/signing-keys",
+              "title": "JWT Signing Keys"
+            }
+          ],
+          "resultChars": 91490
         },
         {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/getting-started/migrating-to-new-api-keys @supabase/server legacy service_role",
+          "pages": []
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 520191,
+        "cacheReadInputTokens": 449940,
+        "cacheWriteInputTokens": 55467,
+        "outputTokens": 12763
+      }
+    ],
+    "stepCount": 17,
+    "toolCallCount": 22,
+    "agentRunDurationMs": 146529,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 362608,
+      "duration": 337694,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2046704869,
+        "egress": 7026625
+      }
+    },
+    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project,\nreachable over HTTP at `/functions/v1/user-stats`.\n\nImplement it with the **`@supabase/server`** package, which is built for exactly\nthis kind of multi-auth Edge Function. Import it directly in your function:\n\n```ts\nimport { withSupabase } from \"npm:@supabase/server\";\n```\n\nOur product stores per-user metrics in a `user_stats` table that already exists\n(see `supabase/migrations/`), protected by row-level security so a user can read\nonly their own rows.\n\nTwo very different callers need to hit this one endpoint:\n\n1. **Our mobile app**, acting for a signed-in user. It sends that user's\n   Supabase access token. The endpoint should return the user's own stats.\n\n2. **Our internal billing service**, a trusted backend with no signed-in user.\n   It authenticates with the project's secret (service-role) key in the `apikey`\n   header, and names the target user with a `user_id` in the JSON request body.\n   It needs that user's stats.\n\nReturn the matching rows as JSON. The endpoint must be secure: only ever serve\nstats to a caller that is genuinely entitled to them, and turn away callers that\nare not.",
+    "promptSourcePath": "evals/regression/build-functions-006-dual-auth-with-server/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna/build-functions-006-dual-auth-with-server/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna",
+    "experimentSuite": "regression",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-functions-006-dual-auth-with-server",
+    "stage": "build",
+    "product": [
+      "edge-functions",
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "sdk",
+      "rls",
+      "security"
+    ],
+    "suite": "regression",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "seed rows present",
+        "passed": true,
+        "notes": "found 2/2 seeded rows"
+      },
+      {
+        "name": "rejects request with no credentials",
+        "passed": true,
+        "notes": "status 401: {\"source\":\"@supabase/server\",\"code\":\"MISSING_CREDENTIALS\",\"message\":\"[@supabase/server] No credentials found on the request. This endpoint accepts auth mode(s):"
+      },
+      {
+        "name": "user with JWT reads only their own rows",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"cccc16a2-530c-4d0e-8225-658349603513\",\"metric\":\"steps_a_mvhr0z3r\",\"value\":111}]"
+      },
+      {
+        "name": "user cannot read another user's rows by passing user_id",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"cccc16a2-530c-4d0e-8225-658349603513\",\"metric\":\"steps_a_mvhr0z3r\",\"value\":111}]"
+      },
+      {
+        "name": "service key bypasses RLS to read the target user's rows",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"f40e47b7-885e-4c51-9a56-8e68a35e5156\",\"metric\":\"steps_b_mvhr0z3r\",\"value\":222}]"
+      },
+      {
+        "name": "non-service key is not granted service access",
+        "passed": true,
+        "notes": "status 401: {\"source\":\"@supabase/server\",\"code\":\"INVALID_API_KEY\",\"message\":\"[@supabase/server] The apikey header matched no key configured for auth mode(s): \\\"user\\\", \\\"se"
+      },
+      {
+        "name": "rejects an unverified (forged) user token",
+        "passed": true,
+        "notes": "status 401: {\"source\":\"@supabase/server\",\"code\":\"INVALID_JWT\",\"message\":\"[@supabase/server] The JWT in the Authorization header failed verification: its header is missing \\"
+      },
+      {
+        "name": "a user token in the apikey slot is not treated as the service key",
+        "passed": true,
+        "notes": "status 401: {\"source\":\"@supabase/server\",\"code\":\"INVALID_API_KEY\",\"message\":\"[@supabase/server] The apikey header matched no key configured for auth mode(s): \\\"user\\\", \\\"se"
+      },
+      {
+        "name": "implementation uses @supabase/server",
+        "passed": true,
+        "notes": "imports @supabase/server / withSupabase"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"@supabase/server Edge Functions withSupabase middleware\", limit: 10) { nodes { ... on Guide { title href content subsections { nodes { title href content } } } } }",
+          "query": "query { searchDocs(query: \"Supabase Edge Functions serve function config verify_jwt\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
-          "pages": []
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/function-configuration",
+              "title": "Function Configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite",
+              "title": "Building an MCP Server with mcp-lite"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth-headers",
+              "title": "Authorization headers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth-legacy-jwt",
+              "title": "Integrating With Supabase Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/resumable-websockets",
+              "title": "Resumable WebSockets with Edge Functions"
+            }
+          ],
+          "resultChars": 28954
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"@supabase/server auth modes user secret dual auth withSupabase\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "query": "query { searchDocs(query: \"@supabase/server withSupabase Edge Functions\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/choosing-a-server-package",
+              "title": "Which package to use"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions",
+              "title": "Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth",
+              "title": "Securing Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/architecture",
+              "title": "Edge Functions Architecture"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            }
+          ],
+          "resultChars": 46495
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | rg -n -i -C 2 'breaking-change|@supabase/server|edge function|functions' | head -100\"",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 7230
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"@supabase/server auth user secret multiple auth modes withSupabase auth option\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth",
+              "title": "Securing Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/quickstarts/astrojs",
+              "title": "Use Supabase Auth with Astro"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth",
+              "title": "Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/migrating-auth-users-between-projects",
+              "title": "Migrating Auth Users Between Supabase Projects"
+            }
+          ],
+          "resultChars": 49461
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Edge Functions secure function auth modes @supabase/server auth user secret\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -347,47 +702,68 @@
               "title": "Securing Edge Functions"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth",
-              "title": "Auth"
+              "url": "https://supabase.com/docs/guides/functions/auth-legacy-jwt",
+              "title": "Integrating With Supabase Auth"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/quickstarts/astrojs",
-              "title": "Use Supabase Auth with Astro"
+              "url": "https://supabase.com/docs/guides/functions",
+              "title": "Edge Functions"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/enterprise-sso",
-              "title": "Enterprise Single Sign-On"
+              "url": "https://supabase.com/docs/guides/functions/recursive-functions",
+              "title": "Recursive / Nested Function Calls"
             }
           ],
-          "resultChars": 48197
+          "resultChars": 51009
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"@supabase/server reference withSupabase AuthConfig auth secret user\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth",
+              "title": "Securing Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/choosing-a-server-package",
+              "title": "Which package to use"
+            }
+          ],
+          "resultChars": 13168
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/functions/auth \"Combining modes\" withSupabase secret user",
+          "pages": []
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 1081576,
-        "cacheReadInputTokens": 1006804,
-        "cacheWriteInputTokens": 74700,
-        "outputTokens": 19694
+        "inputTokens": 611233,
+        "cacheReadInputTokens": 536890,
+        "cacheWriteInputTokens": 69189,
+        "outputTokens": 13456
       }
     ],
-    "stepCount": 24,
-    "toolCallCount": 42,
-    "agentRunDurationMs": 291977,
+    "stepCount": 15,
+    "toolCallCount": 28,
+    "agentRunDurationMs": 182220,
     "sandboxUsage": {
-      "activeCpuDurationMs": 289310,
-      "duration": 450242,
+      "activeCpuDurationMs": 262330,
+      "duration": 331758,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 2061038142,
-        "egress": 16309636
+        "ingress": 2051982180,
+        "egress": 10997371
       }
     },
     "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project,\nreachable over HTTP at `/functions/v1/user-stats`.\n\nImplement it with the **`@supabase/server`** package, which is built for exactly\nthis kind of multi-auth Edge Function. Import it directly in your function:\n\n```ts\nimport { withSupabase } from \"npm:@supabase/server\";\n```\n\nOur product stores per-user metrics in a `user_stats` table that already exists\n(see `supabase/migrations/`), protected by row-level security so a user can read\nonly their own rows.\n\nTwo very different callers need to hit this one endpoint:\n\n1. **Our mobile app**, acting for a signed-in user. It sends that user's\n   Supabase access token. The endpoint should return the user's own stats.\n\n2. **Our internal billing service**, a trusted backend with no signed-in user.\n   It authenticates with the project's secret (service-role) key in the `apikey`\n   header, and names the target user with a `user_id` in the JSON request body.\n   It needs that user's stats.\n\nReturn the matching rows as JSON. The endpoint must be secure: only ever serve\nstats to a caller that is genuinely entitled to them, and turn away callers that\nare not.",
     "promptSourcePath": "evals/regression/build-functions-006-dual-auth-with-server/PROMPT.md",
-    "run": 2,
-    "sourcePath": "codex-gpt-6-luna/build-functions-006-dual-auth-with-server/run-2/result.json"
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna/build-functions-006-dual-auth-with-server/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna",
