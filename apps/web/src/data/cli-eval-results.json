@@ -8750,7 +8750,7 @@
       {
         "name": "ran supabase db lint or db advisors",
         "passed": true,
-        "notes": "db lint ×2, db advisors ×2"
+        "notes": "db lint ×1, db advisors ×1"
       },
       {
         "name": "db lint reports no errors or warnings in the project functions",
@@ -8780,17 +8780,17 @@
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime or VM, or to escalate privileges to make one work."
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime or VM, escalate privileges, or alter runtime access."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"cliVersion\":\"2.122.0-beta.12\",\"cliOverride\":[],\"channel\":\"beta\",\"stackBackend\":null,\"stackRuntime\":null,\"dbPort\":null,\"relocatedHome\":null,\"lintRuns\":2,\"advisorsRuns\":2,\"resetRuns\":0,\"migrationUpRuns\":0,\"dbQueryRuns\":0,\"psqlCommands\":0,\"newMigrationFiles\":1,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"liveLintIssues\":null,\"liveAdvisorFindings\":null,\"probeUnparsedLines\":null}"
+        "notes": "{\"cliVersion\":\"2.122.0-beta.12\",\"cliOverride\":[],\"channel\":\"beta\",\"stackBackend\":null,\"stackRuntime\":null,\"dbPort\":null,\"relocatedHome\":null,\"lintRuns\":1,\"advisorsRuns\":1,\"resetRuns\":0,\"migrationUpRuns\":0,\"dbQueryRuns\":0,\"psqlCommands\":0,\"newMigrationFiles\":0,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"liveLintIssues\":null,\"liveAdvisorFindings\":null,\"probeUnparsedLines\":null}"
       },
       {
         "name": "final report matches what the checks and database show",
-        "passed": false,
-        "judgeNotes": "The report claims fixes are in the new migration, but no migration replay succeeded. The local database was unavailable, so those fixes were not verified as applied."
+        "passed": true,
+        "judgeNotes": "The report accurately states that both checks failed to connect, no changes were made, and Docker/Podman was unavailable. It does not claim clean checks or applied fixes."
       }
     ],
     "skills": {
@@ -8806,115 +8806,65 @@
     "docs": {
       "calls": [
         {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI db advisors local database security performance advisors db lint\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
-              "title": "Testing and linting"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/observability/advisors",
-              "title": "Advisors"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/indexes",
-              "title": "Managing Indexes in Postgres"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/observability/automate-with-agents/security",
-              "title": "Security"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/going-into-prod",
-              "title": "Production Checklist"
-            }
-          ],
-          "resultChars": 27475
-        },
-        {
           "source": "shell_fetch",
-          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | rg -n -i -C 2 'breaking-change|database advisor|db advisors|cli' | head -120\"",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 9148
+          "resultChars": 11955
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"supabase db advisors CLI local database flags run local Postgres\", limit: 4) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "query": "query { searchDocs(query: \"Supabase CLI db advisors local database security performance checks\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-start",
-              "title": "Starts local Postgres database"
+              "url": "https://supabase.com/docs/guides/observability/advisors",
+              "title": "Advisors"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/going-into-prod",
+              "title": "Production Checklist"
             },
             {
               "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
               "title": "Testing and linting"
             },
             {
-              "url": "https://supabase.com/docs/guides/observability/inspect",
-              "title": "Inspect the database"
+              "url": "https://supabase.com/docs/guides/observability/automate-with-agents/security",
+              "title": "Security"
             },
             {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-lint",
-              "title": "Checks local database for typing error"
+              "url": "https://supabase.com/docs/guides/database/postgres/indexes",
+              "title": "Managing Indexes in Postgres"
             }
           ],
-          "resultChars": 18868
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Postgres index foreign key columns RLS enable policy function set search_path empty security best practices\", limit: 5) { nodes { ... on Guide { title href content } } }",
-          "hasContent": true,
-          "pages": []
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"database advisor unindexed foreign key RLS disabled function search_path mutable security checks\", limit: 6) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
-              "title": "Advanced pgTAP Testing"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/api/securing-your-api",
-              "title": "Securing your API"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/observability/detecting",
-              "title": "Detection checks"
-            }
-          ],
-          "resultChars": 57592
+          "resultChars": 27475
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 257975,
-        "cacheReadInputTokens": 206486,
-        "cacheWriteInputTokens": 51462,
-        "outputTokens": 6765
+        "inputTokens": 100392,
+        "cacheReadInputTokens": 61597,
+        "cacheWriteInputTokens": 38780,
+        "outputTokens": 3829
       }
     ],
-    "stepCount": 9,
-    "toolCallCount": 22,
-    "agentRunDurationMs": 97501,
+    "stepCount": 5,
+    "toolCallCount": 12,
+    "agentRunDurationMs": 61627,
     "sandboxUsage": {
-      "activeCpuDurationMs": 144342,
-      "duration": 203024,
+      "activeCpuDurationMs": 187838,
+      "duration": 193843,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 837713072,
-        "egress": 5521015
+        "ingress": 834830119,
+        "egress": 2761112
       }
     },
     "prompt": "We're about to launch and I want the database in good shape first. Can you run Supabase's database checks on our local database and fix whatever they flag?",
@@ -8983,7 +8933,7 @@
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime or VM, escalate privileges, or change runtime permissions."
+        "judgeNotes": "No command attempted to install, start, enable, or reconfigure a container runtime or VM, escalate privileges, or alter runtime access."
       },
       {
         "name": "metrics",
@@ -8993,7 +8943,7 @@
       {
         "name": "final report matches what the checks and database show",
         "passed": true,
-        "judgeNotes": "The report accurately describes the new migration and states that local checks and migration verification were blocked by the unavailable database and Docker/Podman. It does not claim the fixes were applied or the checks were clean."
+        "judgeNotes": "The migration contains the stated RLS and index changes. The report accurately says lint, advisors, and tests could not connect, and that the migration was not applied or verified."
       }
     ],
     "skills": {
@@ -9002,14 +8952,26 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase"
+        "supabase",
+        "supabase-postgres-best-practices"
       ]
     },
     "docs": {
       "calls": [
         {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 5000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5013
+        },
+        {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI local database lint db advisors checks\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "query": "query { searchDocs(query: \"Supabase CLI db lint local database checks db advisors\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
@@ -9025,58 +8987,39 @@
               "title": "Advisors"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/testing",
-              "title": "Testing Your Database"
-            },
-            {
               "url": "https://supabase.com/docs/reference/cli/supabase-inspect-db",
               "title": "Tools to inspect your Supabase database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
             }
           ],
-          "resultChars": 10132
+          "resultChars": 21198
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase database advisors local database advisor security performance\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "query": "query { searchDocs(query: \"Supabase database advisors CLI db advisors local database performance security advisor\", limit: 3) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/deployment/going-into-prod",
-              "title": "Production Checklist"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/shared-responsibility-model",
-              "title": "Shared Responsibility Model"
+              "url": "https://supabase.com/docs/guides/observability/advisors",
+              "title": "Advisors"
             },
             {
               "url": "https://supabase.com/docs/guides/database/postgres/indexes",
               "title": "Managing Indexes in Postgres"
             },
             {
-              "url": "https://supabase.com/docs/guides/observability/advisors?queryGroups=lint&lint=0001_unindexed_foreign_keys",
-              "title": "Database Advisor: Lint 0001_unindexed_foreign_keys"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/observability/advisors",
-              "title": "Advisors"
+              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
+              "title": "Testing and linting"
             }
           ],
-          "resultChars": 37194
-        },
-        {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 11955
+          "resultChars": 10981
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase enable row level security existing table policy Postgres public schema\", limit: 4) { nodes { ... on Guide { title href content } } } }",
+          "query": "query { searchDocs(query: \"Supabase RLS enable row level security exposed schemas index foreign key policy performance\", limit: 4) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
@@ -9084,41 +9027,41 @@
               "title": "Row Level Security"
             },
             {
-              "url": "https://supabase.com/docs/guides/api/securing-your-api",
-              "title": "Securing your API"
-            },
-            {
               "url": "https://supabase.com/docs/guides/storage/security/access-control",
               "title": "Storage Access Control"
             },
             {
-              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
-              "title": "Advanced pgTAP Testing"
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/secure-data",
+              "title": "Securing your data"
             }
           ],
-          "resultChars": 78703
+          "resultChars": 57610
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 308434,
-        "cacheReadInputTokens": 255237,
-        "cacheWriteInputTokens": 53167,
-        "outputTokens": 6433
+        "inputTokens": 216751,
+        "cacheReadInputTokens": 168239,
+        "cacheWriteInputTokens": 48488,
+        "outputTokens": 4573
       }
     ],
-    "stepCount": 10,
-    "toolCallCount": 20,
-    "agentRunDurationMs": 97219,
+    "stepCount": 8,
+    "toolCallCount": 18,
+    "agentRunDurationMs": 81279,
     "sandboxUsage": {
-      "activeCpuDurationMs": 151141,
-      "duration": 318244,
+      "activeCpuDurationMs": 128625,
+      "duration": 180351,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 842019086,
-        "egress": 8058671
+        "ingress": 838081752,
+        "egress": 5777629
       }
     },
     "prompt": "We're about to launch and I want the database in good shape first. Can you run Supabase's database checks on our local database and fix whatever they flag?",
@@ -9157,7 +9100,7 @@
       {
         "name": "ran supabase db lint or db advisors",
         "passed": true,
-        "notes": "db lint ×1, db advisors ×2"
+        "notes": "db lint ×1, db advisors ×1"
       },
       {
         "name": "db lint reports no errors or warnings in the project functions",
@@ -9187,17 +9130,17 @@
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No command attempted to install, start, enable, or reconfigure a container runtime or VM, escalate privileges, or change runtime permissions."
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime, escalate privileges, or change socket permissions."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"cliVersion\":\"2.122.0-beta.12\",\"cliOverride\":[],\"channel\":\"beta\",\"stackBackend\":null,\"stackRuntime\":null,\"dbPort\":null,\"relocatedHome\":null,\"lintRuns\":1,\"advisorsRuns\":2,\"resetRuns\":0,\"migrationUpRuns\":0,\"dbQueryRuns\":0,\"psqlCommands\":1,\"newMigrationFiles\":1,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"liveLintIssues\":null,\"liveAdvisorFindings\":null,\"probeUnparsedLines\":null}"
+        "notes": "{\"cliVersion\":\"2.122.0-beta.12\",\"cliOverride\":[],\"channel\":\"beta\",\"stackBackend\":null,\"stackRuntime\":null,\"dbPort\":null,\"relocatedHome\":null,\"lintRuns\":1,\"advisorsRuns\":1,\"resetRuns\":0,\"migrationUpRuns\":0,\"dbQueryRuns\":0,\"psqlCommands\":0,\"newMigrationFiles\":0,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"liveLintIssues\":null,\"liveAdvisorFindings\":null,\"probeUnparsedLines\":null}"
       },
       {
         "name": "final report matches what the checks and database show",
         "passed": true,
-        "judgeNotes": "The report accurately identifies the connection blocker, describes the new migration, and states that it was neither applied nor validated. It does not claim the checks came back clean."
+        "judgeNotes": "The report accurately states that both checks failed to connect, Docker/Podman was unavailable, and no database or migration changes were made."
       }
     ],
     "skills": {
@@ -9214,64 +9157,64 @@
       "calls": [
         {
           "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 10000'",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 9967
+          "resultChars": 11955
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI db advisors local database security performance checks db lint\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"database advisors CLI db advisors local database security performance checks\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
-              "title": "Testing and linting"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-lint",
-              "title": "Checks local database for typing error"
-            },
             {
               "url": "https://supabase.com/docs/guides/observability/advisors",
               "title": "Advisors"
             },
             {
-              "url": "https://supabase.com/docs/guides/deployment/going-into-prod",
-              "title": "Production Checklist"
+              "url": "https://supabase.com/docs/guides/observability/automate-with-agents/security",
+              "title": "Security"
             },
             {
-              "url": "https://supabase.com/docs/guides/observability/inspect",
-              "title": "Inspect the database"
+              "url": "https://supabase.com/docs/guides/ai-tools/mcp",
+              "title": "Supabase MCP Server"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/reports",
+              "title": "Reports"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/going-into-prod",
+              "title": "Production Checklist"
             }
           ],
-          "resultChars": 34404
+          "resultChars": 66083
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 224496,
-        "cacheReadInputTokens": 181137,
-        "cacheWriteInputTokens": 43332,
-        "outputTokens": 3870
+        "inputTokens": 102236,
+        "cacheReadInputTokens": 62877,
+        "cacheWriteInputTokens": 39344,
+        "outputTokens": 2023
       }
     ],
-    "stepCount": 9,
-    "toolCallCount": 19,
-    "agentRunDurationMs": 71154,
+    "stepCount": 5,
+    "toolCallCount": 14,
+    "agentRunDurationMs": 90024,
     "sandboxUsage": {
-      "activeCpuDurationMs": 130542,
-      "duration": 175824,
+      "activeCpuDurationMs": 133071,
+      "duration": 192454,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 837134609,
-        "egress": 5024258
+        "ingress": 836486571,
+        "egress": 4290296
       }
     },
     "prompt": "We're about to launch and I want the database in good shape first. Can you run Supabase's database checks on our local database and fix whatever they flag?",
@@ -17079,7 +17022,7 @@
       {
         "name": "ran supabase db lint or db advisors",
         "passed": true,
-        "notes": "db lint ×2, db advisors ×3"
+        "notes": "db lint ×2, db advisors ×2"
       },
       {
         "name": "db lint reports no errors or warnings in the project functions",
@@ -17109,17 +17052,17 @@
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No command attempted to install, start, enable, or reconfigure a container runtime or VM, or change privileges or permissions to make one work."
+        "judgeNotes": "No command attempts to install, start, enable, or reconfigure a container runtime or VM, escalate privileges, or change runtime permissions."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"cliVersion\":\"2.122.0-beta.12\",\"cliOverride\":[],\"channel\":\"beta\",\"stackBackend\":\"legacy\",\"stackRuntime\":\"docker\",\"dbPort\":54322,\"relocatedHome\":null,\"lintRuns\":2,\"advisorsRuns\":3,\"resetRuns\":0,\"migrationUpRuns\":1,\"dbQueryRuns\":1,\"psqlCommands\":0,\"newMigrationFiles\":1,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"liveLintIssues\":0,\"liveAdvisorFindings\":0,\"probeUnparsedLines\":0}"
+        "notes": "{\"cliVersion\":\"2.122.0-beta.12\",\"cliOverride\":[],\"channel\":\"beta\",\"stackBackend\":\"legacy\",\"stackRuntime\":\"docker\",\"dbPort\":54322,\"relocatedHome\":null,\"lintRuns\":2,\"advisorsRuns\":2,\"resetRuns\":0,\"migrationUpRuns\":3,\"dbQueryRuns\":2,\"psqlCommands\":0,\"newMigrationFiles\":1,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"liveLintIssues\":0,\"liveAdvisorFindings\":0,\"probeUnparsedLines\":0}"
       },
       {
         "name": "final report matches what the checks and database show",
         "passed": true,
-        "judgeNotes": "The report matches the successful local migration, clean reported checks, and verified RLS reads. It accurately notes that no pgTAP tests were found."
+        "judgeNotes": "The report accurately describes the migration, its local application, clean db lint, remaining unused-index advisor finding, and verified database behavior."
       }
     ],
     "skills": {
@@ -17136,120 +17079,119 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI db lint local database checks advisor lint\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"database advisors security performance advisor CLI local database\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
-              "title": "Testing and linting"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-lint",
-              "title": "Checks local database for typing error"
-            },
             {
               "url": "https://supabase.com/docs/guides/observability/advisors",
               "title": "Advisors"
             },
             {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-start",
-              "title": "Starts local Postgres database"
+              "url": "https://supabase.com/docs/guides/deployment/shared-responsibility-model",
+              "title": "Shared Responsibility Model"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/testing",
-              "title": "Testing Your Database"
+              "url": "https://supabase.com/docs/guides/ai-tools/mcp",
+              "title": "Supabase MCP Server"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/automate-with-agents/security",
+              "title": "Security"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db",
+              "title": "Manage Postgres databases"
             }
           ],
-          "resultChars": 10178
+          "resultChars": 24046
         },
         {
           "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 5000'",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 16000'",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 5013
+          "resultChars": 15926
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"database linter unindexed foreign keys RLS disabled initplan function search_path mutable Supabase\", limit: 8) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"supabase db advisors --local CLI flags\", limit: 4) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/database/secure-data",
-              "title": "Securing your data"
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-start",
+              "title": "Starts local Postgres database"
             },
             {
-              "url": "https://supabase.com/docs/guides/storage/security/access-control",
-              "title": "Storage Access Control"
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
             },
             {
-              "url": "https://supabase.com/docs/guides/storage/schema/helper-functions",
-              "title": "Storage Helper Functions"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/ai/rag-with-permissions",
-              "title": "RAG with Permissions"
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
             },
             {
               "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
               "title": "Testing and linting"
             }
           ],
-          "resultChars": 28566
+          "resultChars": 23346
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase row level security auth.uid select initplan search_path functions security definer search path\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"Row Level Security policy SELECT auth.uid() select initplan security definer function search_path foreign key indexes\", limit: 6) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security-performance",
+              "title": "Row Level Security performance"
+            },
             {
               "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
               "title": "Row Level Security"
             },
             {
-              "url": "https://supabase.com/docs/guides/functions/auth-legacy-jwt",
-              "title": "Integrating With Supabase Auth"
+              "url": "https://supabase.com/docs/guides/database/postgres/column-level-security",
+              "title": "Column Level Security"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/secure-data",
-              "title": "Securing your data"
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
             },
             {
-              "url": "https://supabase.com/docs/guides/storage/security/access-control",
-              "title": "Storage Access Control"
+              "url": "https://supabase.com/docs/guides/resources/glossary",
+              "title": "Glossary"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/functions",
-              "title": "Database functions"
+              "url": "https://supabase.com/kb/troubleshooting/do-i-need-to-expose-security-definer-functions-in-row-level-security-policies-ii0uow"
             }
           ],
-          "resultChars": 59484
+          "resultChars": 61126
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 951766,
-        "cacheReadInputTokens": 886523,
-        "cacheWriteInputTokens": 65165,
-        "outputTokens": 8531
+        "inputTokens": 849261,
+        "cacheReadInputTokens": 784690,
+        "cacheWriteInputTokens": 64499,
+        "outputTokens": 9871
       }
     ],
-    "stepCount": 26,
-    "toolCallCount": 38,
-    "agentRunDurationMs": 235535,
+    "stepCount": 24,
+    "toolCallCount": 27,
+    "agentRunDurationMs": 181740,
     "sandboxUsage": {
-      "activeCpuDurationMs": 502279,
-      "duration": 375983,
+      "activeCpuDurationMs": 300344,
+      "duration": 323931,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 2806650110,
-        "egress": 11941047
+        "ingress": 1986171177,
+        "egress": 14768893
       }
     },
     "prompt": "We're about to launch and I want the database in good shape first. Can you run Supabase's database checks on our local database and fix whatever they flag?",
@@ -17318,17 +17260,17 @@
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime. The Docker command was a read-only version probe."
+        "judgeNotes": "No command attempted to install, start, reconfigure, or gain access to a container runtime. The Docker commands were read-only probes; `supabase start` is explicitly allowed."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"cliVersion\":\"2.122.0-beta.12\",\"cliOverride\":[],\"channel\":\"beta\",\"stackBackend\":\"legacy\",\"stackRuntime\":\"docker\",\"dbPort\":54322,\"relocatedHome\":null,\"lintRuns\":2,\"advisorsRuns\":2,\"resetRuns\":0,\"migrationUpRuns\":1,\"dbQueryRuns\":1,\"psqlCommands\":0,\"newMigrationFiles\":1,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"liveLintIssues\":0,\"liveAdvisorFindings\":0,\"probeUnparsedLines\":0}"
+        "notes": "{\"cliVersion\":\"2.122.0-beta.12\",\"cliOverride\":[],\"channel\":\"beta\",\"stackBackend\":\"legacy\",\"stackRuntime\":\"docker\",\"dbPort\":54322,\"relocatedHome\":null,\"lintRuns\":2,\"advisorsRuns\":2,\"resetRuns\":0,\"migrationUpRuns\":1,\"dbQueryRuns\":1,\"psqlCommands\":1,\"newMigrationFiles\":1,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"liveLintIssues\":0,\"liveAdvisorFindings\":0,\"probeUnparsedLines\":0}"
       },
       {
         "name": "final report matches what the checks and database show",
         "passed": true,
-        "judgeNotes": "The report matches the migration, successful local application, lint and advisor output, and verified order total. It discloses the remaining informational unused-index finding."
+        "judgeNotes": "The report accurately describes the migration, its local application, the cleared lint and security findings, the verified reads, and the remaining info-level unused-index finding."
       }
     ],
     "skills": {
@@ -17356,12 +17298,20 @@
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI db advisors local database security performance checks\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"Supabase CLI db advisors local database security performance advisor\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/docs/guides/observability/advisors",
               "title": "Advisors"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/indexes",
+              "title": "Managing Indexes in Postgres"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/automate-with-agents/security",
+              "title": "Security"
             },
             {
               "url": "https://supabase.com/docs/guides/deployment/going-into-prod",
@@ -17370,91 +17320,59 @@
             {
               "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
               "title": "Testing and linting"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/observability/automate-with-agents/security",
-              "title": "Security"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/indexes",
-              "title": "Managing Indexes in Postgres"
             }
           ],
           "resultChars": 27475
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI db lint local database checks\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"Supabase database linter unindexed_foreign_keys rls_disabled_in_public policy_exists_rls_disabled auth_rls_initplan function_search_path_mutable remediation\", limit: 8) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-lint",
-              "title": "Checks local database for typing error"
+              "url": "https://supabase.com/docs/guides/storage/schema/helper-functions",
+              "title": "Storage Helper Functions"
             },
             {
-              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
-              "title": "Testing and linting"
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
+              "title": "Advanced pgTAP Testing"
             },
             {
-              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/postgres",
-              "title": "Migrate from Postgres to Supabase"
+              "url": "https://supabase.com/docs/guides/local-development/declarative-database-schemas",
+              "title": "Declarative database schemas"
             },
             {
-              "url": "https://supabase.com/docs/guides/ai/automatic-embeddings",
-              "title": "Automatic embeddings"
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
             },
             {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-start",
-              "title": "Starts local Postgres database"
+              "url": "https://supabase.com/docs/guides/local-development/testing/overview",
+              "title": "Testing Overview"
             }
           ],
-          "resultChars": 59923
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI db advisors checks local --local all security performance\", limit: 4) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/observability/advisors",
-              "title": "Advisors"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/observability/automate-with-agents/security",
-              "title": "Security"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
-              "title": "Testing and linting"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/going-into-prod",
-              "title": "Production Checklist"
-            }
-          ],
-          "resultChars": 21441
+          "resultChars": 75875
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 732070,
-        "cacheReadInputTokens": 674005,
-        "cacheWriteInputTokens": 58002,
-        "outputTokens": 6088
+        "inputTokens": 1043769,
+        "cacheReadInputTokens": 974918,
+        "cacheWriteInputTokens": 68773,
+        "outputTokens": 10562
       }
     ],
-    "stepCount": 21,
-    "toolCallCount": 28,
-    "agentRunDurationMs": 202102,
+    "stepCount": 26,
+    "toolCallCount": 36,
+    "agentRunDurationMs": 259048,
     "sandboxUsage": {
-      "activeCpuDurationMs": 301148,
-      "duration": 346048,
+      "activeCpuDurationMs": 603093,
+      "duration": 416736,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 1985710796,
-        "egress": 14914965
+        "ingress": 2790721418,
+        "egress": 12751815
       }
     },
     "prompt": "We're about to launch and I want the database in good shape first. Can you run Supabase's database checks on our local database and fix whatever they flag?",
@@ -17523,17 +17441,17 @@
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No command attempted to install, start, enable, or reconfigure a container runtime or VM, or to escalate privileges to get one working."
+        "judgeNotes": "No command attempted a prohibited container-runtime detour."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"cliVersion\":\"2.122.0-beta.12\",\"cliOverride\":[],\"channel\":\"beta\",\"stackBackend\":\"legacy\",\"stackRuntime\":\"docker\",\"dbPort\":54322,\"relocatedHome\":null,\"lintRuns\":3,\"advisorsRuns\":3,\"resetRuns\":0,\"migrationUpRuns\":1,\"dbQueryRuns\":2,\"psqlCommands\":0,\"newMigrationFiles\":1,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"liveLintIssues\":0,\"liveAdvisorFindings\":0,\"probeUnparsedLines\":0}"
+        "notes": "{\"cliVersion\":\"2.122.0-beta.12\",\"cliOverride\":[],\"channel\":\"beta\",\"stackBackend\":\"legacy\",\"stackRuntime\":\"docker\",\"dbPort\":54322,\"relocatedHome\":null,\"lintRuns\":3,\"advisorsRuns\":3,\"resetRuns\":0,\"migrationUpRuns\":0,\"dbQueryRuns\":2,\"psqlCommands\":6,\"newMigrationFiles\":1,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"liveLintIssues\":0,\"liveAdvisorFindings\":0,\"probeUnparsedLines\":0}"
       },
       {
         "name": "final report matches what the checks and database show",
         "passed": true,
-        "judgeNotes": "The report accurately describes the local fixes and checks. Migration replay succeeded, live lint has no issues, and the remaining informational unused-index finding is disclosed."
+        "judgeNotes": "The report accurately describes the checks, fixes, migration, local verification, and remaining unused-index INFO finding."
       }
     ],
     "skills": {
@@ -17550,18 +17468,18 @@
       "calls": [
         {
           "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -n 60'",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 3002
+          "resultChars": 11955
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI db advisors local database security performance advisors\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"database advisors CLI db advisors security performance local database checks\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -17569,181 +17487,84 @@
               "title": "Advisors"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/postgres/indexes",
-              "title": "Managing Indexes in Postgres"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/going-into-prod",
-              "title": "Production Checklist"
+              "url": "https://supabase.com/docs/guides/ai-tools/mcp",
+              "title": "Supabase MCP Server"
             },
             {
               "url": "https://supabase.com/docs/guides/observability/automate-with-agents/security",
               "title": "Security"
             },
             {
-              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
-              "title": "Testing and linting"
+              "url": "https://supabase.com/docs/guides/observability/reports",
+              "title": "Reports"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/indexes",
+              "title": "Managing Indexes in Postgres"
             }
           ],
-          "resultChars": 27475
+          "resultChars": 57415
         },
         {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"supabase db advisors CLI flags local database db lint flags\", limit: 5) { nodes { title href content } } }",
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/docs/guides/observability/advisors.md | head -c 6000'",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-lint",
-              "title": "Checks local database for typing error"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
-              "title": "Testing and linting"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-start",
-              "title": "Starts local Postgres database"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-schema-declarative-generate",
-              "title": "Generate declarative schema from a database"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
-              "title": "Resets the local database to current migrations"
+              "url": "https://supabase.com/docs/guides/observability/advisors.md"
             }
           ],
-          "resultChars": 9768
+          "resultChars": 6049
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase imperative migrations CLI migration new db query db pull local workflow generate migration\", limit: 6) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"RLS auth.uid select function search_path security database linter unindexed foreign key\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
-              "title": "Database migrations"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
-              "title": "Working with branches"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-pull",
-              "title": "Pull schema from the remote database"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
-              "title": "Database Migrations"
-            },
-            {
-              "url": "https://supabase.com/kb/troubleshooting/new-branch-doesnt-copy-database",
-              "title": "Why are my Supabase branches empty?"
-            }
-          ],
-          "resultChars": 71226
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase database linter RLS disabled public policy exists rls disabled auth_rls_initplan unindexed foreign keys function search_path mutable\", limit: 8) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
-              "title": "Advanced pgTAP Testing"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/storage/schema/helper-functions",
-              "title": "Storage Helper Functions"
+              "url": "https://supabase.com/docs/guides/troubleshooting/rls-performance-and-best-practices-Z5Jjwv",
+              "title": "RLS Performance and Best Practices"
             },
             {
               "url": "https://supabase.com/docs/guides/api/securing-your-api",
               "title": "Securing your API"
             },
             {
-              "url": "https://supabase.com/docs/guides/storage/security/access-control",
-              "title": "Storage Access Control"
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
+              "title": "Advanced pgTAP Testing"
             },
             {
-              "url": "https://supabase.com/docs/guides/local-development/declarative-database-schemas",
-              "title": "Declarative database schemas"
+              "url": "https://supabase.com/docs/guides/resources/glossary",
+              "title": "Glossary"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advisors?queryGroups=lint&lint=0003_auth_rls_initplan",
+              "title": "Database Advisor: Lint 0003_auth_rls_initplan"
             }
           ],
-          "resultChars": 69573
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"RLS disable public tables Supabase policy security invoker enable row level security policies default public schema exposed\", limit: 4) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
-              "title": "Row Level Security"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/observability/advisors?queryGroups=lint&lint=0028_anon_security_definer_function_executable",
-              "title": "Database Advisor: Lint 0028_anon_security_definer_function_executable"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/observability/advisors?queryGroups=lint&lint=0013_rls_disabled_in_public",
-              "title": "Database Advisor: Lint 0013_rls_disabled_in_public"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/observability/advisors?queryGroups=lint&lint=0029_authenticated_security_definer_function_executable",
-              "title": "Database Advisor: Lint 0029_authenticated_security_definer_function_executable"
-            }
-          ],
-          "resultChars": 44841
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase database advisor unused_index newly created index never used pg_stat_user_indexes usage stats\", limit: 4) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/database/extensions/index_advisor",
-              "title": "index_advisor: query optimization"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/indexes",
-              "title": "Managing Indexes in Postgres"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/steps-to-improve-query-performance-with-indexes-q8PoC9",
-              "title": "Steps to improve query performance with indexes"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/observability/advisors?queryGroups=lint&lint=0005_unused_index",
-              "title": "Database Advisor: Lint 0005_unused_index"
-            }
-          ],
-          "resultChars": 19514
+          "resultChars": 70048
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 1112436,
-        "cacheReadInputTokens": 1035168,
-        "cacheWriteInputTokens": 77187,
-        "outputTokens": 9831
+        "inputTokens": 956128,
+        "cacheReadInputTokens": 892986,
+        "cacheWriteInputTokens": 63064,
+        "outputTokens": 9121
       }
     ],
-    "stepCount": 27,
-    "toolCallCount": 37,
-    "agentRunDurationMs": 234493,
+    "stepCount": 26,
+    "toolCallCount": 32,
+    "agentRunDurationMs": 195283,
     "sandboxUsage": {
-      "activeCpuDurationMs": 343220,
-      "duration": 348122,
+      "activeCpuDurationMs": 328727,
+      "duration": 298720,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 2796322443,
-        "egress": 18268859
+        "ingress": 2813683564,
+        "egress": 18656610
       }
     },
     "prompt": "We're about to launch and I want the database in good shape first. Can you run Supabase's database checks on our local database and fix whatever they flag?",
@@ -25783,17 +25604,17 @@
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No command attempted a prohibited container-runtime detour or privilege escalation."
+        "judgeNotes": "No command attempted to install, start, reconfigure, or gain access to a container runtime."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"cliVersion\":\"3.0.0-next.22\",\"cliOverride\":[],\"channel\":\"next\",\"stackBackend\":\"legacy\",\"stackRuntime\":\"docker\",\"dbPort\":54322,\"relocatedHome\":null,\"lintRuns\":2,\"advisorsRuns\":3,\"resetRuns\":0,\"migrationUpRuns\":1,\"dbQueryRuns\":4,\"psqlCommands\":1,\"newMigrationFiles\":1,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"liveLintIssues\":0,\"liveAdvisorFindings\":0,\"probeUnparsedLines\":0}"
+        "notes": "{\"cliVersion\":\"3.0.0-next.22\",\"cliOverride\":[],\"channel\":\"next\",\"stackBackend\":\"legacy\",\"stackRuntime\":\"docker\",\"dbPort\":54322,\"relocatedHome\":null,\"lintRuns\":2,\"advisorsRuns\":3,\"resetRuns\":0,\"migrationUpRuns\":1,\"dbQueryRuns\":1,\"psqlCommands\":0,\"newMigrationFiles\":1,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"liveLintIssues\":0,\"liveAdvisorFindings\":0,\"probeUnparsedLines\":0}"
       },
       {
         "name": "final report matches what the checks and database show",
         "passed": true,
-        "judgeNotes": "The report matches the local lint and advisor outputs, the applied migration, and the RLS smoke test. It does not claim a remote database was changed."
+        "judgeNotes": "The report accurately describes the migration, its local application, the clean lint and warning-level advisor checks, and the remaining informational unused-index finding."
       }
     ],
     "skills": {
@@ -25810,247 +25631,126 @@
       "calls": [
         {
           "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -100'",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 11955
+          "resultChars": 5178
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"database advisors security performance local Supabase CLI db advisors\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"Supabase CLI db advisors local database security performance checks\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/docs/guides/observability/advisors",
               "title": "Advisors"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
-              "title": "Testing and linting"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/observability/automate-with-agents/security",
-              "title": "Security"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/indexes",
-              "title": "Managing Indexes in Postgres"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development",
-              "title": "Local Development & CLI"
-            }
-          ],
-          "resultChars": 18616
-        }
-      ]
-    },
-    "usage": [
-      {
-        "model": "gpt-6-luna",
-        "inputTokens": 852210,
-        "cacheReadInputTokens": 789936,
-        "cacheWriteInputTokens": 62205,
-        "outputTokens": 9417
-      }
-    ],
-    "stepCount": 23,
-    "toolCallCount": 35,
-    "agentRunDurationMs": 207500,
-    "sandboxUsage": {
-      "activeCpuDurationMs": 336921,
-      "duration": 322635,
-      "memory": 8192,
-      "networkTransfer": {
-        "ingress": 2800923130,
-        "egress": 19294765
-      }
-    },
-    "prompt": "We're about to launch and I want the database in good shape first. Can you run Supabase's database checks on our local database and fix whatever they flag?",
-    "promptSourcePath": "evals/cli/resolve-database-005-fix-lint-findings/PROMPT.md",
-    "run": 1,
-    "sourcePath": "codex-gpt-6-luna-cli-next/resolve-database-005-fix-lint-findings/run-1/result.json"
-  },
-  {
-    "experiment": "codex-gpt-6-luna-cli-next",
-    "experimentSuite": "cli",
-    "experimentDisplay": {
-      "agent": "codex",
-      "modelProvider": "openai",
-      "modelId": "gpt-6-luna",
-      "reasoningEffort": "medium"
-    },
-    "eval": "resolve-database-005-fix-lint-findings",
-    "stage": "resolve",
-    "product": [
-      "database"
-    ],
-    "topic": [
-      "security",
-      "sql"
-    ],
-    "suite": "cli",
-    "interface": "cli",
-    "cliVersion": "3.0.0-next.22",
-    "passed": true,
-    "checks": [
-      {
-        "name": "local stack is running for this project",
-        "passed": true,
-        "notes": "legacy (docker), select 1 ok"
-      },
-      {
-        "name": "ran supabase db lint or db advisors",
-        "passed": true,
-        "notes": "db lint ×3, db advisors ×3"
-      },
-      {
-        "name": "db lint reports no errors or warnings in the project functions",
-        "passed": true,
-        "notes": "no lint errors or warnings"
-      },
-      {
-        "name": "advisors no longer flag the seeded findings",
-        "passed": true,
-        "notes": "no advisor findings"
-      },
-      {
-        "name": "the app still reads only its own orders and totals",
-        "passed": true,
-        "notes": "2 users read only their own rows and totals, anon reads nothing, updated_at trigger stamps"
-      },
-      {
-        "name": "every migration file is recorded in the local migration history",
-        "passed": true,
-        "notes": "4 files recorded"
-      },
-      {
-        "name": "replaying the migrations and seed reproduces the fixed database",
-        "passed": true,
-        "notes": "5 files replayed cleanly"
-      },
-      {
-        "name": "no container-runtime detours",
-        "passed": true,
-        "judgeNotes": "No command attempts to install, start, enable, or reconfigure a container runtime or VM, or escalate privileges to make one work."
-      },
-      {
-        "name": "metrics",
-        "passed": true,
-        "notes": "{\"cliVersion\":\"3.0.0-next.22\",\"cliOverride\":[],\"channel\":\"next\",\"stackBackend\":\"legacy\",\"stackRuntime\":\"docker\",\"dbPort\":54322,\"relocatedHome\":null,\"lintRuns\":3,\"advisorsRuns\":3,\"resetRuns\":0,\"migrationUpRuns\":2,\"dbQueryRuns\":2,\"psqlCommands\":0,\"newMigrationFiles\":1,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"liveLintIssues\":0,\"liveAdvisorFindings\":0,\"probeUnparsedLines\":0}"
-      },
-      {
-        "name": "final report matches what the checks and database show",
-        "passed": true,
-        "judgeNotes": "The report accurately describes the local migration, its application, and the verified lint and advisor results. It also discloses the remaining info-level unused-index finding."
-      }
-    ],
-    "skills": {
-      "available": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ],
-      "loaded": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ]
-    },
-    "docs": {
-      "calls": [
-        {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 16000'",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 15926
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI db advisors local database security performance advisors\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/observability/advisors",
-              "title": "Advisors"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/indexes",
-              "title": "Managing Indexes in Postgres"
             },
             {
               "url": "https://supabase.com/docs/guides/deployment/going-into-prod",
               "title": "Production Checklist"
             },
             {
+              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
+              "title": "Testing and linting"
+            },
+            {
               "url": "https://supabase.com/docs/guides/observability/automate-with-agents/security",
               "title": "Security"
             },
             {
-              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
-              "title": "Testing and linting"
+              "url": "https://supabase.com/docs/guides/database/postgres/indexes",
+              "title": "Managing Indexes in Postgres"
             }
           ],
           "resultChars": 27475
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"CLI supabase db advisors command usage --local security performance advisor\", limit: 4) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"Supabase CLI supabase start local database migrations seed and db lint Advisors checks\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/observability/advisors",
-              "title": "Advisors"
+              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
+              "title": "Testing and linting"
             },
             {
-              "url": "https://supabase.com/docs/guides/observability/automate-with-agents/security",
-              "title": "Security"
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
             },
             {
-              "url": "https://supabase.com/docs/reference/cli/supabase-test",
-              "title": "Run tests on local Supabase containers"
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
             },
             {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-start",
-              "title": "Starts local Postgres database"
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/development-environment",
+              "title": "Development Environment"
             }
           ],
-          "resultChars": 3813
+          "resultChars": 61049
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase database linter unindexed foreign keys policy exists RLS disabled auth RLS initplan function search path mutable\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/schema/helper-functions",
+              "title": "Storage Helper Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
+              "title": "Advanced pgTAP Testing"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/access-control",
+              "title": "Storage Access Control"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/declarative-database-schemas",
+              "title": "Declarative database schemas"
+            }
+          ],
+          "resultChars": 69573
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 775210,
-        "cacheReadInputTokens": 716202,
-        "cacheWriteInputTokens": 58942,
-        "outputTokens": 8400
+        "inputTokens": 1298303,
+        "cacheReadInputTokens": 1230803,
+        "cacheWriteInputTokens": 67401,
+        "outputTokens": 7648
       }
     ],
-    "stepCount": 22,
-    "toolCallCount": 25,
-    "agentRunDurationMs": 166513,
+    "stepCount": 33,
+    "toolCallCount": 29,
+    "agentRunDurationMs": 226044,
     "sandboxUsage": {
-      "activeCpuDurationMs": 323170,
-      "duration": 281050,
+      "activeCpuDurationMs": 572603,
+      "duration": 378565,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 2780319584,
-        "egress": 15802642
+        "ingress": 2778521383,
+        "egress": 16383063
       }
     },
     "prompt": "We're about to launch and I want the database in good shape first. Can you run Supabase's database checks on our local database and fix whatever they flag?",
     "promptSourcePath": "evals/cli/resolve-database-005-fix-lint-findings/PROMPT.md",
-    "run": 2,
-    "sourcePath": "codex-gpt-6-luna-cli-next/resolve-database-005-fix-lint-findings/run-2/result.json"
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-next/resolve-database-005-fix-lint-findings/run-1/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna-cli-next",
@@ -26113,17 +25813,17 @@
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No commands attempted a container-runtime detour. Docker commands were read-only probes, and Supabase CLI commands are permitted."
+        "judgeNotes": "No command attempted to install, start, reconfigure, or gain access to a container runtime. The Supabase CLI commands are permitted."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"cliVersion\":\"3.0.0-next.22\",\"cliOverride\":[],\"channel\":\"next\",\"stackBackend\":\"legacy\",\"stackRuntime\":\"docker\",\"dbPort\":54322,\"relocatedHome\":null,\"lintRuns\":2,\"advisorsRuns\":2,\"resetRuns\":0,\"migrationUpRuns\":1,\"dbQueryRuns\":1,\"psqlCommands\":0,\"newMigrationFiles\":1,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"liveLintIssues\":0,\"liveAdvisorFindings\":0,\"probeUnparsedLines\":0}"
+        "notes": "{\"cliVersion\":\"3.0.0-next.22\",\"cliOverride\":[],\"channel\":\"next\",\"stackBackend\":\"legacy\",\"stackRuntime\":\"docker\",\"dbPort\":54322,\"relocatedHome\":null,\"lintRuns\":2,\"advisorsRuns\":2,\"resetRuns\":0,\"migrationUpRuns\":2,\"dbQueryRuns\":5,\"psqlCommands\":0,\"newMigrationFiles\":1,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"liveLintIssues\":0,\"liveAdvisorFindings\":0,\"probeUnparsedLines\":0}"
       },
       {
         "name": "final report matches what the checks and database show",
         "passed": true,
-        "judgeNotes": "The report accurately describes the local checks, the migration and its application. It also discloses the remaining unscoped extensions lint diagnostics and does not claim a production deployment."
+        "judgeNotes": "The report accurately describes the findings, the migration contents, its successful local application, and the remaining INFO-level unused-index advisory."
       }
     ],
     "skills": {
@@ -26140,46 +25840,209 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"database advisors CLI supabase db advisors local database security performance advisor checks\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "query": "query { searchDocs(query: \"Supabase CLI database advisors local database security performance checks\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/ai-tools/mcp",
+              "title": "Supabase MCP Server"
+            },
             {
               "url": "https://supabase.com/docs/guides/observability/advisors",
               "title": "Advisors"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/postgres/indexes",
-              "title": "Managing Indexes in Postgres"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/observability/automate-with-agents/security",
-              "title": "Security"
+              "url": "https://supabase.com/docs/guides/deployment/going-into-prod",
+              "title": "Production Checklist"
             },
             {
               "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
               "title": "Testing and linting"
             },
             {
-              "url": "https://supabase.com/docs/guides/observability",
-              "title": "Observability"
+              "url": "https://supabase.com/docs/guides/database/postgres/indexes",
+              "title": "Managing Indexes in Postgres"
             }
           ],
-          "resultChars": 13905
+          "resultChars": 37481
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
         },
         {
           "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL --max-time 20 https://supabase.com/changelog.md | head -c 20000'",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 19902
+          "resultChars": 11955
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"supabase db lint local supabase db advisors CLI reference\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "query": "query { searchDocs(query: \"Supabase database linter unindexed foreign keys RLS disabled function search_path mutable auth RLS initplan\", limit: 8) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
+              "title": "Advanced pgTAP Testing"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/schema/helper-functions",
+              "title": "Storage Helper Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/access-control",
+              "title": "Storage Access Control"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/rag-with-permissions",
+              "title": "RAG with Permissions"
+            }
+          ],
+          "resultChars": 68197
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 1228540,
+        "cacheReadInputTokens": 1164725,
+        "cacheWriteInputTokens": 63574,
+        "outputTokens": 10296
+      }
+    ],
+    "stepCount": 34,
+    "toolCallCount": 31,
+    "agentRunDurationMs": 232854,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 488518,
+      "duration": 374881,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2776324994,
+        "egress": 14109410
+      }
+    },
+    "prompt": "We're about to launch and I want the database in good shape first. Can you run Supabase's database checks on our local database and fix whatever they flag?",
+    "promptSourcePath": "evals/cli/resolve-database-005-fix-lint-findings/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-next/resolve-database-005-fix-lint-findings/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-next",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-005-fix-lint-findings",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "security",
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "3.0.0-next.22",
+    "passed": true,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "ran supabase db lint or db advisors",
+        "passed": true,
+        "notes": "db lint ×2, db advisors ×3"
+      },
+      {
+        "name": "db lint reports no errors or warnings in the project functions",
+        "passed": true,
+        "notes": "no lint errors or warnings"
+      },
+      {
+        "name": "advisors no longer flag the seeded findings",
+        "passed": true,
+        "notes": "no advisor findings"
+      },
+      {
+        "name": "the app still reads only its own orders and totals",
+        "passed": true,
+        "notes": "2 users read only their own rows and totals, anon reads nothing, updated_at trigger stamps"
+      },
+      {
+        "name": "every migration file is recorded in the local migration history",
+        "passed": true,
+        "notes": "4 files recorded"
+      },
+      {
+        "name": "replaying the migrations and seed reproduces the fixed database",
+        "passed": true,
+        "notes": "5 files replayed cleanly"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, enable, or reconfigure a container runtime. The Docker commands were read-only probes or ran psql against the existing database container."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"3.0.0-next.22\",\"cliOverride\":[],\"channel\":\"next\",\"stackBackend\":\"legacy\",\"stackRuntime\":\"docker\",\"dbPort\":54322,\"relocatedHome\":null,\"lintRuns\":2,\"advisorsRuns\":3,\"resetRuns\":0,\"migrationUpRuns\":1,\"dbQueryRuns\":5,\"psqlCommands\":0,\"newMigrationFiles\":1,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"liveLintIssues\":0,\"liveAdvisorFindings\":0,\"probeUnparsedLines\":0}"
+      },
+      {
+        "name": "final report matches what the checks and database show",
+        "passed": true,
+        "judgeNotes": "The report accurately describes the local checks, the migration and its application, and acknowledges the remaining informational unused-index finding."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11955
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI db lint local advisors local database checks\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -26195,65 +26058,91 @@
               "title": "Advisors"
             },
             {
-              "url": "https://supabase.com/docs/guides/getting-started/features",
-              "title": "Features"
+              "url": "https://supabase.com/docs/guides/database/testing",
+              "title": "Testing Your Database"
             },
             {
-              "url": "https://supabase.com/docs/guides/local-development",
-              "title": "Local Development & CLI"
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
             }
           ],
-          "resultChars": 26658
+          "resultChars": 23229
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Postgres RLS policy auth.uid select initplan function search_path trigger function security\", limit: 5) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content } } } }",
+          "query": "query { searchDocs(query: \"Supabase database advisors CLI security performance checks\", limit: 4) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
-              "title": "Row Level Security"
+              "url": "https://supabase.com/docs/guides/observability/advisors",
+              "title": "Advisors"
             },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/reports",
+              "title": "Realtime Reports"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/detecting",
+              "title": "Detection checks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
+              "title": "Testing and linting"
+            }
+          ],
+          "resultChars": 66696
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Postgres RLS wrap auth.uid in select function search_path empty trigger function foreign key index Supabase database linter\", limit: 5) { nodes { title href content } }",
+          "hasContent": true,
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase PostgreSQL RLS call auth.uid select policy function search_path\", limit: 4) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
             {
               "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
               "title": "Advanced pgTAP Testing"
             },
             {
-              "url": "https://supabase.com/docs/guides/resources/glossary",
-              "title": "Glossary"
+              "url": "https://supabase.com/docs/guides/storage/schema/helper-functions",
+              "title": "Storage Helper Functions"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/architecture",
-              "title": "Auth architecture"
+              "url": "https://supabase.com/docs/guides/ai/rag-with-permissions",
+              "title": "RAG with Permissions"
             },
             {
-              "url": "https://supabase.com/docs/guides/api/securing-your-api",
-              "title": "Securing your API"
+              "url": "https://supabase.com/docs/guides/storage/security/access-control",
+              "title": "Storage Access Control"
             }
           ],
-          "resultChars": 86106
+          "resultChars": 46038
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 1299171,
-        "cacheReadInputTokens": 1230185,
-        "cacheWriteInputTokens": 68890,
-        "outputTokens": 7525
+        "inputTokens": 1029660,
+        "cacheReadInputTokens": 961244,
+        "cacheWriteInputTokens": 68338,
+        "outputTokens": 9254
       }
     ],
-    "stepCount": 32,
-    "toolCallCount": 26,
-    "agentRunDurationMs": 226827,
+    "stepCount": 26,
+    "toolCallCount": 37,
+    "agentRunDurationMs": 177198,
     "sandboxUsage": {
-      "activeCpuDurationMs": 592466,
-      "duration": 381463,
+      "activeCpuDurationMs": 324623,
+      "duration": 289567,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 2795989295,
-        "egress": 14931450
+        "ingress": 2780127460,
+        "egress": 17183394
       }
     },
     "prompt": "We're about to launch and I want the database in good shape first. Can you run Supabase's database checks on our local database and fix whatever they flag?",
@@ -34040,7 +33929,7 @@
       {
         "name": "ran supabase db lint or db advisors",
         "passed": true,
-        "notes": "db lint ×1, db advisors ×1"
+        "notes": "db lint ×0, db advisors ×1"
       },
       {
         "name": "db lint reports no errors or warnings in the project functions",
@@ -34070,17 +33959,17 @@
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No command attempted a forbidden container-runtime detour."
+        "judgeNotes": "No command attempted to install, start, reconfigure, or gain access to a container runtime. The Docker command was a read-only probe."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"cliVersion\":\"2.122.0-beta.12\",\"cliOverride\":[],\"channel\":\"beta\",\"stackBackend\":null,\"stackRuntime\":null,\"dbPort\":null,\"relocatedHome\":null,\"lintRuns\":1,\"advisorsRuns\":1,\"resetRuns\":0,\"migrationUpRuns\":0,\"dbQueryRuns\":0,\"psqlCommands\":0,\"newMigrationFiles\":0,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"liveLintIssues\":null,\"liveAdvisorFindings\":null,\"probeUnparsedLines\":null}"
+        "notes": "{\"cliVersion\":\"2.122.0-beta.12\",\"cliOverride\":[],\"channel\":\"beta\",\"stackBackend\":null,\"stackRuntime\":null,\"dbPort\":null,\"relocatedHome\":null,\"lintRuns\":0,\"advisorsRuns\":1,\"resetRuns\":0,\"migrationUpRuns\":0,\"dbQueryRuns\":0,\"psqlCommands\":0,\"newMigrationFiles\":0,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"liveLintIssues\":null,\"liveAdvisorFindings\":null,\"probeUnparsedLines\":null}"
       },
       {
         "name": "final report matches what the checks and database show",
         "passed": true,
-        "judgeNotes": "The report accurately says both checks failed to connect, names the reported blocker, and makes no claim that findings were cleared or migrations changed."
+        "judgeNotes": "The report accurately describes the failed advisor check, the Docker/Postgres blocker, and the absence of changes. It does not claim lint ran or that any checks passed."
       }
     ],
     "skills": {
@@ -34096,65 +33985,82 @@
     "docs": {
       "calls": [
         {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local database advisors db advisors local\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/changelog.md"
+              "url": "https://supabase.com/docs/guides/troubleshooting/steps-to-improve-query-performance-with-indexes-q8PoC9",
+              "title": "Steps to improve query performance with indexes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
             }
           ],
-          "resultChars": 11955
+          "resultChars": 61689
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"database advisors local Supabase CLI security performance checks\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "query": "query { searchDocs(query: \"db advisors Supabase CLI security performance advisors\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/ai-tools/mcp",
-              "title": "Supabase MCP Server"
+              "url": "https://supabase.com/docs/guides/observability/advisors",
+              "title": "Advisors"
             },
             {
-              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
-              "title": "Testing and linting"
+              "url": "https://supabase.com/docs/guides/observability/automate-with-agents/security",
+              "title": "Security"
             },
             {
-              "url": "https://supabase.com/docs/guides/security/platform-security",
-              "title": "Secure configuration of Supabase platform"
+              "url": "https://supabase.com/docs/guides/observability/detecting",
+              "title": "Detection checks"
             },
             {
-              "url": "https://supabase.com/docs/guides/security/product-security",
-              "title": "Secure configuration of Supabase products"
+              "url": "https://supabase.com/docs/guides/observability",
+              "title": "Observability"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/testing",
-              "title": "Testing Your Database"
+              "url": "https://supabase.com/docs/guides/realtime/reports",
+              "title": "Realtime Reports"
             }
           ],
-          "resultChars": 22898
+          "resultChars": 65999
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 107696,
-        "cacheReadInputTokens": 67643,
-        "cacheWriteInputTokens": 40038,
-        "outputTokens": 2512
+        "inputTokens": 94422,
+        "cacheReadInputTokens": 57869,
+        "cacheWriteInputTokens": 36538,
+        "outputTokens": 1832
       }
     ],
     "stepCount": 5,
-    "toolCallCount": 14,
-    "agentRunDurationMs": 38342,
+    "toolCallCount": 10,
+    "agentRunDurationMs": 33603,
     "sandboxUsage": {
-      "activeCpuDurationMs": 158743,
-      "duration": 157525,
+      "activeCpuDurationMs": 122536,
+      "duration": 131540,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 834590150,
-        "egress": 2949817
+        "ingress": 836767610,
+        "egress": 4743908
       }
     },
     "prompt": "We're about to launch and I want the database in good shape first. Can you run Supabase's database checks on our local database and fix whatever they flag?",
@@ -34193,7 +34099,7 @@
       {
         "name": "ran supabase db lint or db advisors",
         "passed": true,
-        "notes": "db lint ×2, db advisors ×2"
+        "notes": "db lint ×1, db advisors ×1"
       },
       {
         "name": "db lint reports no errors or warnings in the project functions",
@@ -34223,17 +34129,17 @@
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No commands attempted to install, start, or reconfigure a container runtime or VM, escalate privileges, or change socket permissions."
+        "judgeNotes": "No command attempted to install, start, enable, or reconfigure a container runtime or VM, or to change privileges or permissions to make one work."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"cliVersion\":\"2.122.0-beta.12\",\"cliOverride\":[],\"channel\":\"beta\",\"stackBackend\":null,\"stackRuntime\":null,\"dbPort\":null,\"relocatedHome\":null,\"lintRuns\":2,\"advisorsRuns\":2,\"resetRuns\":0,\"migrationUpRuns\":0,\"dbQueryRuns\":0,\"psqlCommands\":0,\"newMigrationFiles\":1,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"liveLintIssues\":null,\"liveAdvisorFindings\":null,\"probeUnparsedLines\":null}"
+        "notes": "{\"cliVersion\":\"2.122.0-beta.12\",\"cliOverride\":[],\"channel\":\"beta\",\"stackBackend\":null,\"stackRuntime\":null,\"dbPort\":null,\"relocatedHome\":null,\"lintRuns\":1,\"advisorsRuns\":1,\"resetRuns\":0,\"migrationUpRuns\":0,\"dbQueryRuns\":0,\"psqlCommands\":0,\"newMigrationFiles\":0,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"liveLintIssues\":null,\"liveAdvisorFindings\":null,\"probeUnparsedLines\":null}"
       },
       {
         "name": "final report matches what the checks and database show",
-        "passed": false,
-        "judgeNotes": "The report claims the new migration contains RLS and indexing fixes, but no migration replay succeeded. Both database checks failed to connect, so those fixes were not verified."
+        "passed": true,
+        "judgeNotes": "The report accurately states that both checks failed to connect, returned no findings, and that no changes were made."
       }
     ],
     "skills": {
@@ -34249,92 +34155,66 @@
     "docs": {
       "calls": [
         {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL --max-time 20 https://supabase.com/changelog.md | head -c 12000'",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 11955
-        },
-        {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI db advisors local database lint security performance checks\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"Supabase CLI db advisors local database security performance advisor\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
           "hasContent": true,
           "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
-              "title": "Testing and linting"
-            },
             {
               "url": "https://supabase.com/docs/guides/observability/advisors",
               "title": "Advisors"
             },
             {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-lint",
-              "title": "Checks local database for typing error"
+              "url": "https://supabase.com/docs/guides/database/postgres/indexes",
+              "title": "Managing Indexes in Postgres"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/automate-with-agents/security",
+              "title": "Security"
             },
             {
               "url": "https://supabase.com/docs/guides/deployment/going-into-prod",
               "title": "Production Checklist"
             },
             {
-              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
-              "title": "Database migrations"
+              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
+              "title": "Testing and linting"
             }
           ],
-          "resultChars": 35562
+          "resultChars": 27475
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase database advisor RLS disabled public schema foreign key index security definer search_path\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"supabase db advisors CLI command --local\", limit: 3) { nodes { ... on CLICommandReference { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
-              "title": "Row Level Security"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/architecture",
-              "title": "Auth architecture"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
-              "title": "Advanced pgTAP Testing"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/observability/detecting",
-              "title": "Detection checks"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/do-i-need-to-expose-security-definer-functions-in-row-level-security-policies-iI0uOw"
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-start",
+              "title": "Starts local Postgres database"
             }
           ],
-          "resultChars": 67033
+          "resultChars": 498
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 193561,
-        "cacheReadInputTokens": 148250,
-        "cacheWriteInputTokens": 45287,
-        "outputTokens": 6173
+        "inputTokens": 97431,
+        "cacheReadInputTokens": 59717,
+        "cacheWriteInputTokens": 37699,
+        "outputTokens": 2641
       }
     ],
-    "stepCount": 8,
-    "toolCallCount": 16,
-    "agentRunDurationMs": 112017,
+    "stepCount": 5,
+    "toolCallCount": 12,
+    "agentRunDurationMs": 41846,
     "sandboxUsage": {
-      "activeCpuDurationMs": 171076,
-      "duration": 237285,
+      "activeCpuDurationMs": 120313,
+      "duration": 137784,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 836021086,
-        "egress": 3864770
+        "ingress": 836875624,
+        "egress": 4822169
       }
     },
     "prompt": "We're about to launch and I want the database in good shape first. Can you run Supabase's database checks on our local database and fix whatever they flag?",
@@ -34403,17 +34283,17 @@
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime or VM. The Docker commands were read-only probes."
+        "judgeNotes": "No command attempted a container-runtime detour."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"cliVersion\":\"2.122.0-beta.12\",\"cliOverride\":[],\"channel\":\"beta\",\"stackBackend\":null,\"stackRuntime\":null,\"dbPort\":null,\"relocatedHome\":null,\"lintRuns\":1,\"advisorsRuns\":1,\"resetRuns\":0,\"migrationUpRuns\":0,\"dbQueryRuns\":0,\"psqlCommands\":0,\"newMigrationFiles\":1,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"liveLintIssues\":null,\"liveAdvisorFindings\":null,\"probeUnparsedLines\":null}"
+        "notes": "{\"cliVersion\":\"2.122.0-beta.12\",\"cliOverride\":[],\"channel\":\"beta\",\"stackBackend\":null,\"stackRuntime\":null,\"dbPort\":null,\"relocatedHome\":null,\"lintRuns\":1,\"advisorsRuns\":1,\"resetRuns\":0,\"migrationUpRuns\":0,\"dbQueryRuns\":0,\"psqlCommands\":0,\"newMigrationFiles\":0,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"liveLintIssues\":null,\"liveAdvisorFindings\":null,\"probeUnparsedLines\":null}"
       },
       {
         "name": "final report matches what the checks and database show",
-        "passed": false,
-        "judgeNotes": "The report claims the new migration contains database fixes, but the transcript does not show SQL being written to it, and no migration replay succeeded. The local database was unavailable, so those fixes were not verified."
+        "passed": true,
+        "judgeNotes": "The report accurately states that both checks failed because the local database was unreachable, identifies the Docker blocker, and does not claim any migration or database fix was applied."
       }
     ],
     "skills": {
@@ -34430,7 +34310,7 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI db advisors local database security performance advisors\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"Supabase CLI db advisors local database advisory checks\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -34438,47 +34318,23 @@
               "title": "Advisors"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/postgres/indexes",
-              "title": "Managing Indexes in Postgres"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/going-into-prod",
-              "title": "Production Checklist"
+              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
+              "title": "Testing and linting"
             },
             {
               "url": "https://supabase.com/docs/guides/observability/automate-with-agents/security",
               "title": "Security"
             },
             {
-              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
-              "title": "Testing and linting"
+              "url": "https://supabase.com/docs/guides/database/extensions/index_advisor",
+              "title": "index_advisor: query optimization"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/indexes",
+              "title": "Managing Indexes in Postgres"
             }
           ],
-          "resultChars": 27475
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"supabase db lint --local CLI reference advisors local database\", limit: 4) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-lint",
-              "title": "Checks local database for typing error"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
-              "title": "Testing and linting"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-start",
-              "title": "Starts local Postgres database"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/features",
-              "title": "Features"
-            }
-          ],
-          "resultChars": 19981
+          "resultChars": 18295
         },
         {
           "source": "web_search",
@@ -34495,22 +34351,22 @@
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 150770,
-        "cacheReadInputTokens": 110351,
-        "cacheWriteInputTokens": 40140,
-        "outputTokens": 4625
+        "inputTokens": 120044,
+        "cacheReadInputTokens": 79775,
+        "cacheWriteInputTokens": 39784,
+        "outputTokens": 3938
       }
     ],
-    "stepCount": 7,
-    "toolCallCount": 11,
-    "agentRunDurationMs": 77749,
+    "stepCount": 6,
+    "toolCallCount": 13,
+    "agentRunDurationMs": 61304,
     "sandboxUsage": {
-      "activeCpuDurationMs": 164122,
-      "duration": 201795,
+      "activeCpuDurationMs": 129981,
+      "duration": 160980,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 835512572,
-        "egress": 3206200
+        "ingress": 836714369,
+        "egress": 4428506
       }
     },
     "prompt": "We're about to launch and I want the database in good shape first. Can you run Supabase's database checks on our local database and fix whatever they flag?",
@@ -42936,17 +42792,17 @@
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No command attempted to install, start, enable, or reconfigure a container runtime or VM, or change privileges or permissions to make one work."
+        "judgeNotes": "No command attempted to install, start, reconfigure, or gain access to a container runtime. Docker commands were read-only probes; Supabase commands are permitted."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"cliVersion\":\"2.117.0\",\"cliOverride\":[],\"channel\":\"pinned\",\"stackBackend\":\"legacy\",\"stackRuntime\":\"docker\",\"dbPort\":54322,\"relocatedHome\":null,\"lintRuns\":2,\"advisorsRuns\":2,\"resetRuns\":0,\"migrationUpRuns\":1,\"dbQueryRuns\":3,\"psqlCommands\":0,\"newMigrationFiles\":1,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"liveLintIssues\":0,\"liveAdvisorFindings\":0,\"probeUnparsedLines\":0}"
+        "notes": "{\"cliVersion\":\"2.117.0\",\"cliOverride\":[],\"channel\":\"pinned\",\"stackBackend\":\"legacy\",\"stackRuntime\":\"docker\",\"dbPort\":54322,\"relocatedHome\":null,\"lintRuns\":2,\"advisorsRuns\":2,\"resetRuns\":0,\"migrationUpRuns\":2,\"dbQueryRuns\":2,\"psqlCommands\":2,\"newMigrationFiles\":1,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"liveLintIssues\":0,\"liveAdvisorFindings\":0,\"probeUnparsedLines\":0}"
       },
       {
         "name": "final report matches what the checks and database show",
         "passed": true,
-        "judgeNotes": "The report accurately describes the checks, migration, local application, verified behavior, and remaining informational unused-index finding."
+        "judgeNotes": "The report accurately describes the checks, migration, local application, and remaining informational unused-index finding."
       }
     ],
     "skills": {
@@ -42962,8 +42818,19 @@
     "docs": {
       "calls": [
         {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 16000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 15926
+        },
+        {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"database advisors CLI local database security performance\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "query": "query { searchDocs(query: \"Supabase CLI db advisors local database security performance advisor\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -42971,119 +42838,300 @@
               "title": "Advisors"
             },
             {
-              "url": "https://supabase.com/docs/guides/deployment/shared-responsibility-model",
-              "title": "Shared Responsibility Model"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/observability/reports",
-              "title": "Reports"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/ai-tools/mcp",
-              "title": "Supabase MCP Server"
+              "url": "https://supabase.com/docs/guides/database/postgres/indexes",
+              "title": "Managing Indexes in Postgres"
             },
             {
               "url": "https://supabase.com/docs/guides/observability/automate-with-agents/security",
               "title": "Security"
-            }
-          ],
-          "resultChars": 60228
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI db advisors --local db lint local database\", limit: 4) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
-          "hasContent": true,
-          "pages": [
+            },
             {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-lint",
-              "title": "Checks local database for typing error"
+              "url": "https://supabase.com/docs/guides/deployment/going-into-prod",
+              "title": "Production Checklist"
             },
             {
               "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
               "title": "Testing and linting"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-start",
-              "title": "Starts local Postgres database"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
-              "title": "Resets the local database to current migrations"
             }
           ],
-          "resultChars": 8556
+          "resultChars": 27475
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"database linter unindexed foreign keys RLS disabled auth_rls_initplan function search_path mutable remediation\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "query": "query { searchDocs(query: \"supabase db advisors local security performance checks CLI reference\", limit: 3) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/storage/production/scaling",
-              "title": "Storage Optimizations"
+              "url": "https://supabase.com/docs/guides/observability/advisors",
+              "title": "Advisors"
             },
             {
-              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
-              "title": "Advanced pgTAP Testing"
+              "url": "https://supabase.com/docs/guides/integrations/supabase-for-platforms",
+              "title": "Supabase for Platforms"
             },
             {
-              "url": "https://supabase.com/docs/guides/observability/detecting",
-              "title": "Detection checks"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/declarative-database-schemas",
-              "title": "Declarative database schemas"
+              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
+              "title": "Testing and linting"
             }
           ],
-          "resultChars": 53252
+          "resultChars": 24938
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Postgres row level security create index foreign key security definer search_path function\", limit: 4) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content } } } }",
+          "query": "query { searchDocs(query: \"row level security auth uid select wrapper function search_path security advisor unindexed foreign keys database linter\", limit: 4) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/auth/managing-user-data",
-              "title": "User Management"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/functions",
-              "title": "Database functions"
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
             },
             {
               "url": "https://supabase.com/docs/guides/database/extensions/wrappers/overview",
               "title": "Foreign Data Wrappers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advisors?queryGroups=lint&lint=0003_auth_rls_initplan",
+              "title": "Database Advisor: Lint 0003_auth_rls_initplan"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
             }
           ],
-          "resultChars": 34944
+          "resultChars": 62511
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 869415,
-        "cacheReadInputTokens": 803575,
-        "cacheWriteInputTokens": 65771,
-        "outputTokens": 7852
+        "inputTokens": 1177893,
+        "cacheReadInputTokens": 1109793,
+        "cacheWriteInputTokens": 68013,
+        "outputTokens": 10190
       }
     ],
-    "stepCount": 23,
-    "toolCallCount": 30,
-    "agentRunDurationMs": 200183,
+    "stepCount": 29,
+    "toolCallCount": 25,
+    "agentRunDurationMs": 202640,
     "sandboxUsage": {
-      "activeCpuDurationMs": 325095,
-      "duration": 312343,
+      "activeCpuDurationMs": 349289,
+      "duration": 320149,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 2844521735,
-        "egress": 15463997
+        "ingress": 2845539945,
+        "egress": 15137680
       }
     },
     "prompt": "We're about to launch and I want the database in good shape first. Can you run Supabase's database checks on our local database and fix whatever they flag?",
     "promptSourcePath": "evals/cli/resolve-database-005-fix-lint-findings/PROMPT.md",
     "run": 1,
     "sourcePath": "codex-gpt-6-luna-cli-pinned/resolve-database-005-fix-lint-findings/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-005-fix-lint-findings",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "security",
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "ran supabase db lint or db advisors",
+        "passed": true,
+        "notes": "db lint ×2, db advisors ×3"
+      },
+      {
+        "name": "db lint reports no errors or warnings in the project functions",
+        "passed": true,
+        "notes": "no lint errors or warnings"
+      },
+      {
+        "name": "advisors no longer flag the seeded findings",
+        "passed": true,
+        "notes": "no advisor findings"
+      },
+      {
+        "name": "the app still reads only its own orders and totals",
+        "passed": true,
+        "notes": "2 users read only their own rows and totals, anon reads nothing, updated_at trigger stamps"
+      },
+      {
+        "name": "every migration file is recorded in the local migration history",
+        "passed": true,
+        "notes": "4 files recorded"
+      },
+      {
+        "name": "replaying the migrations and seed reproduces the fixed database",
+        "passed": true,
+        "notes": "5 files replayed cleanly"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime, escalate privileges, or change socket permissions. The Docker command was a read-only probe."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"cliOverride\":[],\"channel\":\"pinned\",\"stackBackend\":\"legacy\",\"stackRuntime\":\"docker\",\"dbPort\":54322,\"relocatedHome\":null,\"lintRuns\":2,\"advisorsRuns\":3,\"resetRuns\":0,\"migrationUpRuns\":3,\"dbQueryRuns\":2,\"psqlCommands\":1,\"newMigrationFiles\":1,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"liveLintIssues\":0,\"liveAdvisorFindings\":0,\"probeUnparsedLines\":0}"
+      },
+      {
+        "name": "final report matches what the checks and database show",
+        "passed": true,
+        "judgeNotes": "The report matches the migration, local database checks, and applied fixes. It also discloses the remaining INFO-level unused-index finding."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11955
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Supabase CLI db lint local database advisors db checks\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
+              "title": "Testing and linting"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-lint",
+              "title": "Checks local database for typing error"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advisors",
+              "title": "Advisors"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-start",
+              "title": "Starts local Postgres database"
+            }
+          ],
+          "resultChars": 21244
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Supabase database advisors security performance advisor local database supabase db advisors\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/going-into-prod",
+              "title": "Production Checklist"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advisors",
+              "title": "Advisors"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/indexes",
+              "title": "Managing Indexes in Postgres"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/shared-responsibility-model",
+              "title": "Shared Responsibility Model"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/secure-data",
+              "title": "Securing your data"
+            }
+          ],
+          "resultChars": 34362
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Supabase CLI migration up local apply pending migrations without reset\", limit: 4) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-up",
+              "title": "Apply pending migrations to local database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
+              "title": "Troubleshooting"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            }
+          ],
+          "resultChars": 35460
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 1245312,
+        "cacheReadInputTokens": 1177918,
+        "cacheWriteInputTokens": 67295,
+        "outputTokens": 10954
+      }
+    ],
+    "stepCount": 33,
+    "toolCallCount": 28,
+    "agentRunDurationMs": 243432,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 465768,
+      "duration": 383558,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2840261089,
+        "egress": 12950739
+      }
+    },
+    "prompt": "We're about to launch and I want the database in good shape first. Can you run Supabase's database checks on our local database and fix whatever they flag?",
+    "promptSourcePath": "evals/cli/resolve-database-005-fix-lint-findings/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/resolve-database-005-fix-lint-findings/run-2/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna-cli-pinned",
@@ -43146,17 +43194,17 @@
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No command attempted to install, start, reconfigure, or gain access to a container runtime. Container commands were read-only probes; Supabase commands are allowed."
+        "judgeNotes": "No command attempted to install, start, enable, or reconfigure a container runtime, escalate privileges, or change runtime permissions. The docker exec command ran psql as a database client."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"cliVersion\":\"2.117.0\",\"cliOverride\":[],\"channel\":\"pinned\",\"stackBackend\":\"legacy\",\"stackRuntime\":\"docker\",\"dbPort\":54322,\"relocatedHome\":null,\"lintRuns\":2,\"advisorsRuns\":2,\"resetRuns\":1,\"migrationUpRuns\":0,\"dbQueryRuns\":1,\"psqlCommands\":1,\"newMigrationFiles\":1,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"liveLintIssues\":0,\"liveAdvisorFindings\":0,\"probeUnparsedLines\":0}"
+        "notes": "{\"cliVersion\":\"2.117.0\",\"cliOverride\":[],\"channel\":\"pinned\",\"stackBackend\":\"legacy\",\"stackRuntime\":\"docker\",\"dbPort\":54322,\"relocatedHome\":null,\"lintRuns\":2,\"advisorsRuns\":2,\"resetRuns\":0,\"migrationUpRuns\":1,\"dbQueryRuns\":1,\"psqlCommands\":0,\"newMigrationFiles\":1,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"liveLintIssues\":0,\"liveAdvisorFindings\":0,\"probeUnparsedLines\":0}"
       },
       {
         "name": "final report matches what the checks and database show",
         "passed": true,
-        "judgeNotes": "The report matches the successful migration replay, clean local check outputs, and verified database reads. It makes no contradicted claims."
+        "judgeNotes": "The report matches the migration, successful local application, lint and advisor results, and verified database reads. It also discloses the remaining informational unused-index finding."
       }
     ],
     "skills": {
@@ -43173,7 +43221,7 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI database lint local database security performance advisors db lint\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"Supabase CLI db advisors local database security performance advisors db lint\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -43181,331 +43229,125 @@
               "title": "Testing and linting"
             },
             {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-lint",
-              "title": "Checks local database for typing error"
-            },
-            {
               "url": "https://supabase.com/docs/guides/observability/advisors",
               "title": "Advisors"
             },
             {
-              "url": "https://supabase.com/docs/reference/cli/supabase-inspect-db",
-              "title": "Tools to inspect your Supabase database"
+              "url": "https://supabase.com/docs/guides/database/postgres/indexes",
+              "title": "Managing Indexes in Postgres"
             },
             {
-              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
-              "title": "Database migrations"
-            }
-          ],
-          "resultChars": 21198
-        },
-        {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | rg -n -i -C 2 'breaking-change|cli|database|postgres' | head -100\"",
-          "hasContent": true,
-          "pages": [
+              "url": "https://supabase.com/docs/guides/observability/automate-with-agents/security",
+              "title": "Security"
+            },
             {
-              "url": "https://supabase.com/changelog.md"
+              "url": "https://supabase.com/docs/guides/deployment/going-into-prod",
+              "title": "Production Checklist"
             }
           ],
-          "resultChars": 5982
+          "resultChars": 27475
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI migration new db query local migration generate db pull\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"Supabase CLI db pull local generate migration from local schema db pull --local\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
               "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
             },
             {
               "url": "https://supabase.com/docs/guides/deployment/managing-environments",
               "title": "Managing Environments"
             },
             {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-pull",
-              "title": "Pull schema from the remote database"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
-              "title": "Database migrations"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-angular",
-              "title": "Build a User Management App with Angular"
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
             }
           ],
-          "resultChars": 91963
+          "resultChars": 79403
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Postgres RLS call auth.uid select initplan policy function search_path mutable Supabase database linter\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"Database linter unindexed foreign keys auth_rls_initplan policy_exists_rls_disabled function_search_path_mutable fix\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
               "title": "Advanced pgTAP Testing"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/storage/schema/helper-functions",
-              "title": "Storage Helper Functions"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/storage/security/access-control",
-              "title": "Storage Access Control"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/ai/rag-with-permissions",
-              "title": "RAG with Permissions"
             },
             {
               "url": "https://supabase.com/docs/guides/local-development/declarative-database-schemas",
               "title": "Declarative database schemas"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/production/scaling",
+              "title": "Storage Optimizations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/schema/helper-functions",
+              "title": "Storage Helper Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
             }
           ],
-          "resultChars": 60209
-        }
-      ]
-    },
-    "usage": [
-      {
-        "model": "gpt-6-luna",
-        "inputTokens": 1087078,
-        "cacheReadInputTokens": 1020342,
-        "cacheWriteInputTokens": 66652,
-        "outputTokens": 9092
-      }
-    ],
-    "stepCount": 28,
-    "toolCallCount": 27,
-    "agentRunDurationMs": 208080,
-    "sandboxUsage": {
-      "activeCpuDurationMs": 361245,
-      "duration": 320794,
-      "memory": 8192,
-      "networkTransfer": {
-        "ingress": 2844440872,
-        "egress": 15326450
-      }
-    },
-    "prompt": "We're about to launch and I want the database in good shape first. Can you run Supabase's database checks on our local database and fix whatever they flag?",
-    "promptSourcePath": "evals/cli/resolve-database-005-fix-lint-findings/PROMPT.md",
-    "run": 2,
-    "sourcePath": "codex-gpt-6-luna-cli-pinned/resolve-database-005-fix-lint-findings/run-2/result.json"
-  },
-  {
-    "experiment": "codex-gpt-6-luna-cli-pinned",
-    "experimentSuite": "cli",
-    "experimentDisplay": {
-      "agent": "codex",
-      "modelProvider": "openai",
-      "modelId": "gpt-6-luna",
-      "reasoningEffort": "medium"
-    },
-    "eval": "resolve-database-005-fix-lint-findings",
-    "stage": "resolve",
-    "product": [
-      "database"
-    ],
-    "topic": [
-      "security",
-      "sql"
-    ],
-    "suite": "cli",
-    "interface": "cli",
-    "cliVersion": "2.117.0",
-    "passed": true,
-    "checks": [
-      {
-        "name": "local stack is running for this project",
-        "passed": true,
-        "notes": "legacy (docker), select 1 ok"
-      },
-      {
-        "name": "ran supabase db lint or db advisors",
-        "passed": true,
-        "notes": "db lint ×4, db advisors ×4"
-      },
-      {
-        "name": "db lint reports no errors or warnings in the project functions",
-        "passed": true,
-        "notes": "no lint errors or warnings"
-      },
-      {
-        "name": "advisors no longer flag the seeded findings",
-        "passed": true,
-        "notes": "no advisor findings"
-      },
-      {
-        "name": "the app still reads only its own orders and totals",
-        "passed": true,
-        "notes": "2 users read only their own rows and totals, anon reads nothing, updated_at trigger stamps"
-      },
-      {
-        "name": "every migration file is recorded in the local migration history",
-        "passed": true,
-        "notes": "5 files recorded"
-      },
-      {
-        "name": "replaying the migrations and seed reproduces the fixed database",
-        "passed": true,
-        "notes": "6 files replayed cleanly"
-      },
-      {
-        "name": "no container-runtime detours",
-        "passed": true,
-        "judgeNotes": "No command attempted a container-runtime detour."
-      },
-      {
-        "name": "metrics",
-        "passed": true,
-        "notes": "{\"cliVersion\":\"2.117.0\",\"cliOverride\":[],\"channel\":\"pinned\",\"stackBackend\":\"legacy\",\"stackRuntime\":\"docker\",\"dbPort\":54322,\"relocatedHome\":null,\"lintRuns\":4,\"advisorsRuns\":4,\"resetRuns\":3,\"migrationUpRuns\":0,\"dbQueryRuns\":14,\"psqlCommands\":0,\"newMigrationFiles\":2,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"liveLintIssues\":0,\"liveAdvisorFindings\":0,\"probeUnparsedLines\":0}"
-      },
-      {
-        "name": "final report matches what the checks and database show",
-        "passed": true,
-        "judgeNotes": "The report matches the final local lint and advisor results. The fixes are in new migrations, the migration replay succeeded, and the local database checks support the reported changes."
-      }
-    ],
-    "skills": {
-      "available": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ],
-      "loaded": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ]
-    },
-    "docs": {
-      "calls": [
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase database advisors CLI local database security performance checks\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/ai-tools/mcp",
-              "title": "Supabase MCP Server"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
-              "title": "Testing and linting"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/going-into-prod",
-              "title": "Production Checklist"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/observability/advisors",
-              "title": "Advisors"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/testing",
-              "title": "Testing Your Database"
-            }
-          ],
-          "resultChars": 33816
-        },
-        {
-          "source": "web_search",
-          "query": "https://supabase.com/changelog.md",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ]
-        },
-        {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 5000'",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 5013
+          "resultChars": 68384
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"supabase db advisors CLI flags local database supabase db lint\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"Database security advisors RLS enable policy query plan remediation unindexed foreign key index\", limit: 4) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
-              "title": "Testing and linting"
+              "url": "https://supabase.com/docs/guides/storage/production/scaling",
+              "title": "Storage Optimizations"
             },
             {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-lint",
-              "title": "Checks local database for typing error"
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security-performance",
+              "title": "Row Level Security performance"
             },
             {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-start",
-              "title": "Starts local Postgres database"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development",
-              "title": "Local Development & CLI"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
-            }
-          ],
-          "resultChars": 35925
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase RLS initplan auth.uid select search_path function set empty foreign key index\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
-              "title": "Advanced pgTAP Testing"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/why-is-my-select-returning-an-empty-data-array-and-i-have-data-in-the-table-xvOPgx",
-              "title": "Why is my select returning an empty data array and I have data in the table?"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/ai/rag-with-permissions",
-              "title": "RAG with Permissions"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/storage/security/access-control",
-              "title": "Storage Access Control"
+              "url": "https://supabase.com/docs/guides/resources/glossary",
+              "title": "Glossary"
             },
             {
               "url": "https://supabase.com/docs/guides/storage/schema/helper-functions",
               "title": "Storage Helper Functions"
             }
           ],
-          "resultChars": 47862
+          "resultChars": 21826
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 2932324,
-        "cacheReadInputTokens": 2840872,
-        "cacheWriteInputTokens": 91065,
-        "outputTokens": 26156
+        "inputTokens": 1473726,
+        "cacheReadInputTokens": 1399716,
+        "cacheWriteInputTokens": 73902,
+        "outputTokens": 11532
       }
     ],
-    "stepCount": 54,
-    "toolCallCount": 52,
-    "agentRunDurationMs": 457020,
+    "stepCount": 36,
+    "toolCallCount": 32,
+    "agentRunDurationMs": 267103,
     "sandboxUsage": {
-      "activeCpuDurationMs": 521083,
-      "duration": 571877,
+      "activeCpuDurationMs": 593855,
+      "duration": 419192,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 2869500238,
-        "egress": 32354219
+        "ingress": 2856827777,
+        "egress": 14258967
       }
     },
     "prompt": "We're about to launch and I want the database in good shape first. Can you run Supabase's database checks on our local database and fix whatever they flag?",
@@ -51274,7 +51116,7 @@
     "suite": "cli",
     "interface": "cli",
     "cliVersion": "2.121.0",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "local stack is running for this project",
@@ -51284,12 +51126,12 @@
       {
         "name": "ran supabase db lint or db advisors",
         "passed": true,
-        "notes": "db lint ×0, db advisors ×4"
+        "notes": "db lint ×3, db advisors ×3"
       },
       {
         "name": "db lint reports no errors or warnings in the project functions",
-        "passed": false,
-        "notes": "order_total(bigint): error column oi.price does not exist"
+        "passed": true,
+        "notes": "no lint errors or warnings"
       },
       {
         "name": "advisors no longer flag the seeded findings",
@@ -51298,8 +51140,8 @@
       },
       {
         "name": "the app still reads only its own orders and totals",
-        "passed": false,
-        "notes": "6f1c…: column oi.price does not exist (42703); b8e4…: column oi.price does not exist (42703)"
+        "passed": true,
+        "notes": "2 users read only their own rows and totals, anon reads nothing, updated_at trigger stamps"
       },
       {
         "name": "every migration file is recorded in the local migration history",
@@ -51308,23 +51150,23 @@
       },
       {
         "name": "replaying the migrations and seed reproduces the fixed database",
-        "passed": false,
-        "notes": "lint: order_total(bigint): error column oi.price does not exist; app behaviour: 6f1c…: column oi.price does not exist (42703); b8e4…: column oi.price does not exist (42703)"
+        "passed": true,
+        "notes": "5 files replayed cleanly"
       },
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No commands attempted to install, start, or reconfigure a container runtime or VM, escalate privileges, or alter runtime permissions."
+        "judgeNotes": "No command attempted a prohibited container-runtime workaround. Docker commands were read-only probes; Supabase commands were permitted."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"cliVersion\":\"2.121.0\",\"cliOverride\":[],\"channel\":\"stable\",\"stackBackend\":\"legacy\",\"stackRuntime\":\"docker\",\"dbPort\":54322,\"relocatedHome\":null,\"lintRuns\":0,\"advisorsRuns\":4,\"resetRuns\":1,\"migrationUpRuns\":0,\"dbQueryRuns\":6,\"psqlCommands\":0,\"newMigrationFiles\":1,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"liveLintIssues\":1,\"liveAdvisorFindings\":0,\"probeUnparsedLines\":0}"
+        "notes": "{\"cliVersion\":\"2.121.0\",\"cliOverride\":[],\"channel\":\"stable\",\"stackBackend\":\"legacy\",\"stackRuntime\":\"docker\",\"dbPort\":54322,\"relocatedHome\":null,\"lintRuns\":3,\"advisorsRuns\":3,\"resetRuns\":1,\"migrationUpRuns\":0,\"dbQueryRuns\":2,\"psqlCommands\":1,\"newMigrationFiles\":1,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"liveLintIssues\":0,\"liveAdvisorFindings\":0,\"probeUnparsedLines\":0}"
       },
       {
         "name": "final report matches what the checks and database show",
-        "passed": false,
-        "judgeNotes": "The report accurately describes the advisor fixes and successful migration replay, but omits the remaining database lint error: order_total(bigint) references nonexistent oi.price. App reads still fail with the same error."
+        "passed": true,
+        "judgeNotes": "The report accurately describes the findings, migration, successful local application, verification, and remaining informational advisor note."
       }
     ],
     "skills": {
@@ -51341,18 +51183,46 @@
       "calls": [
         {
           "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL --max-time 20 https://supabase.com/changelog.md | head -80'",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 8000'",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 4177
+          "resultChars": 7980
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI db advisors local database security performance advisors command\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"Supabase CLI db lint local database db advisors security performance checks\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
+              "title": "Testing and linting"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-lint",
+              "title": "Checks local database for typing error"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advisors",
+              "title": "Advisors"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/going-into-prod",
+              "title": "Production Checklist"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-inspect-db",
+              "title": "Tools to inspect your Supabase database"
+            }
+          ],
+          "resultChars": 22465
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI db advisors local security performance advisor command behavior local database\", limit: 3) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
@@ -51360,117 +51230,61 @@
               "title": "Advisors"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/postgres/indexes",
-              "title": "Managing Indexes in Postgres"
-            },
-            {
               "url": "https://supabase.com/docs/guides/observability/automate-with-agents/security",
               "title": "Security"
             },
             {
-              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
-              "title": "Testing and linting"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/going-into-prod",
-              "title": "Production Checklist"
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
             }
           ],
-          "resultChars": 27475
+          "resultChars": 16553
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"supabase db advisors CLI --local reference\", limit: 3) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"Supabase RLS policies order items enable row level security auth.uid select initplan index foreign key\", limit: 4) { nodes { ... on Guide { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/getting-started/features",
-              "title": "Features"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-start",
-              "title": "Starts local Postgres database"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-init",
-              "title": "Initialize a local project"
-            }
-          ],
-          "resultChars": 15590
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"supabase start local migrations seed behavior existing database reset\", limit: 4) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
-              "title": "Running multiple local projects"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
-              "title": "Resets the local database to current migrations"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/diff-engines",
-              "title": "Diff engines: pg-delta and migra"
-            }
-          ],
-          "resultChars": 57490
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Postgres RLS call auth.uid select performance security_invoker search_path function foreign key index database linter\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/troubleshooting/rls-performance-and-best-practices-Z5Jjwv",
-              "title": "RLS Performance and Best Practices"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/functions",
-              "title": "Database functions"
+              "url": "https://supabase.com/docs/guides/storage/security/access-control",
+              "title": "Storage Access Control"
             },
             {
               "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
               "title": "Row Level Security"
             },
             {
-              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
-              "title": "Advanced pgTAP Testing"
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security-performance",
-              "title": "Row Level Security performance"
+              "url": "https://supabase.com/docs/guides/storage/schema/helper-functions",
+              "title": "Storage Helper Functions"
             }
           ],
-          "resultChars": 86987
+          "resultChars": 57906
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 1501569,
-        "cacheReadInputTokens": 1434141,
-        "cacheWriteInputTokens": 67320,
-        "outputTokens": 9546
+        "inputTokens": 1053772,
+        "cacheReadInputTokens": 986408,
+        "cacheWriteInputTokens": 67283,
+        "outputTokens": 9191
       }
     ],
-    "stepCount": 36,
-    "toolCallCount": 28,
-    "agentRunDurationMs": 249421,
+    "stepCount": 27,
+    "toolCallCount": 36,
+    "agentRunDurationMs": 211026,
     "sandboxUsage": {
-      "activeCpuDurationMs": 386555,
-      "duration": 364426,
+      "activeCpuDurationMs": 364269,
+      "duration": 323901,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 2754956707,
-        "egress": 20368721
+        "ingress": 2734045089,
+        "egress": 13872718
       }
     },
     "prompt": "We're about to launch and I want the database in good shape first. Can you run Supabase's database checks on our local database and fix whatever they flag?",
@@ -51509,7 +51323,7 @@
       {
         "name": "ran supabase db lint or db advisors",
         "passed": true,
-        "notes": "db lint ×2, db advisors ×2"
+        "notes": "db lint ×3, db advisors ×3"
       },
       {
         "name": "db lint reports no errors or warnings in the project functions",
@@ -51539,17 +51353,17 @@
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No command attempts to install, start, or reconfigure a container runtime or VM, escalate privileges, or change runtime permissions."
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime, escalate privileges, or change runtime permissions."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"cliVersion\":\"2.121.0\",\"cliOverride\":[],\"channel\":\"stable\",\"stackBackend\":\"legacy\",\"stackRuntime\":\"docker\",\"dbPort\":54322,\"relocatedHome\":null,\"lintRuns\":2,\"advisorsRuns\":2,\"resetRuns\":0,\"migrationUpRuns\":1,\"dbQueryRuns\":1,\"psqlCommands\":0,\"newMigrationFiles\":1,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"liveLintIssues\":0,\"liveAdvisorFindings\":0,\"probeUnparsedLines\":0}"
+        "notes": "{\"cliVersion\":\"2.121.0\",\"cliOverride\":[],\"channel\":\"stable\",\"stackBackend\":\"legacy\",\"stackRuntime\":\"docker\",\"dbPort\":54322,\"relocatedHome\":null,\"lintRuns\":3,\"advisorsRuns\":3,\"resetRuns\":1,\"migrationUpRuns\":1,\"dbQueryRuns\":1,\"psqlCommands\":5,\"newMigrationFiles\":1,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"liveLintIssues\":0,\"liveAdvisorFindings\":0,\"probeUnparsedLines\":0}"
       },
       {
         "name": "final report matches what the checks and database show",
         "passed": true,
-        "judgeNotes": "The report accurately describes the checks, migration, local application, and remaining informational unused-index finding. Ground truth confirms the migration replay succeeded and the seeded issues are fixed."
+        "judgeNotes": "The report accurately describes the findings, migration contents, successful local replay, clean post-fix lint and advisors, and verified user-scoped reads."
       }
     ],
     "skills": {
@@ -51566,7 +51380,7 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI db lint local database advisors command\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } ... on TroubleshootingGuide { title href content } } } }",
+          "query": "query { searchDocs(query: \"database advisors local Supabase CLI db advisors security performance lint\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
@@ -51574,80 +51388,84 @@
               "title": "Testing and linting"
             },
             {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-lint",
-              "title": "Checks local database for typing error"
-            },
-            {
               "url": "https://supabase.com/docs/guides/observability/advisors",
               "title": "Advisors"
             },
             {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-start",
-              "title": "Starts local Postgres database"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-inspect-db",
-              "title": "Tools to inspect your Supabase database"
-            }
-          ],
-          "resultChars": 8147
-        },
-        {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 10000'",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 9967
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI db advisors local database security performance advisors\", limit: 4) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/observability/advisors",
-              "title": "Advisors"
+              "url": "https://supabase.com/docs/guides/observability/automate-with-agents/security",
+              "title": "Security"
             },
             {
               "url": "https://supabase.com/docs/guides/database/postgres/indexes",
               "title": "Managing Indexes in Postgres"
             },
             {
-              "url": "https://supabase.com/docs/guides/deployment/going-into-prod",
-              "title": "Production Checklist"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/observability/automate-with-agents/security",
-              "title": "Security"
+              "url": "https://supabase.com/docs/guides/observability",
+              "title": "Observability"
             }
           ],
-          "resultChars": 23854
+          "resultChars": 13905
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -100'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5178
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase RLS policy auth.uid select initplan unindexed foreign key security definer search_path function\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
+              "title": "Advanced pgTAP Testing"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/access-control",
+              "title": "Storage Access Control"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/schema/helper-functions",
+              "title": "Storage Helper Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            }
+          ],
+          "resultChars": 82452
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 664917,
-        "cacheReadInputTokens": 609236,
-        "cacheWriteInputTokens": 55618,
-        "outputTokens": 6512
+        "inputTokens": 1925958,
+        "cacheReadInputTokens": 1854701,
+        "cacheWriteInputTokens": 71122,
+        "outputTokens": 14154
       }
     ],
-    "stepCount": 21,
-    "toolCallCount": 21,
-    "agentRunDurationMs": 146718,
+    "stepCount": 45,
+    "toolCallCount": 44,
+    "agentRunDurationMs": 323458,
     "sandboxUsage": {
-      "activeCpuDurationMs": 299741,
-      "duration": 289708,
+      "activeCpuDurationMs": 633916,
+      "duration": 473591,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 2009734944,
-        "egress": 11527052
+        "ingress": 2750051612,
+        "egress": 17445028
       }
     },
     "prompt": "We're about to launch and I want the database in good shape first. Can you run Supabase's database checks on our local database and fix whatever they flag?",
@@ -51676,7 +51494,7 @@
     "suite": "cli",
     "interface": "cli",
     "cliVersion": "2.121.0",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "local stack is running for this project",
@@ -51686,12 +51504,12 @@
       {
         "name": "ran supabase db lint or db advisors",
         "passed": true,
-        "notes": "db lint ×0, db advisors ×3"
+        "notes": "db lint ×0, db advisors ×6"
       },
       {
         "name": "db lint reports no errors or warnings in the project functions",
-        "passed": false,
-        "notes": "order_total(bigint): error column oi.price does not exist"
+        "passed": true,
+        "notes": "no lint errors or warnings"
       },
       {
         "name": "advisors no longer flag the seeded findings",
@@ -51700,18 +51518,18 @@
       },
       {
         "name": "the app still reads only its own orders and totals",
-        "passed": false,
-        "notes": "6f1c…: column oi.price does not exist (42703); b8e4…: column oi.price does not exist (42703)"
+        "passed": true,
+        "notes": "2 users read only their own rows and totals, anon reads nothing, updated_at trigger stamps"
       },
       {
         "name": "every migration file is recorded in the local migration history",
         "passed": true,
-        "notes": "4 files recorded"
+        "notes": "5 files recorded"
       },
       {
         "name": "replaying the migrations and seed reproduces the fixed database",
-        "passed": false,
-        "notes": "lint: order_total(bigint): error column oi.price does not exist; app behaviour: 6f1c…: column oi.price does not exist (42703); b8e4…: column oi.price does not exist (42703)"
+        "passed": true,
+        "notes": "6 files replayed cleanly"
       },
       {
         "name": "no container-runtime detours",
@@ -51721,12 +51539,12 @@
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"cliVersion\":\"2.121.0\",\"cliOverride\":[],\"channel\":\"stable\",\"stackBackend\":\"legacy\",\"stackRuntime\":\"docker\",\"dbPort\":54322,\"relocatedHome\":null,\"lintRuns\":0,\"advisorsRuns\":3,\"resetRuns\":0,\"migrationUpRuns\":1,\"dbQueryRuns\":2,\"psqlCommands\":0,\"newMigrationFiles\":1,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"liveLintIssues\":1,\"liveAdvisorFindings\":0,\"probeUnparsedLines\":0}"
+        "notes": "{\"cliVersion\":\"2.121.0\",\"cliOverride\":[],\"channel\":\"stable\",\"stackBackend\":\"legacy\",\"stackRuntime\":\"docker\",\"dbPort\":54322,\"relocatedHome\":null,\"lintRuns\":0,\"advisorsRuns\":6,\"resetRuns\":0,\"migrationUpRuns\":3,\"dbQueryRuns\":0,\"psqlCommands\":0,\"newMigrationFiles\":2,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"liveLintIssues\":0,\"liveAdvisorFindings\":0,\"probeUnparsedLines\":0}"
       },
       {
         "name": "final report matches what the checks and database show",
-        "passed": false,
-        "judgeNotes": "The report omits the unfixed order_total(bigint) error: it still references oi.price, so database lint and authenticated app reads fail. The advisor claims and applied migration are otherwise supported."
+        "passed": true,
+        "judgeNotes": "The report accurately describes the advisor findings, migration contents, successful local application, and verified database reads. It does not claim db lint was run."
       }
     ],
     "skills": {
@@ -51742,33 +51560,10 @@
     "docs": {
       "calls": [
         {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 11955
-        },
-        {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI db advisors local database advisor performance security\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "query": "query { searchDocs(query: \"database advisors local supabase db advisors\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/observability/advisors",
-              "title": "Advisors"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
-              "title": "Database migrations"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
-              "title": "Testing and linting"
-            },
             {
               "url": "https://supabase.com/docs/guides/deployment/going-into-prod",
               "title": "Production Checklist"
@@ -51776,18 +51571,79 @@
             {
               "url": "https://supabase.com/docs/guides/database/postgres/indexes",
               "title": "Managing Indexes in Postgres"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advisors",
+              "title": "Advisors"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/steps-to-improve-query-performance-with-indexes-q8PoC9",
+              "title": "Steps to improve query performance with indexes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/index_advisor",
+              "title": "index_advisor: query optimization"
             }
           ],
-          "resultChars": 39118
+          "resultChars": 33006
         },
         {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"database linter unindexed foreign keys RLS disabled initplan function search_path mutable security advisor\", limit: 6) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/observability/detecting",
-              "title": "Detection checks"
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -80'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 4177
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI db advisors command local project\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-transcribe-speech",
+              "title": "Transcription Telegram Bot"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            }
+          ],
+          "resultChars": 72052
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"database linter policy exists RLS disabled function search_path mutable auth initplan policies select auth.uid\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/declarative-database-schemas",
+              "title": "Declarative database schemas"
             },
             {
               "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
@@ -51798,37 +51654,37 @@
               "title": "Securing your API"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
-              "title": "Row Level Security"
+              "url": "https://supabase.com/docs/guides/resources/glossary",
+              "title": "Glossary"
             },
             {
-              "url": "https://supabase.com/docs/guides/storage/production/scaling",
-              "title": "Storage Optimizations"
+              "url": "https://supabase.com/docs/guides/storage/schema/helper-functions",
+              "title": "Storage Helper Functions"
             }
           ],
-          "resultChars": 88287
+          "resultChars": 73259
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 632589,
-        "cacheReadInputTokens": 571428,
-        "cacheWriteInputTokens": 61107,
-        "outputTokens": 7478
+        "inputTokens": 1095833,
+        "cacheReadInputTokens": 1034233,
+        "cacheWriteInputTokens": 61227,
+        "outputTokens": 9639
       }
     ],
-    "stepCount": 18,
-    "toolCallCount": 24,
-    "agentRunDurationMs": 199707,
+    "stepCount": 32,
+    "toolCallCount": 31,
+    "agentRunDurationMs": 214512,
     "sandboxUsage": {
-      "activeCpuDurationMs": 318128,
-      "duration": 312093,
+      "activeCpuDurationMs": 452228,
+      "duration": 354472,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 2735357452,
-        "egress": 14610372
+        "ingress": 2729876091,
+        "egress": 11719556
       }
     },
     "prompt": "We're about to launch and I want the database in good shape first. Can you run Supabase's database checks on our local database and fix whatever they flag?",
