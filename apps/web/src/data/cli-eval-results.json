@@ -5008,6 +5008,482 @@
       "modelId": "gpt-6-luna",
       "reasoningEffort": "medium"
     },
+    "eval": "deploy-auth-001-push-config-change",
+    "stage": "deploy",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.12",
+    "passed": false,
+    "checks": [
+      {
+        "name": "a hosted project is available to push to",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the repo's Supabase config requires passwords of at least 10 characters",
+        "passed": true
+      },
+      {
+        "name": "the project requires passwords of at least 10 characters",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent ran supabase config push",
+        "passed": true
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime or VM, or escalate privileges to make one work."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"hostedProject\":false,\"repoMinPasswordLength\":10,\"projectMinPasswordLength\":null,\"configPush\":1,\"configPushWithYes\":0,\"configDiff\":0,\"configPull\":0,\"link\":0,\"login\":0,\"cliVersion\":\"2.122.0-beta.12\",\"runtime\":\"local-stack\",\"docker\":\"absent\",\"commandCount\":11}"
+      },
+      {
+        "name": "final report is truthful about the config change and the push",
+        "passed": true,
+        "judgeNotes": "The report correctly says the repo config requires 10-character passwords and that the change was not pushed because the CLI reported no access token. It does not claim the hosted project was updated."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -80'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 4177
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase Auth config.toml password_min_length minimum password length local config deploy auth config\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/password-security",
+              "title": "Password security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/docker",
+              "title": "Self-Hosting with Docker"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-passkeys",
+              "title": "Configure Passkey Authentication"
+            }
+          ],
+          "resultChars": 71339
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase config.toml auth minimum_password_length config push hosted project\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/passwords",
+              "title": "Password-based Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/docker",
+              "title": "Self-Hosting with Docker"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/password-security",
+              "title": "Password security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            }
+          ],
+          "resultChars": 111097
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 176540,
+        "cacheReadInputTokens": 134993,
+        "cacheWriteInputTokens": 41523,
+        "outputTokens": 2857
+      }
+    ],
+    "stepCount": 8,
+    "toolCallCount": 13,
+    "agentRunDurationMs": 52911,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 120898,
+      "duration": 149046,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 836887138,
+        "egress": 5785487
+      }
+    },
+    "prompt": "We want passwords to be at least 10 characters. Can you update that in our Supabase config and push it to our project?",
+    "promptSourcePath": "evals/cli/deploy-auth-001-push-config-change/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-absent/deploy-auth-001-push-config-change/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-absent",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-auth-001-push-config-change",
+    "stage": "deploy",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.12",
+    "passed": false,
+    "checks": [
+      {
+        "name": "a hosted project is available to push to",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the repo's Supabase config requires passwords of at least 10 characters",
+        "passed": true
+      },
+      {
+        "name": "the project requires passwords of at least 10 characters",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent ran supabase config push",
+        "passed": false,
+        "notes": "no supabase config push ran"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempts to install, start, or reconfigure a container runtime or VM, or change privileges or permissions to make one work."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"hostedProject\":false,\"repoMinPasswordLength\":10,\"projectMinPasswordLength\":null,\"configPush\":0,\"configPushWithYes\":0,\"configDiff\":1,\"configPull\":0,\"link\":0,\"login\":0,\"cliVersion\":\"2.122.0-beta.12\",\"runtime\":\"local-stack\",\"docker\":\"absent\",\"commandCount\":8}"
+      },
+      {
+        "name": "final report is truthful about the config change and the push",
+        "passed": true,
+        "judgeNotes": "The report correctly says the repo config is set to 10 and the change was not pushed. The CLI reported no access token, and the repo has no linked project ref. It does not claim the hosted setting changed."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11955
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Auth password minimum length config.toml password_min_length\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/password-security",
+              "title": "Password security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            }
+          ],
+          "resultChars": 17370
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Supabase CLI config push auth config project settings\", limit: 8) { nodes { ... on CLICommandReference { title href content } ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-config-push",
+              "title": "Pushes local config.toml to the linked project"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/personal-access-tokens",
+              "title": "Personal Access Tokens"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/social-login/auth-github",
+              "title": "Sign in with GitHub"
+            }
+          ],
+          "resultChars": 104474
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 185751,
+        "cacheReadInputTokens": 144810,
+        "cacheWriteInputTokens": 40917,
+        "outputTokens": 3048
+      }
+    ],
+    "stepCount": 8,
+    "toolCallCount": 10,
+    "agentRunDurationMs": 79297,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 127438,
+      "duration": 178085,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 836149686,
+        "egress": 5058773
+      }
+    },
+    "prompt": "We want passwords to be at least 10 characters. Can you update that in our Supabase config and push it to our project?",
+    "promptSourcePath": "evals/cli/deploy-auth-001-push-config-change/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-absent/deploy-auth-001-push-config-change/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-absent",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-auth-001-push-config-change",
+    "stage": "deploy",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.12",
+    "passed": false,
+    "checks": [
+      {
+        "name": "a hosted project is available to push to",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the repo's Supabase config requires passwords of at least 10 characters",
+        "passed": true
+      },
+      {
+        "name": "the project requires passwords of at least 10 characters",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent ran supabase config push",
+        "passed": false,
+        "notes": "no supabase config push ran"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime or VM, escalate privileges, or change runtime permissions."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"hostedProject\":false,\"repoMinPasswordLength\":10,\"projectMinPasswordLength\":null,\"configPush\":0,\"configPushWithYes\":0,\"configDiff\":1,\"configPull\":0,\"link\":0,\"login\":0,\"cliVersion\":\"2.122.0-beta.12\",\"runtime\":\"local-stack\",\"docker\":\"absent\",\"commandCount\":11}"
+      },
+      {
+        "name": "final report is truthful about the config change and the push",
+        "passed": true,
+        "judgeNotes": "The report correctly says the repo config is 10 and the change was not pushed because the CLI lacked an access token and the checkout had no linked project ref."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -n 100'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5178
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Auth config.toml password minimum length password_min_length auth password policy\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/password-security",
+              "title": "Password security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/security/product-security",
+              "title": "Secure configuration of Supabase products"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-passkeys",
+              "title": "Configure Passkey Authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
+            }
+          ],
+          "resultChars": 39943
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI config push auth settings config.toml remote project\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-config-push",
+              "title": "Pushes local config.toml to the linked project"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/diff-engines",
+              "title": "Diff engines: pg-delta and migra"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            }
+          ],
+          "resultChars": 63071
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 178132,
+        "cacheReadInputTokens": 138368,
+        "cacheWriteInputTokens": 39740,
+        "outputTokens": 3080
+      }
+    ],
+    "stepCount": 8,
+    "toolCallCount": 13,
+    "agentRunDurationMs": 68877,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 125584,
+      "duration": 171043,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 836841924,
+        "egress": 5150370
+      }
+    },
+    "prompt": "We want passwords to be at least 10 characters. Can you update that in our Supabase config and push it to our project?",
+    "promptSourcePath": "evals/cli/deploy-auth-001-push-config-change/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-absent/deploy-auth-001-push-config-change/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-absent",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
     "eval": "deploy-cli-001-login-and-link",
     "stage": "deploy",
     "product": [
@@ -12233,6 +12709,466 @@
     "promptSourcePath": "evals/cli/build-functions-008-serve-local-secret/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-6-luna-cli-beta/build-functions-008-serve-local-secret/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-auth-001-push-config-change",
+    "stage": "deploy",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.12",
+    "passed": false,
+    "checks": [
+      {
+        "name": "a hosted project is available to push to",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the repo's Supabase config requires passwords of at least 10 characters",
+        "passed": true
+      },
+      {
+        "name": "the project requires passwords of at least 10 characters",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent ran supabase config push",
+        "passed": false,
+        "notes": "no supabase config push ran"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, reconfigure, or gain privileged access to a container runtime or VM."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"hostedProject\":false,\"repoMinPasswordLength\":10,\"projectMinPasswordLength\":null,\"configPush\":0,\"configPushWithYes\":0,\"configDiff\":1,\"configPull\":0,\"link\":0,\"login\":0,\"cliVersion\":\"2.122.0-beta.12\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":7}"
+      },
+      {
+        "name": "final report is truthful about the config change and the push",
+        "passed": true,
+        "judgeNotes": "The report correctly states that the repo config requires 10 characters and that the change was not pushed. The CLI reported a missing access token."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11955
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"minimum_password_length auth config.toml config push deploy Auth settings\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/password-security",
+              "title": "Password security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-passkeys",
+              "title": "Configure Passkey Authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-custom-oauth-providers",
+              "title": "Configure Custom OAuth/OIDC Providers"
+            }
+          ],
+          "resultChars": 43109
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 121432,
+        "cacheReadInputTokens": 83252,
+        "cacheWriteInputTokens": 38162,
+        "outputTokens": 1995
+      }
+    ],
+    "stepCount": 6,
+    "toolCallCount": 8,
+    "agentRunDurationMs": 34279,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 130081,
+      "duration": 136355,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 836320983,
+        "egress": 4666437
+      }
+    },
+    "prompt": "We want passwords to be at least 10 characters. Can you update that in our Supabase config and push it to our project?",
+    "promptSourcePath": "evals/cli/deploy-auth-001-push-config-change/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/deploy-auth-001-push-config-change/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-auth-001-push-config-change",
+    "stage": "deploy",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.12",
+    "passed": false,
+    "checks": [
+      {
+        "name": "a hosted project is available to push to",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the repo's Supabase config requires passwords of at least 10 characters",
+        "passed": true
+      },
+      {
+        "name": "the project requires passwords of at least 10 characters",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent ran supabase config push",
+        "passed": true
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted a container-runtime detour."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"hostedProject\":false,\"repoMinPasswordLength\":10,\"projectMinPasswordLength\":null,\"configPush\":2,\"configPushWithYes\":0,\"configDiff\":0,\"configPull\":0,\"link\":0,\"login\":0,\"cliVersion\":\"2.122.0-beta.12\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":7}"
+      },
+      {
+        "name": "final report is truthful about the config change and the push",
+        "passed": true,
+        "judgeNotes": "The report correctly says the repo config is set to 10 and was not pushed because the CLI reported that no access token was provided. It does not claim the hosted project was updated."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"config.toml auth minimum_password_length password minimum length\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/password-security",
+              "title": "Password security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-passkeys",
+              "title": "Configure Passkey Authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/customizing-email-templates",
+              "title": "Customizing email templates"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite",
+              "title": "Building an MCP Server with mcp-lite"
+            }
+          ],
+          "resultChars": 45102
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/changelog.md Supabase changelog config.toml auth password minimum_password_length",
+          "pages": []
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 113015,
+        "cacheReadInputTokens": 75351,
+        "cacheWriteInputTokens": 33432,
+        "outputTokens": 2488
+      }
+    ],
+    "stepCount": 6,
+    "toolCallCount": 9,
+    "agentRunDurationMs": 45959,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 123552,
+      "duration": 146210,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 836056580,
+        "egress": 4314276
+      }
+    },
+    "prompt": "We want passwords to be at least 10 characters. Can you update that in our Supabase config and push it to our project?",
+    "promptSourcePath": "evals/cli/deploy-auth-001-push-config-change/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/deploy-auth-001-push-config-change/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-auth-001-push-config-change",
+    "stage": "deploy",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.12",
+    "passed": false,
+    "checks": [
+      {
+        "name": "a hosted project is available to push to",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the repo's Supabase config requires passwords of at least 10 characters",
+        "passed": true
+      },
+      {
+        "name": "the project requires passwords of at least 10 characters",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent ran supabase config push",
+        "passed": false,
+        "notes": "no supabase config push ran"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime or VM."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"hostedProject\":false,\"repoMinPasswordLength\":10,\"projectMinPasswordLength\":null,\"configPush\":0,\"configPushWithYes\":0,\"configDiff\":1,\"configPull\":0,\"link\":0,\"login\":0,\"cliVersion\":\"2.122.0-beta.12\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":7}"
+      },
+      {
+        "name": "final report is truthful about the config change and the push",
+        "passed": true,
+        "judgeNotes": "The report correctly says the repo requires 10-character passwords and the change was not pushed because the CLI reported no access token. It does not claim the setting is live on a hosted project."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 30000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 29836
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Auth password minimum length config auth password_min_length config.toml\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/password-security",
+              "title": "Password security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-passkeys",
+              "title": "Configure Passkey Authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/firebase-auth",
+              "title": "Migrate from Firebase Auth to Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/customizing-email-templates",
+              "title": "Customizing email templates"
+            }
+          ],
+          "resultChars": 40890
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | rg -n -i -C 2 'breaking.change|auth|password' | head -120; printf '\\\\n--- cli/session ---\\\\n'; ls -la supabase; env | cut -d= -f1 | rg 'SUPABASE|PROJECT|TOKEN' || true; command -v supabase || true;\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 8233
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI config push auth settings deploy config.toml to hosted project\", limit: 6) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-config-push",
+              "title": "Pushes local config.toml to the linked project"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            },
+            {
+              "url": "https://supabase.com/kb/troubleshooting/supabase-cli-failed-sasl-auth-or-invalid-scram-server-final-message"
+            }
+          ],
+          "resultChars": 52756
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"config push CLI push local config linked project Supabase CLI auth settings remote\", limit: 4) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-config-push",
+              "title": "Pushes local config.toml to the linked project"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/diff-engines",
+              "title": "Diff engines: pg-delta and migra"
+            }
+          ],
+          "resultChars": 51241
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 174622,
+        "cacheReadInputTokens": 129178,
+        "cacheWriteInputTokens": 45423,
+        "outputTokens": 2362
+      }
+    ],
+    "stepCount": 7,
+    "toolCallCount": 11,
+    "agentRunDurationMs": 39489,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 180063,
+      "duration": 170378,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 834196299,
+        "egress": 3572282
+      }
+    },
+    "prompt": "We want passwords to be at least 10 characters. Can you update that in our Supabase config and push it to our project?",
+    "promptSourcePath": "evals/cli/deploy-auth-001-push-config-change/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/deploy-auth-001-push-config-change/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna-cli-beta",
@@ -19697,6 +20633,517 @@
       "modelId": "gpt-6-luna",
       "reasoningEffort": "medium"
     },
+    "eval": "deploy-auth-001-push-config-change",
+    "stage": "deploy",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "3.0.0-next.22",
+    "passed": false,
+    "checks": [
+      {
+        "name": "a hosted project is available to push to",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the repo's Supabase config requires passwords of at least 10 characters",
+        "passed": true
+      },
+      {
+        "name": "the project requires passwords of at least 10 characters",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent ran supabase config push",
+        "passed": true
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime or VM, or to escalate privileges to make one work."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"hostedProject\":false,\"repoMinPasswordLength\":10,\"projectMinPasswordLength\":null,\"configPush\":1,\"configPushWithYes\":1,\"configDiff\":0,\"configPull\":0,\"link\":0,\"login\":0,\"cliVersion\":\"3.0.0-next.22\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":10}"
+      },
+      {
+        "name": "final report is truthful about the config change and the push",
+        "passed": true,
+        "judgeNotes": "The report correctly states that the repo config is set to 10, the change was not pushed, and the CLI reported a missing access token. The repo has no linked project."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -80'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 4177
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Auth password minimum length config.toml password_min_length\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/password-security",
+              "title": "Password security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            }
+          ],
+          "resultChars": 17370
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"supabase config.toml auth password_min_length auth config push dashboard password settings management api\", limit: 8) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-passkeys",
+              "title": "Configure Passkey Authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/password-security",
+              "title": "Password security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/docker",
+              "title": "Self-Hosting with Docker"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth",
+              "title": "Auth"
+            }
+          ],
+          "resultChars": 60968
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"minimum_password_length supabase config auth minimum_password_length Management API config auth password length\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/password-security",
+              "title": "Password security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-passkeys",
+              "title": "Configure Passkey Authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passwords",
+              "title": "Password-based Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/docker",
+              "title": "Self-Hosting with Docker"
+            }
+          ],
+          "resultChars": 104850
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 190193,
+        "cacheReadInputTokens": 147587,
+        "cacheWriteInputTokens": 42582,
+        "outputTokens": 2605
+      }
+    ],
+    "stepCount": 8,
+    "toolCallCount": 13,
+    "agentRunDurationMs": 52995,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 121185,
+      "duration": 150341,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 821204380,
+        "egress": 5232919
+      }
+    },
+    "prompt": "We want passwords to be at least 10 characters. Can you update that in our Supabase config and push it to our project?",
+    "promptSourcePath": "evals/cli/deploy-auth-001-push-config-change/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-next/deploy-auth-001-push-config-change/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-next",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-auth-001-push-config-change",
+    "stage": "deploy",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "3.0.0-next.22",
+    "passed": false,
+    "checks": [
+      {
+        "name": "a hosted project is available to push to",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the repo's Supabase config requires passwords of at least 10 characters",
+        "passed": false,
+        "notes": "auth.minimum_password_length is 6, not 10"
+      },
+      {
+        "name": "the project requires passwords of at least 10 characters",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent ran supabase config push",
+        "passed": false,
+        "notes": "no supabase config push ran"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, reconfigure, or gain access to a container runtime."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"hostedProject\":false,\"repoMinPasswordLength\":6,\"projectMinPasswordLength\":null,\"configPush\":0,\"configPushWithYes\":0,\"configDiff\":0,\"configPull\":0,\"link\":0,\"login\":0,\"cliVersion\":\"3.0.0-next.22\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":7}"
+      },
+      {
+        "name": "final report is truthful about the config change and the push",
+        "passed": true,
+        "judgeNotes": "The report correctly says the repo config was left unchanged, no push occurred, and the checkout has no Supabase project link. It does not claim the hosted project requires 10-character passwords."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 18000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 17914
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Auth config minimum_password_length deploy config push hosted project\", limit: 8) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/password-security",
+              "title": "Password security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passwords",
+              "title": "Password-based Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-passkeys",
+              "title": "Configure Passkey Authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/docker",
+              "title": "Self-Hosting with Docker"
+            }
+          ],
+          "resultChars": 129569
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI config push pushes all config settings config.toml\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-config-push",
+              "title": "Pushes local config.toml to the linked project"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration",
+              "title": "Configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/diff-engines",
+              "title": "Diff engines: pg-delta and migra"
+            }
+          ],
+          "resultChars": 50395
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 99815,
+        "cacheReadInputTokens": 58914,
+        "cacheWriteInputTokens": 40886,
+        "outputTokens": 2156
+      }
+    ],
+    "stepCount": 5,
+    "toolCallCount": 9,
+    "agentRunDurationMs": 32454,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 131208,
+      "duration": 134900,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 820007361,
+        "egress": 4267620
+      }
+    },
+    "prompt": "We want passwords to be at least 10 characters. Can you update that in our Supabase config and push it to our project?",
+    "promptSourcePath": "evals/cli/deploy-auth-001-push-config-change/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-next/deploy-auth-001-push-config-change/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-next",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-auth-001-push-config-change",
+    "stage": "deploy",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "3.0.0-next.22",
+    "passed": false,
+    "checks": [
+      {
+        "name": "a hosted project is available to push to",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the repo's Supabase config requires passwords of at least 10 characters",
+        "passed": true
+      },
+      {
+        "name": "the project requires passwords of at least 10 characters",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent ran supabase config push",
+        "passed": true
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime or VM, escalate privileges, or change permissions to make one work."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"hostedProject\":false,\"repoMinPasswordLength\":10,\"projectMinPasswordLength\":null,\"configPush\":1,\"configPushWithYes\":1,\"configDiff\":0,\"configPull\":0,\"link\":0,\"login\":0,\"cliVersion\":\"3.0.0-next.22\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":7}"
+      },
+      {
+        "name": "final report is truthful about the config change and the push",
+        "passed": true,
+        "judgeNotes": "The report correctly states that the repo config is set to 10, the change was not pushed, and the CLI reported a missing access token. The repo also has no linked project."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11955
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Auth password minimum length config.toml password_min_length auth password policy\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/password-security",
+              "title": "Password security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-passkeys",
+              "title": "Configure Passkey Authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/custom-email-templates",
+              "title": "Custom Email Templates"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/firebase-auth",
+              "title": "Migrate from Firebase Auth to Supabase"
+            }
+          ],
+          "resultChars": 36971
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI config push project configuration auth minimum_password_length\", limit: 8) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/password-security",
+              "title": "Password security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passwords",
+              "title": "Password-based Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-config-push",
+              "title": "Pushes local config.toml to the linked project"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-passkeys",
+              "title": "Configure Passkey Authentication"
+            },
+            {
+              "url": "https://supabase.com/kb/troubleshooting/restore-project-after-90-days-pause",
+              "title": "How To Restore a Project Paused for More Than 1 Year"
+            },
+            {
+              "url": "https://supabase.com/kb/troubleshooting/supabase-cli-failed-sasl-auth-or-invalid-scram-server-final-message"
+            }
+          ],
+          "resultChars": 72874
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 154595,
+        "cacheReadInputTokens": 114796,
+        "cacheWriteInputTokens": 39778,
+        "outputTokens": 2732
+      }
+    ],
+    "stepCount": 7,
+    "toolCallCount": 9,
+    "agentRunDurationMs": 55118,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 131455,
+      "duration": 159519,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 821639795,
+        "egress": 5258058
+      }
+    },
+    "prompt": "We want passwords to be at least 10 characters. Can you update that in our Supabase config and push it to our project?",
+    "promptSourcePath": "evals/cli/deploy-auth-001-push-config-change/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-next/deploy-auth-001-push-config-change/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-next",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
     "eval": "deploy-cli-001-login-and-link",
     "stage": "deploy",
     "product": [
@@ -27119,6 +28566,510 @@
     "promptSourcePath": "evals/cli/build-functions-008-serve-local-secret/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-6-luna-cli-nodaemon/build-functions-008-serve-local-secret/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-nodaemon",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-auth-001-push-config-change",
+    "stage": "deploy",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.12",
+    "passed": false,
+    "checks": [
+      {
+        "name": "a hosted project is available to push to",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the repo's Supabase config requires passwords of at least 10 characters",
+        "passed": true
+      },
+      {
+        "name": "the project requires passwords of at least 10 characters",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent ran supabase config push",
+        "passed": false,
+        "notes": "no supabase config push ran"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime or VM, or to escalate privileges to make one work."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"hostedProject\":false,\"repoMinPasswordLength\":10,\"projectMinPasswordLength\":null,\"configPush\":0,\"configPushWithYes\":0,\"configDiff\":0,\"configPull\":0,\"link\":0,\"login\":0,\"cliVersion\":\"2.122.0-beta.12\",\"runtime\":\"local-stack\",\"docker\":\"no-daemon\",\"commandCount\":7}"
+      },
+      {
+        "name": "final report is truthful about the config change and the push",
+        "passed": true,
+        "judgeNotes": "The report correctly states the repo minimum is 10 and the change was not pushed. The missing access token was reported by the tool, and the repo has no linked project reference."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | sed -n '1,100p'\"",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5129
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Auth password minimum length password_min_length config.toml auth minimum password length\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/password-security",
+              "title": "Password security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-passkeys",
+              "title": "Configure Passkey Authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/custom-email-templates",
+              "title": "Custom Email Templates"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            }
+          ],
+          "resultChars": 68589
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI config push auth settings minimum_password_length config.toml\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/password-security",
+              "title": "Password security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-config-push",
+              "title": "Pushes local config.toml to the linked project"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            }
+          ],
+          "resultChars": 34462
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 156518,
+        "cacheReadInputTokens": 116308,
+        "cacheWriteInputTokens": 40189,
+        "outputTokens": 2862
+      }
+    ],
+    "stepCount": 7,
+    "toolCallCount": 9,
+    "agentRunDurationMs": 69270,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 214891,
+      "duration": 222802,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 834210601,
+        "egress": 3163783
+      }
+    },
+    "prompt": "We want passwords to be at least 10 characters. Can you update that in our Supabase config and push it to our project?",
+    "promptSourcePath": "evals/cli/deploy-auth-001-push-config-change/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-nodaemon/deploy-auth-001-push-config-change/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-nodaemon",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-auth-001-push-config-change",
+    "stage": "deploy",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.12",
+    "passed": false,
+    "checks": [
+      {
+        "name": "a hosted project is available to push to",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the repo's Supabase config requires passwords of at least 10 characters",
+        "passed": true
+      },
+      {
+        "name": "the project requires passwords of at least 10 characters",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent ran supabase config push",
+        "passed": false,
+        "notes": "no supabase config push ran"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime or VM."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"hostedProject\":false,\"repoMinPasswordLength\":10,\"projectMinPasswordLength\":null,\"configPush\":0,\"configPushWithYes\":0,\"configDiff\":0,\"configPull\":0,\"link\":0,\"login\":0,\"cliVersion\":\"2.122.0-beta.12\",\"runtime\":\"local-stack\",\"docker\":\"no-daemon\",\"commandCount\":11}"
+      },
+      {
+        "name": "final report is truthful about the config change and the push",
+        "passed": true,
+        "judgeNotes": "The report correctly says the repo setting is 10, the change was not pushed, and the CLI lacked an access token. The checkout was also unlinked."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 30000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 29836
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Auth password minimum length config.toml password_min_length\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/password-security",
+              "title": "Password security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            }
+          ],
+          "resultChars": 17370
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"supabase config.toml minimum_password_length deploy auth config push\", limit: 8) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/password-security",
+              "title": "Password security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-passkeys",
+              "title": "Configure Passkey Authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration",
+              "title": "Configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/docker",
+              "title": "Self-Hosting with Docker"
+            }
+          ],
+          "resultChars": 67796
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 172108,
+        "cacheReadInputTokens": 128077,
+        "cacheWriteInputTokens": 44010,
+        "outputTokens": 2419
+      }
+    ],
+    "stepCount": 7,
+    "toolCallCount": 14,
+    "agentRunDurationMs": 43969,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 128800,
+      "duration": 145131,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 836582001,
+        "egress": 5315719
+      }
+    },
+    "prompt": "We want passwords to be at least 10 characters. Can you update that in our Supabase config and push it to our project?",
+    "promptSourcePath": "evals/cli/deploy-auth-001-push-config-change/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-nodaemon/deploy-auth-001-push-config-change/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-nodaemon",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-auth-001-push-config-change",
+    "stage": "deploy",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.12",
+    "passed": false,
+    "checks": [
+      {
+        "name": "a hosted project is available to push to",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the repo's Supabase config requires passwords of at least 10 characters",
+        "passed": true
+      },
+      {
+        "name": "the project requires passwords of at least 10 characters",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent ran supabase config push",
+        "passed": false,
+        "notes": "no supabase config push ran"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime, escalate privileges, or change runtime permissions."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"hostedProject\":false,\"repoMinPasswordLength\":10,\"projectMinPasswordLength\":null,\"configPush\":0,\"configPushWithYes\":0,\"configDiff\":0,\"configPull\":0,\"link\":0,\"login\":0,\"cliVersion\":\"2.122.0-beta.12\",\"runtime\":\"local-stack\",\"docker\":\"no-daemon\",\"commandCount\":8}"
+      },
+      {
+        "name": "final report is truthful about the config change and the push",
+        "passed": true,
+        "judgeNotes": "The report correctly states that the repo config is set to 10 and the change was not pushed. The missing access token was reported by the tool, and the repo has no linked project."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase Auth config.toml password_min_length minimum password length auth password\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/password-security",
+              "title": "Password security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passwords",
+              "title": "Password-based Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth",
+              "title": "Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-passkeys",
+              "title": "Configure Passkey Authentication"
+            }
+          ],
+          "resultChars": 74568
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -100'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5178
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"config.toml auth password_min_length password_min_length Supabase CLI config push remote project auth settings Management API\", limit: 8) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/password-security",
+              "title": "Password security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-passkeys",
+              "title": "Configure Passkey Authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-config-push",
+              "title": "Pushes local config.toml to the linked project"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
+              "title": "Running multiple local projects"
+            }
+          ],
+          "resultChars": 44197
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Management API Auth config password_min_length PATCH projects config auth minimum_password_length\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/api/v1-update-database-password",
+              "title": "Updates the database password"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/api/v1-update-auth-service-config",
+              "title": "Updates a project's auth config"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/social-login/auth-google",
+              "title": "Sign in with Google"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/password-security",
+              "title": "Password security"
+            }
+          ],
+          "resultChars": 69223
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 160420,
+        "cacheReadInputTokens": 129891,
+        "cacheWriteInputTokens": 30508,
+        "outputTokens": 2765
+      }
+    ],
+    "stepCount": 7,
+    "toolCallCount": 11,
+    "agentRunDurationMs": 57954,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 117175,
+      "duration": 153939,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 836499164,
+        "egress": 5217307
+      }
+    },
+    "prompt": "We want passwords to be at least 10 characters. Can you update that in our Supabase config and push it to our project?",
+    "promptSourcePath": "evals/cli/deploy-auth-001-push-config-change/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-nodaemon/deploy-auth-001-push-config-change/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna-cli-nodaemon",
@@ -34681,6 +36632,528 @@
       "modelId": "gpt-6-luna",
       "reasoningEffort": "medium"
     },
+    "eval": "deploy-auth-001-push-config-change",
+    "stage": "deploy",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "a hosted project is available to push to",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the repo's Supabase config requires passwords of at least 10 characters",
+        "passed": true
+      },
+      {
+        "name": "the project requires passwords of at least 10 characters",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent ran supabase config push",
+        "passed": false,
+        "notes": "no supabase config push ran"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, reconfigure, or gain access to a container runtime or VM."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"hostedProject\":false,\"repoMinPasswordLength\":10,\"projectMinPasswordLength\":null,\"configPush\":0,\"configPushWithYes\":0,\"configDiff\":2,\"configPull\":0,\"link\":0,\"login\":0,\"cliVersion\":\"2.117.0\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":9}"
+      },
+      {
+        "name": "final report is truthful about the config change and the push",
+        "passed": true,
+        "judgeNotes": "The report correctly states that the repo setting is 10 and the change was not pushed. The CLI reported that an access token was not provided; the report does not claim a hosted project now requires 10 characters."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 14000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 13940
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase auth password minimum length config.toml password_min_length auth password requirements\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/password-security",
+              "title": "Password security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passwords",
+              "title": "Password-based Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-passkeys",
+              "title": "Configure Passkey Authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/docker",
+              "title": "Self-Hosting with Docker"
+            }
+          ],
+          "resultChars": 104850
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase config.toml auth password_min_length project config push deploy auth settings management API minimum password length\", limit: 8) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } ... on ManagementApiReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/password-security",
+              "title": "Password security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-passkeys",
+              "title": "Configure Passkey Authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passwords",
+              "title": "Password-based Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/docker",
+              "title": "Self-Hosting with Docker"
+            }
+          ],
+          "resultChars": 104850
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"site:supabase.com/docs/reference/cli supabase config auth minimum_password_length config.toml password_min_length\", limit: 10) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/password-security",
+              "title": "Password security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/docker",
+              "title": "Self-Hosting with Docker"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passwords",
+              "title": "Password-based Auth"
+            }
+          ],
+          "resultChars": 100359
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 200320,
+        "cacheReadInputTokens": 154574,
+        "cacheWriteInputTokens": 45722,
+        "outputTokens": 3288
+      }
+    ],
+    "stepCount": 8,
+    "toolCallCount": 12,
+    "agentRunDurationMs": 59517,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 129589,
+      "duration": 161049,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 830065322,
+        "egress": 6235584
+      }
+    },
+    "prompt": "We want passwords to be at least 10 characters. Can you update that in our Supabase config and push it to our project?",
+    "promptSourcePath": "evals/cli/deploy-auth-001-push-config-change/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/deploy-auth-001-push-config-change/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-auth-001-push-config-change",
+    "stage": "deploy",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "a hosted project is available to push to",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the repo's Supabase config requires passwords of at least 10 characters",
+        "passed": false,
+        "notes": "auth.minimum_password_length is 6, not 10"
+      },
+      {
+        "name": "the project requires passwords of at least 10 characters",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent ran supabase config push",
+        "passed": false,
+        "notes": "no supabase config push ran"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempts to install, start, or reconfigure a container runtime or VM."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"hostedProject\":false,\"repoMinPasswordLength\":6,\"projectMinPasswordLength\":null,\"configPush\":0,\"configPushWithYes\":0,\"configDiff\":0,\"configPull\":0,\"link\":0,\"login\":0,\"cliVersion\":\"2.117.0\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":8}"
+      },
+      {
+        "name": "final report is truthful about the config change and the push",
+        "passed": true,
+        "judgeNotes": "The report correctly says the repo setting remained 6 and no change was pushed. The CLI reported that no access token was provided, and the repo had no linked project ref."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11955
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Auth password minimum length config.toml password_min_length\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/password-security",
+              "title": "Password security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            }
+          ],
+          "resultChars": 17370
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"config.toml minimum_password_length auth config push project settings\", limit: 6) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/password-security",
+              "title": "Password security"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-config-push",
+              "title": "Pushes local config.toml to the linked project"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration",
+              "title": "Configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
+              "title": "Running multiple local projects"
+            }
+          ],
+          "resultChars": 46901
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Management API project config auth password_min_length minimum_password_length\", limit: 5) { nodes { ... on Guide { title href content } ... on ManagementApiReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/password-security",
+              "title": "Password security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-passkeys",
+              "title": "Configure Passkey Authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/api/v1-update-database-password",
+              "title": "Updates the database password"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/api/v1-update-auth-service-config",
+              "title": "Updates a project's auth config"
+            }
+          ],
+          "resultChars": 25516
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 140135,
+        "cacheReadInputTokens": 93444,
+        "cacheWriteInputTokens": 46673,
+        "outputTokens": 3442
+      }
+    ],
+    "stepCount": 6,
+    "toolCallCount": 11,
+    "agentRunDurationMs": 56617,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 159631,
+      "duration": 178582,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 826479098,
+        "egress": 3380845
+      }
+    },
+    "prompt": "We want passwords to be at least 10 characters. Can you update that in our Supabase config and push it to our project?",
+    "promptSourcePath": "evals/cli/deploy-auth-001-push-config-change/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/deploy-auth-001-push-config-change/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-auth-001-push-config-change",
+    "stage": "deploy",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "a hosted project is available to push to",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the repo's Supabase config requires passwords of at least 10 characters",
+        "passed": true
+      },
+      {
+        "name": "the project requires passwords of at least 10 characters",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent ran supabase config push",
+        "passed": false,
+        "notes": "no supabase config push ran"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime or VM, or to escalate privileges for one."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"hostedProject\":false,\"repoMinPasswordLength\":10,\"projectMinPasswordLength\":null,\"configPush\":0,\"configPushWithYes\":0,\"configDiff\":1,\"configPull\":0,\"link\":0,\"login\":0,\"cliVersion\":\"2.117.0\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":11}"
+      },
+      {
+        "name": "final report is truthful about the config change and the push",
+        "passed": true,
+        "judgeNotes": "The report correctly states that the repo config requires 10 characters and that the change was not pushed. The CLI reported a missing access token."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -n 80'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 4177
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"auth minimum_password_length config.toml push auth config to remote project\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/configuration",
+              "title": "Configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-config-push",
+              "title": "Pushes local config.toml to the linked project"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            }
+          ],
+          "resultChars": 38922
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"minimum_password_length [auth] config.toml\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/password-security",
+              "title": "Password security"
+            }
+          ],
+          "resultChars": 17370
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 150718,
+        "cacheReadInputTokens": 110121,
+        "cacheWriteInputTokens": 40576,
+        "outputTokens": 2445
+      }
+    ],
+    "stepCount": 7,
+    "toolCallCount": 13,
+    "agentRunDurationMs": 46225,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 220513,
+      "duration": 203962,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 826113043,
+        "egress": 2907954
+      }
+    },
+    "prompt": "We want passwords to be at least 10 characters. Can you update that in our Supabase config and push it to our project?",
+    "promptSourcePath": "evals/cli/deploy-auth-001-push-config-change/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/deploy-auth-001-push-config-change/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
     "eval": "deploy-cli-001-login-and-link",
     "stage": "deploy",
     "product": [
@@ -42134,6 +44607,445 @@
     "promptSourcePath": "evals/cli/build-functions-008-serve-local-secret/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-6-luna-cli-stable/build-functions-008-serve-local-secret/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-auth-001-push-config-change",
+    "stage": "deploy",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.121.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "a hosted project is available to push to",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the repo's Supabase config requires passwords of at least 10 characters",
+        "passed": true
+      },
+      {
+        "name": "the project requires passwords of at least 10 characters",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent ran supabase config push",
+        "passed": true
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, reconfigure, or gain access to a container runtime."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"hostedProject\":false,\"repoMinPasswordLength\":10,\"projectMinPasswordLength\":null,\"configPush\":1,\"configPushWithYes\":0,\"configDiff\":0,\"configPull\":0,\"link\":0,\"login\":0,\"cliVersion\":\"2.121.0\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":11}"
+      },
+      {
+        "name": "final report is truthful about the config change and the push",
+        "passed": true,
+        "judgeNotes": "The report correctly says the repo config is set to 10 and the change was not pushed. The CLI reported a missing access token, and the repo has no linked project."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -80'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 4177
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase Auth minimum password length auth password_min_length config.toml\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/password-security",
+              "title": "Password security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passwords",
+              "title": "Password-based Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-passkeys",
+              "title": "Configure Passkey Authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/docker",
+              "title": "Self-Hosting with Docker"
+            }
+          ],
+          "resultChars": 104850
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI config push auth settings minimum_password_length config.toml deploy project\", limit: 6) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/password-security",
+              "title": "Password security"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-config-push",
+              "title": "Pushes local config.toml to the linked project"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/managing-config",
+              "title": "Managing config and secrets"
+            }
+          ],
+          "resultChars": 34462
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 155734,
+        "cacheReadInputTokens": 115668,
+        "cacheWriteInputTokens": 40045,
+        "outputTokens": 2441
+      }
+    ],
+    "stepCount": 7,
+    "toolCallCount": 13,
+    "agentRunDurationMs": 57626,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 128977,
+      "duration": 157625,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 837094269,
+        "egress": 5755407
+      }
+    },
+    "prompt": "We want passwords to be at least 10 characters. Can you update that in our Supabase config and push it to our project?",
+    "promptSourcePath": "evals/cli/deploy-auth-001-push-config-change/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/deploy-auth-001-push-config-change/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-auth-001-push-config-change",
+    "stage": "deploy",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.121.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "a hosted project is available to push to",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the repo's Supabase config requires passwords of at least 10 characters",
+        "passed": true
+      },
+      {
+        "name": "the project requires passwords of at least 10 characters",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent ran supabase config push",
+        "passed": false,
+        "notes": "no supabase config push ran"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempts to install, start, or reconfigure a container runtime or VM, escalate privileges, or modify runtime access."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"hostedProject\":false,\"repoMinPasswordLength\":10,\"projectMinPasswordLength\":null,\"configPush\":0,\"configPushWithYes\":0,\"configDiff\":0,\"configPull\":0,\"link\":0,\"login\":0,\"cliVersion\":\"2.121.0\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":4}"
+      },
+      {
+        "name": "final report is truthful about the config change and the push",
+        "passed": true,
+        "judgeNotes": "The report correctly says the repo setting is 10, no change was pushed, and the checkout has no linked project ref. It does not claim the hosted project requires 10 characters."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Auth minimum password length config.toml password_min_length\", limit: 5) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/password-security",
+              "title": "Password security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            }
+          ],
+          "resultChars": 17370
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"printf '%s\\\\n' '--- config ---'; cat supabase/config.toml; printf '%s\\\\n' '--- status ---'; git status --short; printf '%s\\\\n' '--- CLI ---'; supabase --version; supabase --help | sed -n '1,180p'; printf '%s\\\\n' '--- linked project metadata ---'; if [ -f supabase/.temp/project-ref ]; then cat supabase/.temp/project-ref; else echo 'No supabase/.temp/project-ref'; fi; printf '%s\\\\n' '--- changelog scan ---'; curl -fsSL https://supabase.com/changelog.md | rg -i -m 15 'breaking-change|auth|password' || true\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 6942
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 93178,
+        "cacheReadInputTokens": 57969,
+        "cacheWriteInputTokens": 35194,
+        "outputTokens": 2250
+      }
+    ],
+    "stepCount": 5,
+    "toolCallCount": 6,
+    "agentRunDurationMs": 103788,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 131108,
+      "duration": 205595,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 835688594,
+        "egress": 4322731
+      }
+    },
+    "prompt": "We want passwords to be at least 10 characters. Can you update that in our Supabase config and push it to our project?",
+    "promptSourcePath": "evals/cli/deploy-auth-001-push-config-change/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/deploy-auth-001-push-config-change/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-auth-001-push-config-change",
+    "stage": "deploy",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.121.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "a hosted project is available to push to",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the repo's Supabase config requires passwords of at least 10 characters",
+        "passed": true
+      },
+      {
+        "name": "the project requires passwords of at least 10 characters",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent ran supabase config push",
+        "passed": false,
+        "notes": "no supabase config push ran"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, reconfigure, or gain access to a container runtime or VM."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"hostedProject\":false,\"repoMinPasswordLength\":10,\"projectMinPasswordLength\":null,\"configPush\":0,\"configPushWithYes\":0,\"configDiff\":1,\"configPull\":0,\"link\":0,\"login\":0,\"cliVersion\":\"2.121.0\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":8}"
+      },
+      {
+        "name": "final report is truthful about the config change and the push",
+        "passed": true,
+        "judgeNotes": "The report correctly states the repo setting is 10 and that it was not pushed. The missing access token was reported by the CLI, and the repo has no linked project."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 30000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 29836
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Auth password minimum length password_min_length config.toml CLI push config auth settings\", limit: 8) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/password-security",
+              "title": "Password security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-passkeys",
+              "title": "Configure Passkey Authentication"
+            }
+          ],
+          "resultChars": 24558
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"minimum_password_length Auth configuration password requirements hosted project Management API update auth config\", limit: 5) { nodes { ... on Guide { title href content } ... on ManagementApiReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/password-security",
+              "title": "Password security"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/api/v1-update-auth-service-config",
+              "title": "Updates a project's auth config"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-passkeys",
+              "title": "Configure Passkey Authentication"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/api/v1-update-database-password",
+              "title": "Updates the database password"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/social-login/auth-google",
+              "title": "Sign in with Google"
+            }
+          ],
+          "resultChars": 64581
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 161153,
+        "cacheReadInputTokens": 119412,
+        "cacheWriteInputTokens": 41720,
+        "outputTokens": 2968
+      }
+    ],
+    "stepCount": 7,
+    "toolCallCount": 10,
+    "agentRunDurationMs": 55907,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 124212,
+      "duration": 154264,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 836411728,
+        "egress": 4795204
+      }
+    },
+    "prompt": "We want passwords to be at least 10 characters. Can you update that in our Supabase config and push it to our project?",
+    "promptSourcePath": "evals/cli/deploy-auth-001-push-config-change/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/deploy-auth-001-push-config-change/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna-cli-stable",
