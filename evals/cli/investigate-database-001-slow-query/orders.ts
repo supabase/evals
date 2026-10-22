@@ -91,7 +91,7 @@ export async function queryDatabase<T extends { ok: boolean }>(
   if (!stack.ok) return { ok: false, notes: stack.notes };
   try {
     const result = await ctx.exec(
-      `psql ${shellQuote(stack.dbUrl)} -XtAc "${sql}"`
+      `psql ${shellQuote(stack.dbUrl)} -XtAc ${shellQuote(sql)}`
     );
     return result.ok
       ? parse(result.stdout)

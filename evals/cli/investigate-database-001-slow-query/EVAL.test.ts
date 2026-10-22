@@ -61,6 +61,8 @@ function result(stdout: string, ok = true, stderr = ''): CommandResult {
   return { ok, exitCode: ok ? 0 : 1, stdout, stderr };
 }
 
+const unquote = (arg: string) => arg.slice(1, -1).replaceAll("'\\''", "'");
+
 function call(
   command: string,
   output: { result?: string; error?: string } = {}
@@ -223,7 +225,7 @@ function fakeCtx(toolCalls: ToolCallRecord[], world: World = {}) {
 
     const psql = command.match(/^psql '([^']+)' -X?tAc ([\s\S]+)$/);
     if (psql) {
-      const sql = psql[2];
+      const sql = unquote(psql[2]);
       if (psql[1] !== DB_URL || stack !== 'up') {
         return result('', false, 'psql: error: connection refused');
       }
@@ -694,6 +696,33 @@ describe('known-bad runs', () => {
       expect(await failedNames(ctx)).toEqual(expected);
     }
   );
+
+  it('fails only the history check when the index is created by hand and saved with db diff -f, which never records the version', async () => {
+    const { ctx } = fakeCtx(
+      [
+        SETUP[0],
+        INSPECT_CALL,
+        CREATE_INDEX_BY_HAND,
+        call('supabase db diff -f add_orders_customer_email_idx --local', {
+          result: `Created new migration at supabase/migrations/${NEW_FILE}`,
+        }),
+      ],
+      {
+        files: {
+          [SEEDED_MIGRATION_FILE]: SEEDED_SQL,
+          [NEW_FILE]:
+            'CREATE INDEX orders_customer_email_idx ON public.orders USING btree (customer_email);\n',
+        },
+        history: [SEEDED_MIGRATION_VERSION],
+      }
+    );
+    expect(await failedNames(ctx)).toEqual([RECORDED]);
+    const check = await checkOf(ctx, RECORDED);
+    expect(check?.notes).toContain(NEW_VERSION);
+    expect(check?.notes).toContain(
+      'not in supabase_migrations.schema_migrations'
+    );
+  });
 });
 
 describe('inspect evidence', () => {

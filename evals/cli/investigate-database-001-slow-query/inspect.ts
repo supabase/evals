@@ -29,13 +29,16 @@ export function inspectReport(inv: SupabaseInvocation): string | undefined {
   );
   const [verb, first, second] = invocationPositionals({ ...inv, argv });
   if (verb !== 'inspect' || first === undefined) return undefined;
-  return first === 'db' && second !== undefined ? `db ${second}` : first;
+  if (first !== 'db') return first;
+  return second === undefined ? undefined : `db ${second}`;
 }
 
 function resultText(result: unknown): string {
   if (typeof result === 'string') return result;
   if (result === null || result === undefined) return '';
-  return JSON.stringify(result).replace(/\\[nrt]/g, ' ');
+  return JSON.stringify(result, (_key, value: unknown) =>
+    typeof value === 'string' ? value.replace(CSI_SEQUENCE, '') : value
+  ).replace(/\\[nrt]/g, ' ');
 }
 
 /** A call's result and error together, since a command that exits non-zero keeps its output in `error`. */

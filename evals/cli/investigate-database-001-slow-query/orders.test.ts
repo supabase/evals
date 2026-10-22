@@ -1,4 +1,5 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/investigate-database-001-slow-query
+import { execFileSync } from 'node:child_process';
 import type { CommandResult } from '@supabase-evals/core';
 import { describe, expect, it, vi } from 'vitest';
 import type { StackProbe } from '../lib/stack.js';
@@ -12,6 +13,7 @@ import {
   type PlanProbe,
   parsePlan,
   PLAN_CHECK_NAME,
+  queryDatabase,
   readLookupPlan,
   readOrdersIndexes,
   ROWS_CHECK_NAME,
@@ -33,6 +35,15 @@ const NO_STACK: StackProbe = { ok: false, notes: NO_STACK_NOTES };
 function result(stdout: string, ok = true, stderr = ''): CommandResult {
   return { ok, exitCode: ok ? 0 : 1, stdout, stderr };
 }
+
+const unquote = (arg: string) => arg.slice(1, -1).replaceAll("'\\''", "'");
+
+const argvOf = (command: string): string[] =>
+  execFileSync('sh', ['-c', `psql() { printf '%s\\0' "$@"; }\n${command}`], {
+    encoding: 'utf8',
+  })
+    .split('\0')
+    .slice(0, -1);
 
 const COND = "(customer_email = 'customer-42@example.com'::text)";
 
@@ -260,7 +271,7 @@ function fakeDatabase(database: Database = {}) {
     if (!psql || psql[1] !== DB_URL) {
       return result('', false, `unexpected command: ${command}`);
     }
-    const sql = psql[2];
+    const sql = unquote(psql[2]);
     if (sql.includes('explain (format json)')) {
       return database.plan ?? result(SEQ_SCAN);
     }
@@ -388,6 +399,18 @@ describe('parsePlan', () => {
   });
 });
 
+describe('queryDatabase', () => {
+  it.each([
+    ['a placeholder and a double quote', `select '$1' as "x"`],
+    ['single quotes', "select 'it''s' as x"],
+    ['a backslash before a dollar', "select '\\$1' as x"],
+  ])('hands psql the SQL unchanged when it holds %s', async (_label, sql) => {
+    const exec = vi.fn(async () => result(''));
+    await queryDatabase({ exec }, STACK, sql, () => ({ ok: true }));
+    expect(argvOf(exec.mock.calls[0][0])).toEqual([DB_URL, '-XtAc', sql]);
+  });
+});
+
 describe('readLookupPlan', () => {
   it('reports the stack failure without querying when the stack did not resolve', async () => {
     const db = fakeDatabase();
@@ -402,9 +425,11 @@ describe('readLookupPlan', () => {
     const db = fakeDatabase();
     await readLookupPlan(db, STACK);
     expect(db.exec).toHaveBeenCalledTimes(1);
-    const command = db.exec.mock.calls[0][0];
-    expect(command.startsWith(`psql '${DB_URL}' -XtAc "`)).toBe(true);
-    expect(command).toContain(`explain (format json) ${LOOKUP_QUERY}`);
+    expect(argvOf(db.exec.mock.calls[0][0])).toEqual([
+      DB_URL,
+      '-XtAc',
+      `explain (format json) ${LOOKUP_QUERY}`,
+    ]);
   });
 
   it('returns the nodes of the plan psql printed', async () => {

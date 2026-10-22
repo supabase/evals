@@ -81,7 +81,6 @@ describe('inspectReport', () => {
     ],
     ['cd /ws && supabase inspect db outliers --local', 'db outliers'],
     ['supabase inspect report --local', 'report'],
-    ['supabase inspect db', 'db'],
   ])('reads %j as the report %j', (command, expected) => {
     expect(reportOf(command)).toBe(expected);
   });
@@ -105,6 +104,7 @@ describe('inspectReport', () => {
     'supabase db reset',
     'supabase migration up',
     'supabase status',
+    'supabase inspect db',
     'supabase db query --local "select 1"',
     'supabase db query --local "select * from pg_stat_statements"',
   ])('is undefined for %j', (command) => {
@@ -204,6 +204,11 @@ describe('findInspectRuns', () => {
       true,
     ],
     ['an array of lines', ['NAME', 'public.orders'], true],
+    [
+      'an object whose output a terminal coloured',
+      { stdout: '\u001b[32morders\u001b[0m' },
+      true,
+    ],
     ['a null result', null, false],
     ['an undefined result', undefined, false],
     ['an object without it', { stdout: UNRELATED_OUTLIERS }, false],
@@ -341,6 +346,7 @@ describe('findInspectRuns', () => {
       'a commit message that names the command',
       'git commit -m "run supabase inspect db outliers"',
     ],
+    ['a bare inspect db, which only prints help', 'supabase inspect db'],
     ['help for the command', 'supabase inspect db --help'],
     ['short help for the command', 'supabase inspect db outliers -h'],
   ])(
