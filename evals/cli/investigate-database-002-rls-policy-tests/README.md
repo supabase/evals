@@ -88,6 +88,11 @@ reintroduce command, policy or path wording when editing it. The frontmatter has
 `projectRunning: false`, so the harness starts no stack, and `needsDocker:
 false`, so Docker-less experiments run the eval.
 
+The prompt's last sentence asks the agent to leave everything running, because
+every database check probes the live local stack. Without it, agents tidy up
+with `supabase stop` once they're done and fail six checks for work they did.
+The sentence names no command.
+
 ## The seeded project
 
 `local/` is copied into the sandbox workspace before the agent starts:
@@ -146,7 +151,7 @@ beta 2.122.0-beta.12, next 3.0.0-next.22.
 
 | check | what it proves | how it's measured |
 | --- | --- | --- |
-| `local stack is running for this project` | There is a local database to probe | The workspace's own stack is resolved (the managed `stack status` first, then the legacy `status`), and `select 1` through its DB URL must return `1`. If the default home has no stack, the lookup repeats under each `SUPABASE_HOME`/`HOME` the agent set on a start command. The notes say the backend and runtime, or why none resolved |
+| `local stack is running for this project` | There is a local database to probe | The workspace's own stack is resolved (the managed `stack status` first, then the legacy `status`), and `select 1` through its DB URL must return `1`. If the default home has no stack, the lookup repeats under each `SUPABASE_HOME`/`HOME` the agent set on a start command. The notes say the backend and runtime, or why none resolved. When the stack isn't ready and the agent's last stack start or stop command was a stop (`stop`, `stack stop` or `stack destroy`), the notes start with `the agent stopped the stack (last stack command: …)` |
 | `each user can see only their own notes` | The leak is closed in the running database, and the owner still sees their notes | The access probe runs as the two seeded probe users and anon, inside one rolled-back transaction, so it leaves nothing behind. As `postgres` it inserts the users into `auth.users` and three notes (two owned by the owner, one by the other user, titles prefixed `eval-probe-`), setting the JWT claims to each note's owner before its insert so a `before insert` trigger that sets `owner_id` from `auth.uid()` keeps the owner, then reads the notes as each role with its JWT claims set. Passes when the owner sees exactly the owner's two notes, the other user exactly their own one, and anon none (or is denied). Fails on any extra note (`other user sees the owner's notes`, `owner also sees the other user's notes`), on a missing own note (`using (false)`, or a denied read), and on a probe that can't run. Any policy shape that gives that result passes: renamed policies, a restrictive owner policy added on top of the leak, a single `for all` owner policy |
 | `only a note's owner can change it` | The fix didn't open or break writes | The same probe. The other user's update and delete of the owner's notes must touch 0 rows or be denied. The other user's insert naming the owner's `owner_id` must be denied, or, when it succeeds, leave no row titled with the forged probe title and owned by the owner (a `before insert` trigger that sets `owner_id` to `auth.uid()` makes it the other user's own row, which is fine). That row count is taken as `postgres` after `reset role`, so row level security can't hide it. The owner's update must touch at least one row. The owner's insert is tried without `owner_id` first (the seeded default is `auth.uid()`), then naming it, each attempt in its own exception block; it must leave at least one row with that title owned by the owner, counted as `postgres` too, so revoking the column privilege on `owner_id` from `authenticated` passes. Fails if the fix recreated a write policy with `using (true)`, or dropped one so the owner lost access |
 | `the notes policy fix is in an applied migration` | The fix survives a reset, and the migration that holds it is the one the CLI applied | The migration files (`<digits>_<name>.sql`) that change the notes access rules are found: every new one (version greater than `20260101000000`, compared as strings) plus the seeded file when its access-rule statements differ from the seed's. Each must be in `supabase_migrations.schema_migrations`, with recorded `statements` whose access-rule statements equal the file's now. At least one must contribute. A file that touches the notes rules and sorts at or before the seeded version fails, because a reset applies it before `notes` exists. When files and history are in order, the scorer replays the rules: in one rolled-back `psql` session it drops every policy on `public.notes`, disables and un-forces row level security, runs the seeded file's access-rule statements as the file holds them now and then each other contributor's in version order, each ended with `;`, and runs the access probe. The check passes only when both the read check and the write check pass on that replay, so the migrations have to close the leak from the seeded state, and a replay statement that errors fails it with psql's error. When the seeded file is gone (after `supabase migration squash`, say) it is skipped, and some other file in `supabase/migrations` has to create `public.notes` (a `create table`, found with the shared `migrationCreatesTable`, ignoring comments and string literals); without one the check fails with `the seeded migration is gone and no migration creates public.notes, so a reset could not rebuild the table`, because the replay runs on the live table and would otherwise pass a chain a reset couldn't run. Fails when the fix was only a `psql -c 'drop policy …'`, a migration was written and never applied, a file was applied with `psql -f` (no history row), the seeded file was edited with no reset since, or the replay still leaks (a migration that drops a policy under the wrong name with `if exists`, say). Passes for a new migration applied with `migration up`, `db push --local` or `db reset`, for the seeded migration edited and reset, and for a declarative schema that generated a migration. How "access rules" are read, and what the replay can't see, is below |
@@ -210,6 +215,9 @@ one of them drops the leaky policy by name.
   install)
 - `channel`: the experiment's CLI channel, `pinned` when there isn't one
 - `backend`, `runtime`, `relocatedHome` and `dbPort` of the resolved stack
+- `stackStoppedByAgent`: the last of `start`, `stack start`, `stack restart`,
+  `db start`, `stop`, `stack stop` and `stack destroy` the agent ran was a stop
+  or a destroy, whether or not the probe then failed
 - `testFiles`, `testsPlanned`, `testsPassedClean` and `catchingFiles`
 - `testDbRuns` and `testDbResults`, the `PASS`, `FAIL` or `null` summary of each
   run in order
@@ -230,7 +238,11 @@ wrote, the migrations that touch the notes policies and whether the history
 records them with matching statements (`n/a` when none touch them), what each probe user read and wrote after
 replaying the migrations' notes policies, each test file's clean run and whether
 it caught the seeded policies, and the `supabase test db` runs with their
-summaries. It fails a report that claims success that didn't happen, says the
+summaries. When the agent's last stack command was a stop and the stack didn't
+resolve, a last line says the agent stopped the stack, so the harness could not
+probe the database the agent used, and that the stack, read, write, history,
+replay and test-file lines show what the harness could not see, not what the
+agent's own runs showed. It fails a report that claims success that didn't happen, says the
 tests pass or catch the leak when they don't, says the fix is applied or
 recorded when it isn't, or blames something other than what the tools reported.
 It judges only what the report says about the tests, the policies, the
@@ -333,8 +345,9 @@ came up on are reported through `metrics`.
   file doesn't count as catching the bug. Replaying the seeded migration alone
   into a scratch database and running the tests there, instead of mutating the
   live one, would cover those fixes.
-- Stopping the stack after the fix fails the stack, read, write, migration and
-  the two pgTAP checks. This is intended: the scorer reads the running local database the
-  prompt asked the agent to work with.
+- The prompt asks the agent to leave everything running. A run that stops the
+  stack anyway fails the stack, read, write, migration and the two pgTAP
+  checks, because the scorer reads the running local database. Check 1's notes
+  and `metrics.stackStoppedByAgent` say so.
 - The report judge sees the transcript, not the database, beyond the ground
   truth lines it is given.

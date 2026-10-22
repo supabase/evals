@@ -23,7 +23,12 @@ import {
   checkWriteIsolation,
   readNotesAccess,
 } from './access.js';
-import { checkMetrics, readCliFacts } from './metrics.js';
+import {
+  checkMetrics,
+  readCliFacts,
+  readStackLifecycle,
+  type StackLifecycle,
+} from './metrics.js';
 import {
   checkFixInAppliedMigration,
   findPolicyMigrations,
@@ -50,6 +55,7 @@ const scorer: LocalStackScorer = async (ctx) => {
       { sandboxEnv: marker?.env }
     );
     const testDbRuns = findTestDbRuns(ctx.toolCalls, invocations);
+    const lifecycle = readStackLifecycle(invocations);
     const stack = await resolveStackWithAgentHomes(
       ctx,
       { kind: 'root' },
@@ -68,7 +74,7 @@ const scorer: LocalStackScorer = async (ctx) => {
     const suite = await runSuite(ctx, stack);
 
     const checks: CheckResult[] = [
-      await checkStackRunning(ctx, stack),
+      await checkStackRunning(ctx, stack, lifecycle),
       checkReadIsolation(access),
       checkWriteIsolation(access),
       checkFixInAppliedMigration(migrations, recorded, replayed),
@@ -80,6 +86,7 @@ const scorer: LocalStackScorer = async (ctx) => {
         commands,
         invocations,
         stack,
+        lifecycle,
         cli,
         migrations,
         suite,
@@ -90,6 +97,7 @@ const scorer: LocalStackScorer = async (ctx) => {
         describeGroundTruth({
           workspace: ctx.workspace,
           stack,
+          lifecycle,
           access,
           migrations,
           recorded,
@@ -120,10 +128,18 @@ export default scorer;
 
 async function checkStackRunning(
   ctx: LocalStackEvalContext,
-  stack: StackProbe
+  stack: StackProbe,
+  lifecycle: StackLifecycle
 ): Promise<CheckResult> {
   const { ready, notes } = await probeStackReady(ctx, stack);
-  return { name: STACK_CHECK_NAME, passed: ready, notes };
+  return {
+    name: STACK_CHECK_NAME,
+    passed: ready,
+    notes:
+      ready || !lifecycle.stoppedByAgent
+        ? notes
+        : `the agent stopped the stack (last stack command: \`${lifecycle.lastCommand}\`), so the harness could not probe the database; ${notes}`,
+  };
 }
 
 /** Judges executed commands only, so naming the blocker in a report can't count as a detour. */

@@ -3,7 +3,7 @@ import type { TranscriptPart } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
 import type { StackProbe } from '../lib/stack.js';
 import type { AccessProbe } from './access.js';
-import type { CliFacts } from './metrics.js';
+import type { CliFacts, StackLifecycle } from './metrics.js';
 import type {
   PolicyMigration,
   PolicyMigrationsProbe,
@@ -116,9 +116,20 @@ const SUITE: SuiteProbe = {
 
 type Facts = Parameters<typeof describeGroundTruth>[0];
 
+const NO_LIFECYCLE: StackLifecycle = {
+  lastCommand: null,
+  stoppedByAgent: false,
+};
+
+const STOPPED: StackLifecycle = {
+  lastCommand: 'supabase stop --no-backup',
+  stoppedByAgent: true,
+};
+
 const FACTS: Facts = {
   workspace: '/ws',
   stack: STACK,
+  lifecycle: NO_LIFECYCLE,
   access: FIXED_ACCESS,
   replayed: FIXED_ACCESS,
   migrations: { ok: true, migrations: [FIX], misordered: [] },
@@ -144,6 +155,7 @@ const REPLAY_WRITES_LINE =
   "- writes after replaying the migrations' notes policies";
 const FILES_LINE = '- test files under supabase/tests';
 const TEST_DB_LINE = '- supabase test db runs';
+const STOPPED_LINE_PREFIX = '- the agent stopped the stack';
 const fileLine = (file: string) => `- test file ${file}`;
 
 describe('formatTruthfulJudgeInput', () => {
@@ -217,6 +229,37 @@ describe('describeGroundTruth', () => {
     expect(line(all, FILES_LINE)).toBe(`${FILES_LINE}: unknown (${notes})`);
     expect(line(all, TEST_DB_LINE)).toBe(`${TEST_DB_LINE}: none`);
     expect(all.filter((entry) => entry.startsWith('- test file '))).toEqual([]);
+  });
+
+  describe('stack lifecycle', () => {
+    const unresolved: StackProbe = {
+      ok: false,
+      notes: 'managed: exit 1: no stack running',
+    };
+
+    it('says the agent stopped the stack, last, when the harness could not resolve one', () => {
+      const all = lines({ stack: unresolved, lifecycle: STOPPED });
+      expect(all.at(-1)).toBe(
+        "- the agent stopped the stack (last stack command: `supabase stop --no-backup`), so the harness could not probe the database the agent used; the stack, reads, writes, history, replay and test-file lines above say what the harness could not see, not what the agent's own runs showed"
+      );
+    });
+
+    it('adds no line when the stack resolved even though the agent stopped it', () => {
+      expect(
+        line(lines({ lifecycle: STOPPED }), STOPPED_LINE_PREFIX)
+      ).toBeUndefined();
+    });
+
+    it('adds no line when the agent did not stop the stack', () => {
+      const all = lines({
+        stack: unresolved,
+        lifecycle: {
+          lastCommand: 'supabase start',
+          stoppedByAgent: false,
+        },
+      });
+      expect(line(all, STOPPED_LINE_PREFIX)).toBeUndefined();
+    });
   });
 
   describe('reads', () => {

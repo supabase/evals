@@ -13,4 +13,4 @@ area: tests-and-lint
 journeyPhase: detect
 ---
 
-We're launching soon and I'm nervous about our notes. Everyone should only ever be able to see their own notes, nobody else's. Can you write proper database tests for that, run them, and fix anything they turn up?
+We're launching soon and I'm nervous about our notes. Everyone should only ever be able to see their own notes, nobody else's. Can you write proper database tests for that, run them, and fix anything they turn up? Leave everything running when you're done, I want to poke at it myself afterwards.

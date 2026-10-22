@@ -4,6 +4,8 @@ import type {
   LocalStackEvalContext,
 } from '@supabase-evals/core';
 import {
+  invocationSubcommand,
+  invocationVerb,
   listCliOverrides,
   type SupabaseInvocation,
 } from '../lib/cli-invocations.js';
@@ -42,6 +44,47 @@ export function countPgProveDirect(commands: readonly string[]): number {
       (segment) => leadingWord(segment) === 'pg_prove'
     )
   ).length;
+}
+
+export type StackLifecycle = {
+  lastCommand: string | null;
+  stoppedByAgent: boolean;
+};
+
+const STACK_START_COMMANDS = new Set([
+  'start',
+  'stack start',
+  'stack restart',
+  'db start',
+]);
+const STACK_STOP_COMMANDS = new Set(['stop', 'stack stop', 'stack destroy']);
+
+function lifecycleCommand(invocation: SupabaseInvocation): string | undefined {
+  const verb = invocationVerb(invocation);
+  if (verb === undefined) return undefined;
+  const command =
+    verb === 'db' ? `db ${invocationSubcommand(invocation)}` : verb;
+  return STACK_START_COMMANDS.has(command) || STACK_STOP_COMMANDS.has(command)
+    ? command
+    : undefined;
+}
+
+/** The last stack start or stop invocation the agent ran, flags included, and whether it left the stack stopped. */
+export function readStackLifecycle(
+  invocations: readonly SupabaseInvocation[]
+): StackLifecycle {
+  const last = invocations
+    .flatMap((invocation) => {
+      const command = lifecycleCommand(invocation);
+      return command === undefined ? [] : [{ command, argv: invocation.argv }];
+    })
+    .at(-1);
+  return last === undefined
+    ? { lastCommand: null, stoppedByAgent: false }
+    : {
+        lastCommand: last.argv.join(' '),
+        stoppedByAgent: STACK_STOP_COMMANDS.has(last.command),
+      };
 }
 
 export type CliFacts = {
@@ -121,13 +164,15 @@ export async function checkMetrics(
     commands: readonly string[];
     invocations: readonly SupabaseInvocation[];
     stack: StackProbe;
+    lifecycle: StackLifecycle;
     cli: CliFacts;
     migrations: PolicyMigrationsProbe;
     suite: SuiteProbe;
     testDbRuns: readonly TestDbRun[];
   }
 ): Promise<CheckResult> {
-  const { commands, stack, cli, migrations, suite, testDbRuns } = facts;
+  const { commands, stack, lifecycle, cli, migrations, suite, testDbRuns } =
+    facts;
   const { versions, cliOverride } = cli;
 
   const metrics = {
@@ -138,6 +183,7 @@ export async function checkMetrics(
     cliOverride,
     channel: marker?.channel ?? 'pinned',
     ...stackMetrics(stack),
+    stackStoppedByAgent: lifecycle.stoppedByAgent,
     ...suiteMetrics(suite),
     testDbRuns: testDbRuns.length,
     testDbResults: testDbRuns.map((run) => run.summary?.result ?? null),

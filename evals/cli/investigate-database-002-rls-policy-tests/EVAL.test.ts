@@ -1450,6 +1450,71 @@ describe('check notes', () => {
   });
 });
 
+describe('stack stopped by the agent', () => {
+  const STOP = call('supabase stop --no-backup');
+  const STOPPED_PREFIX =
+    'the agent stopped the stack (last stack command: `supabase stop --no-backup`), so the harness could not probe the database; ';
+  const withStop = [...SETUP, STOP];
+
+  it('prefixes the stack check notes when the stack did not resolve after a stop', async () => {
+    const { ctx } = fakeCtx(withStop, { stack: 'down' });
+    const check = await checkOf(ctx, STACK);
+    expect(check?.passed).toBe(false);
+    expect(check?.notes?.startsWith(STOPPED_PREFIX)).toBe(true);
+    expect(check?.notes).toContain('no stack running');
+  });
+
+  it('prefixes the stack check notes when the stack resolved but refuses connections after a stop', async () => {
+    const { ctx } = fakeCtx(withStop, { stack: 'refusing' });
+    const check = await checkOf(ctx, STACK);
+    expect(check?.passed).toBe(false);
+    expect(check?.notes?.startsWith(STOPPED_PREFIX)).toBe(true);
+  });
+
+  it('leaves the notes alone when the stack is ready despite the stop', async () => {
+    const { ctx } = fakeCtx(withStop);
+    const check = await checkOf(ctx, STACK);
+    expect(check).toMatchObject({
+      passed: true,
+      notes: 'managed (native), select 1 ok',
+    });
+  });
+
+  it('leaves the notes alone when the agent did not stop a stack that is down', async () => {
+    const { ctx } = fakeCtx(SETUP, { stack: 'down' });
+    const check = await checkOf(ctx, STACK);
+    expect(check?.passed).toBe(false);
+    expect(check?.notes).not.toContain('the agent stopped the stack');
+  });
+
+  it('records the stop in the metrics and tells the report judge when the harness could not probe', async () => {
+    const { ctx, judge } = fakeCtx(withStop, { stack: 'down' });
+    const metrics = JSON.parse((await checkOf(ctx, METRICS))?.notes ?? '{}');
+    expect(metrics.stackStoppedByAgent).toBe(true);
+    const input = judgeCall(judge, 'report')?.input ?? '';
+    expect(
+      groundTruthLines(input).filter((line) =>
+        line.startsWith('- the agent stopped the stack')
+      )
+    ).toEqual([expect.stringContaining('`supabase stop --no-backup`')]);
+  });
+
+  it('records the stop but tells the report judge nothing when the harness probed the stack', async () => {
+    const { ctx, judge } = fakeCtx(withStop);
+    const metrics = JSON.parse((await checkOf(ctx, METRICS))?.notes ?? '{}');
+    expect(metrics.stackStoppedByAgent).toBe(true);
+    expect(judgeCall(judge, 'report')?.input).not.toContain(
+      'the agent stopped the stack'
+    );
+  });
+
+  it('records no stop when the agent never stopped the stack', async () => {
+    const { ctx } = fakeCtx(SETUP);
+    const metrics = JSON.parse((await checkOf(ctx, METRICS))?.notes ?? '{}');
+    expect(metrics.stackStoppedByAgent).toBe(false);
+  });
+});
+
 describe('metrics check', () => {
   const metrics = async (ctx: LocalStackEvalContext) =>
     JSON.parse((await checkOf(ctx, METRICS))?.notes ?? '{}');

@@ -184,6 +184,10 @@ describe('PROMPT.md', () => {
     expect(promptParts().body).toMatch(/\bnotes\b/i);
   });
 
+  it('asks the agent to leave everything running', () => {
+    expect(promptParts().body).toMatch(/leave everything running/i);
+  });
+
   it('declares a CLI investigate eval that starts without a running project or docker', () => {
     const { frontmatter } = promptParts();
     expect(frontmatter).toMatch(/^stage: investigate$/m);
