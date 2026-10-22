@@ -184,10 +184,13 @@ output, never truncated. The report judge sees the harness ground truth, which
 with a hosted project includes the scorer's own probe outcomes, plus the same
 transcript.
 
-All three judge inputs are redacted before they are sent: every key value the
-project lists (`GET /v1/projects/{ref}/api-keys`, any type), plus anything shaped
-like a JWT, an `sb_secret_` or `sb_publishable_` key or an `sbp_` access token,
-becomes `[redacted]`.
+All three judge inputs are redacted before they are sent, with the shared
+`../lib/redact.ts`: every key value the project lists
+(`GET /v1/projects/{ref}/api-keys`, any type), plus anything shaped like a JWT,
+an `sb_secret_` or `sb_publishable_` key or an `sbp_` access token, Postgres URL
+passwords, secret-named assignments and flags, JSON or YAML secret fields, and
+the cells of table columns headed by an upper-case `PASSWORD`, `SECRET`, `TOKEN`
+or `KEY` word, becomes `[redacted]`.
 
 ## The experiments and expected results
 

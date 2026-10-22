@@ -58,6 +58,13 @@ string literals and dollar-quoted bodies masked, `create [unlogged] table`
 accepted) in a project directory, and checks its version is in the stack's
 `supabase_migrations.schema_migrations`.
 
+`redact.ts` replaces known secret values and secret-shaped text (URL passwords,
+keys, flags, JSON and YAML fields, and the cells of table columns under an
+upper-case `PASSWORD`, `SECRET`, `TOKEN` or `KEY` header) with `[redacted]`
+before it reaches a judge or report; `tableSecretValues` returns those cell
+values so a scorer can pass them back as known secrets, and `readProjectKeys`
+lists the hosted project's key values to pass as the known ones.
+
 Tests live beside each module; run them with:
 
 ```bash
