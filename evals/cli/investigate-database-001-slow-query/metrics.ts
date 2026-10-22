@@ -16,7 +16,7 @@ import {
 import { readCliVersions, safely } from '../lib/metrics.js';
 import { urlPort, type StackProbe } from '../lib/stack.js';
 import { SEEDED_MIGRATION_FILE, SEEDED_MIGRATION_SHA256 } from './fixtures.js';
-import type { InspectRun } from './inspect.js';
+import type { EvidenceCall, InspectRun } from './inspect.js';
 import type { CountProbe, IndexesProbe } from './orders.js';
 
 type ExecContext = Pick<LocalStackEvalContext, 'exec'>;
@@ -149,12 +149,13 @@ export async function checkMetrics(
     cli: CliFacts;
     files: ProjectFileFacts;
     inspectRuns: readonly InspectRun[];
+    inspectEvidence: readonly EvidenceCall[];
     indexes: IndexesProbe;
     rows: CountProbe;
   }
 ): Promise<CheckResult> {
   const { commands, invocations, stack, cli, files } = facts;
-  const { inspectRuns, indexes, rows } = facts;
+  const { inspectRuns, inspectEvidence, indexes, rows } = facts;
   const { versions, cliOverride } = cli;
 
   const metrics = {
@@ -169,8 +170,8 @@ export async function checkMetrics(
       ...new Set(inspectRuns.map(({ report }) => report)),
     ]),
     inspectRuns: await safely(() => inspectRuns.length),
-    inspectRunsShowingOrders: await safely(
-      () => inspectRuns.filter(({ namesOrders }) => namesOrders).length
+    inspectCallsNamingOrders: await safely(
+      () => inspectEvidence.filter(({ namesOrders }) => namesOrders).length
     ),
     workflowCommands: await safely(() => listWorkflowCommands(invocations)),
     explainCommands: await safely(() =>

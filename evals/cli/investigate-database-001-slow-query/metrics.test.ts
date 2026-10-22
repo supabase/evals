@@ -15,7 +15,7 @@ import {
   SEEDED_MIGRATION_FILE,
   SEEDED_MIGRATION_SHA256,
 } from './fixtures.js';
-import type { InspectRun } from './inspect.js';
+import type { EvidenceCall, InspectRun } from './inspect.js';
 import {
   checkMetrics,
   type CliFacts,
@@ -226,6 +226,14 @@ const run = (overrides: Partial<InspectRun> = {}): InspectRun => ({
   commandIndex: 0,
   report: 'db outliers',
   errored: false,
+  ...overrides,
+});
+
+const evidenceCall = (overrides: Partial<EvidenceCall> = {}): EvidenceCall => ({
+  commandIndex: 0,
+  kind: 'candidate',
+  command: 'supabase inspect db outliers --local',
+  output: 'public.orders',
   namesOrders: true,
   ...overrides,
 });
@@ -239,6 +247,7 @@ function metricsFacts(overrides: Partial<MetricsFacts> = {}): MetricsFacts {
     cli: { versions: { cliVersion: '2.0.0' }, cliOverride: [] },
     files: FILES,
     inspectRuns: [],
+    inspectEvidence: [],
     indexes: {
       ok: true,
       indexes: [
@@ -281,6 +290,7 @@ describe('checkMetrics', () => {
       metricsFacts({
         commands,
         inspectRuns: [run({ commandIndex: 1 })],
+        inspectEvidence: [evidenceCall({ commandIndex: 1 })],
         indexes: {
           ok: true,
           indexes: [
@@ -307,7 +317,7 @@ describe('checkMetrics', () => {
       dbPort: 54322,
       inspectReports: ['db outliers'],
       inspectRuns: 1,
-      inspectRunsShowingOrders: 1,
+      inspectCallsNamingOrders: 1,
       workflowCommands: ['start', 'inspect db outliers', 'migration up'],
       explainCommands: 1,
       directIndexDdl: 1,
@@ -371,6 +381,7 @@ describe('checkMetrics', () => {
       cli: NO_CLI,
       files: { seededMigrationModified: null, newMigrationFiles: null },
       inspectRuns: [],
+      inspectEvidence: [],
       indexes: { ok: false, notes: 'none' },
       rows: { ok: false, notes: 'none' },
     });
@@ -385,7 +396,7 @@ describe('checkMetrics', () => {
       dbPort: null,
       inspectReports: [],
       inspectRuns: 0,
-      inspectRunsShowingOrders: 0,
+      inspectCallsNamingOrders: 0,
       workflowCommands: [],
       explainCommands: 0,
       directIndexDdl: 0,
@@ -484,20 +495,25 @@ describe('checkMetrics', () => {
       'supabase inspect db calls --local',
     ];
 
-    it('counts the runs, the runs that showed orders and the distinct reports in first-use order', async () => {
+    it('counts the runs, the evidence calls naming orders and the distinct reports in first-use order', async () => {
       expect(
         await metricsFor({
           commands,
           inspectRuns: [
-            run({ commandIndex: 0, errored: true, namesOrders: false }),
+            run({ commandIndex: 0, errored: true }),
             run({ commandIndex: 1 }),
-            run({ commandIndex: 2, report: 'db calls', namesOrders: false }),
+            run({ commandIndex: 2, report: 'db calls' }),
+          ],
+          inspectEvidence: [
+            evidenceCall({ commandIndex: 0, namesOrders: false }),
+            evidenceCall({ commandIndex: 1 }),
+            evidenceCall({ commandIndex: 2, kind: 'later read' }),
           ],
         })
       ).toMatchObject({
         inspectReports: ['db outliers', 'db calls'],
         inspectRuns: 3,
-        inspectRunsShowingOrders: 1,
+        inspectCallsNamingOrders: 2,
       });
     });
 
@@ -505,17 +521,18 @@ describe('checkMetrics', () => {
       expect(await metricsFor({ commands: ['supabase start'] })).toMatchObject({
         inspectReports: [],
         inspectRuns: 0,
-        inspectRunsShowingOrders: 0,
+        inspectCallsNamingOrders: 0,
       });
     });
 
-    it('counts a run that showed orders although its call errored', async () => {
+    it('counts a call that named orders although it errored', async () => {
       expect(
         await metricsFor({
           commands: ['supabase inspect db outliers --local | head -40'],
           inspectRuns: [run({ errored: true })],
+          inspectEvidence: [evidenceCall()],
         })
-      ).toMatchObject({ inspectRuns: 1, inspectRunsShowingOrders: 1 });
+      ).toMatchObject({ inspectRuns: 1, inspectCallsNamingOrders: 1 });
     });
   });
 
@@ -753,6 +770,7 @@ describe('checkMetrics', () => {
         commands,
         invocations: unreadable<readonly SupabaseInvocation[]>(),
         inspectRuns: [run({ commandIndex: 1 })],
+        inspectEvidence: [evidenceCall({ commandIndex: 1 })],
       });
       expect(metrics).toMatchObject({
         workflowCommands: null,
@@ -760,7 +778,7 @@ describe('checkMetrics', () => {
         directIndexDdl: 1,
         cliDetours: 1,
         inspectRuns: 1,
-        inspectRunsShowingOrders: 1,
+        inspectCallsNamingOrders: 1,
         orderRows: 300_000,
         newMigrationFiles: 1,
         seededMigrationModified: false,
@@ -790,11 +808,25 @@ describe('checkMetrics', () => {
       });
       expect(metrics).toMatchObject({
         inspectRuns: null,
-        inspectRunsShowingOrders: null,
+        inspectReports: null,
         workflowCommands: ['start', 'inspect db outliers'],
         explainCommands: 1,
         directIndexDdl: 1,
         cliDetours: 1,
+        orderRows: 300_000,
+      });
+    });
+
+    it('keeps the other fields when the inspect evidence cannot be read', async () => {
+      const metrics = await metricsFor({
+        commands,
+        inspectRuns: [run({ commandIndex: 1 })],
+        inspectEvidence: unreadable<readonly EvidenceCall[]>(),
+      });
+      expect(metrics).toMatchObject({
+        inspectCallsNamingOrders: null,
+        inspectRuns: 1,
+        inspectReports: ['db outliers'],
         orderRows: 300_000,
       });
     });
@@ -831,6 +863,7 @@ describe('checkMetrics', () => {
           commands: unreadable<readonly string[]>(),
           invocations: unreadable<readonly SupabaseInvocation[]>(),
           inspectRuns: unreadable<readonly InspectRun[]>(),
+          inspectEvidence: unreadable<readonly EvidenceCall[]>(),
           indexes: unreadable<MetricsFacts['indexes']>(),
           rows: unreadable<MetricsFacts['rows']>(),
         })

@@ -16,6 +16,11 @@ import {
   SEEDED_MIGRATION_SHA256,
   SEEDED_MIGRATION_VERSION,
 } from './fixtures.js';
+import {
+  findInspectEvidence,
+  findInspectRuns,
+  formatInspectJudgeInput,
+} from './inspect.js';
 
 const WS = '/ws';
 const DB_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
@@ -369,6 +374,17 @@ const isReportJudge = ({ input }: JudgeInput) =>
 const judgeCalls = (judge: ReturnType<typeof fakeCtx>['judge']) =>
   judge.mock.calls.map(([args]) => args);
 
+const INSPECT_RUBRIC = 'inspect evidence';
+
+const isInspectJudge = ({ rubric }: JudgeInput) =>
+  rubric.includes(INSPECT_RUBRIC);
+
+const isDetourJudge = ({ rubric }: JudgeInput) =>
+  rubric.includes(DETOUR_RUBRIC);
+
+const inspectCall = (judge: ReturnType<typeof fakeCtx>['judge']) =>
+  judgeCalls(judge).find(isInspectJudge);
+
 const detourCall = (judge: ReturnType<typeof fakeCtx>['judge']) =>
   judgeCalls(judge).find(({ rubric }) => rubric.includes(DETOUR_RUBRIC));
 
@@ -456,11 +472,18 @@ describe('slow-query scorer', () => {
     expect(check?.notes).toContain(`${NEW_FILE} (version ${NEW_VERSION})`);
   });
 
-  it('says in the inspect check which tool call ran the report', async () => {
-    const { ctx } = fakeCtx(SETUP);
-    const check = await checkOf(ctx, INSPECT);
-    expect(check?.passed).toBe(true);
-    expect(check?.notes).toContain('tool call 2: supabase inspect db outliers');
+  it('passes the inspect check on the judge verdict, with the notes it gave', async () => {
+    const { ctx } = fakeCtx(SETUP, {
+      judge: async (args) =>
+        isInspectJudge(args)
+          ? { passed: true, notes: 'tool call 2 printed the outliers rows' }
+          : { passed: true },
+    });
+    expect(await checkOf(ctx, INSPECT)).toEqual({
+      name: INSPECT,
+      passed: true,
+      judgeNotes: 'tool call 2 printed the outliers rows',
+    });
   });
 });
 
@@ -732,15 +755,6 @@ describe('inspect evidence', () => {
       call('supabase inspect db outliers', { error: NO_PROJECT_REF }),
     ],
     [
-      'was refused by inspect and fell back to psql in the same call',
-      call(
-        `supabase inspect db outliers 2>&1 || psql "${DB_URL}" -c "select query, calls from extensions.pg_stat_statements order by total_exec_time desc limit 5"`,
-        {
-          result: `${NO_PROJECT_REF}\n select ... from public.orders where customer_email = $1 |   200`,
-        }
-      ),
-    ],
-    [
       'read pg_stat_statements through psql',
       call(
         `psql "$DATABASE_URL" -c "select query, calls from pg_stat_statements order by total_exec_time desc"`,
@@ -754,6 +768,74 @@ describe('inspect evidence', () => {
       }),
     ],
     [
+      'ran a report that never mentioned orders',
+      call('supabase inspect db outliers --local', {
+        result: UNRELATED_OUTLIERS,
+      }),
+    ],
+  ] satisfies Array<[string, ToolCallRecord]>)(
+    'fails only the inspect check without asking the judge when the agent %s',
+    async (_label, inspectCall) => {
+      const { ctx, judge } = fakeCtx(withInspect(inspectCall));
+      expect(await failedNames(ctx)).toEqual([INSPECT]);
+      expect(judgeCalls(judge).some(isInspectJudge)).toBe(false);
+    }
+  );
+
+  it('says in the inspect check that no report ran when the agent ran none', async () => {
+    const { ctx } = fakeCtx([SETUP[0], ...SETUP.slice(2)]);
+    expect(await checkOf(ctx, INSPECT)).toEqual({
+      name: INSPECT,
+      passed: false,
+      notes: 'no supabase inspect report ran',
+    });
+  });
+
+  it('says in the inspect check which runs ran when none printed orders', async () => {
+    const { ctx } = fakeCtx(
+      withInspect(
+        call('supabase inspect db outliers', { error: NO_PROJECT_REF })
+      )
+    );
+    expect(await checkOf(ctx, INSPECT)).toEqual({
+      name: INSPECT,
+      passed: false,
+      notes:
+        'tool call 2: supabase inspect db outliers (errored); no inspect output named the orders table',
+    });
+  });
+
+  it('asks the judge, with every evidence call in full, when something names orders', async () => {
+    const calls = withInspect(
+      call('supabase inspect db outliers --local > /tmp/o.txt')
+    );
+    const withRead = [...calls, call('cat /tmp/o.txt', { result: OUTLIERS })];
+    const { ctx, judge } = fakeCtx(withRead);
+    await scorer(ctx);
+    const runs = findInspectRuns(withRead, []);
+    const evidence = findInspectEvidence(withRead, runs);
+    expect(evidence).toHaveLength(2);
+    const sent = inspectCall(judge);
+    expect(sent?.input).toBe(formatInspectJudgeInput(evidence));
+    expect(sent?.input).toContain('Tool call 5 (later read)');
+    expect(sent?.input).toContain('cat /tmp/o.txt');
+    expect(sent?.input).toContain(OUTLIERS);
+    expect(sent?.rubric).toContain('public.orders');
+    expect(sent?.rubric).toContain('Cannot find project ref');
+    expect(sent?.rubric).toMatch(/truncated/);
+  });
+
+  it.each([
+    [
+      'was refused by inspect and fell back to psql in the same call',
+      call(
+        `supabase inspect db outliers 2>&1 || psql "${DB_URL}" -c "select query, calls from extensions.pg_stat_statements order by total_exec_time desc limit 5"`,
+        {
+          result: `${NO_PROJECT_REF}\n select ... from public.orders where customer_email = $1 |   200`,
+        }
+      ),
+    ],
+    [
       'only asked inspect for help',
       call('supabase inspect db --help', {
         result: 'Usage: supabase inspect db [command]\n  outliers  orders ...',
@@ -765,27 +847,37 @@ describe('inspect evidence', () => {
         result: 'supabase inspect db outliers (public.orders)',
       }),
     ],
-    [
-      'ran a report that never mentioned orders',
-      call('supabase inspect db outliers --local', {
-        result: UNRELATED_OUTLIERS,
-      }),
-    ],
   ] satisfies Array<[string, ToolCallRecord]>)(
-    'fails only the inspect check when the agent %s',
-    async (_label, inspectCall) => {
-      const { ctx } = fakeCtx(withInspect(inspectCall));
+    'fails only the inspect check, with the judge notes, when the judge finds that the agent %s',
+    async (_label, inspectingCall) => {
+      const { ctx } = fakeCtx(withInspect(inspectingCall), {
+        judge: async (args) =>
+          isInspectJudge(args)
+            ? { passed: false, notes: 'orders came from psql' }
+            : { passed: true },
+      });
       expect(await failedNames(ctx)).toEqual([INSPECT]);
+      expect(await checkOf(ctx, INSPECT)).toEqual({
+        name: INSPECT,
+        passed: false,
+        judgeNotes: 'orders came from psql',
+      });
     }
   );
 
-  it('says in the inspect check that no report ran when the agent ran none', async () => {
-    const { ctx } = fakeCtx([SETUP[0], ...SETUP.slice(2)]);
+  it('fails only the inspect check with the error when the judge throws', async () => {
+    const { ctx } = fakeCtx(SETUP, {
+      judge: async (args) => {
+        if (isInspectJudge(args)) throw new Error('judge unavailable');
+        return { passed: true };
+      },
+    });
     expect(await checkOf(ctx, INSPECT)).toEqual({
       name: INSPECT,
       passed: false,
-      notes: 'no supabase inspect report ran',
+      notes: 'judge unavailable',
     });
+    expect(await failedNames(ctx)).toEqual([INSPECT]);
   });
 
   it.each([
@@ -822,9 +914,9 @@ describe('inspect evidence', () => {
       ),
     ],
   ] satisfies Array<[string, ToolCallRecord]>)(
-    'passes when the agent used %s',
-    async (_label, inspectCall) => {
-      const { ctx } = fakeCtx(withInspect(inspectCall));
+    'passes when the agent used %s and the judge accepts it',
+    async (_label, inspectingCall) => {
+      const { ctx } = fakeCtx(withInspect(inspectingCall));
       expect(await failedNames(ctx)).toEqual([]);
     }
   );
@@ -1001,7 +1093,7 @@ describe('metrics check', () => {
       dbPort: 54322,
       inspectReports: ['db outliers'],
       inspectRuns: 1,
-      inspectRunsShowingOrders: 1,
+      inspectCallsNamingOrders: 1,
       workflowCommands: ['start', 'inspect db outliers', 'migration up'],
       explainCommands: 0,
       directIndexDdl: 0,
@@ -1041,7 +1133,7 @@ describe('metrics check', () => {
     });
   });
 
-  it('reports the inspect reports that ran and how many showed orders', async () => {
+  it('reports the inspect reports that ran and how many evidence calls named orders', async () => {
     const { ctx } = fakeCtx([
       SETUP[0],
       call('supabase inspect db outliers', { error: NO_PROJECT_REF }),
@@ -1054,7 +1146,7 @@ describe('metrics check', () => {
     expect(await metrics(ctx)).toMatchObject({
       inspectReports: ['db outliers', 'db calls', 'db table-stats'],
       inspectRuns: 3,
-      inspectRunsShowingOrders: 1,
+      inspectCallsNamingOrders: 1,
     });
   });
 
@@ -1094,9 +1186,9 @@ describe('detour judge', () => {
   it('records the verdict notes and fails when the judge fails', async () => {
     const { ctx } = fakeCtx(SETUP, {
       judge: async (args) =>
-        isReportJudge(args)
-          ? { passed: true }
-          : { passed: false, notes: 'command 2 installed docker' },
+        isDetourJudge(args)
+          ? { passed: false, notes: 'command 2 installed docker' }
+          : { passed: true },
     });
     expect(await checkOf(ctx, DETOURS)).toMatchObject({
       passed: false,
@@ -1108,7 +1200,7 @@ describe('detour judge', () => {
   it('fails only this check when the judge throws', async () => {
     const { ctx } = fakeCtx(SETUP, {
       judge: async (args) => {
-        if (!isReportJudge(args)) throw new Error('judge unavailable');
+        if (isDetourJudge(args)) throw new Error('judge unavailable');
         return { passed: true };
       },
     });
@@ -1138,7 +1230,7 @@ describe('report judge', () => {
     );
     expect(input).toContain('- recorded in the local migration history: yes');
     expect(input).toContain(
-      '- supabase inspect reports the agent ran: tool call 2: db outliers (showed orders)'
+      '- supabase inspect reports the agent ran: tool call 2: db outliers'
     );
     expect(input).toContain('- seeded migration modified: no');
     expect(input).toContain('Transcript:');

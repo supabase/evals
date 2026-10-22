@@ -84,7 +84,6 @@ const FACTS: Facts = {
       commandIndex: 1,
       report: 'db outliers',
       errored: false,
-      namesOrders: true,
     },
   ],
   files: { seededMigrationModified: false, newMigrationFiles: 1 },
@@ -125,7 +124,6 @@ const run = (overrides: Partial<InspectRun> = {}): InspectRun => ({
   commandIndex: 0,
   report: 'db outliers',
   errored: false,
-  namesOrders: true,
   ...overrides,
 });
 
@@ -485,72 +483,27 @@ describe('describeGroundTruth', () => {
       );
     });
 
-    it('names the tool call, the report and that it showed orders', () => {
+    it('names the tool call and the report', () => {
       expect(line(lines(), INSPECT_LINE)).toBe(
-        `${INSPECT_LINE} tool call 2: db outliers (showed orders)`
-      );
-    });
-
-    it('says a report ran but did not show orders', () => {
-      const inspectRuns = [
-        run({ report: 'db calls', namesOrders: false, commandIndex: 0 }),
-      ];
-      expect(line(lines({ inspectRuns }), INSPECT_LINE)).toBe(
-        `${INSPECT_LINE} tool call 1: db calls (did not show orders)`
+        `${INSPECT_LINE} tool call 2: db outliers`
       );
     });
 
     it('says a report errored', () => {
-      const inspectRuns = [run({ errored: true, namesOrders: false })];
+      const inspectRuns = [run({ errored: true })];
       expect(line(lines({ inspectRuns }), INSPECT_LINE)).toBe(
         `${INSPECT_LINE} tool call 1: db outliers (errored)`
       );
     });
 
-    it('says a report ran in a call whose other commands may have printed orders', () => {
-      const inspectRuns = [
-        run({ report: 'db calls', namesOrders: false, sharedOutput: true }),
-      ];
-      expect(line(lines({ inspectRuns }), INSPECT_LINE)).toBe(
-        `${INSPECT_LINE} tool call 1: db calls (output shared with other commands, not attributed)`
-      );
-    });
-
-    it('says an errored report shared its output with other commands', () => {
-      const inspectRuns = [
-        run({ errored: true, namesOrders: false, sharedOutput: true }),
-      ];
-      expect(line(lines({ inspectRuns }), INSPECT_LINE)).toBe(
-        `${INSPECT_LINE} tool call 1: db outliers (errored; output shared with other commands, not attributed)`
-      );
-    });
-
-    it('says which later tool call read the output that showed orders', () => {
-      const inspectRuns = [run({ commandIndex: 1, readInCall: 3 })];
-      expect(line(lines({ inspectRuns }), INSPECT_LINE)).toBe(
-        `${INSPECT_LINE} tool call 2: db outliers (showed orders via tool call 4)`
-      );
-    });
-
-    it('does not say an errored report that printed orders showed nothing', () => {
-      const inspectRuns = [run({ errored: true, namesOrders: true })];
-      const text = line(lines({ inspectRuns }), INSPECT_LINE) ?? '';
-      expect(text).toContain('tool call 1: db outliers');
-      expect(text).not.toContain('did not show orders');
-    });
-
     it('lists every report in the order it ran', () => {
       const inspectRuns = [
-        run({ commandIndex: 0, errored: true, namesOrders: false }),
+        run({ commandIndex: 0, errored: true }),
         run({ commandIndex: 2, report: 'db table-stats' }),
       ];
-      const text = line(lines({ inspectRuns }), INSPECT_LINE) ?? '';
-      const first = text.indexOf('tool call 1: db outliers');
-      const second = text.indexOf(
-        'tool call 3: db table-stats (showed orders)'
+      expect(line(lines({ inspectRuns }), INSPECT_LINE)).toBe(
+        `${INSPECT_LINE} tool call 1: db outliers (errored); tool call 3: db table-stats`
       );
-      expect(first).toBeGreaterThan(-1);
-      expect(second).toBeGreaterThan(first);
     });
   });
 

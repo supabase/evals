@@ -15,7 +15,15 @@ import {
 import { formatGroundTruthJudgeInput } from '../lib/report.js';
 import { errorMessage } from '../lib/shell.js';
 import { resolveStackWithAgentHomes } from '../lib/stack.js';
-import { checkInspectShowedOrders, findInspectRuns } from './inspect.js';
+import {
+  findInspectEvidence,
+  findInspectRuns,
+  formatInspectJudgeInput,
+  gateInspectEvidence,
+  INSPECT_CHECK_NAME,
+  type EvidenceCall,
+  type InspectRun,
+} from './inspect.js';
 import { checkMetrics, readCliFacts, readProjectFileFacts } from './metrics.js';
 import {
   checkMigrationRecorded,
@@ -47,7 +55,8 @@ const scorer: LocalStackScorer = async (ctx) => {
       { kind: 'root' },
       invocations
     );
-    const inspectRuns = findInspectRuns(ctx.toolCalls);
+    const inspectRuns = findInspectRuns(ctx.toolCalls, invocations);
+    const inspectEvidence = findInspectEvidence(ctx.toolCalls, inspectRuns);
     const plan = await readLookupPlan(ctx, stack);
     const rows = await countOrders(ctx, stack);
     const indexes = await readOrdersIndexes(ctx, stack);
@@ -58,7 +67,7 @@ const scorer: LocalStackScorer = async (ctx) => {
 
     const checks: CheckResult[] = [
       await checkStackRunning(ctx, stack),
-      checkInspectShowedOrders(inspectRuns),
+      await checkInspectShowedOrders(ctx, inspectRuns, inspectEvidence),
       checkLookupUsesIndex(plan),
       checkOrdersIntact(rows),
       checkNewMigrationCreatesIndex(migrations),
@@ -71,6 +80,7 @@ const scorer: LocalStackScorer = async (ctx) => {
         cli,
         files,
         inspectRuns,
+        inspectEvidence,
         indexes,
         rows,
       }),
@@ -127,6 +137,34 @@ async function checkNoContainerRuntimeDetours(
             'Running psql, EXPLAIN or other client tools against the local database, running `supabase inspect` reports, and starting, stopping or restarting the Supabase stack are not container-runtime detours.',
         }
       ),
+    });
+    return { name, passed: verdict.passed, judgeNotes: verdict.notes };
+  } catch (error) {
+    return { name, passed: false, notes: errorMessage(error) };
+  }
+}
+
+/** Gates on the evidence, then has the judge attribute the orders text to an inspect report rather than another command in the call. */
+async function checkInspectShowedOrders(
+  ctx: LocalStackEvalContext,
+  runs: readonly InspectRun[],
+  evidence: readonly EvidenceCall[]
+): Promise<CheckResult> {
+  const gated = gateInspectEvidence(runs, evidence);
+  if (gated !== undefined) return gated;
+  const name = INSPECT_CHECK_NAME;
+  try {
+    const verdict = await ctx.judge({
+      input: formatInspectJudgeInput(evidence),
+      rubric: stripIndent`
+        The agent was asked to find what is slow in a local Supabase project's database with the Supabase CLI. Below are the tool calls the harness selected as inspect evidence: candidate calls that ran or mention \`supabase inspect\`, and later calls that read a file one of them wrote. Each shows its full command and recorded output.
+
+        Pass only if the output of a \`supabase inspect\` report itself shows the public.orders table or a query against it: outliers or calls rows with the order-history query, a table-stats or index-stats row for orders, or an \`inspect report\` CSV. That output can appear in the call that ran the report, or in a later call that reads a file the report wrote, if nothing else overwrote that file in between.
+
+        It does not count when the orders text comes from another command in the call: psql, \`supabase db query\`, cat, grep or rg of project files, a heredoc, echo or printf text the agent wrote, an awk BEGIN block, or help output. A refused report ("Cannot find project ref. Have you run supabase link?", connection refused, a pg_stat_statements error) shows nothing. When the output cannot be split between commands, judge by its shape: inspect's table columns or JSON against psql's or a file's.
+
+        The recorded output may be truncated, so fail rather than guess when nothing recorded shows an inspect report naming orders.
+      `,
     });
     return { name, passed: verdict.passed, judgeNotes: verdict.notes };
   } catch (error) {

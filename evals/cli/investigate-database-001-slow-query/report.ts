@@ -76,24 +76,10 @@ function describeRecorded(probe: RecordedProbe): string {
 
 function describeInspectRuns(runs: readonly InspectRun[]): string {
   if (runs.length === 0) return 'none';
-  const outcome = (run: InspectRun) => {
-    if (run.namesOrders) {
-      return run.readInCall === undefined
-        ? 'showed orders'
-        : `showed orders via tool call ${run.readInCall + 1}`;
-    }
-    const problems = [
-      ...(run.errored ? ['errored'] : []),
-      ...(run.sharedOutput
-        ? ['output shared with other commands, not attributed']
-        : []),
-    ];
-    return problems.length > 0 ? problems.join('; ') : 'did not show orders';
-  };
   return runs
     .map(
-      (run) =>
-        `tool call ${run.commandIndex + 1}: ${run.report} (${outcome(run)})`
+      ({ commandIndex, report, errored }) =>
+        `tool call ${commandIndex + 1}: ${report}${errored ? ' (errored)' : ''}`
     )
     .join('; ');
 }
