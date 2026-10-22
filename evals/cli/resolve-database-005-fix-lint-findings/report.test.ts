@@ -451,6 +451,71 @@ describe('describeGroundTruth', () => {
       }
     });
 
+    it('carries the SQL of a new migration file, even when the probe failed', () => {
+      const migrations: Facts['migrations'] = {
+        ok: true,
+        migrations: [
+          ...seededFiles(),
+          {
+            name: '20261022000000_harden_order_items.sql',
+            sql: "alter table public.order_items enable row level security;\nalter function public.set_updated_at() set search_path = '';\n",
+          },
+        ],
+      };
+      const probe: Facts['probe'] = {
+        ok: false,
+        notes: 'exit 1: Cannot connect to the Docker daemon',
+      };
+      const line = lineMatching(
+        lines({ migrations, probe }),
+        /contents of 20261022000000_harden_order_items\.sql/
+      );
+      expect(line).toContain('enable row level security');
+      expect(line).toContain('search_path');
+    });
+
+    it('carries the SQL of an edited seeded migration', () => {
+      const [first, second, third] = seededFiles();
+      const migrations: Facts['migrations'] = {
+        ok: true,
+        migrations: [
+          first,
+          second,
+          { ...third, sql: `${third.sql}\nselect 'edited marker';\n` },
+        ],
+      };
+      const line = lineMatching(
+        lines({ migrations }),
+        new RegExp(`contents of ${SEEDED_THIRD}`)
+      );
+      expect(line).toContain('edited marker');
+    });
+
+    it('does not carry the SQL of untouched seeded migrations', () => {
+      expect(lines().some((line) => line.startsWith('- contents of'))).toBe(
+        false
+      );
+    });
+
+    it("keeps each migration file's contents on one bullet line", () => {
+      const migrations: Facts['migrations'] = {
+        ok: true,
+        migrations: [
+          ...seededFiles(),
+          {
+            name: '20261022000000_fix.sql',
+            sql: 'select 1;\n\nselect 2;\n',
+          },
+        ],
+      };
+      const all = lines({ migrations });
+      expect(all.some((line) => line.includes('\n'))).toBe(false);
+      expect(all.every((line) => line.startsWith('- '))).toBe(true);
+      expect(
+        lineMatching(all, /contents of 20261022000000_fix\.sql/)
+      ).toContain('select 2;');
+    });
+
     it('carries the reason when the workspace could not be read', () => {
       expect(
         text({ migrations: { ok: false, notes: 'exit 2: no such directory' } })
@@ -553,6 +618,18 @@ describe('REPORT_RUBRIC', () => {
 
   it('expects the report to mention any finding it left unfixed', () => {
     expect(REPORT_RUBRIC).toMatch(/unfixed|left/i);
+  });
+
+  it('accepts an unapplied migration the report says it could not verify', () => {
+    expect(REPORT_RUBRIC).toMatch(/could not apply or verify/i);
+    expect(REPORT_RUBRIC).toMatch(/patch/i);
+  });
+
+  it('does not fail a report for findings from a check the agent never ran', () => {
+    expect(REPORT_RUBRIC).toMatch(/never ran/i);
+    expect(REPORT_RUBRIC).toMatch(
+      /claims a check it never ran came back clean/i
+    );
   });
 
   it('does not penalise brevity or wording', () => {
