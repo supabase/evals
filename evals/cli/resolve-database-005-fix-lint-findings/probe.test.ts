@@ -317,6 +317,39 @@ describe('probe.sql', () => {
     expect(behaviour).toContain("'foreign_total', foreign_total");
   });
 
+  it('counts an error from order_total on a foreign order as no leak, after the reader own reads and before the role resets', () => {
+    const behaviour = functionBody('eval_behaviour');
+    const nested = behaviour.match(
+      /\n\s+begin\n\s+(execute 'select coalesce\(sum\([^\n]*)\n\s+exception when others then\n\s+foreign_total := '0';\n\s+end;\n\s+perform set_config\('role', 'none', true\);/
+    );
+    expect(nested?.[1]).toContain('into foreign_total using order_ids;');
+    const ownReads = behaviour.indexOf(
+      "execute 'select coalesce(json_agg(public.order_total"
+    );
+    expect(ownReads).toBeGreaterThan(-1);
+    expect(ownReads).toBeLessThan(behaviour.indexOf('into foreign_total'));
+    expect(
+      behaviour.indexOf("perform set_config('role', usr.role, true);")
+    ).toBeLessThan(behaviour.indexOf('into foreign_total'));
+  });
+
+  it('accepts any trigger that stamps a later time than the 2000-01-01 the probe sets', () => {
+    const behaviour = functionBody('eval_behaviour');
+    expect(behaviour).toContain(
+      "update public.orders set updated_at = ''2000-01-01'' where id = 1 returning updated_at > ''2000-01-01''::timestamptz"
+    );
+    expect(behaviour).not.toMatch(/updated_at = now\(\)/);
+  });
+
+  it('drops standalone composite types in the replay but not table row types or multiranges', () => {
+    const replay = functionBody('eval_replay');
+    expect(replay).toContain("t.typtype in ('e', 'd', 'r')");
+    expect(replay).toContain(
+      "t.typtype = 'c' and exists (select 1 from pg_class r where r.oid = t.typrelid and r.relkind = 'c')"
+    );
+    expect(replay).not.toMatch(/'m'\)/);
+  });
+
   it('declares no unused variables and no unused ordinality', () => {
     expect(sql).not.toMatch(/with ordinality/);
     expect(functionBody('eval_findings')).not.toMatch(

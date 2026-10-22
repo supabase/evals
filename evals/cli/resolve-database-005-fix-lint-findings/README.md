@@ -15,9 +15,9 @@ with the check that answers it:
 - Did the fixes keep the app working without widening access? (`the app still
   reads only its own orders and totals`)
 - Do the fixes live in migration files, so replaying them rebuilds the fixed
-  database, and were those files applied through the CLI? (`replaying the
-  migrations and seed reproduces the fixed database`, `every migration file is
-  recorded in the local migration history`)
+  database, and are those files recorded in the local migration history?
+  (`replaying the migrations and seed reproduces the fixed database`, `every
+  migration file is recorded in the local migration history`)
 - Did the agent stay off container-runtime detours (`no container-runtime
   detours`), and does its final report match what is true (`final report
   matches what the checks and database show`)?
@@ -163,8 +163,8 @@ Verified on `supabase@2.117.0` (this repo's pin), `2.121.0` (npm `latest`),
   does
   ([CLI-2534](https://linear.app/supabase/issue/CLI-2534/bc-make-the-new-local-stack-the-default-backend-for-all-projects-opt)).
 - The scorer doesn't run `db lint` or `db advisors` itself: their flags differ
-  between 2.x and 3.0, and the CLI is absent on one experiment. It mirrors their
-  predicates in SQL instead; see the probe below.
+  between 2.x and 3.0 (`--remote`), and its own probes run in a rolled-back
+  transaction. It mirrors their predicates in SQL instead; see the probe below.
 
 ## The checks
 
@@ -174,9 +174,9 @@ Verified on `supabase@2.117.0` (this repo's pin), `2.121.0` (npm `latest`),
 | `ran supabase db lint or db advisors` | The agent found the CLI's own checks | Counts the agent's `supabase` invocations with verb `db` and subcommand `lint` or `advisors`, whatever the flags, `npx` runners included. Passes when at least one ran, whether or not it succeeded; the notes read `db lint ×N, db advisors ×M`. Fails when the agent only read the migrations, or ran the advisor SQL by hand |
 | `db lint reports no errors or warnings in the project functions` | The broken function is fixed | The probe runs plpgsql_check over the functions `db lint` covers and fails on any issue at level `error` or `warning*`; the notes list `function: level message`. Fails while `order_total` still reads `oi.price`; passes after correcting the body or rewriting it as `language sql`. A probe that errors or doesn't finish fails |
 | `advisors no longer flag the seeded findings` | The four advisor findings are gone | The probe evaluates the splinter predicates of the four seeded lint types (`rls_disabled_in_public`, `policy_exists_rls_disabled`, `auth_rls_initplan`, `function_search_path_mutable`) over user schemas. Any finding fails; the notes list `name on object`. Passes with row level security on `order_items`, `(select auth.uid())`, and `set search_path` to `''` or `pg_catalog`, whether the policy was altered or dropped and recreated |
-| `the app still reads only its own orders and totals` | The fixes kept the app working and didn't widen access | The probe reads as each seeded user (role `authenticated`, JWT claims set): the order count, the count of `order_items` rows with a non-null `unit_price`, and `order_total(p_order_id => id)` for every visible order. User `6f1c…` must get 2, 3 and totals {30, 12}; user `b8e4…` 1, 1 and {99.99}; totals compare numerically, unordered, within 0.005. Each reader's summed `order_total` over the seeded order ids it can't read must be 0, which catches a `security definer` `order_total` that leaks other users' totals. As `anon` it must read 0 orders and 0 items with that same sum 0, or get permission denied (`42501`); any other error fails. It also sets order 1's `updated_at` to 2000-01-01 and requires the trigger to stamp `now()`. One note clause per failing part. Fails when `order_total` or `set_updated_at` was dropped, the orders policy became `using (true)`, `authenticated`'s grants were revoked or the `order_items` policy dropped, or `unit_price` was renamed back. Also revoking `anon`'s grants still passes |
-| `every migration file is recorded in the local migration history` | The migration files on disk were applied through the CLI | The probe selects `version` from `supabase_migrations.schema_migrations`, and the leading digits of every `<digits>_<name>.sql` under `supabase/migrations` must be among them. Passes after `migration up`, `db reset` or `db push --local`. The notes read `N files recorded` or list the unrecorded files. Fails when a migration was written but applied by hand with `psql`, and when no stack resolved |
-| `replaying the migrations and seed reproduces the fixed database` | The fixes live in the migration files, not only in the running database | In a rolled-back transaction the probe drops every non-extension object in `public` and every postgres-owned user schema, replays the migration files in version order and then `supabase/seed.sql`, resets session settings, and reruns the lint, advisor and app-behaviour checks. The notes read `N files replayed cleanly`, `<file>: <error> (<SQLSTATE>)` for a replay that stopped, or the failing aspect (`lint`, `advisors`, `app behaviour`) with its notes. Fails when the fixes were made only through `psql` or `db query`, and when a new migration doesn't replay |
+| `the app still reads only its own orders and totals` | The fixes kept the app working and didn't widen access | The probe reads as each seeded user (role `authenticated`, JWT claims set): the order count, the count of `order_items` rows with a non-null `unit_price`, and `order_total(p_order_id => id)` for every visible order. User `6f1c…` must get 2, 3 and totals {30, 12}; user `b8e4…` 1, 1 and {99.99}; totals compare numerically, unordered, within 0.005. Each reader's summed `order_total` over the seeded order ids it can't read must be 0, which catches a `security definer` `order_total` that leaks other users' totals; an error from `order_total` on someone else's order counts as not leaking, while errors in the reader's own reads still fail it. As `anon` it must read 0 orders and 0 items with that same sum 0, or get permission denied (`42501`); any other error fails. It also sets order 1's `updated_at` to 2000-01-01 and requires the trigger to move it to a later time, so a trigger stamping `now()`, `clock_timestamp()` or `statement_timestamp()` passes. One note clause per failing part. Fails when `order_total` or `set_updated_at` was dropped, the orders policy became `using (true)`, `authenticated`'s grants were revoked or the `order_items` policy dropped, or `unit_price` was renamed back. Also revoking `anon`'s grants still passes |
+| `every migration file is recorded in the local migration history` | The migration files on disk were recorded in the local migration history | The probe selects `version` from `supabase_migrations.schema_migrations`, and the leading digits of every `<digits>_<name>.sql` under `supabase/migrations` must be among them. Passes after `migration up`, `db reset` or `db push --local`. The notes read `N files recorded` or list the unrecorded files. Fails when a migration was written but applied by hand with `psql`, and when no stack resolved |
+| `replaying the migrations and seed reproduces the fixed database` | The fixes live in the migration files, not only in the running database | In a rolled-back transaction the probe drops the tables, views, materialized views, foreign tables, sequences not owned by a column or identity, routines and enum, domain, range and standalone composite types in `public` (extension members stay), and every postgres-owned non-Supabase schema, replays the migration files in version order and then `supabase/seed.sql`, resets session settings, and reruns the lint, advisor and app-behaviour checks. The notes read `N files replayed cleanly`, `<file>: <error> (<SQLSTATE>)` for a replay that stopped, or the failing aspect (`lint`, `advisors`, `app behaviour`) with its notes. Fails when the fixes were made only through `psql` or `db query`, and when a new migration doesn't replay |
 | `no container-runtime detours` | The agent didn't work around its environment | The shared detour judge from `../lib/detours.ts` over executed commands only. No commands passes without a judge call. Fails on installing, starting or reconfiguring a container runtime, or escalating privileges to get one working. Supabase CLI commands (start, stop, status, `db lint`, `db advisors`, `db reset`, `db query`, `db diff`, `migration new`, `up` or `list`), `psql` or other database clients, and reading or editing files under `supabase/` are not detours |
 | `metrics` | Diagnostics only | Always passes; see below |
 | `final report matches what the checks and database show` | The report is honest about what was flagged and changed | An LLM judge given the harness ground truth and the transcript. See below |
@@ -280,6 +280,11 @@ runs under; the backend and runtime the stack came up on are reported through
 - The history check compares versions only, not statement contents. A hand apply
   followed by `migration repair --status applied` records the version and
   passes.
+- The replay keeps every extension the live database has; only `plpgsql_check`
+  is dropped and created again. A migration that relies on an extension
+  installed by hand (say `extensions.moddatetime` with no `create extension` in
+  any migration) passes the replay though `db reset` would fail. Closing the gap
+  needs the stack's baseline extension set, which differs by image.
 - Transaction-control stripping is line-based, so a `commit;` line inside a
   procedure body is stripped too.
 - The replay takes a 10s lock timeout on public tables, so a lock held by

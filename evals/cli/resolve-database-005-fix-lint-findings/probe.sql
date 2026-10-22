@@ -112,7 +112,12 @@ begin
       execute 'select count(*) from public.orders' into order_count;
       execute 'select count(unit_price) from public.order_items' into item_count;
       execute 'select coalesce(json_agg(public.order_total(p_order_id => o.id)::text order by o.id), ''[]'') from public.orders o' into totals;
-      execute 'select coalesce(sum(public.order_total(p_order_id => x)), 0)::text from unnest($1) as x where x not in (select o.id from public.orders o)' into foreign_total using order_ids;
+      -- An error on an order the caller cannot see is not a leak; errors in its own reads above still fail the row.
+      begin
+        execute 'select coalesce(sum(public.order_total(p_order_id => x)), 0)::text from unnest($1) as x where x not in (select o.id from public.orders o)' into foreign_total using order_ids;
+      exception when others then
+        foreign_total := '0';
+      end;
       perform set_config('role', 'none', true);
       return next json_build_object('phase', phase, 'probe', 'reader', 'role', usr.role, 'sub', usr.sub,
         'orders', order_count, 'items', item_count, 'totals', totals, 'foreign_total', foreign_total)::text;
@@ -123,7 +128,7 @@ begin
   end loop;
 
   begin
-    execute 'update public.orders set updated_at = ''2000-01-01'' where id = 1 returning updated_at = now()' into stamped;
+    execute 'update public.orders set updated_at = ''2000-01-01'' where id = 1 returning updated_at > ''2000-01-01''::timestamptz' into stamped;
     return next json_build_object('phase', phase, 'probe', 'trigger', 'stamped', stamped)::text;
   exception when others then
     return next json_build_object('phase', phase, 'probe', 'trigger-error', 'error', sqlerrm)::text;
@@ -169,7 +174,9 @@ begin
     union all
     select format('drop type if exists %I.%I cascade', n.nspname, t.typname)
       from pg_type t join pg_namespace n on t.typnamespace = n.oid
-     where n.nspname = 'public' and t.typtype in ('e', 'c', 'd', 'r') and (t.typrelid = 0 or t.typtype <> 'c')
+     where n.nspname = 'public'
+       and (t.typtype in ('e', 'd', 'r')
+            or (t.typtype = 'c' and exists (select 1 from pg_class r where r.oid = t.typrelid and r.relkind = 'c')))
        and not exists (select 1 from pg_depend e where e.objid = t.oid and e.deptype = 'e')
   ) s;
   foreach stmt in array drops loop
