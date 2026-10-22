@@ -137,8 +137,24 @@ const INDEXES_ON_EMAIL: Array<[string, string]> = [
     'create index i on public.orders (customer_email collate "C");',
   ],
   [
+    'a schema-qualified collation',
+    'create index i on public.orders (customer_email collate pg_catalog."default");',
+  ],
+  [
     'an operator class',
     'create index i on public.orders (customer_email text_pattern_ops);',
+  ],
+  [
+    'a quoted access method',
+    'create index i on public.orders using "btree" (customer_email);',
+  ],
+  [
+    'the column in redundant parentheses',
+    'create index i on public.orders ((customer_email));',
+  ],
+  [
+    'the column in parentheses followed by a direction',
+    'create index i on public.orders ((customer_email) desc);',
   ],
   [
     'a quoted column with a direction',
@@ -211,6 +227,14 @@ const NOT_AN_EMAIL_INDEX: Array<[string, string]> = [
   [
     'an expression on the column',
     'create index i on orders (lower(customer_email));',
+  ],
+  [
+    'an expression in redundant parentheses',
+    'create index i on orders ((lower(customer_email)));',
+  ],
+  [
+    'customer_email second in a composite, in parentheses',
+    'create index i on public.orders (created_at, (customer_email));',
   ],
   [
     'an expression with a comma inside its parentheses',

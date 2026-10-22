@@ -8,7 +8,7 @@ import {
   SEEDED_MIGRATION_FILE,
   SEEDED_MIGRATION_VERSION,
 } from './fixtures.js';
-import { queryDatabase } from './orders.js';
+import { queryDatabase } from './psql.js';
 
 type ExecContext = Pick<LocalStackEvalContext, 'exec'>;
 
@@ -33,12 +33,13 @@ export const RECORDED_CHECK_NAME =
 
 const MIGRATION_FILENAME_RE = /^(\d+)_(.+)\.sql$/;
 const IDENTIFIER = String.raw`"[^"]+"|[^\s"(),;]+`;
+const NAME = String.raw`(?:[a-z_][\w$]*|"[^"]+")`;
 const CREATE_INDEX_RE = new RegExp(
-  String.raw`^\s*create\s+(?:unique\s+)?index\s+(?:concurrently\s+)?(?:if\s+not\s+exists\s+)?(?:(${IDENTIFIER})\s+)?on\s+(?:only\s+)?(?:"?public"?\s*\.\s*)?"?${ORDERS_TABLE}"?\s*(?:using\s+\w+\s*)?\(`,
+  String.raw`^\s*create\s+(?:unique\s+)?index\s+(?:concurrently\s+)?(?:if\s+not\s+exists\s+)?(?:(${IDENTIFIER})\s+)?on\s+(?:only\s+)?(?:"?public"?\s*\.\s*)?"?${ORDERS_TABLE}"?\s*(?:using\s+(?:\w+|"[^"]+")\s*)?\(`,
   'i'
 );
 const EMAIL_KEY_RE = new RegExp(
-  String.raw`^"?${EMAIL_COLUMN}"?(?:\s+(?:[a-z_][\w$]*|"[^"]+"))*$`,
+  String.raw`^"?${EMAIL_COLUMN}"?(?:\s+${NAME}(?:\s*\.\s*${NAME})*)*$`,
   'i'
 );
 const HISTORY_ROW_RE = /^(\d+)\|((?:[0-9a-f]{2})*)$/i;
@@ -46,8 +47,8 @@ const NO_NEW_MIGRATION_NOTE = `no new migration creates an index on ${ORDERS_TAB
 
 const compareText = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
-/** The top-level key texts of the index column list that `text` starts inside, or undefined when it never closes. */
-function splitKeys(text: string): string[] | undefined {
+/** The top-level key texts of the index column list that `text` starts inside and the offset of its closing parenthesis, or undefined when it never closes. */
+function splitKeys(text: string): { keys: string[]; end: number } | undefined {
   const keys: string[] = [];
   let depth = 1;
   let quoted = false;
@@ -60,13 +61,23 @@ function splitKeys(text: string): string[] | undefined {
       depth++;
     } else if (!quoted && char === ')' && --depth === 0) {
       keys.push(text.slice(start, i));
-      return keys.map((key) => key.trim());
+      return { keys: keys.map((key) => key.trim()), end: i };
     } else if (!quoted && char === ',' && depth === 1) {
       keys.push(text.slice(start, i));
       start = i + 1;
     }
   }
   return undefined;
+}
+
+/** `key` with the redundant parentheses around its leading expression removed, since `((col) desc)` indexes the plain column. */
+function unwrapLeadingParens(key: string): string {
+  if (!key.startsWith('(')) return key;
+  const group = splitKeys(key.slice(1));
+  if (group === undefined || group.keys.length !== 1) return key;
+  return unwrapLeadingParens(
+    `${group.keys[0]} ${key.slice(group.end + 2)}`.trim()
+  );
 }
 
 /** The `create index` statements on `public.orders` outside comments and literals, in file order. */
@@ -76,7 +87,7 @@ export function findOrdersIndexStatements(sql: string): IndexStatement[] {
     .flatMap((statement): IndexStatement[] => {
       const create = CREATE_INDEX_RE.exec(statement);
       if (create === null) return [];
-      const keys = splitKeys(statement.slice(create[0].length));
+      const keys = splitKeys(statement.slice(create[0].length))?.keys;
       if (keys === undefined) return [];
       const name = create[1]?.replace(/^"(.*)"$/, '$1');
       return [{ ...(name === undefined ? {} : { name }), keys }];
@@ -86,7 +97,8 @@ export function findOrdersIndexStatements(sql: string): IndexStatement[] {
 /** Whether `sql` creates an index on `public.orders` whose first key is the bare `customer_email` column. */
 export function createsEmailIndex(sql: string): boolean {
   return findOrdersIndexStatements(sql).some(
-    ({ keys }) => keys.length > 0 && EMAIL_KEY_RE.test(keys[0])
+    ({ keys }) =>
+      keys.length > 0 && EMAIL_KEY_RE.test(unwrapLeadingParens(keys[0]))
   );
 }
 

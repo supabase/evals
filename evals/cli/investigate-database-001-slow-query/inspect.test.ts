@@ -1,11 +1,7 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/investigate-database-001-slow-query
 import type { ToolCallRecord } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
-import {
-  findSupabaseInvocations,
-  type SupabaseInvocation,
-} from '../lib/cli-invocations.js';
-import { extractCommandEntries } from '../lib/detours.js';
+import { findSupabaseInvocations } from '../lib/cli-invocations.js';
 import {
   checkInspectShowedOrders,
   findInspectRuns,
@@ -50,11 +46,7 @@ const fileWrite = (result = ''): ToolCallRecord => ({
   ts: 0,
 });
 
-const invocationsOf = (toolCalls: ToolCallRecord[]) =>
-  findSupabaseInvocations(extractCommandEntries(toolCalls));
-
-const runsOf = (toolCalls: ToolCallRecord[]) =>
-  findInspectRuns(toolCalls, invocationsOf(toolCalls));
+const runsOf = (toolCalls: ToolCallRecord[]) => findInspectRuns(toolCalls);
 
 const inspect = (command: string, stdout: string) =>
   call(command, { result: stdout });
@@ -356,27 +348,420 @@ describe('findInspectRuns', () => {
     }
   );
 
-  it('does not let a help invocation pass the check even when handed one directly', () => {
-    const help: SupabaseInvocation = {
-      commandIndex: 0,
-      argv: ['supabase', 'inspect', 'db', '--help'],
-    };
-    const calls = [inspect('supabase inspect db --help', OUTLIERS)];
-    expect(
-      checkInspectShowedOrders(findInspectRuns(calls, [help])).passed
-    ).toBe(false);
-  });
-
-  it('does not throw for an invocation that points past the tool calls', () => {
-    const stray: SupabaseInvocation = {
-      commandIndex: 5,
-      argv: ['supabase', 'inspect', 'db', 'outliers', '--local'],
-    };
-    expect(() => findInspectRuns([], [stray])).not.toThrow();
-  });
-
   it('is empty when the agent ran nothing', () => {
-    expect(findInspectRuns([], [])).toEqual([]);
+    expect(findInspectRuns([])).toEqual([]);
+  });
+});
+
+describe('findInspectRuns attribution', () => {
+  const DB_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
+  const ORDERS_ROW =
+    ' select id, status from public.orders where customer_email = $1 |   200';
+  const MIGRATION =
+    'create table public.orders (\n  id bigint primary key,\n  customer_email text not null\n);';
+  const RULES = '|RULE|STATUS|\n|-|-|\n|Unused indexes|PASS|\n';
+  const REPORT_CSV =
+    'query,calls\nselect id from public.orders where customer_email = $1,200\n';
+
+  const credited = (toolCalls: ToolCallRecord[]) =>
+    runsOf(toolCalls).map(({ namesOrders }) => namesOrders);
+  const passes = (toolCalls: ToolCallRecord[]) =>
+    checkInspectShowedOrders(runsOf(toolCalls)).passed;
+
+  it.each([
+    [
+      'a psql fallback in the same call after a refused inspect',
+      [
+        call(
+          `supabase inspect db outliers 2>&1 || psql "${DB_URL}" -c "select query, calls from extensions.pg_stat_statements order by total_exec_time desc limit 5"`,
+          { result: `${NO_PROJECT_REF}\n${ORDERS_ROW}` }
+        ),
+      ],
+    ],
+    [
+      'migrations cat-ed before an inspect that exited non-zero',
+      [
+        call('cat supabase/migrations/*.sql; supabase inspect db outliers', {
+          error: `${MIGRATION}\n${NO_PROJECT_REF}`,
+        }),
+      ],
+    ],
+    [
+      'a psql explain after an inspect whose output never named orders',
+      [
+        call(
+          `supabase inspect db outliers --local | head -5; psql "$DB" -c "explain select * from public.orders where customer_email = 'x'"`,
+          {
+            result: `${UNRELATED_OUTLIERS}\nSeq Scan on orders  (cost=0.00..6500.00 rows=60 width=40)`,
+          }
+        ),
+      ],
+    ],
+    [
+      'an echo after the inspect',
+      [
+        call('supabase inspect db outliers --local; echo orders', {
+          result: `${UNRELATED_OUTLIERS}\norders`,
+        }),
+      ],
+    ],
+    [
+      'a db query after the inspect',
+      [
+        call(
+          'supabase inspect db outliers --local && supabase db query "select * from orders limit 1"',
+          { result: `${UNRELATED_OUTLIERS}\n${ORDERS_ROW}` }
+        ),
+      ],
+    ],
+    [
+      'a migration read in a later call after a report with the default output directory',
+      [
+        call('supabase inspect report --local', { result: RULES }),
+        call('cat supabase/migrations/20260102000000_x.sql', {
+          result: MIGRATION,
+        }),
+      ],
+    ],
+    [
+      'a grep of the seed in a later call',
+      [
+        inspect('supabase inspect db outliers --local', UNRELATED_OUTLIERS),
+        call('grep orders supabase/seed.sql', {
+          result: "insert into public.orders values ('a');",
+        }),
+      ],
+    ],
+    [
+      'a read of a directory that only shares the output directory prefix',
+      [
+        call('supabase inspect report --local --output-dir /tmp/r', {
+          result: RULES,
+        }),
+        call('cat /tmp/rx/2026-10-22/outliers.csv', { result: REPORT_CSV }),
+      ],
+    ],
+    [
+      'a read through a variable',
+      [
+        call('supabase inspect db outliers --local > /tmp/o.txt', {
+          result: '',
+        }),
+        call('cat "$OUT"', { result: OUTLIERS }),
+      ],
+    ],
+    [
+      'a read that shares its call with another command',
+      [
+        call('supabase inspect db outliers --local > /tmp/o.txt', {
+          result: '',
+        }),
+        call('cat /tmp/o.txt; echo done', { result: `${OUTLIERS}\ndone` }),
+      ],
+    ],
+  ])('does not credit %s', (_label, toolCalls) => {
+    expect(new Set(credited(toolCalls))).toEqual(new Set([false]));
+    expect(passes(toolCalls)).toBe(false);
+  });
+
+  it.each([
+    [
+      'a pipe into head',
+      'supabase inspect db outliers --local | head -40',
+      OUTLIERS,
+    ],
+    [
+      'a jq filter',
+      `supabase inspect db table-stats --local -o json | jq '.[] | select(.Name | test("orders"))'`,
+      TABLE_STATS_JSON,
+    ],
+    [
+      'a chain of filters and a merged stderr',
+      'supabase inspect db outliers --local 2>&1 | grep -i orders | sort | uniq -c | head',
+      OUTLIERS,
+    ],
+    [
+      'a report written and read back in one call',
+      'supabase inspect report --local --output-dir /tmp/r && cat /tmp/r/*/outliers.csv',
+      REPORT_CSV,
+    ],
+    [
+      'two inspect reports in one call',
+      'supabase inspect db outliers --local; supabase inspect db table-stats --local',
+      OUTLIERS,
+    ],
+    [
+      'a cd before the report',
+      'cd /workspace && supabase inspect db outliers --local',
+      OUTLIERS,
+    ],
+    [
+      'a start before the report',
+      'supabase start && supabase inspect db outliers --local',
+      OUTLIERS,
+    ],
+    [
+      'a version check, an export and a variable before the report',
+      'supabase --version && export A=1 && DB=x && sleep 1 && supabase inspect db outliers --local',
+      OUTLIERS,
+    ],
+    [
+      'a bash wrapper',
+      `bash -lc 'supabase inspect db outliers --local'`,
+      OUTLIERS,
+    ],
+    [
+      'a package runner',
+      'npx supabase@beta inspect db calls --local | head -40',
+      OUTLIERS,
+    ],
+    [
+      'a prefixed environment',
+      'SUPABASE_HOME=/tmp/h supabase inspect db outliers --local',
+      OUTLIERS,
+    ],
+    [
+      'an absolute binary path',
+      '/usr/local/bin/supabase inspect db outliers --local',
+      OUTLIERS,
+    ],
+  ])('credits %s', (_label, command, stdout) => {
+    expect(new Set(credited([inspect(command, stdout)]))).toEqual(
+      new Set([true])
+    );
+  });
+
+  it('credits a report redirected to a file once a later call reads the file', () => {
+    const runs = runsOf([
+      call('supabase start'),
+      call('supabase inspect db outliers --local > /tmp/outliers.txt 2>&1'),
+      call('cat /tmp/outliers.txt', { result: OUTLIERS }),
+    ]);
+    expect(runs).toEqual([
+      {
+        commandIndex: 1,
+        report: 'db outliers',
+        errored: false,
+        namesOrders: true,
+        readInCall: 2,
+      },
+    ]);
+    expect(checkInspectShowedOrders(runs).notes).toBe(
+      'tool call 2: supabase inspect db outliers via tool call 3'
+    );
+  });
+
+  it('credits a report written to a directory once a later call reads a file in it', () => {
+    const runs = runsOf([
+      call('supabase start'),
+      call('supabase inspect report --local --output-dir /tmp/r', {
+        result: RULES,
+      }),
+      call('cat /tmp/r/2026-10-22/outliers.csv', { result: REPORT_CSV }),
+    ]);
+    expect(runs).toEqual([
+      {
+        commandIndex: 1,
+        report: 'report',
+        errored: false,
+        namesOrders: true,
+        readInCall: 2,
+      },
+    ]);
+  });
+
+  it.each([
+    [
+      'the equals form of the output directory',
+      'supabase inspect report --local --output-dir=/tmp/r',
+      'head -5 /tmp/r/2026-10-22/outliers.csv',
+    ],
+    [
+      'the current directory as the output directory',
+      'supabase inspect report --local --output-dir .',
+      'cat ./2026-10-22/outliers.csv',
+    ],
+    [
+      'the default output directory',
+      'supabase inspect report --local',
+      'cat 2026-10-22/outliers.csv',
+    ],
+    [
+      'a relative output directory',
+      'supabase inspect report --local --output-dir reports',
+      'cat ./reports/2026-10-22/outliers.csv',
+    ],
+    [
+      'a combined redirect',
+      'supabase inspect db outliers --local &> out.txt',
+      'cat ./out.txt',
+    ],
+    [
+      'an appending redirect',
+      'supabase inspect db outliers --local >> /tmp/o.txt',
+      'grep orders /tmp/o.txt',
+    ],
+    [
+      'a tee',
+      'supabase inspect db outliers --local | tee /tmp/o.txt > /dev/null',
+      'tail -n 20 /tmp/o.txt',
+    ],
+    [
+      'an input redirect',
+      'supabase inspect db outliers --local > /tmp/o.txt',
+      'jq . < /tmp/o.txt',
+    ],
+  ])('links a later read to the run for %s', (_label, run, read) => {
+    const runs = runsOf([call(run), call(read, { result: REPORT_CSV })]);
+    expect(runs.map(({ namesOrders }) => namesOrders)).toEqual([true]);
+    expect(runs[0].readInCall).toBe(1);
+  });
+
+  it('credits every run whose output a read covers', () => {
+    const runs = runsOf([
+      call('supabase inspect report --local', { result: RULES }),
+      call('supabase inspect report --local --output-dir .', { result: RULES }),
+      call('cat 2026-10-22/outliers.csv', { result: REPORT_CSV }),
+    ]);
+    expect(runs.map(({ namesOrders }) => namesOrders)).toEqual([true, true]);
+  });
+
+  it('keeps the first read that credited a run', () => {
+    const runs = runsOf([
+      call('supabase inspect db outliers --local > /tmp/o.txt'),
+      call('cat /tmp/o.txt', { result: OUTLIERS }),
+      call('cat /tmp/o.txt', { result: OUTLIERS }),
+    ]);
+    expect(runs[0].readInCall).toBe(1);
+  });
+
+  it('marks the runs of a call whose output other commands share', () => {
+    const runs = runsOf([
+      call('supabase start'),
+      call(
+        `supabase inspect db outliers 2>&1 || psql "${DB_URL}" -c "select 1 from public.orders"`,
+        { error: `${NO_PROJECT_REF}\n${ORDERS_ROW}` }
+      ),
+    ]);
+    expect(runs).toEqual([
+      {
+        commandIndex: 1,
+        report: 'db outliers',
+        errored: true,
+        namesOrders: false,
+        sharedOutput: true,
+      },
+    ]);
+    expect(checkInspectShowedOrders(runs).notes).toContain(
+      'tool call 2: supabase inspect db outliers (errored; output shared with other commands)'
+    );
+  });
+
+  it('does not mark a call that named no table, however many commands it ran', () => {
+    expect(
+      runsOf([
+        call('supabase inspect db outliers --local; echo done', {
+          result: `${UNRELATED_OUTLIERS}\ndone`,
+        }),
+      ])[0].sharedOutput
+    ).toBeUndefined();
+  });
+});
+
+describe('findInspectRuns file operands', () => {
+  const credited = (command: string, stdout: string) =>
+    runsOf([inspect(command, stdout)]).map(({ namesOrders }) => namesOrders);
+
+  it.each([
+    [
+      'a recursive grep of the project',
+      'supabase inspect db outliers --local; grep -r orders supabase',
+    ],
+    [
+      'a cat of a bare file name',
+      'supabase inspect db outliers --local; cat Makefile',
+    ],
+    [
+      'a grep of a bare directory name',
+      'supabase inspect db outliers --local; grep orders supabase',
+    ],
+    [
+      'a grep whose pattern comes from -e and whose file is named',
+      'supabase inspect db outliers --local; grep -e orders supabase/seed.sql',
+    ],
+    [
+      'a grep whose pattern is attached to -e',
+      'supabase inspect db outliers --local; grep -eorders supabase/seed.sql',
+    ],
+    [
+      'a sed over a file',
+      "supabase inspect db outliers --local; sed -n '1,5p' seed.sql",
+    ],
+    [
+      'a numeric pattern that leaves the file operand',
+      'supabase inspect db outliers --local; grep 5 supabase',
+    ],
+  ])('does not credit %s', (_label, command) => {
+    expect(credited(command, OUTLIERS)).toEqual([false]);
+  });
+
+  it.each([
+    ['a case-insensitive grep', 'grep -i orders', OUTLIERS],
+    ['a sed print range', "sed -n '1,40p'", OUTLIERS],
+    ['a sed substitution containing slashes', "sed 's/a/b/'", OUTLIERS],
+    ['head with a count', 'head -n 40', OUTLIERS],
+    ['tail from a line', 'tail -n +2', OUTLIERS],
+    ['a jq field filter', "jq -r '.[].Name'", TABLE_STATS_JSON],
+    ['jq with clustered flags', "jq -er '.[].Name'", TABLE_STATS_JSON],
+    [
+      'a jq variable',
+      `jq --arg n orders '.[] | select(.Name == $n)'`,
+      TABLE_STATS_JSON,
+    ],
+    ['a grep pattern from -e', 'grep -e orders', OUTLIERS],
+    [
+      'a grep with several -e patterns',
+      'grep -e orders -e customers',
+      OUTLIERS,
+    ],
+    ['a grep with a match limit', 'grep -m 5 -i orders', OUTLIERS],
+    ['an awk field separator', `awk -F '|' '{print $2}'`, OUTLIERS],
+    ['cut with attached flag values', 'cut -d, -f1', OUTLIERS],
+    ['tr with arguments that are not files', "tr '/' ' '", OUTLIERS],
+    ['wc and column', 'column -t', OUTLIERS],
+  ])('credits a pipe into %s', (_label, filter, stdout) => {
+    const command = filter.startsWith('jq')
+      ? `supabase inspect db table-stats --local -o json | ${filter}`
+      : `supabase inspect db outliers --local | ${filter}`;
+    expect(credited(command, stdout)).toEqual([true]);
+  });
+
+  it('counts the value of a separated flag as a file operand, so cut -d "," credits nothing', () => {
+    expect(
+      credited(
+        `supabase inspect db outliers --local --output-format csv | cut -d ',' -f 1`,
+        OUTLIERS
+      )
+    ).toEqual([false]);
+  });
+
+  it.each([
+    'supabase stack start',
+    'supabase stack stop',
+    'supabase stack status',
+    'supabase stack list',
+  ])('credits a run after %s in the same call', (quiet) => {
+    expect(
+      credited(`${quiet} && supabase inspect db outliers --local`, OUTLIERS)
+    ).toEqual([true]);
+  });
+
+  it('links a later read of a file a tee wrote under a bare name', () => {
+    const runs = runsOf([
+      call('supabase inspect db outliers --local | tee out.txt > /dev/null'),
+      call('cat out.txt', { result: OUTLIERS }),
+    ]);
+    expect(runs.map(({ namesOrders }) => namesOrders)).toEqual([true]);
   });
 });
 
@@ -439,6 +824,33 @@ describe('checkInspectShowedOrders', () => {
     expect(check.notes).toContain('db calls');
     expect(check.notes).toMatch(/errored/);
     expect(check.notes).toMatch(/orders/);
+  });
+
+  it('says which later tool call read the output that named orders', () => {
+    const check = checkInspectShowedOrders([run({ readInCall: 3 })]);
+    expect(check).toMatchObject({ passed: true });
+    expect(check.notes).toBe(
+      'tool call 2: supabase inspect db outliers via tool call 4'
+    );
+  });
+
+  it('says a failing run shared its output with other commands', () => {
+    const check = checkInspectShowedOrders([
+      run({ namesOrders: false, errored: true, sharedOutput: true }),
+      run({
+        commandIndex: 2,
+        report: 'db calls',
+        namesOrders: false,
+        sharedOutput: true,
+      }),
+    ]);
+    expect(check.passed).toBe(false);
+    expect(check.notes).toContain(
+      'tool call 2: supabase inspect db outliers (errored; output shared with other commands)'
+    );
+    expect(check.notes).toContain(
+      'tool call 3: supabase inspect db calls (output shared with other commands)'
+    );
   });
 
   it('marks nothing as errored when no report errored', () => {

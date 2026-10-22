@@ -13,7 +13,6 @@ import {
   type PlanProbe,
   parsePlan,
   PLAN_CHECK_NAME,
-  queryDatabase,
   readLookupPlan,
   readOrdersIndexes,
   ROWS_CHECK_NAME,
@@ -396,18 +395,6 @@ describe('parsePlan', () => {
   it('shows the output it could not read', () => {
     const probe = parsePlan('not json at all');
     expect(probe.ok ? '' : probe.notes).toContain('not json at all');
-  });
-});
-
-describe('queryDatabase', () => {
-  it.each([
-    ['a placeholder and a double quote', `select '$1' as "x"`],
-    ['single quotes', "select 'it''s' as x"],
-    ['a backslash before a dollar', "select '\\$1' as x"],
-  ])('hands psql the SQL unchanged when it holds %s', async (_label, sql) => {
-    const exec = vi.fn(async () => result(''));
-    await queryDatabase({ exec }, STACK, sql, () => ({ ok: true }));
-    expect(argvOf(exec.mock.calls[0][0])).toEqual([DB_URL, '-XtAc', sql]);
   });
 });
 

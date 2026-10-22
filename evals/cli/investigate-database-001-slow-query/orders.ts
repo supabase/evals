@@ -1,10 +1,5 @@
 import type { CheckResult, LocalStackEvalContext } from '@supabase-evals/core';
-import {
-  describeFailure,
-  errorMessage,
-  shellQuote,
-  truncate,
-} from '../lib/shell.js';
+import { truncate } from '../lib/shell.js';
 import { probeStackReady, type StackProbe } from '../lib/stack.js';
 import {
   EMAIL_COLUMN,
@@ -12,9 +7,9 @@ import {
   ORDERS_TABLE,
   SEEDED_ORDER_COUNT,
 } from './fixtures.js';
+import { type Failed, queryDatabase } from './psql.js';
 
 type ExecContext = Pick<LocalStackEvalContext, 'exec'>;
-type Failed = { ok: false; notes: string };
 
 export type PlanNode = {
   nodeType: string;
@@ -78,26 +73,6 @@ export function parsePlan(stdout: string): PlanProbe {
       ok: false,
       notes: `unrecognised plan output: ${truncate(stdout.trim(), MAX_ECHOED_CHARS)}`,
     };
-  }
-}
-
-/** Runs `sql` in the stack's database through psql, or reports why it could not. */
-export async function queryDatabase<T extends { ok: boolean }>(
-  ctx: ExecContext,
-  stack: StackProbe,
-  sql: string,
-  parse: (stdout: string) => T
-): Promise<T | Failed> {
-  if (!stack.ok) return { ok: false, notes: stack.notes };
-  try {
-    const result = await ctx.exec(
-      `psql ${shellQuote(stack.dbUrl)} -XtAc ${shellQuote(sql)}`
-    );
-    return result.ok
-      ? parse(result.stdout)
-      : { ok: false, notes: describeFailure(result) };
-  } catch (error) {
-    return { ok: false, notes: errorMessage(error) };
   }
 }
 

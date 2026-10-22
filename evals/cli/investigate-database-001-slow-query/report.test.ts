@@ -507,6 +507,31 @@ describe('describeGroundTruth', () => {
       );
     });
 
+    it('says a report ran in a call whose other commands may have printed orders', () => {
+      const inspectRuns = [
+        run({ report: 'db calls', namesOrders: false, sharedOutput: true }),
+      ];
+      expect(line(lines({ inspectRuns }), INSPECT_LINE)).toBe(
+        `${INSPECT_LINE} tool call 1: db calls (output shared with other commands, not attributed)`
+      );
+    });
+
+    it('says an errored report shared its output with other commands', () => {
+      const inspectRuns = [
+        run({ errored: true, namesOrders: false, sharedOutput: true }),
+      ];
+      expect(line(lines({ inspectRuns }), INSPECT_LINE)).toBe(
+        `${INSPECT_LINE} tool call 1: db outliers (errored; output shared with other commands, not attributed)`
+      );
+    });
+
+    it('says which later tool call read the output that showed orders', () => {
+      const inspectRuns = [run({ commandIndex: 1, readInCall: 3 })];
+      expect(line(lines({ inspectRuns }), INSPECT_LINE)).toBe(
+        `${INSPECT_LINE} tool call 2: db outliers (showed orders via tool call 4)`
+      );
+    });
+
     it('does not say an errored report that printed orders showed nothing', () => {
       const inspectRuns = [run({ errored: true, namesOrders: true })];
       const text = line(lines({ inspectRuns }), INSPECT_LINE) ?? '';

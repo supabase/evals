@@ -47,7 +47,7 @@ const scorer: LocalStackScorer = async (ctx) => {
       { kind: 'root' },
       invocations
     );
-    const inspectRuns = findInspectRuns(ctx.toolCalls, invocations);
+    const inspectRuns = findInspectRuns(ctx.toolCalls);
     const plan = await readLookupPlan(ctx, stack);
     const rows = await countOrders(ctx, stack);
     const indexes = await readOrdersIndexes(ctx, stack);

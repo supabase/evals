@@ -732,6 +732,15 @@ describe('inspect evidence', () => {
       call('supabase inspect db outliers', { error: NO_PROJECT_REF }),
     ],
     [
+      'was refused by inspect and fell back to psql in the same call',
+      call(
+        `supabase inspect db outliers 2>&1 || psql "${DB_URL}" -c "select query, calls from extensions.pg_stat_statements order by total_exec_time desc limit 5"`,
+        {
+          result: `${NO_PROJECT_REF}\n select ... from public.orders where customer_email = $1 |   200`,
+        }
+      ),
+    ],
+    [
       'read pg_stat_statements through psql',
       call(
         `psql "$DATABASE_URL" -c "select query, calls from pg_stat_statements order by total_exec_time desc"`,
