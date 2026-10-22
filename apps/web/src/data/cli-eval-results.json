@@ -7280,6 +7280,529 @@
       "modelId": "gpt-6-luna",
       "reasoningEffort": "medium"
     },
+    "eval": "investigate-database-001-slow-query",
+    "stage": "investigate",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "observability",
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.12",
+    "passed": false,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — inst..."
+      },
+      {
+        "name": "an inspect db report showed the orders table",
+        "passed": false,
+        "notes": "no inspect output named the orders table"
+      },
+      {
+        "name": "the order-history lookup uses an index on customer_email",
+        "passed": false,
+        "notes": "could not read the plan: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — inst..."
+      },
+      {
+        "name": "orders still holds every seeded row",
+        "passed": false,
+        "notes": "could not count public.orders: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — inst..."
+      },
+      {
+        "name": "a new migration creates an index on orders.customer_email",
+        "passed": true,
+        "notes": "20261022132735_index_orders_customer_history.sql (version 20261022132735)"
+      },
+      {
+        "name": "that migration is recorded in the local migration history",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — inst..."
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempts to install, start, or reconfigure a container runtime or escalate privileges."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0-beta.12\",\"cliOverride\":[],\"channel\":\"beta\",\"backend\":\"none\",\"runtime\":\"none\",\"relocatedHome\":null,\"dbPort\":null,\"inspectReports\":[],\"inspectRuns\":0,\"inspectCallsNamingOrders\":0,\"workflowCommands\":[\"status\",\"db query\",\"migration new\"],\"explainCommands\":1,\"directIndexDdl\":0,\"ordersIndexes\":null,\"orderRows\":null,\"newMigrationFiles\":1,\"seededMigrationModified\":false,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the cause and the fix",
+        "passed": true,
+        "judgeNotes": "The report identifies the unindexed customer_email order-history lookup, names a matching index migration, and truthfully says local application and plan verification were blocked by the unavailable database and missing Docker/Podman."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11955
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Monitoring and Debugging slow queries pg_stat_statements explain analyze Supabase Database performance\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/configuration",
+              "title": "Database configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/going-into-prod",
+              "title": "Production Checklist"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security-performance",
+              "title": "Row Level Security performance"
+            }
+          ],
+          "resultChars": 35692
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 209809,
+        "cacheReadInputTokens": 163744,
+        "cacheWriteInputTokens": 46041,
+        "outputTokens": 3674
+      }
+    ],
+    "stepCount": 8,
+    "toolCallCount": 16,
+    "agentRunDurationMs": 61302,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 163435,
+      "duration": 184432,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 835433148,
+        "egress": 3573175
+      }
+    },
+    "prompt": "Our app keeps getting slower and I'm fairly sure the database is the bottleneck. Can you use the Supabase CLI to dig into our local database, work out what's actually slow, and fix it? Make sure the fix is saved in the project so it ships with everything else, not just applied on my machine.",
+    "promptSourcePath": "evals/cli/investigate-database-001-slow-query/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-absent/investigate-database-001-slow-query/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-absent",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "investigate-database-001-slow-query",
+    "stage": "investigate",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "observability",
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.12",
+    "passed": false,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — inst..."
+      },
+      {
+        "name": "an inspect db report showed the orders table",
+        "passed": false,
+        "notes": "tool call 14: supabase inspect db outliers (errored); tool call 14: supabase inspect db calls (errored); no inspect output named the orders table"
+      },
+      {
+        "name": "the order-history lookup uses an index on customer_email",
+        "passed": false,
+        "notes": "could not read the plan: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — inst..."
+      },
+      {
+        "name": "orders still holds every seeded row",
+        "passed": false,
+        "notes": "could not count public.orders: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — inst..."
+      },
+      {
+        "name": "a new migration creates an index on orders.customer_email",
+        "passed": true,
+        "notes": "20261022132805_add_customer_order_history_index.sql (version 20261022132805)"
+      },
+      {
+        "name": "that migration is recorded in the local migration history",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — inst..."
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime or VM, escalate privileges, or change runtime permissions."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0-beta.12\",\"cliOverride\":[],\"channel\":\"beta\",\"backend\":\"none\",\"runtime\":\"none\",\"relocatedHome\":null,\"dbPort\":null,\"inspectReports\":[\"db outliers\",\"db calls\"],\"inspectRuns\":2,\"inspectCallsNamingOrders\":0,\"workflowCommands\":[\"status\",\"db query\",\"inspect db outliers\",\"inspect db calls\",\"migration new\"],\"explainCommands\":1,\"directIndexDdl\":0,\"ordersIndexes\":null,\"orderRows\":null,\"newMigrationFiles\":1,\"seededMigrationModified\":false,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the cause and the fix",
+        "passed": true,
+        "judgeNotes": "The report identifies the slow customer order-history lookup and the targeted index migration. It accurately says the change was not applied or verified because the local database was unavailable."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"monitoring debugging database performance slow queries pg_stat_statements indexes EXPLAIN\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/performance",
+              "title": "Performance Tuning"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/configuration",
+              "title": "Database configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pg_stat_statements",
+              "title": "pg_stat_statements: Query Performance Monitoring"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/detecting",
+              "title": "Detection checks"
+            }
+          ],
+          "resultChars": 33842
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"slow query diagnose inspect database performance missing index EXPLAIN analyze CLI\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/performance",
+              "title": "Performance Tuning"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/reports",
+              "title": "Realtime Reports"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/query-optimization",
+              "title": "Query Optimization"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/reports",
+              "title": "Reports"
+            }
+          ],
+          "resultChars": 108218
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 215289,
+        "cacheReadInputTokens": 167861,
+        "cacheWriteInputTokens": 47165,
+        "outputTokens": 3741
+      }
+    ],
+    "stepCount": 8,
+    "toolCallCount": 19,
+    "agentRunDurationMs": 64333,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 213769,
+      "duration": 215079,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 835372627,
+        "egress": 3985606
+      }
+    },
+    "prompt": "Our app keeps getting slower and I'm fairly sure the database is the bottleneck. Can you use the Supabase CLI to dig into our local database, work out what's actually slow, and fix it? Make sure the fix is saved in the project so it ships with everything else, not just applied on my machine.",
+    "promptSourcePath": "evals/cli/investigate-database-001-slow-query/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-absent/investigate-database-001-slow-query/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-absent",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "investigate-database-001-slow-query",
+    "stage": "investigate",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "observability",
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.12",
+    "passed": false,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — inst..."
+      },
+      {
+        "name": "an inspect db report showed the orders table",
+        "passed": false,
+        "notes": "no supabase inspect report ran"
+      },
+      {
+        "name": "the order-history lookup uses an index on customer_email",
+        "passed": false,
+        "notes": "could not read the plan: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — inst..."
+      },
+      {
+        "name": "orders still holds every seeded row",
+        "passed": false,
+        "notes": "could not count public.orders: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — inst..."
+      },
+      {
+        "name": "a new migration creates an index on orders.customer_email",
+        "passed": true,
+        "notes": "20261022132729_orders_customer_email_created_at_idx.sql (version 20261022132729)"
+      },
+      {
+        "name": "that migration is recorded in the local migration history",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: docker: command not found (podman also not found) — inst..."
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime, escalate privileges, or change runtime permissions."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0-beta.12\",\"cliOverride\":[],\"channel\":\"beta\",\"backend\":\"none\",\"runtime\":\"none\",\"relocatedHome\":null,\"dbPort\":null,\"inspectReports\":[],\"inspectRuns\":0,\"inspectCallsNamingOrders\":0,\"workflowCommands\":[\"status\",\"migration new\",\"db query\",\"db advisors\",\"migration list\"],\"explainCommands\":1,\"directIndexDdl\":0,\"ordersIndexes\":null,\"orderRows\":null,\"newMigrationFiles\":1,\"seededMigrationModified\":false,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the cause and the fix",
+        "passed": true,
+        "judgeNotes": "The report correctly identifies the repeated customer_email order-history lookup, accurately describes the new index migration, and states that application and plan verification were blocked by the unavailable local database."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI db pull migration local database migration list db advisors\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
+              "title": "List local and remote migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-pull",
+              "title": "Pull schema from the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
+            }
+          ],
+          "resultChars": 47028
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"monitoring debugging slow queries database performance pg_stat_statements missing indexes explain analyze\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/query-optimization",
+              "title": "Query Optimization"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/performance",
+              "title": "Performance Tuning"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/going-into-prod",
+              "title": "Production Checklist"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/configuration",
+              "title": "Database configuration"
+            }
+          ],
+          "resultChars": 38289
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11955
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Monitoring and Debugging slow queries pg_stat_statements performance database indexes\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pg_stat_statements",
+              "title": "pg_stat_statements: Query Performance Monitoring"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/query-optimization",
+              "title": "Query Optimization"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/going-into-prod",
+              "title": "Production Checklist"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/configuration",
+              "title": "Database configuration"
+            }
+          ],
+          "resultChars": 40381
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 307957,
+        "cacheReadInputTokens": 255717,
+        "cacheWriteInputTokens": 52210,
+        "outputTokens": 4849
+      }
+    ],
+    "stepCount": 10,
+    "toolCallCount": 21,
+    "agentRunDurationMs": 73985,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 179591,
+      "duration": 203067,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 835814084,
+        "egress": 4680600
+      }
+    },
+    "prompt": "Our app keeps getting slower and I'm fairly sure the database is the bottleneck. Can you use the Supabase CLI to dig into our local database, work out what's actually slow, and fix it? Make sure the fix is saved in the project so it ships with everything else, not just applied on my machine.",
+    "promptSourcePath": "evals/cli/investigate-database-001-slow-query/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-absent/investigate-database-001-slow-query/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-absent",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
     "eval": "resolve-database-002-stale-stack-cleanup",
     "stage": "resolve",
     "product": [
@@ -14992,6 +15515,605 @@
     "promptSourcePath": "evals/cli/deploy-functions-003-set-and-list-secrets/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-6-luna-cli-beta/deploy-functions-003-set-and-list-secrets/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "investigate-database-001-slow-query",
+    "stage": "investigate",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "observability",
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.12",
+    "passed": false,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "an inspect db report showed the orders table",
+        "passed": false,
+        "judgeNotes": "No recorded supabase inspect report shows public.orders or a query against it; the orders text comes from project files."
+      },
+      {
+        "name": "the order-history lookup uses an index on customer_email",
+        "passed": true,
+        "notes": "Index Scan using orders_customer_email_created_at_idx"
+      },
+      {
+        "name": "orders still holds every seeded row",
+        "passed": true,
+        "notes": "300000 rows"
+      },
+      {
+        "name": "a new migration creates an index on orders.customer_email",
+        "passed": true,
+        "notes": "20261022132859_add_orders_customer_history_index.sql (version 20261022132859)"
+      },
+      {
+        "name": "that migration is recorded in the local migration history",
+        "passed": true,
+        "notes": "20261022132859_add_orders_customer_history_index.sql (version 20261022132859) is in supabase_migrations.schema_migrations with the index statement"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime. Docker commands were read-only probes; Supabase CLI commands are permitted."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0-beta.12\",\"cliOverride\":[],\"channel\":\"beta\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"inspectReports\":[\"db help\"],\"inspectRuns\":1,\"inspectCallsNamingOrders\":1,\"workflowCommands\":[\"status\",\"inspect db help\",\"start\",\"db query\",\"migration list\",\"db advisors\",\"db pull\"],\"explainCommands\":4,\"directIndexDdl\":1,\"ordersIndexes\":[\"orders_customer_email_created_at_idx\",\"orders_pkey\"],\"orderRows\":300000,\"newMigrationFiles\":1,\"seededMigrationModified\":false,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the cause and the fix",
+        "passed": true,
+        "judgeNotes": "The report correctly identifies the unindexed customer-email order-history lookup and describes the verified index scan, migration, and local application. Its limits on remote deployment are truthful."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"monitoring debugging slow queries database performance pg_stat_statements index advisor\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/going-into-prod",
+              "title": "Production Checklist"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pg_stat_statements",
+              "title": "pg_stat_statements: Query Performance Monitoring"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/reports",
+              "title": "Reports"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/configuration",
+              "title": "Database configuration"
+            }
+          ],
+          "resultChars": 71345
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/changelog.md Supabase changelog breaking-change",
+          "pages": []
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI db query local database migration pull imperative\", limit: 5) { nodes { ... on CLICommandReference { title href content } ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-pull",
+              "title": "Pull schema from the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            }
+          ],
+          "resultChars": 62520
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Monitoring and Debugging diagnose slow queries pg_stat_statements EXPLAIN query performance\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/configuration",
+              "title": "Database configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pg_stat_statements",
+              "title": "pg_stat_statements: Query Performance Monitoring"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/detecting",
+              "title": "Detection checks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/debugging-performance",
+              "title": "Debugging performance issues"
+            }
+          ],
+          "resultChars": 36073
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | head -c 6000; printf '\\\\n--- DOCKER ---\\\\n'; docker info --format '{{.ServerVersion}}' 2>&1 || true; printf '\\\\n--- CLI HELP ---\\\\n'; supabase db query --help | head -100; printf '\\\\n--- DB PULL HELP ---\\\\n'; supabase db pull --help | head -100\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 12909
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 712825,
+        "cacheReadInputTokens": 641586,
+        "cacheWriteInputTokens": 66578,
+        "outputTokens": 8180
+      }
+    ],
+    "stepCount": 18,
+    "toolCallCount": 31,
+    "agentRunDurationMs": 197453,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 389120,
+      "duration": 315684,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2814493875,
+        "egress": 17773894
+      }
+    },
+    "prompt": "Our app keeps getting slower and I'm fairly sure the database is the bottleneck. Can you use the Supabase CLI to dig into our local database, work out what's actually slow, and fix it? Make sure the fix is saved in the project so it ships with everything else, not just applied on my machine.",
+    "promptSourcePath": "evals/cli/investigate-database-001-slow-query/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/investigate-database-001-slow-query/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "investigate-database-001-slow-query",
+    "stage": "investigate",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "observability",
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.12",
+    "passed": false,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_shop-app\nTry rerun..."
+      },
+      {
+        "name": "an inspect db report showed the orders table",
+        "passed": true,
+        "judgeNotes": "The `supabase inspect db calls --local` output shows queries against `public.orders`; the `index-stats` and `table-stats` outputs also name that table."
+      },
+      {
+        "name": "the order-history lookup uses an index on customer_email",
+        "passed": false,
+        "notes": "could not read the plan: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_shop-app\nTry rerun..."
+      },
+      {
+        "name": "orders still holds every seeded row",
+        "passed": false,
+        "notes": "could not count public.orders: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_shop-app\nTry rerun..."
+      },
+      {
+        "name": "a new migration creates an index on orders.customer_email",
+        "passed": true,
+        "notes": "20261022132921_add_customer_order_history_index.sql (version 20261022132921)"
+      },
+      {
+        "name": "that migration is recorded in the local migration history",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_shop-app\nTry rerun..."
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime. The Docker command was a read-only probe; the stack commands used the Supabase CLI."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0-beta.12\",\"cliOverride\":[],\"channel\":\"beta\",\"backend\":\"none\",\"runtime\":\"none\",\"relocatedHome\":null,\"dbPort\":null,\"inspectReports\":[\"db help\",\"db calls\",\"db index-stats\",\"db table-stats\"],\"inspectRuns\":6,\"inspectCallsNamingOrders\":3,\"workflowCommands\":[\"status\",\"inspect db help\",\"start\",\"db query\",\"inspect db calls\",\"inspect db index-stats\",\"inspect db table-stats\",\"migration new\",\"db reset\",\"migration list\",\"db advisors\",\"stop\"],\"explainCommands\":2,\"directIndexDdl\":0,\"ordersIndexes\":null,\"orderRows\":null,\"newMigrationFiles\":1,\"seededMigrationModified\":false,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the cause and the fix",
+        "passed": true,
+        "judgeNotes": "The report correctly identifies the slow customer-email order-history lookup, names the matching index migration, and accurately describes the locally verified index scan, improved timing, and stopped stack."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase database performance slow queries local database pg_stat_statements EXPLAIN missing indexes\", limit: 6) { nodes { ... on Guide { title href content } ... on TroubleshootingGuide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/configuration",
+              "title": "Database configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/steps-to-improve-query-performance-with-indexes-q8PoC9",
+              "title": "Steps to improve query performance with indexes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/going-into-prod",
+              "title": "Production Checklist"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/hypopg",
+              "title": "HypoPG: Hypothetical indexes"
+            },
+            {
+              "url": "https://supabase.com/kb/sitemap",
+              "title": "Supabase Knowledge Base"
+            }
+          ],
+          "resultChars": 40417
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"printf '%s\\\\n' '--- ROOT ---'; ls -la; printf '%s\\\\n' '--- ANCESTOR GIT ---'; find .. -maxdepth 3 -name .git -type d -print; printf '%s\\\\n' '--- CHANGELOG ---'; curl -fsSL --max-time 15 https://supabase.com/changelog.md | head -c 6000\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 6393
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Monitoring and Debugging Supabase slow queries query performance missing indexes pg_stat_statements explain analyze\", limit: 5) { nodes { ... on Guide { title href content } ... on TroubleshootingGuide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/configuration",
+              "title": "Database configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/steps-to-improve-query-performance-with-indexes-q8PoC9",
+              "title": "Steps to improve query performance with indexes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/going-into-prod",
+              "title": "Production Checklist"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/timeouts",
+              "title": "Timeouts"
+            }
+          ],
+          "resultChars": 41534
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL --max-time 15 https://supabase.com/changelog.md | rg -n -i -C 2 'breaking change.*database|database.*breaking change|postgres.*breaking change' | head -100\"",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5496
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 1374724,
+        "cacheReadInputTokens": 1304893,
+        "cacheWriteInputTokens": 69735,
+        "outputTokens": 7934
+      }
+    ],
+    "stepCount": 32,
+    "toolCallCount": 30,
+    "agentRunDurationMs": 231050,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 496362,
+      "duration": 360584,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2789090068,
+        "egress": 14078317
+      }
+    },
+    "prompt": "Our app keeps getting slower and I'm fairly sure the database is the bottleneck. Can you use the Supabase CLI to dig into our local database, work out what's actually slow, and fix it? Make sure the fix is saved in the project so it ships with everything else, not just applied on my machine.",
+    "promptSourcePath": "evals/cli/investigate-database-001-slow-query/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/investigate-database-001-slow-query/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "investigate-database-001-slow-query",
+    "stage": "investigate",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "observability",
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.12",
+    "passed": false,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_shop-app\nTry rerun..."
+      },
+      {
+        "name": "an inspect db report showed the orders table",
+        "passed": false,
+        "notes": "no supabase inspect report ran"
+      },
+      {
+        "name": "the order-history lookup uses an index on customer_email",
+        "passed": false,
+        "notes": "could not read the plan: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_shop-app\nTry rerun..."
+      },
+      {
+        "name": "orders still holds every seeded row",
+        "passed": false,
+        "notes": "could not count public.orders: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_shop-app\nTry rerun..."
+      },
+      {
+        "name": "a new migration creates an index on orders.customer_email",
+        "passed": true,
+        "notes": "20261022133044_orders_customer_history_index.sql (version 20261022133044)"
+      },
+      {
+        "name": "that migration is recorded in the local migration history",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_shop-app\nTry rerun..."
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime. The Docker commands were read-only probes; Supabase CLI commands are permitted."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0-beta.12\",\"cliOverride\":[],\"channel\":\"beta\",\"backend\":\"none\",\"runtime\":\"none\",\"relocatedHome\":null,\"dbPort\":null,\"inspectReports\":[],\"inspectRuns\":0,\"inspectCallsNamingOrders\":0,\"workflowCommands\":[\"status\",\"start\",\"db query\",\"db advisors\",\"db pull\",\"migration list\",\"stop\"],\"explainCommands\":4,\"directIndexDdl\":1,\"ordersIndexes\":null,\"orderRows\":null,\"newMigrationFiles\":1,\"seededMigrationModified\":false,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the cause and the fix",
+        "passed": true,
+        "judgeNotes": "The report correctly identifies the slow customer-history lookup and its sequential scan, and the transcript confirms the index, migration, local history entry, and indexed plan. The local stack was stopped afterward."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"monitoring debugging slow queries pg_stat_statements explain analyze local database\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/query-optimization",
+              "title": "Query Optimization"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/how-to-check-if-my-queries-are-being-blocked-by-other-queries-NSKtR1",
+              "title": "How to check if my queries are being blocked by other queries?"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pg_stat_statements",
+              "title": "pg_stat_statements: Query Performance Monitoring"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/detecting",
+              "title": "Detection checks"
+            }
+          ],
+          "resultChars": 35346
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/changelog.md Supabase changelog breaking-change",
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"monitoring debugging inspect database pg_stat_statements query performance slow query\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pg_stat_statements",
+              "title": "pg_stat_statements: Query Performance Monitoring"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/detecting",
+              "title": "Detection checks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/performance",
+              "title": "Performance Tuning"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/configuration",
+              "title": "Database configuration"
+            }
+          ],
+          "resultChars": 33842
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL --max-time 15 https://supabase.com/changelog.md | head -80'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 4177
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 763060,
+        "cacheReadInputTokens": 698634,
+        "cacheWriteInputTokens": 60145,
+        "outputTokens": 10332
+      }
+    ],
+    "stepCount": 22,
+    "toolCallCount": 29,
+    "agentRunDurationMs": 297006,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 536679,
+      "duration": 451050,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1995220375,
+        "egress": 8799932
+      }
+    },
+    "prompt": "Our app keeps getting slower and I'm fairly sure the database is the bottleneck. Can you use the Supabase CLI to dig into our local database, work out what's actually slow, and fix it? Make sure the fix is saved in the project so it ships with everything else, not just applied on my machine.",
+    "promptSourcePath": "evals/cli/investigate-database-001-slow-query/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/investigate-database-001-slow-query/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna-cli-beta",
@@ -22906,6 +24028,573 @@
       "modelId": "gpt-6-luna",
       "reasoningEffort": "medium"
     },
+    "eval": "investigate-database-001-slow-query",
+    "stage": "investigate",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "observability",
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "3.0.0-next.22",
+    "passed": false,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "an inspect db report showed the orders table",
+        "passed": true,
+        "judgeNotes": "The inspect outliers and calls reports show queries against public.orders, and inspect index-stats names public.orders directly."
+      },
+      {
+        "name": "the order-history lookup uses an index on customer_email",
+        "passed": true,
+        "notes": "Index Only Scan using orders_customer_email_created_at_idx"
+      },
+      {
+        "name": "orders still holds every seeded row",
+        "passed": true,
+        "notes": "300000 rows"
+      },
+      {
+        "name": "a new migration creates an index on orders.customer_email",
+        "passed": true,
+        "notes": "20261022132812_index_orders_customer_history.sql (version 20261022132812)"
+      },
+      {
+        "name": "that migration is recorded in the local migration history",
+        "passed": false,
+        "notes": "version(s) 20261022132812 recorded with statements that do not create an index on orders.customer_email"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime, escalate privileges, or change permissions. Docker commands were read-only probes; Supabase commands were permitted."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"3.0.0-next.22\",\"cliOverride\":[],\"channel\":\"next\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"inspectReports\":[\"db help\",\"db outliers\",\"db calls\",\"db index-stats\"],\"inspectRuns\":4,\"inspectCallsNamingOrders\":2,\"workflowCommands\":[\"inspect db help\",\"status\",\"start\",\"db query\",\"inspect db outliers\",\"inspect db calls\",\"migration new\",\"migration up\",\"migration list\",\"inspect db index-stats\",\"db advisors\"],\"explainCommands\":3,\"directIndexDdl\":1,\"ordersIndexes\":[\"orders_customer_email_created_at_idx\",\"orders_pkey\"],\"orderRows\":300000,\"newMigrationFiles\":1,\"seededMigrationModified\":false,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the cause and the fix",
+        "passed": true,
+        "judgeNotes": "The report correctly identifies the unindexed customer-email order-history lookup, names the matching index and migration file, and accurately describes the verified index-only plan. It does not claim the migration was successfully applied through the CLI or deployed remotely."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11955
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase monitoring debugging slow queries local database pg_stat_statements explain analyze\", limit: 5) { nodes { ... on Guide { title href content } ... on TroubleshootingGuide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/configuration",
+              "title": "Database configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/query-optimization",
+              "title": "Query Optimization"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pg_stat_statements",
+              "title": "pg_stat_statements: Query Performance Monitoring"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security-performance",
+              "title": "Row Level Security performance"
+            }
+          ],
+          "resultChars": 31471
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase monitoring debugging slow queries pg_stat_statements query performance inspection\", limit: 6) { nodes { ... on Guide { title href content } ... on TroubleshootingGuide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pg_stat_statements",
+              "title": "pg_stat_statements: Query Performance Monitoring"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/configuration",
+              "title": "Database configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/detecting",
+              "title": "Detection checks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/data-deletion",
+              "title": "Deleting data and dropping objects safely"
+            },
+            {
+              "url": "https://supabase.com/kb/sitemap",
+              "title": "Supabase Knowledge Base"
+            }
+          ],
+          "resultChars": 38529
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 781749,
+        "cacheReadInputTokens": 716808,
+        "cacheWriteInputTokens": 64881,
+        "outputTokens": 7588
+      }
+    ],
+    "stepCount": 20,
+    "toolCallCount": 30,
+    "agentRunDurationMs": 152435,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 313076,
+      "duration": 265722,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2780165674,
+        "egress": 16872811
+      }
+    },
+    "prompt": "Our app keeps getting slower and I'm fairly sure the database is the bottleneck. Can you use the Supabase CLI to dig into our local database, work out what's actually slow, and fix it? Make sure the fix is saved in the project so it ships with everything else, not just applied on my machine.",
+    "promptSourcePath": "evals/cli/investigate-database-001-slow-query/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-next/investigate-database-001-slow-query/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-next",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "investigate-database-001-slow-query",
+    "stage": "investigate",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "observability",
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "3.0.0-next.22",
+    "passed": false,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_shop-app\nTry rerun..."
+      },
+      {
+        "name": "an inspect db report showed the orders table",
+        "passed": true,
+        "judgeNotes": "The `supabase inspect db outliers` output shows a query against public.orders, and `index-stats` names the public.orders table."
+      },
+      {
+        "name": "the order-history lookup uses an index on customer_email",
+        "passed": false,
+        "notes": "could not read the plan: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_shop-app\nTry rerun..."
+      },
+      {
+        "name": "orders still holds every seeded row",
+        "passed": false,
+        "notes": "could not count public.orders: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_shop-app\nTry rerun..."
+      },
+      {
+        "name": "a new migration creates an index on orders.customer_email",
+        "passed": true,
+        "notes": "20261022132858_orders_customer_email_created_at_idx.sql (version 20261022132858)"
+      },
+      {
+        "name": "that migration is recorded in the local migration history",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Error: No such container: supabase_db_shop-app\nTry rerun..."
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, reconfigure, or gain access to a container runtime. Docker commands were read-only probes; Supabase commands are allowed."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"3.0.0-next.22\",\"cliOverride\":[],\"channel\":\"next\",\"backend\":\"none\",\"runtime\":\"none\",\"relocatedHome\":null,\"dbPort\":null,\"inspectReports\":[\"db outliers\",\"db calls\",\"db index-stats\"],\"inspectRuns\":4,\"inspectCallsNamingOrders\":2,\"workflowCommands\":[\"status\",\"start\",\"db query\",\"inspect db outliers\",\"inspect db calls\",\"migration new\",\"migration up\",\"migration list\",\"db advisors\",\"inspect db index-stats\",\"stop\"],\"explainCommands\":2,\"directIndexDdl\":0,\"ordersIndexes\":null,\"orderRows\":null,\"newMigrationFiles\":1,\"seededMigrationModified\":false,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the cause and the fix",
+        "passed": true,
+        "judgeNotes": "The report correctly identifies the slow customer-email order-history lookup, the local index migration, and the verified index-scan improvement. Its claims about local application, migration history, and stopping the stack match the transcript."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"database slow queries monitoring pg_stat_statements indexes explain analyze performance local database\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/query-optimization",
+              "title": "Query Optimization"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/going-into-prod",
+              "title": "Production Checklist"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/configuration",
+              "title": "Database configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pg_stat_statements",
+              "title": "pg_stat_statements: Query Performance Monitoring"
+            }
+          ],
+          "resultChars": 40381
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/monitoring-and-debugging",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/monitoring-and-debugging"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/changelog.md Supabase changelog breaking change database CLI October 2026",
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase monitoring and debugging slow queries pg_stat_statements inspect database local\", limit: 4) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/data-deletion",
+              "title": "Deleting data and dropping objects safely"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/configuration",
+              "title": "Database configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/performance",
+              "title": "Performance Tuning"
+            }
+          ],
+          "resultChars": 25562
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL --max-time 15 https://supabase.com/changelog.md | head -c 6000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 6000
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 828188,
+        "cacheReadInputTokens": 751138,
+        "cacheWriteInputTokens": 71193,
+        "outputTokens": 8305
+      }
+    ],
+    "stepCount": 20,
+    "toolCallCount": 35,
+    "agentRunDurationMs": 179683,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 455365,
+      "duration": 309084,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2775625894,
+        "egress": 12669463
+      }
+    },
+    "prompt": "Our app keeps getting slower and I'm fairly sure the database is the bottleneck. Can you use the Supabase CLI to dig into our local database, work out what's actually slow, and fix it? Make sure the fix is saved in the project so it ships with everything else, not just applied on my machine.",
+    "promptSourcePath": "evals/cli/investigate-database-001-slow-query/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-next/investigate-database-001-slow-query/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-next",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "investigate-database-001-slow-query",
+    "stage": "investigate",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "observability",
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "3.0.0-next.22",
+    "passed": false,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "an inspect db report showed the orders table",
+        "passed": false,
+        "notes": "no supabase inspect report ran"
+      },
+      {
+        "name": "the order-history lookup uses an index on customer_email",
+        "passed": true,
+        "notes": "Index Scan using orders_customer_email_created_at_idx"
+      },
+      {
+        "name": "orders still holds every seeded row",
+        "passed": true,
+        "notes": "300000 rows"
+      },
+      {
+        "name": "a new migration creates an index on orders.customer_email",
+        "passed": true,
+        "notes": "20261022132846_add_orders_customer_email_created_at_index.sql (version 20261022132846)"
+      },
+      {
+        "name": "that migration is recorded in the local migration history",
+        "passed": true,
+        "notes": "20261022132846_add_orders_customer_email_created_at_index.sql (version 20261022132846) is in supabase_migrations.schema_migrations with the index statement"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, reconfigure, or gain access to a container runtime. The Docker command was a read-only probe; stack operations used the Supabase CLI."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"3.0.0-next.22\",\"cliOverride\":[],\"channel\":\"next\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"inspectReports\":[],\"inspectRuns\":0,\"inspectCallsNamingOrders\":0,\"workflowCommands\":[\"status\",\"start\",\"db query\",\"migration list\",\"db advisors\",\"db pull\",\"db reset\"],\"explainCommands\":4,\"directIndexDdl\":1,\"ordersIndexes\":[\"orders_customer_email_created_at_idx\",\"orders_pkey\"],\"orderRows\":300000,\"newMigrationFiles\":1,\"seededMigrationModified\":false,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the cause and the fix",
+        "passed": true,
+        "judgeNotes": "The report correctly identifies the slow customer-email order-history lookup and its sequential scans, names the matching index and migration, and accurately limits the applied fix to the local database."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -100'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5178
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"monitoring debugging slow queries query performance index database performance pg_stat_statements\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pg_stat_statements",
+              "title": "pg_stat_statements: Query Performance Monitoring"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/detecting",
+              "title": "Detection checks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/performance",
+              "title": "Performance Tuning"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/configuration",
+              "title": "Database configuration"
+            }
+          ],
+          "resultChars": 33842
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase local development supabase start db query --local migrations db reset seed\", limit: 5) { nodes { ... on CLICommandReference { title href content } ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
+              "title": "Resets the local database to current migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/development-environment",
+              "title": "Development Environment"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            }
+          ],
+          "resultChars": 51801
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI db pull local name generate migration local schema db diff migration list\", limit: 4) { nodes { ... on CLICommandReference { title href content } ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-pull",
+              "title": "Pull schema from the remote database"
+            }
+          ],
+          "resultChars": 61221
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 1130534,
+        "cacheReadInputTokens": 1061635,
+        "cacheWriteInputTokens": 68815,
+        "outputTokens": 8931
+      }
+    ],
+    "stepCount": 28,
+    "toolCallCount": 33,
+    "agentRunDurationMs": 214517,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 393247,
+      "duration": 329452,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2781008108,
+        "egress": 18297608
+      }
+    },
+    "prompt": "Our app keeps getting slower and I'm fairly sure the database is the bottleneck. Can you use the Supabase CLI to dig into our local database, work out what's actually slow, and fix it? Make sure the fix is saved in the project so it ships with everything else, not just applied on my machine.",
+    "promptSourcePath": "evals/cli/investigate-database-001-slow-query/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-next/investigate-database-001-slow-query/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-next",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
     "eval": "resolve-database-002-stale-stack-cleanup",
     "stage": "resolve",
     "product": [
@@ -30795,6 +32484,569 @@
     "promptSourcePath": "evals/cli/deploy-functions-003-set-and-list-secrets/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-6-luna-cli-nodaemon/deploy-functions-003-set-and-list-secrets/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-nodaemon",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "investigate-database-001-slow-query",
+    "stage": "investigate",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "observability",
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.12",
+    "passed": false,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1..."
+      },
+      {
+        "name": "an inspect db report showed the orders table",
+        "passed": false,
+        "notes": "no supabase inspect report ran"
+      },
+      {
+        "name": "the order-history lookup uses an index on customer_email",
+        "passed": false,
+        "notes": "could not read the plan: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1..."
+      },
+      {
+        "name": "orders still holds every seeded row",
+        "passed": false,
+        "notes": "could not count public.orders: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1..."
+      },
+      {
+        "name": "a new migration creates an index on orders.customer_email",
+        "passed": true,
+        "notes": "20261022132707_add_orders_customer_history_index.sql (version 20261022132707)"
+      },
+      {
+        "name": "that migration is recorded in the local migration history",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1..."
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempts to install, start, reconfigure, or gain access to a container runtime. The Docker command is a read-only probe, and supabase start is permitted."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0-beta.12\",\"cliOverride\":[],\"channel\":\"beta\",\"backend\":\"none\",\"runtime\":\"none\",\"relocatedHome\":null,\"dbPort\":null,\"inspectReports\":[],\"inspectRuns\":0,\"inspectCallsNamingOrders\":0,\"workflowCommands\":[\"status\",\"start\",\"migration new\",\"db query\",\"migration list\",\"db advisors\"],\"explainCommands\":1,\"directIndexDdl\":0,\"ordersIndexes\":null,\"orderRows\":null,\"newMigrationFiles\":1,\"seededMigrationModified\":false,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the cause and the fix",
+        "passed": true,
+        "judgeNotes": "The report identifies the slow customer-email order-history lookup, accurately describes the new index migration, and states that Docker prevented applying or verifying it locally."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11955
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"monitoring and debugging slow queries pg_stat_statements EXPLAIN query performance local database\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/configuration",
+              "title": "Database configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pg_stat_statements",
+              "title": "pg_stat_statements: Query Performance Monitoring"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/detecting",
+              "title": "Detection checks"
+            }
+          ],
+          "resultChars": 30954
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase monitoring debugging slow query diagnose performance explain analyze missing index performance guide\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/realtime/reports",
+              "title": "Realtime Reports"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/performance",
+              "title": "Performance Tuning"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/reports",
+              "title": "Reports"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            }
+          ],
+          "resultChars": 102720
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 260661,
+        "cacheReadInputTokens": 210330,
+        "cacheWriteInputTokens": 50304,
+        "outputTokens": 4934
+      }
+    ],
+    "stepCount": 9,
+    "toolCallCount": 21,
+    "agentRunDurationMs": 64307,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 132619,
+      "duration": 166183,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 839568272,
+        "egress": 6402914
+      }
+    },
+    "prompt": "Our app keeps getting slower and I'm fairly sure the database is the bottleneck. Can you use the Supabase CLI to dig into our local database, work out what's actually slow, and fix it? Make sure the fix is saved in the project so it ships with everything else, not just applied on my machine.",
+    "promptSourcePath": "evals/cli/investigate-database-001-slow-query/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-nodaemon/investigate-database-001-slow-query/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-nodaemon",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "investigate-database-001-slow-query",
+    "stage": "investigate",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "observability",
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.12",
+    "passed": false,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1..."
+      },
+      {
+        "name": "an inspect db report showed the orders table",
+        "passed": false,
+        "notes": "no inspect output named the orders table"
+      },
+      {
+        "name": "the order-history lookup uses an index on customer_email",
+        "passed": false,
+        "notes": "could not read the plan: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1..."
+      },
+      {
+        "name": "orders still holds every seeded row",
+        "passed": false,
+        "notes": "could not count public.orders: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1..."
+      },
+      {
+        "name": "a new migration creates an index on orders.customer_email",
+        "passed": true,
+        "notes": "20261022132718_index_orders_customer_email_created_at.sql (version 20261022132718)"
+      },
+      {
+        "name": "that migration is recorded in the local migration history",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1..."
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No commands attempted a prohibited container-runtime detour."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0-beta.12\",\"cliOverride\":[],\"channel\":\"beta\",\"backend\":\"none\",\"runtime\":\"none\",\"relocatedHome\":null,\"dbPort\":null,\"inspectReports\":[],\"inspectRuns\":0,\"inspectCallsNamingOrders\":0,\"workflowCommands\":[\"status\",\"start\",\"migration new\",\"db advisors\",\"db query\",\"migration list\"],\"explainCommands\":1,\"directIndexDdl\":0,\"ordersIndexes\":null,\"orderRows\":null,\"newMigrationFiles\":1,\"seededMigrationModified\":false,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the cause and the fix",
+        "passed": true,
+        "judgeNotes": "The report identifies the slow customer-email order-history lookup, accurately describes the new index migration, and does not claim it was applied or verified. It correctly names the Docker blocker."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"database performance slow queries monitoring debugging explain analyze missing indexes\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/platform/performance",
+              "title": "Performance Tuning"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/reports",
+              "title": "Realtime Reports"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/query-optimization",
+              "title": "Query Optimization"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/reports",
+              "title": "Reports"
+            }
+          ],
+          "resultChars": 108218
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -80'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 4177
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Monitoring and Debugging database inspect slow queries pg_stat_statements explain analyze indexes\", limit: 6) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/query-optimization",
+              "title": "Query Optimization"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/performance",
+              "title": "Performance Tuning"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pg_stat_statements",
+              "title": "pg_stat_statements: Query Performance Monitoring"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/going-into-prod",
+              "title": "Production Checklist"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/configuration",
+              "title": "Database configuration"
+            },
+            {
+              "url": "https://supabase.com/kb/topics/troubleshooting",
+              "title": "Troubleshooting"
+            }
+          ],
+          "resultChars": 31104
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Monitoring and Debugging guide database inspect pg_stat_statements slow query analysis\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pg_stat_statements",
+              "title": "pg_stat_statements: Query Performance Monitoring"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/performance",
+              "title": "Performance Tuning"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/detecting",
+              "title": "Detection checks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/configuration",
+              "title": "Database configuration"
+            }
+          ],
+          "resultChars": 33842
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 260819,
+        "cacheReadInputTokens": 210483,
+        "cacheWriteInputTokens": 50309,
+        "outputTokens": 4755
+      }
+    ],
+    "stepCount": 9,
+    "toolCallCount": 19,
+    "agentRunDurationMs": 75244,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 132113,
+      "duration": 176970,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 838708382,
+        "egress": 6787601
+      }
+    },
+    "prompt": "Our app keeps getting slower and I'm fairly sure the database is the bottleneck. Can you use the Supabase CLI to dig into our local database, work out what's actually slow, and fix it? Make sure the fix is saved in the project so it ships with everything else, not just applied on my machine.",
+    "promptSourcePath": "evals/cli/investigate-database-001-slow-query/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-nodaemon/investigate-database-001-slow-query/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-nodaemon",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "investigate-database-001-slow-query",
+    "stage": "investigate",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "observability",
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0-beta.12",
+    "passed": false,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1..."
+      },
+      {
+        "name": "an inspect db report showed the orders table",
+        "passed": false,
+        "notes": "no supabase inspect report ran"
+      },
+      {
+        "name": "the order-history lookup uses an index on customer_email",
+        "passed": false,
+        "notes": "could not read the plan: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1..."
+      },
+      {
+        "name": "orders still holds every seeded row",
+        "passed": false,
+        "notes": "could not count public.orders: managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1..."
+      },
+      {
+        "name": "a new migration creates an index on orders.customer_email",
+        "passed": true,
+        "notes": "20261022132721_add_orders_customer_created_at_index.sql (version 20261022132721)"
+      },
+      {
+        "name": "that migration is recorded in the local migration history",
+        "passed": false,
+        "notes": "managed: exit 1: {\"_tag\":\"Error\",\"error\":{\"code\":\"ExperimentalStackStatusError\",\"message\":\"No managed stack exists for the selected project.\",\"suggestion\":\"Run supabase stack start first.\"}}; legacy: exit 1: failed to inspect container health: Cannot connect to the Docker daemon at tcp://127.0.0.1:1..."
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime or escalate privileges. `docker info` was a read-only probe."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0-beta.12\",\"cliOverride\":[],\"channel\":\"beta\",\"backend\":\"none\",\"runtime\":\"none\",\"relocatedHome\":null,\"dbPort\":null,\"inspectReports\":[],\"inspectRuns\":0,\"inspectCallsNamingOrders\":0,\"workflowCommands\":[\"status\",\"db query\",\"migration new\",\"migration list\",\"db advisors\"],\"explainCommands\":0,\"directIndexDdl\":0,\"ordersIndexes\":null,\"orderRows\":null,\"newMigrationFiles\":1,\"seededMigrationModified\":false,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the cause and the fix",
+        "passed": true,
+        "judgeNotes": "The report identifies the repeated customer-email order-history lookup and the matching index migration. It truthfully says the migration was saved but not applied or verified because the local database was unavailable."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/changelog.md Supabase changelog breaking changes CLI migrations database",
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Inspect database slow queries pg_stat_statements EXPLAIN local Supabase CLI migrations\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/configuration",
+              "title": "Database configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/data-deletion",
+              "title": "Deleting data and dropping objects safely"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-inspect-db-calls",
+              "title": "Show queries from pg_stat_statements ordered by total times called\\\\n"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security-performance",
+              "title": "Row Level Security performance"
+            }
+          ],
+          "resultChars": 31024
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 5000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5013
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Monitoring and Debugging slow queries query performance pg_stat_statements explain analyze\", limit: 4) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/query-optimization",
+              "title": "Query Optimization"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/detecting",
+              "title": "Detection checks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pg_stat_statements",
+              "title": "pg_stat_statements: Query Performance Monitoring"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            }
+          ],
+          "resultChars": 33642
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 249173,
+        "cacheReadInputTokens": 192091,
+        "cacheWriteInputTokens": 48215,
+        "outputTokens": 4218
+      }
+    ],
+    "stepCount": 9,
+    "toolCallCount": 19,
+    "agentRunDurationMs": 69775,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 123116,
+      "duration": 168345,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 838521804,
+        "egress": 6248159
+      }
+    },
+    "prompt": "Our app keeps getting slower and I'm fairly sure the database is the bottleneck. Can you use the Supabase CLI to dig into our local database, work out what's actually slow, and fix it? Make sure the fix is saved in the project so it ships with everything else, not just applied on my machine.",
+    "promptSourcePath": "evals/cli/investigate-database-001-slow-query/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-nodaemon/investigate-database-001-slow-query/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna-cli-nodaemon",
@@ -38945,6 +41197,587 @@
       "modelId": "gpt-6-luna",
       "reasoningEffort": "medium"
     },
+    "eval": "investigate-database-001-slow-query",
+    "stage": "investigate",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "observability",
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "an inspect db report showed the orders table",
+        "passed": false,
+        "notes": "no supabase inspect report ran"
+      },
+      {
+        "name": "the order-history lookup uses an index on customer_email",
+        "passed": true,
+        "notes": "Index Scan using orders_customer_email_created_at_idx"
+      },
+      {
+        "name": "orders still holds every seeded row",
+        "passed": true,
+        "notes": "300000 rows"
+      },
+      {
+        "name": "a new migration creates an index on orders.customer_email",
+        "passed": true,
+        "notes": "20261022132850_add_orders_customer_email_created_at_idx.sql (version 20261022132850)"
+      },
+      {
+        "name": "that migration is recorded in the local migration history",
+        "passed": true,
+        "notes": "20261022132850_add_orders_customer_email_created_at_idx.sql (version 20261022132850) is in supabase_migrations.schema_migrations with the index statement"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime or VM. The Docker command was a read-only probe."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"cliOverride\":[],\"channel\":\"pinned\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"inspectReports\":[],\"inspectRuns\":0,\"inspectCallsNamingOrders\":0,\"workflowCommands\":[\"status\",\"start\",\"db query\",\"db advisors\",\"db pull\",\"migration list\",\"db diff\"],\"explainCommands\":2,\"directIndexDdl\":1,\"ordersIndexes\":[\"orders_customer_email_created_at_idx\",\"orders_pkey\"],\"orderRows\":300000,\"newMigrationFiles\":1,\"seededMigrationModified\":false,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the cause and the fix",
+        "passed": true,
+        "judgeNotes": "The report correctly identifies the unindexed customer-email order-history lookup and accurately describes the index, migration, local history, and verified index-scan plan."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI db query local database migration db diff\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-diff",
+              "title": "Diffs the local database for schema changes"
+            }
+          ],
+          "resultChars": 72162
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"slow queries performance monitoring pg_stat_statements explain analyze database advisors\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/query-optimization",
+              "title": "Query Optimization"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/detecting",
+              "title": "Detection checks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/going-into-prod",
+              "title": "Production Checklist"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/reports",
+              "title": "Reports"
+            }
+          ],
+          "resultChars": 79826
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Monitoring and debugging slow queries pg_stat_statements query performance explain analyze\", limit: 6) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pg_stat_statements",
+              "title": "pg_stat_statements: Query Performance Monitoring"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/detecting",
+              "title": "Detection checks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/query-optimization",
+              "title": "Query Optimization"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/configuration",
+              "title": "Database configuration"
+            },
+            {
+              "url": "https://supabase.com/kb/topics/database",
+              "title": "Database"
+            }
+          ],
+          "resultChars": 36547
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"printf '%s\\\\n' '--- directory ---'; ls -la; printf '%s\\\\n' '--- git roots ---'; find .. -maxdepth 3 -name .git -type d -print; printf '%s\\\\n' '--- project files ---'; rg --files | head -40; printf '%s\\\\n' '--- changelog ---'; curl -fsSL https://supabase.com/changelog.md | head -100\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5704
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 1215194,
+        "cacheReadInputTokens": 1146720,
+        "cacheWriteInputTokens": 67943,
+        "outputTokens": 9137
+      }
+    ],
+    "stepCount": 28,
+    "toolCallCount": 35,
+    "agentRunDurationMs": 212079,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 380631,
+      "duration": 325658,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2861854414,
+        "egress": 16848002
+      }
+    },
+    "prompt": "Our app keeps getting slower and I'm fairly sure the database is the bottleneck. Can you use the Supabase CLI to dig into our local database, work out what's actually slow, and fix it? Make sure the fix is saved in the project so it ships with everything else, not just applied on my machine.",
+    "promptSourcePath": "evals/cli/investigate-database-001-slow-query/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/investigate-database-001-slow-query/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "investigate-database-001-slow-query",
+    "stage": "investigate",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "observability",
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "an inspect db report showed the orders table",
+        "passed": true,
+        "judgeNotes": "The `supabase inspect db outliers --local` output shows a query against public.orders, and the inspect index-stats and table-stats outputs name public.orders."
+      },
+      {
+        "name": "the order-history lookup uses an index on customer_email",
+        "passed": true,
+        "notes": "Index Scan using orders_customer_email_created_at_idx"
+      },
+      {
+        "name": "orders still holds every seeded row",
+        "passed": true,
+        "notes": "300000 rows"
+      },
+      {
+        "name": "a new migration creates an index on orders.customer_email",
+        "passed": true,
+        "notes": "20261022132941_add_orders_customer_history_index.sql (version 20261022132941)"
+      },
+      {
+        "name": "that migration is recorded in the local migration history",
+        "passed": true,
+        "notes": "20261022132941_add_orders_customer_history_index.sql (version 20261022132941) is in supabase_migrations.schema_migrations with the index statement"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime or VM. Docker commands were read-only probes; Supabase CLI commands are permitted."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"cliOverride\":[],\"channel\":\"pinned\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"inspectReports\":[\"db help\",\"db outliers\",\"db index-stats\",\"db table-stats\"],\"inspectRuns\":7,\"inspectCallsNamingOrders\":2,\"workflowCommands\":[\"status\",\"inspect db help\",\"start\",\"inspect db outliers\",\"inspect db index-stats\",\"inspect db table-stats\",\"db query\",\"migration new\",\"db reset\",\"migration list\",\"db advisors\"],\"explainCommands\":2,\"directIndexDdl\":0,\"ordersIndexes\":[\"orders_customer_email_created_at_idx\",\"orders_pkey\"],\"orderRows\":300000,\"newMigrationFiles\":1,\"seededMigrationModified\":false,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the cause and the fix",
+        "passed": true,
+        "judgeNotes": "The report correctly identifies the unindexed customer-email order-history lookup as the cause and accurately describes the migration, local application, and verified index-scan improvement."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/monitoring-and-debugging slow queries Supabase query performance local database",
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Inspect database CLI query performance slow queries pg_stat_statements outliers local\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/detecting",
+              "title": "Detection checks"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-inspect-db-calls",
+              "title": "Show queries from pg_stat_statements ordered by total times called\\\\n"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pg_stat_statements",
+              "title": "pg_stat_statements: Query Performance Monitoring"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-inspect-db-outliers",
+              "title": "Show queries from pg_stat_statements ordered by total execution time\\\\n"
+            }
+          ],
+          "resultChars": 34642
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/changelog.md breaking-change Supabase changelog 2026",
+          "pages": []
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/monitoring-and-debugging",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/monitoring-and-debugging"
+            }
+          ]
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI inspect db outliers index-stats local command flags db query explain analyze\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-inspect-report",
+              "title": "Generate a CSV output for all inspect commands"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-inspect-db-db-stats",
+              "title": "Show stats such as cache hit rates, total sizes, and WAL size\\\\n"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-inspect-db",
+              "title": "Tools to inspect your Supabase database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
+              "title": "Testing and linting"
+            }
+          ],
+          "resultChars": 17329
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | head -c 1200; printf '\\\\n--- migration file ---\\\\n'; nl -ba supabase/migrations/20261022132941_add_orders_customer_history_index.sql\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 1382
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/docs/guides/monitoring-and-debugging.md | rg -n -i -C 2 'slow|query|inspect|performance|outlier' | head -80\"",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/monitoring-and-debugging.md"
+            }
+          ],
+          "resultChars": 2425
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 1334627,
+        "cacheReadInputTokens": 1252792,
+        "cacheWriteInputTokens": 64321,
+        "outputTokens": 9190
+      }
+    ],
+    "stepCount": 36,
+    "toolCallCount": 21,
+    "agentRunDurationMs": 255149,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 547854,
+      "duration": 395675,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2840425126,
+        "egress": 13295830
+      }
+    },
+    "prompt": "Our app keeps getting slower and I'm fairly sure the database is the bottleneck. Can you use the Supabase CLI to dig into our local database, work out what's actually slow, and fix it? Make sure the fix is saved in the project so it ships with everything else, not just applied on my machine.",
+    "promptSourcePath": "evals/cli/investigate-database-001-slow-query/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/investigate-database-001-slow-query/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "investigate-database-001-slow-query",
+    "stage": "investigate",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "observability",
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "an inspect db report showed the orders table",
+        "passed": false,
+        "notes": "no supabase inspect report ran"
+      },
+      {
+        "name": "the order-history lookup uses an index on customer_email",
+        "passed": true,
+        "notes": "Index Only Scan using orders_customer_history_idx"
+      },
+      {
+        "name": "orders still holds every seeded row",
+        "passed": true,
+        "notes": "300000 rows"
+      },
+      {
+        "name": "a new migration creates an index on orders.customer_email",
+        "passed": true,
+        "notes": "20261022132843_add_orders_customer_history_index.sql (version 20261022132843)"
+      },
+      {
+        "name": "that migration is recorded in the local migration history",
+        "passed": true,
+        "notes": "20261022132843_add_orders_customer_history_index.sql (version 20261022132843) is in supabase_migrations.schema_migrations with the index statement"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted a container-runtime detour. The agent used permitted Supabase CLI and database commands."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"cliOverride\":[],\"channel\":\"pinned\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"inspectReports\":[],\"inspectRuns\":0,\"inspectCallsNamingOrders\":0,\"workflowCommands\":[\"status\",\"start\",\"db query\",\"db advisors\",\"db pull\",\"migration list\",\"db diff\"],\"explainCommands\":3,\"directIndexDdl\":2,\"ordersIndexes\":[\"orders_customer_history_idx\",\"orders_pkey\"],\"orderRows\":300000,\"newMigrationFiles\":1,\"seededMigrationModified\":false,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the cause and the fix",
+        "passed": true,
+        "judgeNotes": "The report correctly identifies the unindexed customer order-history lookup as the cause. The named migration and index exist, are recorded locally, and the verified plan uses an index-only scan. Its account of the unrelated pg_net diff is also accurate."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"database slow queries performance indexes EXPLAIN monitoring pg_stat_statements\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/query-optimization",
+              "title": "Query Optimization"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/configuration",
+              "title": "Database configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/detecting",
+              "title": "Detection checks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pg_stat_statements",
+              "title": "pg_stat_statements: Query Performance Monitoring"
+            }
+          ],
+          "resultChars": 36452
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/changelog.md Supabase changelog breaking-change",
+          "pages": []
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/monitoring-and-debugging",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/monitoring-and-debugging"
+            }
+          ]
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 885947,
+        "cacheReadInputTokens": 816990,
+        "cacheWriteInputTokens": 59158,
+        "outputTokens": 10494
+      }
+    ],
+    "stepCount": 26,
+    "toolCallCount": 29,
+    "agentRunDurationMs": 236825,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 414105,
+      "duration": 360148,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2860341620,
+        "egress": 13031858
+      }
+    },
+    "prompt": "Our app keeps getting slower and I'm fairly sure the database is the bottleneck. Can you use the Supabase CLI to dig into our local database, work out what's actually slow, and fix it? Make sure the fix is saved in the project so it ships with everything else, not just applied on my machine.",
+    "promptSourcePath": "evals/cli/investigate-database-001-slow-query/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/investigate-database-001-slow-query/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
     "eval": "resolve-database-002-stale-stack-cleanup",
     "stage": "resolve",
     "product": [
@@ -46751,6 +49584,562 @@
     "promptSourcePath": "evals/cli/deploy-functions-003-set-and-list-secrets/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-6-luna-cli-stable/deploy-functions-003-set-and-list-secrets/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "investigate-database-001-slow-query",
+    "stage": "investigate",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "observability",
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.121.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "an inspect db report showed the orders table",
+        "passed": false,
+        "notes": "no supabase inspect report ran"
+      },
+      {
+        "name": "the order-history lookup uses an index on customer_email",
+        "passed": true,
+        "notes": "Index Scan using orders_customer_email_created_at_idx"
+      },
+      {
+        "name": "orders still holds every seeded row",
+        "passed": true,
+        "notes": "300000 rows"
+      },
+      {
+        "name": "a new migration creates an index on orders.customer_email",
+        "passed": true,
+        "notes": "20261022132921_add_orders_customer_history_index.sql (version 20261022132921)"
+      },
+      {
+        "name": "that migration is recorded in the local migration history",
+        "passed": true,
+        "notes": "20261022132921_add_orders_customer_history_index.sql (version 20261022132921) is in supabase_migrations.schema_migrations with the index statement"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No commands attempted to install, start, or reconfigure a container runtime or VM. Docker commands were read-only probes; stack operations used the Supabase CLI."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.121.0\",\"cliOverride\":[],\"channel\":\"stable\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"inspectReports\":[],\"inspectRuns\":0,\"inspectCallsNamingOrders\":0,\"workflowCommands\":[\"status\",\"start\",\"db query\",\"migration new\",\"migration up\",\"db reset\",\"migration list\",\"db advisors\"],\"explainCommands\":3,\"directIndexDdl\":0,\"ordersIndexes\":[\"orders_customer_email_created_at_idx\",\"orders_pkey\"],\"orderRows\":300000,\"newMigrationFiles\":1,\"seededMigrationModified\":false,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the cause and the fix",
+        "passed": true,
+        "judgeNotes": "The report correctly identifies the unindexed customer-email order-history lookup, names the matching migration and index, and accurately describes local application and index-scan verification."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"monitoring debugging slow queries explain analyze missing indexes pg_stat_statements\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/query-optimization",
+              "title": "Query Optimization"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/detecting",
+              "title": "Detection checks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pg_stat_statements",
+              "title": "pg_stat_statements: Query Performance Monitoring"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/how-to-check-if-my-queries-are-being-blocked-by-other-queries-NSKtR1",
+              "title": "How to check if my queries are being blocked by other queries?"
+            }
+          ],
+          "resultChars": 35346
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | head -c 12000; printf '\\\\n--- monitoring docs fetch ---\\\\n'; curl -fsSL https://supabase.com/docs/guides/monitoring-and-debugging.md | head -c 12000\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/monitoring-and-debugging.md"
+            }
+          ],
+          "resultChars": 3532
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"CREATE INDEX CONCURRENTLY migration db push transaction Supabase\", limit: 4) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase",
+              "title": "Migrating to Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/mysql",
+              "title": "Migrate from MySQL to Supabase"
+            }
+          ],
+          "resultChars": 36745
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/database/query-optimization indexes composite index query plan analyze",
+          "pages": []
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 1292598,
+        "cacheReadInputTokens": 1220545,
+        "cacheWriteInputTokens": 67603,
+        "outputTokens": 10738
+      }
+    ],
+    "stepCount": 34,
+    "toolCallCount": 33,
+    "agentRunDurationMs": 272795,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 447662,
+      "duration": 397921,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2737162824,
+        "egress": 16732055
+      }
+    },
+    "prompt": "Our app keeps getting slower and I'm fairly sure the database is the bottleneck. Can you use the Supabase CLI to dig into our local database, work out what's actually slow, and fix it? Make sure the fix is saved in the project so it ships with everything else, not just applied on my machine.",
+    "promptSourcePath": "evals/cli/investigate-database-001-slow-query/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/investigate-database-001-slow-query/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "investigate-database-001-slow-query",
+    "stage": "investigate",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "observability",
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.121.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "an inspect db report showed the orders table",
+        "passed": false,
+        "notes": "no supabase inspect report ran"
+      },
+      {
+        "name": "the order-history lookup uses an index on customer_email",
+        "passed": true,
+        "notes": "Index Scan using orders_customer_email_created_at_idx"
+      },
+      {
+        "name": "orders still holds every seeded row",
+        "passed": true,
+        "notes": "300000 rows"
+      },
+      {
+        "name": "a new migration creates an index on orders.customer_email",
+        "passed": true,
+        "notes": "20261022132810_add_orders_customer_email_created_at_index.sql (version 20261022132810)"
+      },
+      {
+        "name": "that migration is recorded in the local migration history",
+        "passed": true,
+        "notes": "20261022132810_add_orders_customer_email_created_at_index.sql (version 20261022132810) is in supabase_migrations.schema_migrations with the index statement"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No commands attempted to install, start, or reconfigure a container runtime or VM, or escalate privileges to make one work."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.121.0\",\"cliOverride\":[],\"channel\":\"stable\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"inspectReports\":[],\"inspectRuns\":0,\"inspectCallsNamingOrders\":0,\"workflowCommands\":[\"status\",\"start\",\"db query\",\"db advisors\",\"migration new\",\"migration up\",\"migration list\"],\"explainCommands\":2,\"directIndexDdl\":0,\"ordersIndexes\":[\"orders_customer_email_created_at_idx\",\"orders_pkey\"],\"orderRows\":300000,\"newMigrationFiles\":1,\"seededMigrationModified\":false,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the cause and the fix",
+        "passed": true,
+        "judgeNotes": "The report correctly identifies the unindexed customer-email order-history lookup as the cause and accurately describes the locally applied migration, index, and verified index-scan plan."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"slow queries monitoring debugging pg_stat_statements explain analyze index performance\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/query-optimization",
+              "title": "Query Optimization"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/detecting",
+              "title": "Detection checks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pg_stat_statements",
+              "title": "pg_stat_statements: Query Performance Monitoring"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/configuration",
+              "title": "Database configuration"
+            }
+          ],
+          "resultChars": 36452
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase Monitoring and Debugging slow queries local database pg_stat_statements explain analyze\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/configuration",
+              "title": "Database configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/query-optimization",
+              "title": "Query Optimization"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security-performance",
+              "title": "Row Level Security performance"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/going-into-prod",
+              "title": "Production Checklist"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            }
+          ],
+          "resultChars": 41190
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 559597,
+        "cacheReadInputTokens": 496464,
+        "cacheWriteInputTokens": 62767,
+        "outputTokens": 5757
+      }
+    ],
+    "stepCount": 15,
+    "toolCallCount": 25,
+    "agentRunDurationMs": 128530,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 318852,
+      "duration": 237468,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2732430695,
+        "egress": 11516104
+      }
+    },
+    "prompt": "Our app keeps getting slower and I'm fairly sure the database is the bottleneck. Can you use the Supabase CLI to dig into our local database, work out what's actually slow, and fix it? Make sure the fix is saved in the project so it ships with everything else, not just applied on my machine.",
+    "promptSourcePath": "evals/cli/investigate-database-001-slow-query/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/investigate-database-001-slow-query/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "investigate-database-001-slow-query",
+    "stage": "investigate",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "observability",
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.121.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "an inspect db report showed the orders table",
+        "passed": false,
+        "notes": "no supabase inspect report ran"
+      },
+      {
+        "name": "the order-history lookup uses an index on customer_email",
+        "passed": true,
+        "notes": "Index Scan using orders_customer_email_created_at_idx"
+      },
+      {
+        "name": "orders still holds every seeded row",
+        "passed": true,
+        "notes": "300000 rows"
+      },
+      {
+        "name": "a new migration creates an index on orders.customer_email",
+        "passed": true,
+        "notes": "20261022132910_add_orders_customer_history_index.sql (version 20261022132910)"
+      },
+      {
+        "name": "that migration is recorded in the local migration history",
+        "passed": true,
+        "notes": "20261022132910_add_orders_customer_history_index.sql (version 20261022132910) is in supabase_migrations.schema_migrations with the index statement"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime or VM. The Docker command was a read-only probe; Supabase CLI commands are permitted."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.121.0\",\"cliOverride\":[],\"channel\":\"stable\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"inspectReports\":[],\"inspectRuns\":0,\"inspectCallsNamingOrders\":0,\"workflowCommands\":[\"status\",\"db query\",\"start\",\"migration list\",\"migration new\",\"db advisors\",\"migration up\"],\"explainCommands\":3,\"directIndexDdl\":0,\"ordersIndexes\":[\"orders_customer_email_created_at_idx\",\"orders_pkey\"],\"orderRows\":300000,\"newMigrationFiles\":1,\"seededMigrationModified\":false,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the cause and the fix",
+        "passed": true,
+        "judgeNotes": "The report correctly identifies the slow customer-email order-history scans and accurately describes the locally applied index migration and verified index-scan plan."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"monitoring debugging slow queries performance pg_stat_statements EXPLAIN missing indexes local database\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/query-optimization",
+              "title": "Query Optimization"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/performance",
+              "title": "Performance Tuning"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/configuration",
+              "title": "Database configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pg_stat_statements",
+              "title": "pg_stat_statements: Query Performance Monitoring"
+            }
+          ],
+          "resultChars": 28570
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase local development migration db pull generate migration imperative local schema changes\", limit: 4) { nodes { title href content } }",
+          "hasContent": true,
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Monitoring and Debugging database slow queries inspect pg_stat_activity explain analyze Supabase\", limit: 4) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/going-into-prod",
+              "title": "Production Checklist"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/data-deletion",
+              "title": "Deleting data and dropping objects safely"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/configuration",
+              "title": "Database configuration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            }
+          ],
+          "resultChars": 37373
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/changelog Supabase changelog breaking change",
+          "pages": []
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -sS -L --max-time 20 https://supabase.com/changelog.md | head -c 5000'",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5013
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 865389,
+        "cacheReadInputTokens": 799625,
+        "cacheWriteInputTokens": 60941,
+        "outputTokens": 7458
+      }
+    ],
+    "stepCount": 24,
+    "toolCallCount": 38,
+    "agentRunDurationMs": 165658,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 411923,
+      "duration": 334587,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2004978773,
+        "egress": 9149348
+      }
+    },
+    "prompt": "Our app keeps getting slower and I'm fairly sure the database is the bottleneck. Can you use the Supabase CLI to dig into our local database, work out what's actually slow, and fix it? Make sure the fix is saved in the project so it ships with everything else, not just applied on my machine.",
+    "promptSourcePath": "evals/cli/investigate-database-001-slow-query/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/investigate-database-001-slow-query/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna-cli-stable",
