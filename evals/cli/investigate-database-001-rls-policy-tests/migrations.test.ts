@@ -585,18 +585,49 @@ describe('findPolicyMigrations', () => {
   });
 
   it('does not mark the seeded migration missing when its file is there', async () => {
-    expect(
-      await scan({ [SEEDED_MIGRATION_FILE]: SEEDED_SQL })
-    ).not.toHaveProperty('seededMissing');
+    const probe = await scan({ [SEEDED_MIGRATION_FILE]: SEEDED_SQL });
+    expect(probe).not.toHaveProperty('seededMissing');
+    expect(probe).not.toHaveProperty('notesNeverCreated');
   });
 
-  it('finds nothing to count, and marks the seeded migration missing, when no policy file is left', async () => {
+  it('finds nothing to count, and marks the seeded migration missing and notes never created, when no policy file is left', async () => {
     expect(await scan({})).toEqual({
       ok: true,
       migrations: [],
       misordered: [],
       seededMissing: true,
+      notesNeverCreated: true,
     });
+  });
+
+  it('marks notes never created when the seeded file is gone and only a policies-only migration is left', async () => {
+    expect(await scan({ [FIX_FILE]: DROP_LEAK })).toEqual({
+      ok: true,
+      migrations: [FIX],
+      misordered: [],
+      seededMissing: true,
+      notesNeverCreated: true,
+    });
+  });
+
+  it('marks notes never created when the only create table for it sits in a comment or a literal', async () => {
+    const probe = await scan({
+      [FIX_FILE]: `-- create table public.notes (id uuid);\nselect 'create table public.notes (id uuid)';\n${DROP_LEAK}`,
+    });
+    expect(probe).toMatchObject({
+      seededMissing: true,
+      notesNeverCreated: true,
+    });
+  });
+
+  it('does not mark notes never created when a later file other than the seeded one creates it', async () => {
+    const probe = await scan({
+      [FIX_FILE]: DROP_LEAK,
+      '20260101000500_create_notes_again.sql':
+        'create table if not exists public.notes (id uuid primary key);\n',
+    });
+    expect(probe).toMatchObject({ seededMissing: true });
+    expect(probe).not.toHaveProperty('notesNeverCreated');
   });
 
   it('counts a new migration that drops the leaky policy', async () => {
@@ -1373,6 +1404,19 @@ write.ownerUpdate|rows:1
       expect(ctx.scripts[0]).toContain('create policy');
     });
 
+    it('does not replay when no migration creates notes, since a reset could not rebuild the table', async () => {
+      const ctx = fakeReplay({ files: { [FIX_FILE]: SQUASHED } });
+      const probe: PolicyMigrationsProbe = {
+        ...found([FIX], [], true),
+        notesNeverCreated: true,
+      };
+      expect(await replay(ctx, probe, recorded({ recorded: [FIX] }))).toEqual({
+        ok: false,
+        notes: expect.stringContaining('not replayed'),
+      });
+      expect(ctx.exec).not.toHaveBeenCalled();
+    });
+
     it('still needs a recorded contributor, so a seeded file that is gone and nothing else does not replay', async () => {
       const ctx = fakeReplay({ files: {} });
       expect(await replay(ctx, found([], [], true), recorded())).toEqual({
@@ -1488,8 +1532,14 @@ write.ownerUpdate|rows:1
 describe('checkFixInAppliedMigration', () => {
   const found = (
     migrations: PolicyMigration[],
-    misordered: string[] = []
-  ): PolicyMigrationsProbe => ({ ok: true, migrations, misordered });
+    misordered: string[] = [],
+    flags: { seededMissing?: true; notesNeverCreated?: true } = {}
+  ): PolicyMigrationsProbe => ({
+    ok: true,
+    migrations,
+    misordered,
+    ...flags,
+  });
   const recorded = (
     parts: Partial<Extract<RecordedPolicyMigrationsProbe, { ok: true }>> = {}
   ): RecordedPolicyMigrationsProbe => ({
@@ -1529,6 +1579,88 @@ describe('checkFixInAppliedMigration', () => {
         FIXED_ACCESS
       ).passed
     ).toBe(true);
+  });
+
+  describe('when the seeded migration file is gone', () => {
+    const SQUASHED_FILE = '20260301000000_squashed.sql';
+    const SQUASHED: PolicyMigration = {
+      version: '20260301000000',
+      file: SQUASHED_FILE,
+      seeded: false,
+    };
+
+    it('fails a policies-only contributor when no migration creates notes, saying a reset could not rebuild the table', () => {
+      const check = checkFixInAppliedMigration(
+        found([FIX], [], { seededMissing: true, notesNeverCreated: true }),
+        recorded({ recorded: [FIX] }),
+        {
+          ok: false,
+          notes:
+            'the migrations were not replayed because their files and history are not in order',
+        }
+      );
+      expect(check.passed).toBe(false);
+      expect(check.notes).toBe(
+        'the seeded migration is gone and no migration creates public.notes, so a reset could not rebuild the table'
+      );
+    });
+
+    it('reports the missing table next to the other problems', () => {
+      const check = checkFixInAppliedMigration(
+        found([FIX], [], { seededMissing: true, notesNeverCreated: true }),
+        recorded({ missing: [FIX] }),
+        FIXED_ACCESS
+      );
+      expect(check.passed).toBe(false);
+      expect(check.notes).toContain('no migration creates public.notes');
+      expect(check.notes).toContain(FIX_VERSION);
+    });
+
+    it('fails with the missing table, not the no-contributor reason alone, when nothing is left', () => {
+      const check = checkFixInAppliedMigration(
+        found([], [], { seededMissing: true, notesNeverCreated: true }),
+        recorded(),
+        FIXED_ACCESS
+      );
+      expect(check.passed).toBe(false);
+      expect(check.notes).toContain('no migration creates public.notes');
+      expect(check.notes).toContain('no migration changes the notes policies');
+    });
+
+    it('passes a recorded squashed file that creates notes with owner-only policies, without saying the seeded state', () => {
+      const check = checkFixInAppliedMigration(
+        found([SQUASHED], [], { seededMissing: true }),
+        recorded({ recorded: [SQUASHED] }),
+        FIXED_ACCESS
+      );
+      expect(check.passed).toBe(true);
+      expect(check.notes).toContain(SQUASHED_FILE);
+      expect(check.notes).not.toContain('seeded state');
+    });
+
+    it('does not say the seeded state when the replay fails either', () => {
+      const check = checkFixInAppliedMigration(
+        found([SQUASHED], [], { seededMissing: true }),
+        recorded({ recorded: [SQUASHED] }),
+        {
+          ok: false,
+          notes: 'exit 3: ERROR: relation "public.notes" does not exist',
+        }
+      );
+      expect(check.passed).toBe(false);
+      expect(check.notes).toMatch(/could not be replayed/);
+      expect(check.notes).not.toContain('seeded state');
+    });
+
+    it('still says the seeded state when the seeded file is there', () => {
+      expect(
+        checkFixInAppliedMigration(
+          found([FIX]),
+          recorded({ recorded: [FIX] }),
+          FIXED_ACCESS
+        ).notes
+      ).toContain('from the seeded state');
+    });
   });
 
   describe('the replay', () => {

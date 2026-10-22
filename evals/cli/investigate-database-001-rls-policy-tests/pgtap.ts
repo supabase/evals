@@ -55,6 +55,7 @@ export type FlippedTest = {
   number: number;
   description: string;
   ranUnderLeak: boolean;
+  leakOnly?: true;
 };
 export type NotCaughtReason =
   | 'unrestored'
@@ -447,15 +448,19 @@ function numberedResults(tap: TapResult): Map<number, TapEntry> {
   return byNumber;
 }
 
-/** The first top-level, non-TODO test that passed under both safe policy sets and failed, or never ran, under the seeded ones. */
+/**
+ * The first top-level, non-TODO test that passed under both safe policy sets and failed, or never ran, under the seeded ones; failing that, the first failure under the seeded ones whose number neither safe run has.
+ * The restrictive set keeps every seeded policy, so a per-policy test gives it at least the seeded run's results and a number only the seeded run has comes from row visibility.
+ */
 function flippedTest(
   leak: TestFileRun,
   safe: TestFileRun,
   safeRestrictive: TestFileRun
-) {
+): FlippedTest | undefined {
   const underLeak = numberedResults(leak.tap);
+  const underSafe = numberedResults(safe.tap);
   const underRestrictive = numberedResults(safeRestrictive.tap);
-  for (const [number, entry] of numberedResults(safe.tap)) {
+  for (const [number, entry] of underSafe) {
     const restrictive = underRestrictive.get(number);
     if (
       entry.ok &&
@@ -471,13 +476,28 @@ function flippedTest(
       };
     }
   }
+  for (const [number, entry] of underLeak) {
+    if (
+      !entry.ok &&
+      !entry.todo &&
+      !underSafe.has(number) &&
+      !underRestrictive.has(number)
+    ) {
+      return {
+        number,
+        description: entry.description,
+        ranUnderLeak: true,
+        leakOnly: true,
+      };
+    }
+  }
   return undefined;
 }
 
 const appliedRun = (run: MutatedRun | null): run is MutatedRun =>
   run !== null && run.mutationApplied;
 
-/** Whether the tests catch the seeded policies, or why not: the leak run failed, and either some test passes under both equivalent owner-only policy sets and fails under the leak, or the whole file passes under both. */
+/** Whether the tests catch the seeded policies, or why not: the leak run failed, and either some test passes under both equivalent owner-only policy sets and fails under the leak, a test fails only under the leak, or the whole file passes under both. */
 export function catchVerdict({
   mutated,
   safe,
@@ -532,8 +552,11 @@ export const describeFlippedTest = ({
   number,
   description,
   ranUnderLeak,
+  leakOnly,
 }: FlippedTest) =>
-  `test ${number} "${description}" ${ranUnderLeak ? 'failed' : 'did not run'} with the seeded policies put back and passed under both equivalent owner-only policy sets`;
+  leakOnly
+    ? `test ${number} "${description}" failed only with the seeded policies put back (absent under both equivalent owner-only policy sets)`
+    : `test ${number} "${description}" ${ranUnderLeak ? 'failed' : 'did not run'} with the seeded policies put back and passed under both equivalent owner-only policy sets`;
 
 /** What made a catch count: the test that flipped, or the file passing outright under both owner-only policy sets. */
 export const describeCatchBasis = (

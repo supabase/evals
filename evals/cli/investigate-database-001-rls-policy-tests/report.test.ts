@@ -636,6 +636,51 @@ describe('describeGroundTruth', () => {
       );
     });
 
+    it('names a failure that exists only under the seeded policies', () => {
+      const result = (ok: boolean, number: number, description: string) => ({
+        ok,
+        number,
+        description,
+        todo: false,
+      });
+      const underOwnerOnly: TestFileRun = {
+        ...failedRun(A),
+        exitCode: 0,
+        tap: {
+          planned: 2,
+          plans: 1,
+          results: [result(false, 1, 'policy set'), result(true, 2, 'a note')],
+        },
+      };
+      const suite: SuiteProbe = {
+        ok: true,
+        files: [A],
+        clean: [passedRun(A)],
+        catches: [
+          {
+            file: A,
+            mutated: {
+              ...failedRun(A),
+              tap: {
+                planned: 3,
+                plans: 1,
+                results: [
+                  ...underOwnerOnly.tap.results,
+                  result(false, 3, 'b note'),
+                ],
+              },
+              mutationApplied: true,
+            },
+            safe: { ...underOwnerOnly, mutationApplied: true },
+            safeRestrictive: { ...underOwnerOnly, mutationApplied: true },
+          },
+        ],
+      };
+      expect(line(lines({ suite }), fileLine(A))).toBe(
+        `${fileLine(A)}: harness run passed (3 tests); caught the seeded policies (test 3 "b note" failed only with the seeded policies put back (absent under both equivalent owner-only policy sets))`
+      );
+    });
+
     it('does not credit a file when the equivalent owner-only policy could not be applied', () => {
       const suite: SuiteProbe = {
         ok: true,

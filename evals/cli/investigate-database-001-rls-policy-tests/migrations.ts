@@ -1,6 +1,7 @@
 import type { CheckResult, LocalStackEvalContext } from '@supabase-evals/core';
 import {
   maskSqlLiteralsAndComments,
+  migrationCreatesTable,
   stripSqlComments,
 } from '../lib/migrations.js';
 import { describeFailure, errorMessage, shellQuote } from '../lib/shell.js';
@@ -34,6 +35,7 @@ export type PolicyMigrationsProbe =
       migrations: PolicyMigration[];
       misordered: string[];
       seededMissing?: true;
+      notesNeverCreated?: true;
     }
   | { ok: false; notes: string };
 export type RecordedPolicyMigrationsProbe =
@@ -49,6 +51,7 @@ export const MIGRATION_CHECK_NAME =
   'the notes policy fix is in an applied migration';
 
 const MIGRATIONS_DIR = 'supabase/migrations';
+const NOTES_NEVER_CREATED = `the seeded migration is gone and no migration creates public.${NOTES_TABLE}, so a reset could not rebuild the table`;
 const MIGRATION_FILENAME_RE = /^(\d+)_(.+)\.sql$/;
 const HISTORY_ROW_RE = /^(\d+)\|((?:[0-9a-f]{2})*)$/i;
 const NOTES = `(?:"?public"?\\s*\\.\\s*)?"?${NOTES_TABLE}"?(?![\\w$"])`;
@@ -201,7 +204,7 @@ async function readMigrationFile(
   return result.stdout;
 }
 
-/** Finds the migrations that change the notes access rules: new ones after the seeded version, and the seeded file when its rules were edited. */
+/** Finds the migrations that change the notes access rules: new ones after the seeded version, and the seeded file when its rules were edited; with the seeded file gone, also whether any migration still creates notes. */
 export async function findPolicyMigrations(
   ctx: ExecContext
 ): Promise<PolicyMigrationsProbe> {
@@ -215,6 +218,7 @@ export async function findPolicyMigrations(
     }
     const migrations: PolicyMigration[] = [];
     const misordered: string[] = [];
+    let createsNotes = false;
     const files = listing.stdout
       .split('\n')
       .map((line) => line.trim())
@@ -223,7 +227,9 @@ export async function findPolicyMigrations(
       const match = MIGRATION_FILENAME_RE.exec(file);
       if (match === null) continue;
       const [, version] = match;
-      const rules = accessRuleStatements(await readMigrationFile(ctx, file));
+      const sql = await readMigrationFile(ctx, file);
+      createsNotes ||= migrationCreatesTable(sql, NOTES_TABLE);
+      const rules = accessRuleStatements(sql);
       if (file === SEEDED_MIGRATION_FILE) {
         if (!sameStatements(rules, SEEDED_ACCESS_RULES)) {
           migrations.push({ version, file, seeded: true });
@@ -239,13 +245,15 @@ export async function findPolicyMigrations(
     migrations.sort(
       (a, b) => compareText(a.version, b.version) || compareText(a.file, b.file)
     );
+    const seededMissing = !files.includes(SEEDED_MIGRATION_FILE);
     return {
       ok: true,
       migrations,
       misordered,
-      ...(files.includes(SEEDED_MIGRATION_FILE)
-        ? {}
-        : { seededMissing: true as const }),
+      ...(seededMissing ? { seededMissing: true as const } : {}),
+      ...(seededMissing && !createsNotes
+        ? { notesNeverCreated: true as const }
+        : {}),
     };
   } catch (error) {
     return { ok: false, notes: errorMessage(error) };
@@ -326,15 +334,20 @@ function fileAndHistoryProblems(
   recorded: RecordedPolicyMigrationsProbe
 ): string[] {
   if (!found.ok) return [found.notes];
+  const tableProblems = found.notesNeverCreated ? [NOTES_NEVER_CREATED] : [];
   if (found.migrations.length === 0 && found.misordered.length === 0) {
     return [
+      ...tableProblems,
       'no migration changes the notes policies, so the fix is not in any migration',
     ];
   }
-  const problems = found.misordered.map(
-    (file) =>
-      `${file} sorts at or before ${SEEDED_MIGRATION_VERSION}, so a reset applies it before notes exists`
-  );
+  const problems = [
+    ...tableProblems,
+    ...found.misordered.map(
+      (file) =>
+        `${file} sorts at or before ${SEEDED_MIGRATION_VERSION}, so a reset applies it before notes exists`
+    ),
+  ];
   if (found.migrations.length > 0) {
     if (!recorded.ok) {
       problems.push(recorded.notes);
@@ -412,11 +425,13 @@ export function checkFixInAppliedMigration(
   if (problems.length > 0) {
     return { name, passed: false, notes: problems.join('; ') };
   }
+  const fromSeededState =
+    found.ok && found.seededMissing ? '' : ' from the seeded state';
   if (!replayed.ok) {
     return {
       name,
       passed: false,
-      notes: `the migrations could not be replayed from the seeded state: ${replayed.notes}`,
+      notes: `the migrations could not be replayed${fromSeededState}: ${replayed.notes}`,
     };
   }
   const read = checkReadIsolation(replayed);
@@ -440,6 +455,6 @@ export function checkFixInAppliedMigration(
   return {
     name,
     passed: true,
-    notes: `${describeMigrations(applied)} ${applied.length === 1 ? 'is' : 'are'} in supabase_migrations.schema_migrations, and replaying the migrations' notes policies from the seeded state leaves each user with only their own notes`,
+    notes: `${describeMigrations(applied)} ${applied.length === 1 ? 'is' : 'are'} in supabase_migrations.schema_migrations, and replaying the migrations' notes policies${fromSeededState} leaves each user with only their own notes`,
   };
 }

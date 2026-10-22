@@ -980,6 +980,18 @@ describe('known-bad runs', () => {
       [MIGRATION],
     ],
     [
+      'removed the seeded migration and wrote a later one that only creates owner-only policies, so a reset has no notes table',
+      SETUP,
+      {
+        files: {
+          [FIX_FILE]:
+            'alter table public.notes enable row level security;\ncreate policy "Owners manage their notes" on public.notes for all to authenticated using ((select auth.uid()) = owner_id) with check ((select auth.uid()) = owner_id);\n',
+        },
+        history: [FIX_VERSION],
+      },
+      [MIGRATION],
+    ],
+    [
       'wrote a migration that drops a policy that is not there, so a reset errors',
       SETUP,
       withHarden(STRICT_WRONG_NAME_DROP),

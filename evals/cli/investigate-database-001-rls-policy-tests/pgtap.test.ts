@@ -1676,7 +1676,7 @@ describe('runSuite', () => {
         '',
       ].join('\n');
 
-      it('counts a no_plan file whose extra not ok result exists only under the leak, because it passes outright under both owner-only policy sets', async () => {
+      it('counts a no_plan file by the extra not ok result that exists only under the leak', async () => {
         const planLast = (tap: string) => {
           const [plan, ...rest] = tap.trimEnd().split('\n');
           return `${[...rest, plan].join('\n')}\n`;
@@ -1692,9 +1692,8 @@ describe('runSuite', () => {
         });
         expect(check.passed).toBe(true);
         expect(check.notes).toContain(
-          'passed outright with owner-only policies in place (both variants)'
+          'test 3 "a can see note: b-note-1 (owner_id is b\'s)" failed only with the seeded policies put back (absent under both equivalent owner-only policy sets)'
         );
-        expect(check.notes).not.toContain('did not run');
       });
 
       it('counts a plan(1) file that fails under the leak only through the plan mismatch, by passing outright under both', async () => {
@@ -1729,7 +1728,110 @@ describe('runSuite', () => {
           safe: tapOf(SAFE_MUTATION_MARKER, PER_ROW_SAFE),
           safeRestrictive: tapOf(
             SAFE_RESTRICTIVE_MUTATION_MARKER,
-            PER_ROW_SAFE.replace('ok 2 -', 'not ok 2 -')
+            [
+              '1..3',
+              'ok 1 - a can see note: a-note-1',
+              'not ok 2 - a can see note: a-note-2',
+              'ok 3 - a can see note: b-note-1',
+              '',
+            ].join('\n')
+          ),
+        });
+        expect(check.passed).toBe(false);
+      });
+    });
+
+    describe('a structural test next to per-row tests', () => {
+      const POLICIES_ARE = 'policies_are: the four seeded names';
+      const A_NOTE = 'a can see note: a note';
+      const B_NOTE = 'a can see note: b note';
+      const noPlan = (lines: readonly string[]) =>
+        [...lines, `1..${lines.length}`, ''].join('\n');
+      const FILE_UNDER_OWNER_ONLY = noPlan([
+        `not ok 1 - ${POLICIES_ARE}`,
+        `ok 2 - ${A_NOTE}`,
+      ]);
+
+      it('counts a mixed no_plan file by the per-row not ok that exists only under the seeded policies', async () => {
+        const check = await verdictOf({
+          clean: {
+            stdout: noPlan([`ok 1 - ${POLICIES_ARE}`, `ok 2 - ${A_NOTE}`]),
+          },
+          mutated: tapOf(
+            MARKER,
+            noPlan([
+              `not ok 1 - ${POLICIES_ARE}`,
+              `ok 2 - ${A_NOTE}`,
+              `not ok 3 - ${B_NOTE}`,
+            ])
+          ),
+          safe: tapOf(SAFE_MUTATION_MARKER, FILE_UNDER_OWNER_ONLY),
+          safeRestrictive: tapOf(
+            SAFE_RESTRICTIVE_MUTATION_MARKER,
+            FILE_UNDER_OWNER_ONLY
+          ),
+        });
+        expect(check.passed).toBe(true);
+        expect(check.notes).toContain(
+          `test 3 "${B_NOTE}" failed only with the seeded policies put back (absent under both equivalent owner-only policy sets)`
+        );
+      });
+
+      it('does not count a per-policy dynamic test, whose leak-only failure number also exists under the restrictive set', async () => {
+        const policies = (failing: readonly number[], count: number) =>
+          noPlan(
+            Array.from(
+              { length: count },
+              (_, i) =>
+                `${failing.includes(i + 1) ? 'not ok' : 'ok'} ${i + 1} - policy ${i + 1} has no true qual`
+            )
+          );
+        const check = await verdictOf({
+          clean: { stdout: policies([], 4) },
+          mutated: tapOf(MARKER, policies([1], 5)),
+          safe: tapOf(SAFE_MUTATION_MARKER, policies([], 1)),
+          safeRestrictive: tapOf(
+            SAFE_RESTRICTIVE_MUTATION_MARKER,
+            policies([1], 6)
+          ),
+        });
+        expect(check.passed).toBe(false);
+        expect(check.notes).toMatch(/checks the policy set/);
+      });
+
+      it('does not count a leak-only failure number that one of the owner-only runs also ran', async () => {
+        const check = await verdictOf({
+          clean: { stdout: noPlan(['ok 1 - x', 'ok 2 - y']) },
+          mutated: tapOf(
+            MARKER,
+            noPlan(['ok 1 - x', 'ok 2 - y', 'not ok 3 - z'])
+          ),
+          safe: tapOf(SAFE_MUTATION_MARKER, noPlan(['ok 1 - x', 'ok 2 - y'])),
+          safeRestrictive: tapOf(
+            SAFE_RESTRICTIVE_MUTATION_MARKER,
+            noPlan(['ok 1 - x', 'not ok 2 - y', 'ok 3 - z'])
+          ),
+        });
+        expect(check.passed).toBe(false);
+      });
+
+      it('does not count a leak-only failure that is a TODO', async () => {
+        const check = await verdictOf({
+          clean: {
+            stdout: noPlan([`ok 1 - ${POLICIES_ARE}`, `ok 2 - ${A_NOTE}`]),
+          },
+          mutated: tapOf(
+            MARKER,
+            noPlan([
+              `not ok 1 - ${POLICIES_ARE}`,
+              `ok 2 - ${A_NOTE}`,
+              `not ok 3 - ${B_NOTE} # TODO later`,
+            ])
+          ),
+          safe: tapOf(SAFE_MUTATION_MARKER, FILE_UNDER_OWNER_ONLY),
+          safeRestrictive: tapOf(
+            SAFE_RESTRICTIVE_MUTATION_MARKER,
+            FILE_UNDER_OWNER_ONLY
           ),
         });
         expect(check.passed).toBe(false);
@@ -2175,7 +2277,7 @@ describe('check helpers', () => {
       expect(check.notes).not.toMatch(/drift|re-?run/i);
     });
 
-    it('catches a file that passes outright under both safe policy sets with no test number that flips, saying so', () => {
+    it('catches a file that passes outright under both safe policy sets with no failing result and no test number that flips, saying so', () => {
       const check = checkTestsCatchSeededPolicies(
         suite({
           files: [A],
@@ -2186,22 +2288,16 @@ describe('check helpers', () => {
               mutated: {
                 ...runOfTap(
                   A,
-                  '1..3\nok 1 - a can see note: n1\nok 2 - a can see note: n2\nnot ok 3 - a can see note: n3\n'
+                  '1..1\nok 1 - a can see note: n1\nok 2 - a can see note: n2\n'
                 ),
                 mutationApplied: true,
               },
               safe: {
-                ...runOfTap(
-                  A,
-                  '1..2\nok 1 - a can see note: n1\nok 2 - a can see note: n2\n'
-                ),
+                ...runOfTap(A, '1..1\nok 1 - a can see note: n1\n'),
                 mutationApplied: true,
               },
               safeRestrictive: {
-                ...runOfTap(
-                  A,
-                  '1..2\nok 1 - a can see note: n1\nok 2 - a can see note: n2\n'
-                ),
+                ...runOfTap(A, '1..1\nok 1 - a can see note: n1\n'),
                 mutationApplied: true,
               },
             },
