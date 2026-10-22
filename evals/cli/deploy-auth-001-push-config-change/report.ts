@@ -1,5 +1,6 @@
 import { formatTomlValue, type RepoPasswordPolicy } from './config.js';
 import type { HostedFacts, ProjectPasswordPolicy } from './hosted.js';
+import { LINK_PATH, type LinkState } from './link.js';
 
 function describeRepoLength(repo: RepoPasswordPolicy): string {
   if (!repo.ok) return `unreadable (${repo.notes})`;
@@ -15,6 +16,11 @@ function describeRepoLength(repo: RepoPasswordPolicy): string {
   return `${base} (${overrides})`;
 }
 
+function describeLink(link: LinkState): string {
+  if (!link.ok) return `unknown (${link.notes})`;
+  return link.ref ?? 'none';
+}
+
 function describeProjectLength(project: ProjectPasswordPolicy): string {
   if (!project.ok) return `unavailable (${project.notes})`;
   return project.minPasswordLength === null
@@ -26,7 +32,8 @@ function describeProjectLength(project: ProjectPasswordPolicy): string {
 export function describeGroundTruth(
   hosted: HostedFacts,
   repo: RepoPasswordPolicy,
-  project: ProjectPasswordPolicy
+  project: ProjectPasswordPolicy,
+  link: LinkState
 ): string[] {
   return [
     hosted.ok
@@ -34,12 +41,6 @@ export function describeGroundTruth(
       : `- hosted project available to push to: none (${hosted.notes})`,
     `- repo supabase/config.toml auth.minimum_password_length: ${describeRepoLength(repo)}`,
     `- hosted project password_min_length: ${describeProjectLength(project)}`,
+    `- repo linked to a project (${LINK_PATH}): ${describeLink(link)}`,
   ];
-}
-
-const ACCESS_TOKEN_REGEX = /sbp_(oauth_|v0_)?[a-f0-9]{40}/g;
-
-/** Replaces every Supabase access token in text sent to a judge. */
-export function maskAccessTokens(text: string): string {
-  return text.replace(ACCESS_TOKEN_REGEX, '[redacted access token]');
 }

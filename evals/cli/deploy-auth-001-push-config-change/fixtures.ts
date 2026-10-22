@@ -13,7 +13,9 @@ export type ExecCtx = Pick<LocalStackEvalContext, 'exec'>;
 export const HOSTED_REF = 'abcdefghijklmnopqrst';
 export const FAKE_ACCESS_TOKEN = `sbp_${'e'.repeat(40)}`;
 export const AUTH_CONFIG_PATH = '/v1/projects/{ref}/config/auth';
+export const API_KEYS_PATH = '/v1/projects/{ref}/api-keys';
 export const READ_CONFIG_COMMAND = 'cat supabase/config.toml';
+export const READ_LINK_COMMAND = 'cat supabase/.temp/project-ref';
 
 export const SEED_CONFIG = readFileSync(
   new URL('./local/supabase/config.toml', import.meta.url),
@@ -113,6 +115,11 @@ export const MISSING_CONFIG = stderrFailure(
   'cat: supabase/config.toml: No such file or directory'
 );
 
+export const MISSING_LINK = stderrFailure(
+  1,
+  'cat: supabase/.temp/project-ref: No such file or directory'
+);
+
 export const crash = (message = 'sandbox gone') => {
   return (): CommandResult => {
     throw new Error(message);
@@ -148,6 +155,11 @@ export const readConfigRoute = (respond: Respond): Route => [
 export const configFileRoute = (text: string): Route =>
   readConfigRoute(commandResult(text));
 
+export const readLinkRoute = (respond: Respond): Route => [
+  READ_LINK_COMMAND,
+  respond,
+];
+
 export const versionRoute = (respond: Respond): Route => [
   /supabase --version$/,
   respond,
@@ -179,18 +191,30 @@ export const authConfig = (passwordMinLength: number | null): GetResult => ({
   response: { status: 200 },
 });
 
+export const apiKeys = (keys: readonly string[]): GetResult => ({
+  data: keys.map((api_key, index) => ({
+    name: `key-${index}`,
+    api_key,
+    type: 'legacy',
+  })),
+  error: undefined,
+  response: { status: 200 },
+});
+
 export const apiError = (status: number, message: string): GetResult => ({
   data: undefined,
   error: { message },
   response: { status },
 });
 
-type MgmtResponse = GetResult | (() => GetResult | Promise<GetResult>);
+type MgmtResponse =
+  | GetResult
+  | ((path: string) => GetResult | Promise<GetResult>);
 
-/** A Management API client whose GET resolves to `respond`; a function `respond` may throw or reject. */
+/** A Management API client whose GET resolves to `respond`; a function `respond` receives the path and may throw or reject. */
 export function fakeMgmt(respond: MgmtResponse) {
-  const GET = vi.fn((_path: string, _options?: unknown) =>
-    typeof respond === 'function' ? respond() : Promise.resolve(respond)
+  const GET = vi.fn((path: string, _options?: unknown) =>
+    typeof respond === 'function' ? respond(path) : Promise.resolve(respond)
   );
   return { GET, mgmt: { GET } as unknown as ManagementApiClient };
 }

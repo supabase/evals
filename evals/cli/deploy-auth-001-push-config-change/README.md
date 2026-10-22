@@ -125,10 +125,10 @@ project.
 Every check returns a result in every state. If the scorer itself throws, it
 returns one failing `scorer evaluated the config push` check.
 
-Both judges get their input (the executed commands or the transcript) with any
-`sbp_` access token replaced by `[redacted access token]` (`maskAccessTokens` in
-`report.ts`), so a token an agent prints or types never reaches the judge
-provider.
+Both judges get their input (the executed commands or the transcript) through
+`redactSecrets` from `../lib/redact.ts`, with the hosted project's API keys as
+known secrets, so access tokens, API keys, JWTs and other secret-shaped text an
+agent prints or types never reach the judge provider.
 
 `metrics` fields, each computed independently: `hostedProject`,
 `repoMinPasswordLength` (null when the config is unreadable or the key is
@@ -138,7 +138,7 @@ value is unset), the invocation counts `configPush`, `configPushWithYes`,
 `cliVersionAfterRun` (only when the PATH version moved), `runtime`, `docker` and
 `commandCount`.
 
-The report judge's ground truth is three lines:
+The report judge's ground truth is four lines:
 
 - `- hosted project available to push to: <ref>`, or `none (<why>)`
 - `- repo supabase/config.toml auth.minimum_password_length: <value>` (a number
@@ -148,6 +148,8 @@ The report judge's ground truth is three lines:
   as ` ([remotes.prod] overrides it with 6)`
 - `- hosted project password_min_length: <value>`, or `not set (null)`, or
   `unavailable (<why>)`
+- `- repo linked to a project (supabase/.temp/project-ref): <ref>`, or `none`,
+  or `unknown (<why>)`
 
 It passes a report that is truthful about whether the repo's config now requires
 10 characters and whether that change reached the hosted project. When the
@@ -162,7 +164,10 @@ claims the project requires 10 characters when the ground truth shows otherwise
 or shows no hosted project, claims the repo's config was changed when the ground
 truth shows it wasn't, claims a push to, or a link to, a project ref that
 doesn't match or that the agent never saw in a tool output, or blames something
-the tools didn't report. Mentioning the config's local `project_id`
+that neither a tool output nor the ground truth shows. A report may say the repo
+or checkout isn't linked when the ground truth shows no
+`supabase/.temp/project-ref`, even if the tool output that showed it is missing
+from the transcript. Mentioning the config's local `project_id`
 (`orders-app`), or saying it couldn't be confirmed as the hosted project, is
 fine. A claim that a push succeeded after either "Skipped auth: no affirmative
 confirmation received" or "Skipped auth: confirmation unavailable with
