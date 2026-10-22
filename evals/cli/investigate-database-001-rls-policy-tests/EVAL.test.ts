@@ -22,6 +22,7 @@ const WS = '/ws';
 const DB_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
 const MUTATION_MARKER = 'eval-mutation-applied';
 const SAFE_MARKER = 'eval-safe-mutation-applied';
+const SAFE_RESTRICTIVE_MARKER = 'eval-safe-restrictive-mutation-applied';
 
 const SEEDED_SQL = readFileSync(
   new URL(
@@ -284,40 +285,112 @@ rls|true|false
 `;
 
 type Run = { stdout: string; exitCode?: number; stderr?: string };
-type Behaviour = { clean: Run; mutated?: Run; safe?: Run };
+type Behaviour = {
+  clean: Run;
+  mutated?: Run;
+  safe?: Run;
+  safeRestrictive?: Run;
+};
 
-const CATCHING: Behaviour = {
-  clean: { stdout: PASSING_TAP },
-  mutated: { stdout: `${MUTATION_MARKER}\n${FAILING_TAP}` },
-  safe: { stdout: `${SAFE_MARKER}\n${PASSING_TAP}` },
-};
-const BLIND: Behaviour = {
-  clean: { stdout: PASSING_TAP },
-  mutated: { stdout: `${MUTATION_MARKER}\n${PASSING_TAP}` },
-  safe: { stdout: `${SAFE_MARKER}\n${PASSING_TAP}` },
-};
-const STRUCTURAL_AND_BEHAVIOURAL: Behaviour = {
-  clean: { stdout: PASSING_TAP },
-  mutated: {
-    stdout: `${MUTATION_MARKER}\n1..3\nnot ok 1 - notes has five policies\nnot ok 2 - other user sees none of the owner's notes\nok 3 - anon sees no notes\n`,
-  },
-  safe: {
-    stdout: `${SAFE_MARKER}\n1..3\nnot ok 1 - notes has five policies\nok 2 - other user sees none of the owner's notes\nok 3 - anon sees no notes\n`,
-  },
-};
-const STRUCTURAL_ONLY: Behaviour = {
-  clean: { stdout: PASSING_TAP },
-  mutated: {
-    stdout: `${MUTATION_MARKER}\n1..3\nnot ok 1 - notes has five policies\nok 2 - other user sees none of the owner's notes\nok 3 - anon sees no notes\n`,
-  },
-  safe: {
-    stdout: `${SAFE_MARKER}\n1..3\nnot ok 1 - notes has five policies\nok 2 - other user sees none of the owner's notes\nok 3 - anon sees no notes\n`,
-  },
-};
+const behaviourOfTap = (
+  clean: string,
+  leak: string,
+  safe: string,
+  restrictive = safe
+): Behaviour => ({
+  clean: { stdout: clean },
+  mutated: { stdout: `${MUTATION_MARKER}\n${leak}` },
+  safe: { stdout: `${SAFE_MARKER}\n${safe}` },
+  safeRestrictive: { stdout: `${SAFE_RESTRICTIVE_MARKER}\n${restrictive}` },
+});
+const tapOf = (descriptions: readonly string[], failing: readonly number[]) =>
+  [
+    `1..${descriptions.length}`,
+    ...descriptions.map(
+      (description, i) =>
+        `${failing.includes(i + 1) ? 'not ok' : 'ok'} ${i + 1} - ${description}`
+    ),
+    '',
+  ].join('\n');
+
+const CROSS_USER = [
+  'owner sees their own notes',
+  "other user sees none of the owner's notes",
+  'anon sees no notes',
+];
+const withFirst = (first: string) => [first, ...CROSS_USER.slice(1)];
+const policyChecks = (
+  name: string,
+  leak: readonly number[],
+  safe: readonly number[],
+  restrictive: readonly number[]
+) =>
+  behaviourOfTap(
+    tapOf([name], []),
+    tapOf([name], leak),
+    tapOf([name], safe),
+    tapOf([name], restrictive)
+  );
+
+const CATCHING = behaviourOfTap(PASSING_TAP, FAILING_TAP, PASSING_TAP);
+const BLIND = behaviourOfTap(PASSING_TAP, PASSING_TAP, PASSING_TAP);
+const STRUCTURAL = withFirst('notes has five policies');
+const STRUCTURAL_AND_BEHAVIOURAL = behaviourOfTap(
+  tapOf(STRUCTURAL, []),
+  tapOf(STRUCTURAL, [1, 2]),
+  tapOf(STRUCTURAL, [1])
+);
+const STRUCTURAL_ONLY = behaviourOfTap(
+  tapOf(STRUCTURAL, []),
+  tapOf(STRUCTURAL, [1]),
+  tapOf(STRUCTURAL, [1])
+);
+const LEAKY_NAME_GONE = policyChecks(
+  'no policy is named "Enable read access for authenticated users"',
+  [1],
+  [],
+  [1]
+);
+const NO_TRUE_QUAL = policyChecks(
+  'no policy on public.notes has qual true',
+  [1],
+  [],
+  [1]
+);
+const HAS_RESTRICTIVE = policyChecks(
+  'public.notes has a restrictive policy',
+  [1],
+  [1],
+  []
+);
+const PER_ROW_NOTES = ['a-note-1', 'a-note-2', 'b-note-1'];
+const perRow = (notes: readonly string[], plan: string | null) =>
+  [
+    ...(plan === null ? [] : [`1..${plan}`]),
+    ...notes.map(
+      (note, i) =>
+        `${note.startsWith('b-') ? 'not ok' : 'ok'} ${i + 1} - a can see note: ${note}`
+    ),
+    ...(plan === null ? [`1..${notes.length}`] : []),
+    '',
+  ].join('\n');
+const PER_ROW_NO_PLAN = behaviourOfTap(
+  perRow(PER_ROW_NOTES.slice(0, 2), null),
+  perRow(PER_ROW_NOTES, null),
+  perRow(PER_ROW_NOTES.slice(0, 2), null)
+);
+const PER_ROW_PLAN_ONE: Behaviour = behaviourOfTap(
+  '1..1\nok 1 - a can see note: a-note-1\n',
+  '1..1\nok 1 - a can see note: a-note-1\nok 2 - a can see note: a-note-2\n# Looks like you planned 1 test but ran 2\n',
+  '1..1\nok 1 - a can see note: a-note-1\n'
+);
 const SAFE_NOT_APPLIED: Behaviour = {
-  clean: { stdout: PASSING_TAP },
-  mutated: { stdout: `${MUTATION_MARKER}\n${FAILING_TAP}` },
+  ...CATCHING,
   safe: { stdout: PASSING_TAP },
+};
+const SAFE_RESTRICTIVE_NOT_APPLIED: Behaviour = {
+  ...CATCHING,
+  safeRestrictive: { stdout: PASSING_TAP },
 };
 const FAILING: Behaviour = { clean: { stdout: FAILING_TAP } };
 const ERRORING: Behaviour = {
@@ -456,6 +529,10 @@ function fakeCtx(toolCalls: ToolCallRecord[], world: World = {}) {
       if (script.includes(MUTATION_MARKER)) {
         log.push(`mutate ${key}`);
         return run(behaviour.mutated ?? behaviour.clean);
+      }
+      if (script.includes(SAFE_RESTRICTIVE_MARKER)) {
+        log.push(`safe-restrictive ${key}`);
+        return run(behaviour.safeRestrictive ?? behaviour.clean);
       }
       if (script.includes(SAFE_MARKER)) {
         log.push(`safe ${key}`);
@@ -655,13 +732,14 @@ describe('notes test scorer', () => {
     expect(log).not.toContain('drop-extension');
   });
 
-  it('runs a passing file clean, under the seeded policies, then under an owner-only policy', async () => {
+  it('runs a passing file clean, under the seeded policies, then under each owner-only policy set', async () => {
     const { ctx, log } = fakeCtx(SETUP);
     await scorer(ctx);
     expect(log.filter((line) => line.endsWith(' notes_rls_test.sql'))).toEqual([
       'clean notes_rls_test.sql',
       'mutate notes_rls_test.sql',
       'safe notes_rls_test.sql',
+      'safe-restrictive notes_rls_test.sql',
     ]);
   });
 
@@ -873,6 +951,35 @@ describe('known-bad runs', () => {
       [MIGRATION],
     ],
     [
+      'removed the seeded migration and wrote a later one that only drops the leaky policy, so a reset errors',
+      SETUP,
+      {
+        files: { [FIX_FILE]: DROP_LEAK },
+        history: [FIX_VERSION],
+      },
+      [MIGRATION],
+    ],
+    [
+      'removed the seeded migration and wrote a later one that only drops a policy with if exists, so notes is left open',
+      SETUP,
+      {
+        files: { [FIX_FILE]: WRONG_NAME_DROP },
+        history: [FIX_VERSION],
+      },
+      [MIGRATION],
+    ],
+    [
+      'removed the seeded migration and wrote a later one that only switches row level security on, so nobody can read',
+      SETUP,
+      {
+        files: {
+          [FIX_FILE]: 'alter table public.notes enable row level security;\n',
+        },
+        history: [FIX_VERSION],
+      },
+      [MIGRATION],
+    ],
+    [
       'wrote a migration that drops a policy that is not there, so a reset errors',
       SETUP,
       withHarden(STRICT_WRONG_NAME_DROP),
@@ -909,9 +1016,33 @@ describe('known-bad runs', () => {
       [TESTS_CATCH],
     ],
     [
+      'wrote a test that only checks the leaky policy name is gone, which fails once the seeded policies are kept beside a restrictive owner policy',
+      SETUP,
+      { tests: { 'notes_rls_test.sql': LEAKY_NAME_GONE } },
+      [TESTS_CATCH],
+    ],
+    [
+      'wrote a test that only checks no policy has qual true',
+      SETUP,
+      { tests: { 'notes_rls_test.sql': NO_TRUE_QUAL } },
+      [TESTS_CATCH],
+    ],
+    [
+      'wrote a test that only checks a restrictive policy exists, which a single permissive owner policy fails',
+      SETUP,
+      { tests: { 'notes_rls_test.sql': HAS_RESTRICTIVE } },
+      [TESTS_CATCH],
+    ],
+    [
       'wrote tests whose owner-only policy run never printed its marker, so the run is not counted',
       SETUP,
       { tests: { 'notes_rls_test.sql': SAFE_NOT_APPLIED } },
+      [TESTS_CATCH],
+    ],
+    [
+      'wrote tests whose restrictive owner-only policy run never printed its marker, so the run is not counted',
+      SETUP,
+      { tests: { 'notes_rls_test.sql': SAFE_RESTRICTIVE_NOT_APPLIED } },
       [TESTS_CATCH],
     ],
     [
@@ -1040,6 +1171,14 @@ describe('valid alternatives', () => {
       },
     ],
     [
+      'squashed the seeded migration into a later file that holds every policy',
+      SETUP,
+      {
+        files: { '20260102000000_squashed.sql': `${SEEDED_SQL}\n${DROP_LEAK}` },
+        history: [FIX_VERSION],
+      },
+    ],
+    [
       'drops the leaky policy inside a do block',
       SETUP,
       {
@@ -1065,6 +1204,16 @@ describe('valid alternatives', () => {
       'mixes a structural test with behavioural ones in one file',
       SETUP,
       { tests: { 'notes_rls_test.sql': STRUCTURAL_AND_BEHAVIOURAL } },
+    ],
+    [
+      'writes a no_plan file with one test per visible row, which fails under the leak only by an extra row',
+      SETUP,
+      { tests: { 'notes_rls_test.sql': PER_ROW_NO_PLAN } },
+    ],
+    [
+      'writes a plan(1) file with one test per visible row, which fails under the leak through the plan mismatch',
+      SETUP,
+      { tests: { 'notes_rls_test.sql': PER_ROW_PLAN_ONE } },
     ],
     [
       'writes two policy migrations and applies both',
@@ -1106,6 +1255,9 @@ describe('valid alternatives', () => {
             clean: { stdout: NO_PLAN_PASSING_TAP },
             mutated: { stdout: `${MUTATION_MARKER}\n${NO_PLAN_FAILING_TAP}` },
             safe: { stdout: `${SAFE_MARKER}\n${NO_PLAN_PASSING_TAP}` },
+            safeRestrictive: {
+              stdout: `${SAFE_RESTRICTIVE_MARKER}\n${NO_PLAN_PASSING_TAP}`,
+            },
           },
         },
       },

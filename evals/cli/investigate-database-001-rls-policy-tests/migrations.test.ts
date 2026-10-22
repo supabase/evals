@@ -575,6 +575,30 @@ describe('findPolicyMigrations', () => {
     });
   });
 
+  it('marks the seeded migration missing and counts a later file that holds every policy, as after a squash', async () => {
+    expect(await scan({ [FIX_FILE]: `${SEEDED_SQL}\n${DROP_LEAK}` })).toEqual({
+      ok: true,
+      migrations: [FIX],
+      misordered: [],
+      seededMissing: true,
+    });
+  });
+
+  it('does not mark the seeded migration missing when its file is there', async () => {
+    expect(
+      await scan({ [SEEDED_MIGRATION_FILE]: SEEDED_SQL })
+    ).not.toHaveProperty('seededMissing');
+  });
+
+  it('finds nothing to count, and marks the seeded migration missing, when no policy file is left', async () => {
+    expect(await scan({})).toEqual({
+      ok: true,
+      migrations: [],
+      misordered: [],
+      seededMissing: true,
+    });
+  });
+
   it('counts a new migration that drops the leaky policy', async () => {
     expect(
       await scan({ [SEEDED_MIGRATION_FILE]: SEEDED_SQL, [FIX_FILE]: DROP_LEAK })
@@ -1161,8 +1185,14 @@ describe('buildReplayProbeSql', () => {
 describe('readReplayedNotesAccess', () => {
   const found = (
     migrations: PolicyMigration[],
-    misordered: string[] = []
-  ): PolicyMigrationsProbe => ({ ok: true, migrations, misordered });
+    misordered: string[] = [],
+    seededMissing = false
+  ): PolicyMigrationsProbe => ({
+    ok: true,
+    migrations,
+    misordered,
+    ...(seededMissing ? { seededMissing: true as const } : {}),
+  });
   const recorded = (
     parts: Partial<Extract<RecordedPolicyMigrationsProbe, { ok: true }>> = {}
   ): RecordedPolicyMigrationsProbe => ({
@@ -1307,6 +1337,50 @@ write.ownerUpdate|rows:1
     });
     await replay(ctx);
     expect(ctx.scripts[0]).toContain(`${doDrop.trim()}\n`);
+  });
+
+  describe('when the seeded migration file is gone', () => {
+    const SQUASHED = `${SEEDED_SQL}\n${DROP_LEAK}`;
+
+    it('does not read the seeded file and replays the contributors only', async () => {
+      const ctx = fakeReplay({ files: { [FIX_FILE]: SQUASHED } });
+      const outcome = await replay(
+        ctx,
+        found([FIX], [], true),
+        recorded({ recorded: [FIX] })
+      );
+      expect(outcome).toEqual(FIXED_ACCESS);
+      const cats = ctx.exec.mock.calls
+        .map(([command]) => command)
+        .filter((command) => command.startsWith('cat '));
+      expect(cats).toHaveLength(1);
+      expect(cats[0]).toContain(FIX_FILE);
+      const seededRules = accessRules(SEEDED_SQL).map(({ text }) => text);
+      const script = ctx.scripts[0];
+      expect(script.split(`${seededRules[0]};`)).toHaveLength(2);
+      expect(script).toContain(`${DROP_LEAK.trim().replace(/;$/, '')};`);
+    });
+
+    it('replays no seeded rules when the contributors hold none of their own', async () => {
+      const ctx = fakeReplay({ files: { [FIX_FILE]: DROP_LEAK } });
+      await replay(ctx, found([FIX], [], true), recorded({ recorded: [FIX] }));
+      expect(ctx.scripts[0]).not.toContain('create policy');
+    });
+
+    it('still replays the seeded file first when it is there', async () => {
+      const ctx = fakeReplay();
+      await replay(ctx);
+      expect(ctx.scripts[0]).toContain('create policy');
+    });
+
+    it('still needs a recorded contributor, so a seeded file that is gone and nothing else does not replay', async () => {
+      const ctx = fakeReplay({ files: {} });
+      expect(await replay(ctx, found([], [], true), recorded())).toEqual({
+        ok: false,
+        notes: expect.stringContaining('not replayed'),
+      });
+      expect(ctx.exec).not.toHaveBeenCalled();
+    });
   });
 
   it('reads each migration file once through cat', async () => {

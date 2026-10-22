@@ -12,7 +12,8 @@ import {
 } from './migrations.js';
 import {
   catchVerdict,
-  describeFlippedTest,
+  describeCatchBasis,
+  describeSafeVariants,
   describeTapCounts,
   type SuiteProbe,
   type TestFileRun,
@@ -134,7 +135,7 @@ function describeCatch(
     const restored = attempt.leaked
       ? '; the file committed the mutation and the scorer restored the notes policies between the runs'
       : '';
-    return `caught the seeded policies (${describeFlippedTest(verdict.test)}${restored})`;
+    return `caught the seeded policies (${describeCatchBasis(verdict)}${restored})`;
   }
   switch (verdict.reason) {
     case 'unrestored':
@@ -144,9 +145,9 @@ function describeCatch(
     case 'leak-passed':
       return 'did not catch the seeded policies';
     case 'safe-not-applied':
-      return 'the equivalent owner-only policy could not be applied, so the run is not counted';
+      return `an equivalent owner-only policy set (${describeSafeVariants(verdict.variants)}) could not be applied, so the run is not counted`;
     case 'policy-set-only':
-      return 'did not catch the seeded policies (it also failed with an equivalent owner-only policy, so it checks the policy set, not who can see which notes)';
+      return `did not catch the seeded policies (it also failed under at least one equivalent owner-only policy set (${describeSafeVariants(verdict.variants)}), so it checks the policy set, not who can see which notes)`;
   }
 }
 

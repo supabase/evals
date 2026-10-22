@@ -92,7 +92,14 @@ const SUITE: SuiteProbe = {
   ok: true,
   files: [A],
   clean: [run(A)],
-  catches: [{ file: A, mutated: mutated(A, [2]), safe: mutated(A, []) }],
+  catches: [
+    {
+      file: A,
+      mutated: mutated(A, [2]),
+      safe: mutated(A, []),
+      safeRestrictive: mutated(A, []),
+    },
+  ],
 };
 
 const PASS_RUN: TestDbRun = {
@@ -210,29 +217,54 @@ describe('checkMetrics', () => {
     });
   });
 
-  it('counts only the files with a test that fails under the seeded policies and passes under the safe policy', async () => {
+  it('counts only the files with a test that fails under the seeded policies and passes under both safe policy sets', async () => {
     const { metrics } = await metricsOf({
       suite: {
         ok: true,
-        files: [A, B, 'supabase/tests/c_test.sql', 'supabase/tests/d_test.sql'],
+        files: [
+          A,
+          B,
+          'supabase/tests/c_test.sql',
+          'supabase/tests/d_test.sql',
+          'supabase/tests/e_test.sql',
+        ],
         clean: [
           A,
           B,
           'supabase/tests/c_test.sql',
           'supabase/tests/d_test.sql',
+          'supabase/tests/e_test.sql',
         ].map((file) => run(file)),
         catches: [
-          { file: A, mutated: mutated(A, [2]), safe: mutated(A, []) },
-          { file: B, mutated: mutated(B, []), safe: mutated(B, []) },
+          {
+            file: A,
+            mutated: mutated(A, [2]),
+            safe: mutated(A, []),
+            safeRestrictive: mutated(A, []),
+          },
+          {
+            file: B,
+            mutated: mutated(B, []),
+            safe: mutated(B, []),
+            safeRestrictive: mutated(B, []),
+          },
           {
             file: 'supabase/tests/c_test.sql',
             mutated: mutated('supabase/tests/c_test.sql', [2], false),
             safe: mutated('supabase/tests/c_test.sql', []),
+            safeRestrictive: mutated('supabase/tests/c_test.sql', []),
           },
           {
             file: 'supabase/tests/d_test.sql',
             mutated: mutated('supabase/tests/d_test.sql', [2]),
             safe: mutated('supabase/tests/d_test.sql', [2]),
+            safeRestrictive: mutated('supabase/tests/d_test.sql', [2]),
+          },
+          {
+            file: 'supabase/tests/e_test.sql',
+            mutated: mutated('supabase/tests/e_test.sql', [2]),
+            safe: mutated('supabase/tests/e_test.sql', []),
+            safeRestrictive: mutated('supabase/tests/e_test.sql', [2]),
           },
         ],
       },

@@ -6,6 +6,7 @@ import { SEEDED_NOTES_POLICIES } from './fixtures.js';
 import {
   buildMutationSql,
   buildSafeMutationSql,
+  buildSafeRestrictiveMutationSql,
   catchVerdict,
   checkTestsCatchSeededPolicies,
   checkTestsPass,
@@ -15,6 +16,8 @@ import {
   runSuite,
   SAFE_MUTATION_MARKER,
   SAFE_NOTES_POLICY,
+  SAFE_RESTRICTIVE_MUTATION_MARKER,
+  SAFE_RESTRICTIVE_NOTES_POLICY,
   tapPassed,
   TESTS_CATCH_CHECK_NAME,
   TESTS_PASS_CHECK_NAME,
@@ -466,6 +469,68 @@ describe('buildSafeMutationSql', () => {
   });
 });
 
+describe('buildSafeRestrictiveMutationSql', () => {
+  const sql = buildSafeRestrictiveMutationSql();
+  const trimmed = sql.trim();
+
+  it('starts a transaction and never ends it', () => {
+    expect(trimmed).toMatch(/^begin;/i);
+    expect(sql).not.toMatch(/\b(commit|rollback)\b/i);
+  });
+
+  it('drops every policy with the same loop as the leak mutation, then enables row level security', () => {
+    expect(sql).toContain(DROP_NOTES_POLICIES_SQL);
+    expect(sql).toMatch(
+      /alter table\s+public\.notes\s+enable row level security;/i
+    );
+    expect(sql.indexOf('alter table')).toBeGreaterThan(
+      sql.indexOf(DROP_NOTES_POLICIES_SQL)
+    );
+  });
+
+  it('shares its prefix with the leak mutation, up to the policies', () => {
+    const prefix = (text: string) =>
+      text.slice(0, text.indexOf('create policy'));
+    expect(prefix(sql)).toBe(prefix(buildMutationSql()));
+  });
+
+  it('recreates the five seeded policies verbatim, leaky one included, and then adds a restrictive owner policy', () => {
+    for (const statement of SEEDED_NOTES_POLICIES) {
+      expect(sql).toContain(`${statement};`);
+    }
+    expect(sql.match(/create policy/gi)).toHaveLength(6);
+    expect(sql).toContain(
+      'create policy "eval-probe owners only (restrictive)" on public.notes as restrictive for all to authenticated using ((select auth.uid()) = owner_id) with check ((select auth.uid()) = owner_id);'
+    );
+    expect(sql).toContain(`${SAFE_RESTRICTIVE_NOTES_POLICY};`);
+    expect(sql.indexOf(SAFE_RESTRICTIVE_NOTES_POLICY)).toBeGreaterThan(
+      sql.lastIndexOf(SEEDED_NOTES_POLICIES.at(-1) ?? '')
+    );
+  });
+
+  it('keeps the leaky policy name and its using (true), so name and qual tests fail under it', () => {
+    expect(sql).toContain('"Enable read access for authenticated users"');
+    expect(sql).toMatch(/using \(true\)/);
+  });
+
+  it('ends by selecting its own marker, after the policies', () => {
+    expect(trimmed).toMatch(
+      /select 'eval-safe-restrictive-mutation-applied';$/i
+    );
+    expect(SAFE_RESTRICTIVE_MUTATION_MARKER).toBe(
+      'eval-safe-restrictive-mutation-applied'
+    );
+    expect(sql.indexOf(SAFE_RESTRICTIVE_MUTATION_MARKER)).toBeGreaterThan(
+      sql.indexOf(SAFE_RESTRICTIVE_NOTES_POLICY)
+    );
+    expect(sql).not.toContain(`'${MARKER}'`);
+    expect(sql).not.toContain(SAFE_MUTATION_MARKER);
+    expect(buildSafeMutationSql()).not.toContain(
+      SAFE_RESTRICTIVE_MUTATION_MARKER
+    );
+  });
+});
+
 describe('withMarkerRemoved', () => {
   it('drops the marker line and keeps every other line', () => {
     expect(
@@ -495,8 +560,10 @@ type Behaviour = {
   clean: Run;
   mutated?: Run;
   safe?: Run;
+  safeRestrictive?: Run;
   leaks?: boolean;
   safeLeaks?: boolean;
+  safeRestrictiveLeaks?: boolean;
 };
 type Db = {
   files?: string[] | null;
@@ -526,6 +593,11 @@ const COMMITTED_MUTATION: NotesAccessSnapshot = {
 };
 const COMMITTED_SAFE_MUTATION: NotesAccessSnapshot = {
   policies: [SAFE_NOTES_POLICY],
+  rowSecurity: true,
+  forceRowSecurity: false,
+};
+const COMMITTED_SAFE_RESTRICTIVE_MUTATION: NotesAccessSnapshot = {
+  policies: [...SEEDED_NOTES_POLICIES, SAFE_RESTRICTIVE_NOTES_POLICY],
   rowSecurity: true,
   forceRowSecurity: false,
 };
@@ -577,10 +649,14 @@ const safePass: Run = {
 const safeFailsEverything: Run = {
   stdout: `${SAFE_MUTATION_MARKER}\n${tapText(DESCRIPTIONS, [1, 2, 3])}`,
 };
+const safeRestrictivePass: Run = {
+  stdout: `${SAFE_RESTRICTIVE_MUTATION_MARKER}\n${tapText(DESCRIPTIONS)}`,
+};
 const CATCHING: Behaviour = {
   clean: cleanPass,
   mutated: mutatedFail,
   safe: safePass,
+  safeRestrictive: safeRestrictivePass,
 };
 
 function pgtapAnswer(command: string, present: boolean): string {
@@ -703,6 +779,14 @@ function fakeDb(db: Db = {}) {
       if (behaviour.leaks) policies.current = { ...COMMITTED_MUTATION };
       return run(behaviour.mutated ?? behaviour.clean);
     }
+    if (script.includes(SAFE_RESTRICTIVE_MUTATION_MARKER)) {
+      log.push(`safe-restrictive ${key}`);
+      lastMutated = key;
+      if (behaviour.safeRestrictiveLeaks) {
+        policies.current = { ...COMMITTED_SAFE_RESTRICTIVE_MUTATION };
+      }
+      return run(behaviour.safeRestrictive ?? behaviour.clean);
+    }
     if (script.includes(SAFE_MUTATION_MARKER)) {
       log.push(`safe ${key}`);
       lastMutated = key;
@@ -794,7 +878,7 @@ describe('runSuite', () => {
     return { ctx, suite: await runSuite(ctx, STACK) };
   };
 
-  it('runs every file clean, then under the leak and the safe policy, only the files that passed', async () => {
+  it('runs every file clean, then under the leak and both safe policy sets, only the files that passed', async () => {
     const { ctx, suite } = await suiteOf({
       files: ['a_test.sql', 'b_test.sql'],
       behaviour: {
@@ -816,6 +900,7 @@ describe('runSuite', () => {
           file: A,
           mutated: { passed: false, mutationApplied: true },
           safe: { passed: true, mutationApplied: true },
+          safeRestrictive: { passed: true, mutationApplied: true },
         },
       ],
     });
@@ -823,6 +908,7 @@ describe('runSuite', () => {
       'clean a_test.sql',
       'mutate a_test.sql',
       'safe a_test.sql',
+      'safe-restrictive a_test.sql',
     ]);
     expect(forFile(ctx.log, 'b_test.sql')).toEqual(['clean b_test.sql']);
   });
@@ -921,6 +1007,31 @@ describe('runSuite', () => {
     });
   });
 
+  it('reports mutationApplied false on the restrictive safe run when its marker never printed', async () => {
+    const { suite } = await suiteOf({
+      behaviour: {
+        'a_test.sql': {
+          ...CATCHING,
+          safeRestrictive: {
+            stdout: tapText(DESCRIPTIONS),
+            exitCode: 2,
+            stderr: 'psql: error: connection refused',
+          },
+        },
+      },
+    });
+    expect(suite).toMatchObject({
+      ok: true,
+      catches: [
+        {
+          file: A,
+          safe: { passed: true, mutationApplied: true },
+          safeRestrictive: { passed: false, mutationApplied: false },
+        },
+      ],
+    });
+  });
+
   it('reports a safe run that fails the tests as failed, with its marker removed from the tap', async () => {
     const { suite } = await suiteOf({
       behaviour: {
@@ -985,6 +1096,28 @@ describe('runSuite', () => {
     );
   });
 
+  it('runs the file under the restrictive safe mutation in the same session shape too', async () => {
+    const { ctx } = await suiteOf({ behaviour: { 'a_test.sql': CATCHING } });
+    const mutation = commandWith(ctx.psqlTestCommands, MARKER);
+    const restrictive = commandWith(
+      ctx.psqlTestCommands,
+      SAFE_RESTRICTIVE_MUTATION_MARKER
+    );
+    expect(restrictive).not.toBe('');
+    expect(restrictive).not.toBe(mutation);
+    expect(restrictive).toContain('-v ON_ERROR_STOP=1');
+    const { stdin, file, rollback } = stdinOrder(restrictive, 'a_test.sql');
+    expect(stdin).toBeGreaterThanOrEqual(0);
+    expect(file).toBeGreaterThan(stdin);
+    expect(rollback).toBeGreaterThan(file);
+    expect(scriptOf(restrictive)).toContain(
+      buildSafeRestrictiveMutationSql().trim()
+    );
+    expect(restrictive.replace(/printf %s '[^']*'/, '')).toBe(
+      mutation.replace(/printf %s '[^']*'/, '')
+    );
+  });
+
   it('keeps the plain clean run, the one pg_prove would do, free of stdin and rollback', async () => {
     const { ctx } = await suiteOf({ behaviour: { 'a_test.sql': CATCHING } });
     const plain = ctx.psqlTestCommands.filter(
@@ -1003,7 +1136,7 @@ describe('runSuite', () => {
         'sub/dir/b_test.sql': CATCHING,
       },
     });
-    expect(ctx.psqlTestCommands).toHaveLength(6);
+    expect(ctx.psqlTestCommands).toHaveLength(8);
     for (const command of ctx.psqlTestCommands) {
       expect(command.startsWith("cd 'supabase/tests' && ")).toBe(true);
       expect(command).not.toContain("-f 'supabase/tests/");
@@ -1016,6 +1149,8 @@ describe('runSuite', () => {
       'sub/dir/b_test.sql',
       'a_test.sql',
       'a_test.sql',
+      'a_test.sql',
+      'sub/dir/b_test.sql',
       'sub/dir/b_test.sql',
       'sub/dir/b_test.sql',
     ]);
@@ -1036,7 +1171,7 @@ describe('runSuite', () => {
 
   it('runs every clean and mutated file with ON_ERROR_STOP so an error surfaces as a non-zero exit', async () => {
     const { ctx } = await suiteOf({ behaviour: { 'a_test.sql': CATCHING } });
-    expect(ctx.psqlTestCommands).toHaveLength(3);
+    expect(ctx.psqlTestCommands).toHaveLength(4);
     for (const command of ctx.psqlTestCommands) {
       expect(command).toContain('-v ON_ERROR_STOP=1');
       expect(command).toContain("-f 'a_test.sql'");
@@ -1050,7 +1185,7 @@ describe('runSuite', () => {
     expect(ctx.restoreScripts).toEqual([]);
   });
 
-  it('snapshots the notes policies once before the first mutated run and once after each of the two runs per file', async () => {
+  it('snapshots the notes policies once before the first mutated run and once after each of the three runs per file', async () => {
     const { ctx } = await suiteOf({
       files: ['a_test.sql', 'b_test.sql'],
       behaviour: { 'a_test.sql': CATCHING, 'b_test.sql': CATCHING },
@@ -1065,9 +1200,13 @@ describe('runSuite', () => {
       'snapshot',
       'safe a_test.sql',
       'snapshot',
+      'safe-restrictive a_test.sql',
+      'snapshot',
       'mutate b_test.sql',
       'snapshot',
       'safe b_test.sql',
+      'snapshot',
+      'safe-restrictive b_test.sql',
       'snapshot',
       'drop-extension',
     ]);
@@ -1077,8 +1216,12 @@ describe('runSuite', () => {
     const leaking: Behaviour = { ...CATCHING, leaks: true };
 
     const safeLeaking: Behaviour = { ...CATCHING, safeLeaks: true };
+    const restrictiveLeaking: Behaviour = {
+      ...CATCHING,
+      safeRestrictiveLeaks: true,
+    };
 
-    it('restores the policies before the safe run and still counts the file as a catch', async () => {
+    it('restores the policies before the safe runs and still counts the file as a catch', async () => {
       const { ctx, suite } = await suiteOf({
         behaviour: { 'a_test.sql': leaking },
       });
@@ -1090,6 +1233,7 @@ describe('runSuite', () => {
             leaked: true,
             mutated: { passed: false, mutationApplied: true },
             safe: { passed: true, mutationApplied: true },
+            safeRestrictive: { passed: true, mutationApplied: true },
           },
         ],
       });
@@ -1098,6 +1242,7 @@ describe('runSuite', () => {
         'mutate a_test.sql',
         'restore a_test.sql',
         'safe a_test.sql',
+        'safe-restrictive a_test.sql',
       ]);
       expect(ctx.policies.current).toEqual(BASELINE);
       expect(checkTestsCatchSeededPolicies(suite)).toMatchObject({
@@ -1118,14 +1263,40 @@ describe('runSuite', () => {
         'mutate a_test.sql',
         'safe a_test.sql',
         'restore a_test.sql',
+        'safe-restrictive a_test.sql',
       ]);
       expect(ctx.policies.current).toEqual(BASELINE);
       expect(checkTestsCatchSeededPolicies(suite).passed).toBe(true);
     });
 
-    it('restores after both runs when the file commits under each', async () => {
+    it('restores after the restrictive safe run too when the file commits under it, and still counts the file', async () => {
+      const { ctx, suite } = await suiteOf({
+        behaviour: { 'a_test.sql': restrictiveLeaking },
+      });
+      expect(suite).toMatchObject({
+        ok: true,
+        catches: [{ file: A, leaked: true, safeRestrictive: { passed: true } }],
+      });
+      expect(forFile(ctx.log, 'a_test.sql')).toEqual([
+        'clean a_test.sql',
+        'mutate a_test.sql',
+        'safe a_test.sql',
+        'safe-restrictive a_test.sql',
+        'restore a_test.sql',
+      ]);
+      expect(ctx.policies.current).toEqual(BASELINE);
+      expect(checkTestsCatchSeededPolicies(suite).passed).toBe(true);
+    });
+
+    it('restores after all three runs when the file commits under each', async () => {
       const { ctx } = await suiteOf({
-        behaviour: { 'a_test.sql': { ...leaking, safeLeaks: true } },
+        behaviour: {
+          'a_test.sql': {
+            ...leaking,
+            safeLeaks: true,
+            safeRestrictiveLeaks: true,
+          },
+        },
       });
       expect(forFile(ctx.log, 'a_test.sql')).toEqual([
         'clean a_test.sql',
@@ -1133,8 +1304,10 @@ describe('runSuite', () => {
         'restore a_test.sql',
         'safe a_test.sql',
         'restore a_test.sql',
+        'safe-restrictive a_test.sql',
+        'restore a_test.sql',
       ]);
-      expect(ctx.restoreScripts).toHaveLength(2);
+      expect(ctx.restoreScripts).toHaveLength(3);
       expect(ctx.policies.current).toEqual(BASELINE);
     });
 
@@ -1172,8 +1345,10 @@ describe('runSuite', () => {
         'mutate a_test.sql',
         'restore a_test.sql',
         'safe a_test.sql',
+        'safe-restrictive a_test.sql',
         'mutate b_test.sql',
         'safe b_test.sql',
+        'safe-restrictive b_test.sql',
       ]);
     });
 
@@ -1189,7 +1364,7 @@ describe('runSuite', () => {
       );
     });
 
-    it('does not count the file when the safe run still fails every test after the restore', async () => {
+    it('does not count the file when the safe runs still fail every test after the restore', async () => {
       const { suite } = await suiteOf({
         behaviour: {
           'a_test.sql': { ...leaking, safe: safeFailsEverything },
@@ -1211,6 +1386,7 @@ describe('runSuite', () => {
             file: A,
             leaked: true,
             safe: null,
+            safeRestrictive: null,
             restoreFailure: expect.stringContaining('restore'),
           },
         ],
@@ -1221,6 +1397,7 @@ describe('runSuite', () => {
       );
       expect(ctx.log).not.toContain('mutate b_test.sql');
       expect(ctx.log).not.toContain('safe a_test.sql');
+      expect(ctx.log).not.toContain('safe-restrictive a_test.sql');
       const check = checkTestsCatchSeededPolicies(suite);
       expect(check.passed).toBe(false);
       expect(check.notes).toContain(A);
@@ -1237,14 +1414,14 @@ describe('runSuite', () => {
       });
       expect(suite).toMatchObject({
         ok: true,
-        catches: [{ file: A, leaked: true, safe: null }],
+        catches: [{ file: A, leaked: true, safe: null, safeRestrictive: null }],
         unmutated: [B],
       });
       expect(checkTestsCatchSeededPolicies(suite).notes).toContain('deadlock');
       expect(ctx.log).not.toContain('mutate b_test.sql');
     });
 
-    it('stops after the safe run, keeping both runs, when its restore does not take', async () => {
+    it('stops after the safe run, keeping the runs so far, when its restore does not take', async () => {
       const { ctx, suite } = await suiteOf({
         files: ['a_test.sql', 'b_test.sql'],
         restoreTakes: false,
@@ -1258,15 +1435,41 @@ describe('runSuite', () => {
             leaked: true,
             mutated: { mutationApplied: true },
             safe: { passed: true, mutationApplied: true },
+            safeRestrictive: null,
             restoreFailure: expect.stringContaining('restore'),
           },
         ],
         unmutated: [B],
       });
       expect(ctx.log).not.toContain('mutate b_test.sql');
+      expect(ctx.log).not.toContain('safe-restrictive a_test.sql');
       const check = checkTestsCatchSeededPolicies(suite);
       expect(check.passed).toBe(false);
       expect(check.notes).toMatch(/could not restore/);
+    });
+
+    it('stops after the restrictive safe run, keeping all three runs, when its restore does not take', async () => {
+      const { ctx, suite } = await suiteOf({
+        files: ['a_test.sql', 'b_test.sql'],
+        restoreTakes: false,
+        behaviour: { 'a_test.sql': restrictiveLeaking, 'b_test.sql': CATCHING },
+      });
+      expect(suite).toMatchObject({
+        ok: true,
+        catches: [
+          {
+            file: A,
+            leaked: true,
+            mutated: { mutationApplied: true },
+            safe: { mutationApplied: true },
+            safeRestrictive: { passed: true, mutationApplied: true },
+            restoreFailure: expect.stringContaining('restore'),
+          },
+        ],
+        unmutated: [B],
+      });
+      expect(ctx.log).not.toContain('mutate b_test.sql');
+      expect(checkTestsCatchSeededPolicies(suite).passed).toBe(false);
     });
 
     it('keeps an earlier catch when a later file stops the run, and still reports the skipped files', async () => {
@@ -1298,6 +1501,7 @@ describe('runSuite', () => {
         {
           file: A,
           safe: null,
+          safeRestrictive: null,
           restoreFailure: expect.stringContaining('connection refused'),
         },
       ],
@@ -1331,6 +1535,10 @@ describe('runSuite', () => {
   describe('what counts as a catch', () => {
     const POLICY_SET = 'public.notes has the expected policies';
     const POLICY_COUNT = 'public.notes has four policies';
+    const LEAKY_GONE =
+      'no policy named "Enable read access for authenticated users" exists';
+    const NO_TRUE_QUAL = 'no policy on public.notes has qual true';
+    const HAS_RESTRICTIVE = 'public.notes has a restrictive policy';
     const A_OWN = "a sees a's notes";
     const B_BLOCKED = "b cannot see a's notes";
     const ANON_NONE = 'anon sees no notes';
@@ -1339,13 +1547,22 @@ describe('runSuite', () => {
     const behaviourOf = (
       descriptions: readonly string[],
       leak: readonly number[],
-      safe: readonly number[]
+      safe: readonly number[],
+      restrictive: readonly number[] = safe
     ): Behaviour => ({
       clean: { stdout: tapText(descriptions) },
       mutated: { stdout: `${MARKER}\n${tapText(descriptions, leak)}` },
       safe: {
         stdout: `${SAFE_MUTATION_MARKER}\n${tapText(descriptions, safe)}`,
       },
+      safeRestrictive: {
+        stdout: `${SAFE_RESTRICTIVE_MUTATION_MARKER}\n${tapText(descriptions, restrictive)}`,
+      },
+    });
+
+    const tapOf = (marker: string, tap: string, exitCode = 0): Run => ({
+      stdout: `${marker}\n${tap}`,
+      exitCode,
     });
 
     const verdictOf = async (behaviour: Behaviour) => {
@@ -1360,21 +1577,55 @@ describe('runSuite', () => {
       expect(check.passed).toBe(false);
       expect(check.notes).toContain(A);
       expect(check.notes).toMatch(
-        /also failed with an equivalent owner-only policy in place, so it checks the policy set, not who can see which notes/
+        /also failed under at least one equivalent owner-only policy set \(.*\), so it checks the policy set, not who can see which notes/
       );
     });
 
     it('does not count a file that only counts the policies', async () => {
-      const check = await verdictOf(behaviourOf([POLICY_COUNT], [1], [1]));
+      const check = await verdictOf(behaviourOf([POLICY_COUNT], [1], [1], [1]));
       expect(check.passed).toBe(false);
       expect(check.notes).toMatch(/checks the policy set/);
     });
 
+    it('does not count a file that only checks the leaky policy name is gone: it passes with one owner policy and fails with the seeded ones kept', async () => {
+      const check = await verdictOf(behaviourOf([LEAKY_GONE], [1], [], [1]));
+      expect(check.passed).toBe(false);
+      expect(check.notes).toContain(A);
+      expect(check.notes).toContain(
+        'the seeded policies plus a restrictive owner policy'
+      );
+      expect(check.notes).not.toContain('a single owner-only policy');
+    });
+
+    it('does not count a file that only checks no policy has qual true', async () => {
+      const check = await verdictOf(behaviourOf([NO_TRUE_QUAL], [1], [], [1]));
+      expect(check.passed).toBe(false);
+      expect(check.notes).toMatch(/checks the policy set/);
+    });
+
+    it('does not count a file that only checks a restrictive policy exists, which a single permissive owner policy fails', async () => {
+      const check = await verdictOf(
+        behaviourOf([HAS_RESTRICTIVE], [1], [1], [])
+      );
+      expect(check.passed).toBe(false);
+      expect(check.notes).toContain('a single owner-only policy');
+      expect(check.notes).not.toContain(
+        'the seeded policies plus a restrictive owner policy'
+      );
+    });
+
+    it('does not count a mixed file whose behavioural test fails under one safe policy set', async () => {
+      const check = await verdictOf(
+        behaviourOf([LEAKY_GONE, B_BLOCKED], [1, 2], [2], [1])
+      );
+      expect(check.passed).toBe(false);
+    });
+
     it('counts a cross-user behavioural file and names the test that flipped', async () => {
-      const check = await verdictOf(behaviourOf(CROSS_USER, [2], []));
+      const check = await verdictOf(behaviourOf(CROSS_USER, [2], [], []));
       expect(check.passed).toBe(true);
       expect(check.notes).toContain(
-        `test 2 "${B_BLOCKED}" failed with the seeded policies put back and passed with an equivalent owner-only policy`
+        `test 2 "${B_BLOCKED}" failed with the seeded policies put back and passed under both equivalent owner-only policy sets`
       );
     });
 
@@ -1387,7 +1638,7 @@ describe('runSuite', () => {
       expect(check.notes).not.toContain(`"${POLICY_SET}"`);
     });
 
-    it('counts a file whose leak run errors after the first test while the safe run passes everything', async () => {
+    it('counts a file whose leak run errors after the first test while both safe runs pass everything', async () => {
       const check = await verdictOf({
         clean: { stdout: tapText(CROSS_USER) },
         mutated: {
@@ -1399,17 +1650,105 @@ describe('runSuite', () => {
         safe: {
           stdout: `${SAFE_MUTATION_MARKER}\n${tapText(CROSS_USER)}`,
         },
+        safeRestrictive: {
+          stdout: `${SAFE_RESTRICTIVE_MUTATION_MARKER}\n${tapText(CROSS_USER)}`,
+        },
       });
       expect(check.passed).toBe(true);
       expect(check.notes).toContain(
-        `test 2 "${B_BLOCKED}" did not run with the seeded policies put back and passed with an equivalent owner-only policy`
+        `test 2 "${B_BLOCKED}" did not run with the seeded policies put back and passed under both equivalent owner-only policy sets`
       );
+    });
+
+    describe('a file that emits one test per visible row', () => {
+      const PER_ROW_LEAK = [
+        '1..3',
+        'ok 1 - a can see note: a-note-1',
+        'ok 2 - a can see note: a-note-2',
+        "not ok 3 - a can see note: b-note-1 (owner_id is b's)",
+        '# Looks like you failed 1 test of 3',
+        '',
+      ].join('\n');
+      const PER_ROW_SAFE = [
+        '1..2',
+        'ok 1 - a can see note: a-note-1',
+        'ok 2 - a can see note: a-note-2',
+        '',
+      ].join('\n');
+
+      it('counts a no_plan file whose extra not ok result exists only under the leak, because it passes outright under both owner-only policy sets', async () => {
+        const planLast = (tap: string) => {
+          const [plan, ...rest] = tap.trimEnd().split('\n');
+          return `${[...rest, plan].join('\n')}\n`;
+        };
+        const check = await verdictOf({
+          clean: { stdout: planLast(PER_ROW_SAFE) },
+          mutated: tapOf(MARKER, planLast(PER_ROW_LEAK)),
+          safe: tapOf(SAFE_MUTATION_MARKER, planLast(PER_ROW_SAFE)),
+          safeRestrictive: tapOf(
+            SAFE_RESTRICTIVE_MUTATION_MARKER,
+            planLast(PER_ROW_SAFE)
+          ),
+        });
+        expect(check.passed).toBe(true);
+        expect(check.notes).toContain(
+          'passed outright with owner-only policies in place (both variants)'
+        );
+        expect(check.notes).not.toContain('did not run');
+      });
+
+      it('counts a plan(1) file that fails under the leak only through the plan mismatch, by passing outright under both', async () => {
+        const planOne = (rows: number) =>
+          [
+            '1..1',
+            ...Array.from(
+              { length: rows },
+              (_, i) => `ok ${i + 1} - a can see note: note-${i + 1}`
+            ),
+            ...(rows > 1
+              ? [`# Looks like you planned 1 test but ran ${rows}`]
+              : []),
+            '',
+          ].join('\n');
+        const check = await verdictOf({
+          clean: { stdout: planOne(1) },
+          mutated: tapOf(MARKER, planOne(2)),
+          safe: tapOf(SAFE_MUTATION_MARKER, planOne(1)),
+          safeRestrictive: tapOf(SAFE_RESTRICTIVE_MUTATION_MARKER, planOne(1)),
+        });
+        expect(check.passed).toBe(true);
+        expect(check.notes).toContain(
+          'passed outright with owner-only policies in place (both variants)'
+        );
+      });
+
+      it('does not count it when one of the owner-only policy sets fails the file outright and nothing flips', async () => {
+        const check = await verdictOf({
+          clean: { stdout: PER_ROW_SAFE },
+          mutated: tapOf(MARKER, PER_ROW_LEAK),
+          safe: tapOf(SAFE_MUTATION_MARKER, PER_ROW_SAFE),
+          safeRestrictive: tapOf(
+            SAFE_RESTRICTIVE_MUTATION_MARKER,
+            PER_ROW_SAFE.replace('ok 2 -', 'not ok 2 -')
+          ),
+        });
+        expect(check.passed).toBe(false);
+      });
+    });
+
+    it('does not count a file whose leak run never printed its marker', async () => {
+      const behaviour = behaviourOf(CROSS_USER, [2], []);
+      const check = await verdictOf({
+        ...behaviour,
+        mutated: { stdout: tapText(CROSS_USER, [2]) },
+      });
+      expect(check.passed).toBe(false);
+      expect(check.notes).toMatch(/mutation did not apply/);
     });
 
     it('does not count a file whose safe run never printed its marker', async () => {
       const check = await verdictOf({
-        clean: { stdout: tapText(CROSS_USER) },
-        mutated: { stdout: `${MARKER}\n${tapText(CROSS_USER, [2])}` },
+        ...behaviourOf(CROSS_USER, [2], []),
         safe: {
           stdout: tapText(CROSS_USER),
           exitCode: 2,
@@ -1417,12 +1756,30 @@ describe('runSuite', () => {
         },
       });
       expect(check.passed).toBe(false);
-      expect(check.notes).toMatch(/owner-only policy did not apply/);
+      expect(check.notes).toMatch(
+        /owner-only policy set \(a single owner-only policy\) did not apply/
+      );
       expect(check.notes).toContain('connection refused');
     });
 
+    it('does not count a file whose restrictive safe run never printed its marker', async () => {
+      const check = await verdictOf({
+        ...behaviourOf(CROSS_USER, [2], []),
+        safeRestrictive: {
+          stdout: tapText(CROSS_USER),
+          exitCode: 2,
+          stderr: 'psql: error: deadlock detected',
+        },
+      });
+      expect(check.passed).toBe(false);
+      expect(check.notes).toMatch(
+        /owner-only policy set \(the seeded policies plus a restrictive owner policy\) did not apply/
+      );
+      expect(check.notes).toContain('deadlock detected');
+    });
+
     it('does not count a file that also failed behaviourally under the safe policy', async () => {
-      const check = await verdictOf(behaviourOf(CROSS_USER, [2], [2]));
+      const check = await verdictOf(behaviourOf(CROSS_USER, [2], [2], []));
       expect(check.passed).toBe(false);
       expect(check.notes).not.toMatch(/drift|re-?run/i);
     });
@@ -1580,6 +1937,7 @@ describe('check helpers', () => {
     file,
     mutated: mutated(file, { failing: [2] }),
     safe: mutated(file),
+    safeRestrictive: mutated(file),
   });
 
   const runOfTap = (file: string, text: string, exitCode = 0): TestFileRun => {
@@ -1685,7 +2043,7 @@ describe('check helpers', () => {
   });
 
   describe('checkTestsCatchSeededPolicies', () => {
-    it('passes when a file passed clean, failed under the leak with its marker, and a test passed under the safe policy', () => {
+    it('passes when a file passed clean, failed under the leak with its marker, and a test passed under both safe policy sets', () => {
       const check = checkTestsCatchSeededPolicies(
         suite({ files: [A], clean: [run(A)], catches: [catching(A)] })
       );
@@ -1695,7 +2053,7 @@ describe('check helpers', () => {
       });
       expect(check.notes).toContain(A);
       expect(check.notes).toContain(
-        `test 2 "${D2}" failed with the seeded policies put back and passed with an equivalent owner-only policy`
+        `test 2 "${D2}" failed with the seeded policies put back and passed under both equivalent owner-only policy sets`
       );
     });
 
@@ -1704,6 +2062,7 @@ describe('check helpers', () => {
         file: B,
         mutated: mutated(B),
         safe: mutated(B),
+        safeRestrictive: mutated(B),
       };
       expect(
         checkTestsCatchSeededPolicies(
@@ -1743,6 +2102,7 @@ describe('check helpers', () => {
                 applied: false,
               }),
               safe: mutated(A),
+              safeRestrictive: mutated(A),
             },
           ],
         })
@@ -1763,6 +2123,7 @@ describe('check helpers', () => {
               file: A,
               mutated: mutated(A, { failing: [2], applied: false }),
               safe: mutated(A),
+              safeRestrictive: mutated(A),
             },
           ],
         })
@@ -1775,7 +2136,14 @@ describe('check helpers', () => {
         suite({
           files: [A],
           clean: [run(A)],
-          catches: [{ file: A, mutated: mutated(A), safe: mutated(A) }],
+          catches: [
+            {
+              file: A,
+              mutated: mutated(A),
+              safe: mutated(A),
+              safeRestrictive: mutated(A),
+            },
+          ],
         })
       );
       expect(check.name).toBe(TESTS_CATCH_CHECK_NAME);
@@ -1784,7 +2152,7 @@ describe('check helpers', () => {
       expect(check.notes).toMatch(/pass/i);
     });
 
-    it('fails a file that failed under the leak and also failed the same test under the safe policy, saying it checks the policy set', () => {
+    it('fails a file that failed under the leak and also failed the same test under both safe policy sets, naming both and saying it checks the policy set', () => {
       const check = checkTestsCatchSeededPolicies(
         suite({
           files: [A],
@@ -1794,6 +2162,7 @@ describe('check helpers', () => {
               file: A,
               mutated: mutated(A, { failing: [2] }),
               safe: mutated(A, { failing: [2] }),
+              safeRestrictive: mutated(A, { failing: [2] }),
             },
           ],
         })
@@ -1801,12 +2170,74 @@ describe('check helpers', () => {
       expect(check.passed).toBe(false);
       expect(check.notes).toContain(A);
       expect(check.notes).toContain(
-        'also failed with an equivalent owner-only policy in place, so it checks the policy set, not who can see which notes'
+        'also failed under at least one equivalent owner-only policy set (a single owner-only policy and the seeded policies plus a restrictive owner policy), so it checks the policy set, not who can see which notes'
       );
       expect(check.notes).not.toMatch(/drift|re-?run/i);
     });
 
-    it('fails when the safe policy never applied, naming why', () => {
+    it('catches a file that passes outright under both safe policy sets with no test number that flips, saying so', () => {
+      const check = checkTestsCatchSeededPolicies(
+        suite({
+          files: [A],
+          clean: [run(A)],
+          catches: [
+            {
+              file: A,
+              mutated: {
+                ...runOfTap(
+                  A,
+                  '1..3\nok 1 - a can see note: n1\nok 2 - a can see note: n2\nnot ok 3 - a can see note: n3\n'
+                ),
+                mutationApplied: true,
+              },
+              safe: {
+                ...runOfTap(
+                  A,
+                  '1..2\nok 1 - a can see note: n1\nok 2 - a can see note: n2\n'
+                ),
+                mutationApplied: true,
+              },
+              safeRestrictive: {
+                ...runOfTap(
+                  A,
+                  '1..2\nok 1 - a can see note: n1\nok 2 - a can see note: n2\n'
+                ),
+                mutationApplied: true,
+              },
+            },
+          ],
+        })
+      );
+      expect(check.passed).toBe(true);
+      expect(check.notes).toContain(A);
+      expect(check.notes).toContain(
+        'passed outright with owner-only policies in place (both variants)'
+      );
+    });
+
+    it('does not catch a file that flips only under one of the two safe policy sets, and names the one it failed under', () => {
+      const check = checkTestsCatchSeededPolicies(
+        suite({
+          files: [A],
+          clean: [run(A)],
+          catches: [
+            {
+              file: A,
+              mutated: mutated(A, { failing: [2] }),
+              safe: mutated(A),
+              safeRestrictive: mutated(A, { failing: [2] }),
+            },
+          ],
+        })
+      );
+      expect(check.passed).toBe(false);
+      expect(check.notes).toContain(
+        'the seeded policies plus a restrictive owner policy'
+      );
+      expect(check.notes).not.toContain('a single owner-only policy');
+    });
+
+    it('fails when a safe policy never applied, naming which one and why', () => {
       const check = checkTestsCatchSeededPolicies(
         suite({
           files: [A],
@@ -1820,14 +2251,43 @@ describe('check helpers', () => {
                 exitCode: 2,
                 detail: 'psql exit 2: connection refused',
               }),
+              safeRestrictive: mutated(A),
             },
           ],
         })
       );
       expect(check.passed).toBe(false);
       expect(check.notes).toContain(A);
-      expect(check.notes).toMatch(/owner-only policy did not apply/);
+      expect(check.notes).toMatch(
+        /owner-only policy set \(a single owner-only policy\) did not apply/
+      );
       expect(check.notes).toContain('connection refused');
+    });
+
+    it('fails when the restrictive safe policy never applied, naming which one and why', () => {
+      const check = checkTestsCatchSeededPolicies(
+        suite({
+          files: [A],
+          clean: [run(A)],
+          catches: [
+            {
+              file: A,
+              mutated: mutated(A, { failing: [2] }),
+              safe: mutated(A),
+              safeRestrictive: mutated(A, {
+                applied: false,
+                exitCode: 2,
+                detail: 'psql exit 2: deadlock detected',
+              }),
+            },
+          ],
+        })
+      );
+      expect(check.passed).toBe(false);
+      expect(check.notes).toMatch(
+        /owner-only policy set \(the seeded policies plus a restrictive owner policy\) did not apply/
+      );
+      expect(check.notes).toContain('deadlock detected');
     });
 
     it('passes through the test that flipped, even when a structural test fails under both policies', () => {
@@ -1841,6 +2301,7 @@ describe('check helpers', () => {
               file: A,
               mutated: mutated(A, { descriptions, failing: [1, 2] }),
               safe: mutated(A, { descriptions, failing: [1] }),
+              safeRestrictive: mutated(A, { descriptions, failing: [1] }),
             },
           ],
         })
@@ -1864,13 +2325,14 @@ describe('check helpers', () => {
                 exitCode: 3,
               }),
               safe: mutated(A),
+              safeRestrictive: mutated(A),
             },
           ],
         })
       );
       expect(check.passed).toBe(true);
       expect(check.notes).toContain(
-        `test 2 "${D2}" did not run with the seeded policies put back and passed with an equivalent owner-only policy`
+        `test 2 "${D2}" did not run with the seeded policies put back and passed under both equivalent owner-only policy sets`
       );
     });
 
@@ -1890,6 +2352,13 @@ describe('check helpers', () => {
                 mutationApplied: true,
               },
               safe: {
+                ...runOfTap(
+                  A,
+                  '1..2\nnot ok 1 - set\nok 2 - later # TODO later\n'
+                ),
+                mutationApplied: true,
+              },
+              safeRestrictive: {
                 ...runOfTap(
                   A,
                   '1..2\nnot ok 1 - set\nok 2 - later # TODO later\n'
@@ -1919,6 +2388,10 @@ describe('check helpers', () => {
                 ...runOfTap(A, '1..1\nnot ok 1 - set\n    ok 1 - nested\n'),
                 mutationApplied: true,
               },
+              safeRestrictive: {
+                ...runOfTap(A, '1..1\nnot ok 1 - set\n    ok 1 - nested\n'),
+                mutationApplied: true,
+              },
             },
           ],
         })
@@ -1942,6 +2415,10 @@ describe('check helpers', () => {
                 mutationApplied: true,
               },
               safe: {
+                ...runOfTap(A, '1..2\nok 1 - set\nok 2 - reads under safe\n'),
+                mutationApplied: true,
+              },
+              safeRestrictive: {
                 ...runOfTap(A, '1..2\nok 1 - set\nok 2 - reads under safe\n'),
                 mutationApplied: true,
               },
@@ -1986,6 +2463,7 @@ describe('check helpers', () => {
               file: A,
               mutated: mutated(A, { failing: [2] }),
               safe: null,
+              safeRestrictive: null,
               leaked: true,
               restoreFailure:
                 'the file committed the mutation and the scorer could not restore the notes policies (the restore session failed)',

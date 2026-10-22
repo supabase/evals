@@ -29,7 +29,12 @@ export type PolicyMigration = {
   seeded: boolean;
 };
 export type PolicyMigrationsProbe =
-  | { ok: true; migrations: PolicyMigration[]; misordered: string[] }
+  | {
+      ok: true;
+      migrations: PolicyMigration[];
+      misordered: string[];
+      seededMissing?: true;
+    }
   | { ok: false; notes: string };
 export type RecordedPolicyMigrationsProbe =
   | {
@@ -234,7 +239,14 @@ export async function findPolicyMigrations(
     migrations.sort(
       (a, b) => compareText(a.version, b.version) || compareText(a.file, b.file)
     );
-    return { ok: true, migrations, misordered };
+    return {
+      ok: true,
+      migrations,
+      misordered,
+      ...(files.includes(SEEDED_MIGRATION_FILE)
+        ? {}
+        : { seededMissing: true as const }),
+    };
   } catch (error) {
     return { ok: false, notes: errorMessage(error) };
   }
@@ -352,7 +364,7 @@ rollback;
 `;
 }
 
-/** Replays the seeded file's notes access rules and then each contributing migration's, in version order, onto the live table in a rolled-back session, and probes what each user can then read and write; never throws. */
+/** Replays the seeded file's notes access rules (when the file still exists) and then each contributing migration's, in version order, onto the live table in a rolled-back session, and probes what each user can then read and write; never throws. */
 export async function readReplayedNotesAccess(
   ctx: ExecContext,
   stack: StackProbe,
@@ -369,7 +381,7 @@ export async function readReplayedNotesAccess(
   }
   try {
     const files = [
-      SEEDED_MIGRATION_FILE,
+      ...(found.seededMissing ? [] : [SEEDED_MIGRATION_FILE]),
       ...found.migrations
         .filter(({ seeded }) => !seeded)
         .map(({ file }) => file),
