@@ -1,4 +1,4 @@
-// Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/investigate-database-001-rls-policy-tests
+// Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/investigate-database-002-rls-policy-tests
 import type { TranscriptPart } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
 import type { StackProbe } from '../lib/stack.js';

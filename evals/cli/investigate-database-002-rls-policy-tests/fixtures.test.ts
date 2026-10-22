@@ -1,4 +1,4 @@
-// Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/investigate-database-001-rls-policy-tests
+// Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/investigate-database-002-rls-policy-tests
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { parse as parseToml } from 'smol-toml';
 import { describe, expect, it } from 'vitest';
