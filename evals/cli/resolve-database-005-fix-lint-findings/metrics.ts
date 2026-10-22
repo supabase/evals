@@ -12,7 +12,6 @@ import {
 import { commandSegments, leadingWord } from '../lib/detours.js';
 import { readCliVersions, safely } from '../lib/metrics.js';
 import { urlPort, type StackProbe } from '../lib/stack.js';
-import { countDatabaseCheckRuns } from './commands.js';
 import type { ProbeResult } from './probe.js';
 import { diffSeededMigrations, type WorkspaceSql } from './workspace.js';
 
@@ -92,15 +91,16 @@ export async function checkMetrics(
   facts: {
     commands: readonly string[];
     invocations: readonly SupabaseInvocation[];
+    counts: { lint: number; advisors: number };
     stack: StackProbe;
     cli: CliFacts;
     migrations: WorkspaceSql;
     probe: ProbeResult;
   }
 ): Promise<CheckResult> {
-  const { commands, invocations, stack, cli, migrations, probe } = facts;
+  const { commands, invocations, counts, stack, cli, migrations, probe } =
+    facts;
   const { versions, cliOverride } = cli;
-  const runs = await safely(() => countDatabaseCheckRuns(invocations));
   const files = await safely(() => migrationFileCounts(migrations));
 
   const metrics = {
@@ -111,8 +111,8 @@ export async function checkMetrics(
     cliOverride,
     channel: marker?.channel ?? 'pinned',
     ...stackMetrics(stack),
-    lintRuns: runs?.lint ?? null,
-    advisorsRuns: runs?.advisors ?? null,
+    lintRuns: counts.lint,
+    advisorsRuns: counts.advisors,
     resetRuns: await safely(() => countRuns(invocations, 'db', 'reset')),
     migrationUpRuns: await safely(() =>
       countRuns(invocations, 'migration', 'up')
@@ -124,6 +124,7 @@ export async function checkMetrics(
     seededMigrationsMissing: files?.seededMigrationsMissing ?? null,
     liveLintIssues: probe.ok ? probe.report.live.lint.length : null,
     liveAdvisorFindings: probe.ok ? probe.report.live.advisors.length : null,
+    probeUnparsedLines: probe.ok ? probe.report.unparsed.length : null,
   };
 
   return { name: 'metrics', passed: true, notes: JSON.stringify(metrics) };

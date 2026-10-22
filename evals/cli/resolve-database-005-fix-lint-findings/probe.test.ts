@@ -121,6 +121,9 @@ describe('buildProbeScript', () => {
   const quote = (value: string) => `'${value.replaceAll("'", "''")}'`;
   const subArray = (subs: readonly string[]) =>
     `array[${subs.map(quote).join(', ')}]`;
+  const ORDER_IDS = 'array[1, 2, 3]::bigint[]';
+  const behaviourArgs = (subs: readonly string[]) =>
+    `${subArray(subs)}, ${ORDER_IDS}`;
   const payloadOf = (script: string) => {
     const encoded = script.match(
       /decode\('([A-Za-z0-9+/=]+)', 'base64'\)/
@@ -131,11 +134,13 @@ describe('buildProbeScript', () => {
   const scriptLines = (files = FILES, subs = SUBS) =>
     nonBlank(buildProbeScript(files, subs));
 
+  const CREATE_PLPGSQL_CHECK =
+    'do $$ begin create extension if not exists plpgsql_check schema extensions; exception when others then null; end $$;';
   const PRELUDE = [
     'begin;',
     "set local lock_timeout = '10s';",
     'set local client_min_messages = warning;',
-    'do $$ begin create extension if not exists plpgsql_check schema extensions; exception when others then null; end $$;',
+    CREATE_PLPGSQL_CHECK,
   ];
 
   it('opens a transaction first and rolls it back last, so nothing the probe does persists', () => {
@@ -160,23 +165,42 @@ describe('buildProbeScript', () => {
     expect(afterProbe.slice(0, 3)).toEqual([
       'select pg_temp.eval_history();',
       "select pg_temp.eval_findings('live');",
-      `select pg_temp.eval_behaviour('live', ${subArray(SUBS)});`,
+      `select pg_temp.eval_behaviour('live', ${behaviourArgs(SUBS)});`,
     ]);
     expect(afterProbe[3]).toMatch(
       /^select pg_temp\.eval_replay\(convert_from\(decode\('[A-Za-z0-9+/=]*', 'base64'\), 'UTF8'\)::jsonb\);$/
     );
   });
 
-  it('resets the session, restores the timeouts and probes the replayed database', () => {
+  it('resets the session, restores the timeouts, recreates plpgsql_check and probes the replayed database', () => {
     const lines = scriptLines();
-    expect(lines.slice(-6)).toEqual([
+    expect(lines.slice(-7)).toEqual([
       'reset all;',
       "set local lock_timeout = '10s';",
       'set local client_min_messages = warning;',
+      CREATE_PLPGSQL_CHECK,
       "select pg_temp.eval_findings('replay');",
-      `select pg_temp.eval_behaviour('replay', ${subArray(SUBS)});`,
+      `select pg_temp.eval_behaviour('replay', ${behaviourArgs(SUBS)});`,
       'rollback;',
     ]);
+  });
+
+  it('creates plpgsql_check only before the probe functions and again after the replay', () => {
+    const lines = scriptLines();
+    expect(lines.filter((line) => line === CREATE_PLPGSQL_CHECK)).toHaveLength(
+      2
+    );
+    const replayAt = lines.findIndex((line) =>
+      line.startsWith('select pg_temp.eval_replay(')
+    );
+    expect(lines.slice(PRELUDE.length, replayAt + 1)).not.toContain(
+      CREATE_PLPGSQL_CHECK
+    );
+  });
+
+  it('passes the seeded order ids to both behaviour probes', () => {
+    const script = buildProbeScript(FILES, SUBS);
+    expect(script.match(/array\[1, 2, 3\]::bigint\[\]\);/g)).toHaveLength(2);
   });
 
   it('ships the files as base64 JSON of name and sql in order', () => {
@@ -237,10 +261,66 @@ describe('buildProbeScript', () => {
     const quoted =
       "array['6f1c2a3e-0b7d-4c55-9a1e-2d3f4b5c6d71', 'x''); drop table orders; --']";
     expect(script).toContain(
-      `select pg_temp.eval_behaviour('live', ${quoted});`
+      `select pg_temp.eval_behaviour('live', ${quoted}, ${ORDER_IDS});`
     );
     expect(script).toContain(
-      `select pg_temp.eval_behaviour('replay', ${quoted});`
+      `select pg_temp.eval_behaviour('replay', ${quoted}, ${ORDER_IDS});`
+    );
+  });
+});
+
+describe('probe.sql', () => {
+  const sql = readFileSync(new URL('./probe.sql', import.meta.url), 'utf8');
+  const functionBody = (name: string) =>
+    sql.match(
+      new RegExp(`create function pg_temp\\.${name}\\([\\s\\S]*?\\$probe\\$;`)
+    )?.[0] ?? '';
+
+  it('defines the managed schema list first, once, as an immutable sql function', () => {
+    expect(
+      sql.startsWith('create function pg_temp.eval_managed_schemas()')
+    ).toBe(true);
+    expect(functionBody('eval_managed_schemas')).toMatch(
+      /returns text\[\]\s+language sql\s+immutable/
+    );
+    expect(sql.match(/'graphql_public'/g)).toHaveLength(1);
+  });
+
+  it('reads the managed schema list, schema-qualified, in the findings and the replay', () => {
+    const call = /pg_temp\.eval_managed_schemas\(\)/g;
+    expect(functionBody('eval_findings').match(call)).toHaveLength(5);
+    expect(functionBody('eval_replay').match(call)).toHaveLength(1);
+    expect(functionBody('eval_findings')).not.toMatch(/\bexcluded\b/);
+  });
+
+  it('does not drop sequences owned by a column or identity ahead of their table', () => {
+    expect(functionBody('eval_replay')).toMatch(
+      /not exists \(select 1 from pg_depend d where d\.objid = c\.oid and d\.deptype in \('a', 'i'\)\)/
+    );
+  });
+
+  it('drops plpgsql_check at the start of the replay, before any drop is computed', () => {
+    const replay = functionBody('eval_replay');
+    const dropExtension = replay.indexOf(
+      'drop extension if exists plpgsql_check;'
+    );
+    expect(dropExtension).toBeGreaterThan(replay.indexOf('begin\n'));
+    expect(dropExtension).toBeLessThan(replay.indexOf('array_agg(d)'));
+  });
+
+  it('measures order_total on the seeded orders a reader cannot see', () => {
+    const behaviour = functionBody('eval_behaviour');
+    expect(behaviour).toContain('order_ids bigint[]');
+    expect(behaviour).toContain(
+      "'select coalesce(sum(public.order_total(p_order_id => x)), 0)::text from unnest($1) as x where x not in (select o.id from public.orders o)' into foreign_total using order_ids"
+    );
+    expect(behaviour).toContain("'foreign_total', foreign_total");
+  });
+
+  it('declares no unused variables and no unused ordinality', () => {
+    expect(sql).not.toMatch(/with ordinality/);
+    expect(functionBody('eval_findings')).not.toMatch(
+      /\b(usr record|n bigint|m bigint|total text)\b/
     );
   });
 });
@@ -265,16 +345,16 @@ const seededState = (phase: string) => [
   ...lintRows(phase),
   `{"phase" : "${phase}", "probe" : "reader-error", "role" : "authenticated", "sub" : "${SUB_A}", "sqlstate" : "42703", "error" : "column oi.price does not exist"}`,
   `{"phase" : "${phase}", "probe" : "reader-error", "role" : "authenticated", "sub" : "${SUB_B}", "sqlstate" : "42703", "error" : "column oi.price does not exist"}`,
-  `{"phase" : "${phase}", "probe" : "reader", "role" : "anon", "sub" : null, "orders" : 0, "items" : 4, "totals" : []}`,
+  `{"phase" : "${phase}", "probe" : "reader", "role" : "anon", "sub" : null, "orders" : 0, "items" : 4, "totals" : [], "foreign_total" : "0"}`,
   `{"phase" : "${phase}", "probe" : "trigger", "stamped" : true}`,
 ];
 
 const fixedState = (phase: string) => [
   `{"phase" : "${phase}", "probe" : "advisor-done"}`,
   `{"phase" : "${phase}", "probe" : "lint-done"}`,
-  `{"phase" : "${phase}", "probe" : "reader", "role" : "authenticated", "sub" : "${SUB_A}", "orders" : 2, "items" : 3, "totals" : ["30.00", "12.00"]}`,
-  `{"phase" : "${phase}", "probe" : "reader", "role" : "authenticated", "sub" : "${SUB_B}", "orders" : 1, "items" : 1, "totals" : ["99.99"]}`,
-  `{"phase" : "${phase}", "probe" : "reader", "role" : "anon", "sub" : null, "orders" : 0, "items" : 0, "totals" : []}`,
+  `{"phase" : "${phase}", "probe" : "reader", "role" : "authenticated", "sub" : "${SUB_A}", "orders" : 2, "items" : 3, "totals" : ["30.00", "12.00"], "foreign_total" : "0"}`,
+  `{"phase" : "${phase}", "probe" : "reader", "role" : "authenticated", "sub" : "${SUB_B}", "orders" : 1, "items" : 1, "totals" : ["99.99"], "foreign_total" : "0"}`,
+  `{"phase" : "${phase}", "probe" : "reader", "role" : "anon", "sub" : null, "orders" : 0, "items" : 0, "totals" : [], "foreign_total" : "0"}`,
   `{"phase" : "${phase}", "probe" : "trigger", "stamped" : true}`,
 ];
 
@@ -318,7 +398,15 @@ const SEEDED_PHASE: PhaseReport = {
       sqlstate: '42703',
       error: 'column oi.price does not exist',
     },
-    { ok: true, role: 'anon', sub: null, orders: 0, items: 4, totals: [] },
+    {
+      ok: true,
+      role: 'anon',
+      sub: null,
+      orders: 0,
+      items: 4,
+      totals: [],
+      foreignTotal: '0',
+    },
   ],
   trigger: { stamped: true },
 };
@@ -336,6 +424,7 @@ const FIXED_PHASE: PhaseReport = {
       orders: 2,
       items: 3,
       totals: ['30.00', '12.00'],
+      foreignTotal: '0',
     },
     {
       ok: true,
@@ -344,8 +433,17 @@ const FIXED_PHASE: PhaseReport = {
       orders: 1,
       items: 1,
       totals: ['99.99'],
+      foreignTotal: '0',
     },
-    { ok: true, role: 'anon', sub: null, orders: 0, items: 0, totals: [] },
+    {
+      ok: true,
+      role: 'anon',
+      sub: null,
+      orders: 0,
+      items: 0,
+      totals: [],
+      foreignTotal: '0',
+    },
   ],
   trigger: { stamped: true },
 };
@@ -409,6 +507,23 @@ describe('parseProbeOutput', () => {
     );
     expect(live.readers.at(-1)).toMatchObject({ role: 'anon', sub: null });
     expect(replayed.readers[0]).toMatchObject({ totals: ['30.00', '12.00'] });
+  });
+
+  it('reads the cross-user total as the string Postgres printed, and an empty string when the row has none', () => {
+    const row = (extra: string) =>
+      parseProbeOutput(
+        output([
+          `{"phase" : "live", "probe" : "reader", "role" : "authenticated", "sub" : "${SUB_A}", "orders" : 2, "items" : 3, "totals" : ["30.00", "12.00"]${extra}}`,
+        ])
+      ).live.readers[0];
+    expect(row(', "foreign_total" : "99.99"')).toMatchObject({
+      foreignTotal: '99.99',
+    });
+    expect(row(', "foreign_total" : "0.00"')).toMatchObject({
+      foreignTotal: '0.00',
+    });
+    expect(row('')).toMatchObject({ foreignTotal: '' });
+    expect(row(', "foreign_total" : null')).toMatchObject({ foreignTotal: '' });
   });
 
   it('records the migration versions the history holds', () => {

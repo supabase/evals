@@ -3,6 +3,7 @@ import type { LocalStackEnvironmentMarker } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
 import { findSupabaseInvocations } from '../lib/cli-invocations.js';
 import type { StackProbe } from '../lib/stack.js';
+import { countDatabaseCheckRuns } from './commands.js';
 import { readSeedFile, SEEDED_MIGRATIONS } from './fixtures.js';
 import { checkMetrics } from './metrics.js';
 import type { ProbeReport } from './probe.js';
@@ -69,6 +70,7 @@ const PROBE_REPORT: ProbeReport = {
 const facts = (overrides: Partial<Facts> = {}): Facts => ({
   commands: [],
   invocations: [],
+  counts: { lint: 0, advisors: 0 },
   stack: STACK,
   cli: { versions: { cliVersion: '2.0.0' }, cliOverride: [] },
   migrations: { ok: true, migrations: seededFiles() },
@@ -76,10 +78,14 @@ const facts = (overrides: Partial<Facts> = {}): Facts => ({
   ...overrides,
 });
 
-const ran = (...commands: string[]): Partial<Facts> => ({
-  commands,
-  invocations: findSupabaseInvocations(commands),
-});
+const ran = (...commands: string[]): Partial<Facts> => {
+  const invocations = findSupabaseInvocations(commands);
+  return {
+    commands,
+    invocations,
+    counts: countDatabaseCheckRuns(invocations),
+  };
+};
 
 const metricsFor = async (
   marker: LocalStackEnvironmentMarker | undefined,
@@ -126,6 +132,7 @@ describe('checkMetrics', () => {
       seededMigrationsMissing: null,
       liveLintIssues: null,
       liveAdvisorFindings: null,
+      probeUnparsedLines: null,
     });
   });
 
@@ -155,6 +162,12 @@ describe('checkMetrics', () => {
         dbQueryRuns: 1,
         psqlCommands: 3,
       });
+    });
+
+    it('reports the database check counts it is given instead of recounting the invocations', async () => {
+      expect(
+        await metricsOf({ counts: { lint: 5, advisors: 6 } })
+      ).toMatchObject({ lintRuns: 5, advisorsRuns: 6 });
     });
 
     it('reports zero for each count when the agent ran nothing', async () => {
@@ -283,6 +296,30 @@ describe('checkMetrics', () => {
       });
       expect(metrics.liveLintIssues).toBeNull();
       expect(metrics.liveAdvisorFindings).toBeNull();
+    });
+  });
+
+  describe('probe output', () => {
+    const withUnparsed = (unparsed: string[]): Partial<Facts> => ({
+      probe: { ok: true, report: { ...PROBE_REPORT, unparsed } },
+    });
+
+    it('counts the lines the probe printed that were not rows', async () => {
+      expect(
+        (await metricsOf(withUnparsed(['NOTICE: x', '{not json'])))
+          .probeUnparsedLines
+      ).toBe(2);
+    });
+
+    it('is zero when every line parsed', async () => {
+      expect((await metricsOf()).probeUnparsedLines).toBe(0);
+    });
+
+    it('is null when the probe failed', async () => {
+      const metrics = await metricsOf({
+        probe: { ok: false, notes: 'exit 2: connection refused' },
+      });
+      expect(metrics.probeUnparsedLines).toBeNull();
     });
   });
 

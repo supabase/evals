@@ -1,17 +1,20 @@
+create function pg_temp.eval_managed_schemas()
+returns text[]
+language sql
+immutable
+as $probe$
+  select array['_timescaledb_cache', '_timescaledb_catalog', '_timescaledb_config', '_timescaledb_internal', 'auth', 'cron', 'extensions', 'graphql', 'graphql_public', 'information_schema', 'net', 'pgmq', 'pgroonga', 'pgsodium', 'pgsodium_masks', 'pgtle', 'pgbouncer', 'pg_catalog', 'realtime', 'repack', 'storage', 'supabase_functions', 'supabase_migrations', 'tiger', 'topology', 'vault', '_analytics', '_realtime', '_supavisor']
+$probe$;
+
 create function pg_temp.eval_findings(phase text)
 returns setof text
 language plpgsql
 as $probe$
 declare
-  excluded constant text[] := array['_timescaledb_cache', '_timescaledb_catalog', '_timescaledb_config', '_timescaledb_internal', 'auth', 'cron', 'extensions', 'graphql', 'graphql_public', 'information_schema', 'net', 'pgmq', 'pgroonga', 'pgsodium', 'pgsodium_masks', 'pgtle', 'pgbouncer', 'pg_catalog', 'realtime', 'repack', 'storage', 'supabase_functions', 'supabase_migrations', 'tiger', 'topology', 'vault', '_analytics', '_realtime', '_supavisor'];
   check_schema text;
   fn record;
   issue jsonb;
   doc text;
-  usr record;
-  n bigint;
-  m bigint;
-  total text;
 begin
   begin
     for fn in
@@ -21,18 +24,18 @@ begin
          where c.relkind = 'r' and not c.relrowsecurity
            and (pg_catalog.has_table_privilege('anon', c.oid, 'SELECT') or pg_catalog.has_table_privilege('authenticated', c.oid, 'SELECT'))
            and n.nspname = any(array(select trim(unnest(string_to_array(coalesce(current_setting('pgrst.db_schemas', 't'), 'public'), ',')))))
-           and n.nspname <> all(excluded)
+           and n.nspname <> all(pg_temp.eval_managed_schemas())
         union all
         select 'policy_exists_rls_disabled', n.nspname || '.' || c.relname
           from pg_catalog.pg_policy p join pg_catalog.pg_class c on p.polrelid = c.oid join pg_catalog.pg_namespace n on c.relnamespace = n.oid
           left join pg_catalog.pg_depend dep on c.oid = dep.objid and dep.deptype = 'e'
-         where c.relkind = 'r' and n.nspname <> all(excluded) and not c.relrowsecurity and dep.objid is null
+         where c.relkind = 'r' and n.nspname <> all(pg_temp.eval_managed_schemas()) and not c.relrowsecurity and dep.objid is null
          group by n.nspname, c.relname
         union all
         select 'function_search_path_mutable', p.oid::regprocedure::text
           from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on p.pronamespace = n.oid
           left join pg_catalog.pg_depend dep on p.oid = dep.objid and dep.deptype = 'e'
-         where n.nspname <> all(excluded) and n.nspname not like 'pg\_temp\_%' and n.nspname not like 'pg\_toast\_temp\_%'
+         where n.nspname <> all(pg_temp.eval_managed_schemas()) and n.nspname not like 'pg\_temp\_%' and n.nspname not like 'pg\_toast\_temp\_%'
            and dep.objid is null
            and not exists (select 1 from unnest(coalesce(p.proconfig, '{}')) as config where config like 'search_path=%')
         union all
@@ -40,7 +43,7 @@ begin
           from pg_catalog.pg_policy pa join pg_catalog.pg_class pc on pa.polrelid = pc.oid
           join pg_catalog.pg_namespace nsp on pc.relnamespace = nsp.oid
           join pg_catalog.pg_policies pb on pc.relname = pb.tablename and nsp.nspname = pb.schemaname and pa.polname = pb.policyname
-         where pc.relrowsecurity and nsp.nspname <> all(excluded)
+         where pc.relrowsecurity and nsp.nspname <> all(pg_temp.eval_managed_schemas())
            and (
              (pb.qual like '%auth.uid()%' and lower(pb.qual) not like '%select auth.uid()%')
              or (pb.qual like '%auth.jwt()%' and lower(pb.qual) not like '%select auth.jwt()%')
@@ -68,7 +71,7 @@ begin
       select p.oid, p.oid::regprocedure::text as signature
         from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on p.pronamespace = n.oid join pg_catalog.pg_language l on p.prolang = l.oid
        where l.lanname = 'plpgsql' and p.prorettype <> 'pg_catalog.trigger'::pg_catalog.regtype
-         and n.nspname <> all(excluded) and n.nspname not like 'pg\_%'
+         and n.nspname <> all(pg_temp.eval_managed_schemas()) and n.nspname not like 'pg\_%'
        order by 2
     loop
       for doc in execute format('select %I.plpgsql_check_function($1, format := %L)', check_schema, 'json') using fn.oid loop
@@ -85,7 +88,7 @@ end;
 $probe$;
 
 
-create function pg_temp.eval_behaviour(phase text, subs text[])
+create function pg_temp.eval_behaviour(phase text, subs text[], order_ids bigint[])
 returns setof text
 language plpgsql
 as $probe$
@@ -94,10 +97,11 @@ declare
   order_count bigint;
   item_count bigint;
   totals json;
+  foreign_total text;
   stamped boolean;
 begin
   for usr in
-    select s.sub, 'authenticated' as role from unnest(subs) with ordinality as s(sub, n)
+    select s.sub, 'authenticated' as role from unnest(subs) as s(sub)
     union all
     select null, 'anon'
   loop
@@ -108,9 +112,10 @@ begin
       execute 'select count(*) from public.orders' into order_count;
       execute 'select count(unit_price) from public.order_items' into item_count;
       execute 'select coalesce(json_agg(public.order_total(p_order_id => o.id)::text order by o.id), ''[]'') from public.orders o' into totals;
+      execute 'select coalesce(sum(public.order_total(p_order_id => x)), 0)::text from unnest($1) as x where x not in (select o.id from public.orders o)' into foreign_total using order_ids;
       perform set_config('role', 'none', true);
       return next json_build_object('phase', phase, 'probe', 'reader', 'role', usr.role, 'sub', usr.sub,
-        'orders', order_count, 'items', item_count, 'totals', totals)::text;
+        'orders', order_count, 'items', item_count, 'totals', totals, 'foreign_total', foreign_total)::text;
     exception when others then
       return next json_build_object('phase', phase, 'probe', 'reader-error', 'role', usr.role, 'sub', usr.sub,
         'sqlstate', sqlstate, 'error', sqlerrm)::text;
@@ -136,11 +141,12 @@ declare
   file jsonb;
   current_file text := '(prelude)';
 begin
+  drop extension if exists plpgsql_check;
   select coalesce(array_agg(d), '{}') into drops from (
     select format('drop schema if exists %I cascade', n.nspname) as d
       from pg_namespace n
      where n.nspowner = current_user::regrole and n.nspname <> 'public' and n.nspname not like 'pg\_%'
-       and n.nspname <> all(array['extensions', 'supabase_migrations', 'supabase_functions', 'graphql', 'graphql_public', 'auth', 'storage', 'realtime', 'vault', 'pgbouncer', '_realtime', '_analytics', '_supavisor', 'net', 'cron', 'pgmq', 'pgsodium', 'pgsodium_masks', 'pgtle', 'repack', 'topology', 'tiger', 'information_schema'])
+       and n.nspname <> all(pg_temp.eval_managed_schemas())
        and not exists (select 1 from pg_depend e where e.objid = n.oid and e.deptype = 'e')
     union all
     select format('drop table if exists %I.%I cascade', n.nspname, c.relname)
@@ -154,6 +160,7 @@ begin
       from pg_class c join pg_namespace n on c.relnamespace = n.oid
      where n.nspname = 'public' and c.relkind in ('v', 'm', 'S', 'f')
        and not exists (select 1 from pg_depend e where e.objid = c.oid and e.deptype = 'e')
+       and not exists (select 1 from pg_depend d where d.objid = c.oid and d.deptype in ('a', 'i'))
     union all
     select format('drop routine if exists %s cascade', p.oid::regprocedure)
       from pg_proc p join pg_namespace n on p.pronamespace = n.oid

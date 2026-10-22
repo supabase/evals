@@ -50,7 +50,15 @@ const LIVE: PhaseReport = {
       sqlstate: '42703',
       error: MISSING_PRICE,
     },
-    { ok: true, role: 'anon', sub: null, orders: 0, items: 4, totals: [] },
+    {
+      ok: true,
+      role: 'anon',
+      sub: null,
+      orders: 0,
+      items: 4,
+      totals: [],
+      foreignTotal: '0',
+    },
   ],
   trigger: { stamped: true },
 };
@@ -68,6 +76,7 @@ const CLEAN: PhaseReport = {
       orders: 2,
       items: 3,
       totals: ['30.00', '12.00'],
+      foreignTotal: '0',
     },
     {
       ok: true,
@@ -76,8 +85,17 @@ const CLEAN: PhaseReport = {
       orders: 1,
       items: 1,
       totals: ['99.99'],
+      foreignTotal: '0',
     },
-    { ok: true, role: 'anon', sub: null, orders: 0, items: 0, totals: [] },
+    {
+      ok: true,
+      role: 'anon',
+      sub: null,
+      orders: 0,
+      items: 0,
+      totals: [],
+      foreignTotal: '0',
+    },
   ],
   trigger: { stamped: true },
 };
@@ -201,9 +219,34 @@ describe('describeGroundTruth', () => {
         })
       );
       expect(all).not.toContain('order_total(bigint)');
-      expect(all).not.toContain('rls_disabled_in_public');
-      expect(all).not.toContain('function_search_path_mutable');
+      expect(all).not.toContain('rls_disabled_in_public on');
+      expect(all).not.toContain('function_search_path_mutable on');
+      expect(all).not.toContain('set_updated_at()');
     });
+
+    it.each(['live', 'replayed'])(
+      'limits the %s advisor line to the four seeded lint types, with none listed when there are no findings',
+      (label) => {
+        const clean = withReport({
+          live: { ...LIVE, advisors: [] },
+          replayed: CLEAN,
+        });
+        const line = lineMatching(
+          lines(clean),
+          new RegExp(`${label} database advisor findings`)
+        );
+        expect(line).toContain('four seeded lint types');
+        for (const type of [
+          'rls_disabled_in_public',
+          'policy_exists_rls_disabled',
+          'auth_rls_initplan',
+          'function_search_path_mutable',
+        ]) {
+          expect(line).toContain(type);
+        }
+        expect(line).toMatch(/: none$/);
+      }
+    );
 
     it('states the probe errors instead of reporting an empty list as clean', () => {
       const all = text(
@@ -310,6 +353,24 @@ describe('describeGroundTruth', () => {
         )
       ).toBe(true);
       expect(text()).toContain('99.99');
+    });
+
+    it("states what order_total returns for orders a reader can't read", () => {
+      const leaking: ProbeReport = {
+        ...REPORT,
+        replayed: {
+          ...CLEAN,
+          readers: CLEAN.readers.map((reader) =>
+            reader.ok && reader.sub === SUB_B
+              ? { ...reader, foreignTotal: '42.00' }
+              : reader
+          ),
+        },
+      };
+      const leakLine = lines({ probe: { ok: true, report: leaking } }).find(
+        (line) => line.includes('b8e4') && line.includes("can't read")
+      );
+      expect(leakLine).toContain('42.00');
     });
   });
 
@@ -419,6 +480,24 @@ describe('describeGroundTruth', () => {
   });
 
   describe('facts that hold for every run', () => {
+    it.each([
+      ['a full probe', {}],
+      [
+        'a failed probe',
+        { probe: { ok: false, notes: 'exit 2' } } as Partial<Facts>,
+      ],
+    ])(
+      'says other advisor lint types were not probed and the transcript is their authority, with %s',
+      (_label, overrides) => {
+        const line = lineMatching(lines(overrides), /not probed/);
+        expect(line).toMatch(/other/);
+        expect(line).toMatch(/lint types/);
+        expect(line).toMatch(/db advisors/);
+        expect(line).toMatch(/transcript/);
+        expect(line).toMatch(/authority/);
+      }
+    );
+
     it.each([
       ['a full probe', {}],
       [

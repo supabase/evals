@@ -9,6 +9,7 @@ import {
   checkReplay,
   LINT_CHECK,
   REPLAY_CHECK,
+  shortSub,
 } from './checks.js';
 import type {
   AdvisorFinding,
@@ -27,7 +28,8 @@ const reader = (
   sub: string,
   orders: number,
   items: number,
-  totals: string[]
+  totals: string[],
+  foreignTotal = '0'
 ): OkReader => ({
   ok: true,
   role: 'authenticated',
@@ -35,6 +37,7 @@ const reader = (
   orders,
   items,
   totals,
+  foreignTotal,
 });
 
 const failed = (
@@ -51,6 +54,7 @@ const ANON_EMPTY: OkReader = {
   orders: 0,
   items: 0,
   totals: [],
+  foreignTotal: '0',
 };
 
 const OWN_ROWS: ReaderResult[] = [
@@ -136,6 +140,14 @@ const USING_TRUE = phase({
   ],
 });
 
+const LEAKING_TOTALS = phase({
+  readers: [
+    reader(SUB_A, 2, 3, ['30.00', '12.00'], '99.99'),
+    reader(SUB_B, 1, 1, ['99.99'], '42.00'),
+    ANON_EMPTY,
+  ],
+});
+
 describe('check names', () => {
   it.each([
     [
@@ -172,6 +184,13 @@ describe('the three database checks against each kind of run', () => {
       false,
     ],
     ['a policy widened to using (true)', USING_TRUE, true, true, false],
+    [
+      'order_total made security definer so it totals other users orders',
+      LEAKING_TOTALS,
+      true,
+      true,
+      false,
+    ],
   ])(
     'scores %s',
     (_label, report, lintPasses, advisorsPass, behaviourPasses) => {
@@ -359,6 +378,92 @@ describe('checkAppBehaviour', () => {
     expect(checkAppBehaviour(phase({ readers: [] })).passed).toBe(false);
   });
 
+  describe('totals of orders a reader cannot read', () => {
+    const withForeign = (foreignA: string, foreignB = '0', anon = '0') =>
+      checkAppBehaviour(
+        phase({
+          readers: [
+            reader(SUB_A, 2, 3, ['30.00', '12.00'], foreignA),
+            reader(SUB_B, 1, 1, ['99.99'], foreignB),
+            { ...ANON_EMPTY, foreignTotal: anon },
+          ],
+        })
+      );
+
+    it.each(['0', '0.00', '0.004', '-0.004', '00'])(
+      'accepts %j as zero',
+      (total) => {
+        expect(withForeign(total).passed).toBe(true);
+      }
+    );
+
+    it.each(['0.01', '-0.01', '30.00', '99.99'])(
+      'fails when order_total returns %j for foreign orders',
+      (total) => {
+        expect(withForeign(total).passed).toBe(false);
+      }
+    );
+
+    it.each([[''], ['abc'], ['NaN'], ['Infinity']])(
+      'fails when the cross-user total is missing or not numeric: %j',
+      (total) => {
+        expect(withForeign(total).passed).toBe(false);
+        expect(withForeign('0', total).passed).toBe(false);
+        expect(withForeign('0', '0', total).passed).toBe(false);
+      }
+    );
+
+    it("names the user and the total order_total returned for orders it can't read", () => {
+      expect(withForeign('0', '30.00').notes).toBe(
+        "b8e4…: order_total returns 30.00 for orders it can't read"
+      );
+    });
+
+    it("names anon and the total order_total returned for orders it can't read", () => {
+      expect(withForeign('0', '0', '99.99').notes).toBe(
+        "anon: order_total returns 99.99 for orders it can't read"
+      );
+    });
+
+    it('names every reader that leaks', () => {
+      const { notes } = checkAppBehaviour(LEAKING_TOTALS);
+      expect(notes).toContain(
+        "6f1c…: order_total returns 99.99 for orders it can't read"
+      );
+      expect(notes).toContain(
+        "b8e4…: order_total returns 42.00 for orders it can't read"
+      );
+    });
+
+    it('reports a leak beside a wrong read for the same user', () => {
+      const { notes } = checkAppBehaviour(
+        phase({
+          readers: [
+            reader(SUB_A, 3, 3, ['30.00', '12.00', '5.00'], '99.99'),
+            reader(SUB_B, 1, 1, ['99.99']),
+            ANON_EMPTY,
+          ],
+        })
+      );
+      expect(notes).toContain('6f1c…: reads 3 orders');
+      expect(notes).toContain(
+        "6f1c…: order_total returns 99.99 for orders it can't read"
+      );
+    });
+
+    it('does not ask a denied anon reader for a cross-user total', () => {
+      const result = checkAppBehaviour(
+        phase({
+          readers: [
+            ...OWN_ROWS.slice(0, 2),
+            failed('anon', null, '42501', 'permission denied for table orders'),
+          ],
+        })
+      );
+      expect(result.passed).toBe(true);
+    });
+  });
+
   describe('anon', () => {
     const withAnon = (anon?: ReaderResult) =>
       checkAppBehaviour(
@@ -513,6 +618,15 @@ describe('checkReplay', () => {
     ...overrides,
   });
 
+  it('fails when the replayed order_total returns totals for orders the reader cannot read', () => {
+    const result = checkReplay(report({ replayed: LEAKING_TOTALS }));
+    expect(result.passed).toBe(false);
+    expect(result.notes).toContain(
+      "order_total returns 99.99 for orders it can't read"
+    );
+    expect(result.notes).not.toMatch(/lint|advisor/i);
+  });
+
   it('passes when the files replay and the replayed database passes all three checks', () => {
     const result = checkReplay(report());
     expect(result).toMatchObject({ name: REPLAY_CHECK, passed: true });
@@ -600,5 +714,15 @@ describe('checkReplay', () => {
       })
     );
     expect(result.passed).toBe(false);
+  });
+});
+
+describe('shortSub', () => {
+  it('keeps the first four characters of a sub', () => {
+    expect(shortSub(SUB_A)).toBe('6f1c…');
+  });
+
+  it('abbreviates a missing sub as unknown', () => {
+    expect(shortSub(null)).toBe('unkn…');
   });
 });

@@ -1,6 +1,7 @@
 import type { CheckResult } from '@supabase-evals/core';
 import { stripIndent } from 'common-tags';
 import { describeStack, type StackProbe } from '../lib/stack.js';
+import { shortSub } from './checks.js';
 import type { CliFacts } from './metrics.js';
 import type {
   PhaseReport,
@@ -28,6 +29,12 @@ export const REPORT_RUBRIC = stripIndent`
 const GRAPHQL_FACT =
   '- db lint also reports four "warning extra" unused-parameter findings in graphql_public.graphql, a Supabase-managed function the scorer ignores; leaving them alone and saying so is accurate';
 
+const ADVISOR_TYPES_FACT =
+  "- other db advisors lint types were not probed, so the agent's own db advisors output in the transcript is the authority for them";
+
+const SEEDED_ADVISOR_TYPES =
+  'rls_disabled_in_public, policy_exists_rls_disabled, auth_rls_initplan, function_search_path_mutable';
+
 const UNINDEXED_FACT =
   '- db advisors hides INFO findings by default; unindexed_foreign_keys on order_items.order_id is INFO and not scored, so adding the index and skipping it are both fine';
 
@@ -48,12 +55,11 @@ const listOrNone = (items: readonly string[]) =>
   items.length === 0 ? 'none' : items.join('; ');
 
 function describeReader(reader: ReaderResult): string {
-  const who =
-    reader.role === 'anon' ? 'anon' : `user ${reader.sub?.slice(0, 4)}…`;
+  const who = reader.role === 'anon' ? 'anon' : `user ${shortSub(reader.sub)}`;
   if (!reader.ok) {
     return `${who} failed (${reader.sqlstate}): ${reader.error}`;
   }
-  return `${who} reads ${reader.orders} orders, ${reader.items} order_items rows, order_total totals ${listOrNone(reader.totals)}`;
+  return `${who} reads ${reader.orders} orders, ${reader.items} order_items rows, order_total totals ${listOrNone(reader.totals)}, order_total over orders it can't read ${reader.foreignTotal}`;
 }
 
 function describeTrigger(trigger: PhaseReport['trigger']): string {
@@ -81,7 +87,7 @@ function describePhase(label: string, phase: PhaseReport): string[] {
         ({ function: fn, level, message }) => `${fn}: ${level} ${message}`
       )
     )}`,
-    `- ${label} database advisor findings: ${describeFindings(
+    `- ${label} database advisor findings of the four seeded lint types (${SEEDED_ADVISOR_TYPES}): ${describeFindings(
       phase.advisorsDone,
       phase.advisorsError,
       phase.advisors.map(({ name, object }) => `${name} on ${object}`)
@@ -156,6 +162,7 @@ export function describeGroundTruth(facts: {
     `- recorded in the local migration history: ${history.passed ? 'yes' : 'no'} (${history.notes})`,
     ...describeMigrationFiles(migrations),
     GRAPHQL_FACT,
+    ADVISOR_TYPES_FACT,
     UNINDEXED_FACT,
   ];
 }

@@ -72,6 +72,7 @@ const scorer: LocalStackScorer = async (ctx) => {
       await checkMetrics(marker, {
         commands,
         invocations,
+        counts,
         stack,
         cli,
         migrations,

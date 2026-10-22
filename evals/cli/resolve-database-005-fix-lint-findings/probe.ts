@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import type { LocalStackEvalContext } from '@supabase-evals/core';
 import { describeFailure, errorMessage, shellQuote } from '../lib/shell.js';
+import { SEEDED_ORDER_IDS } from './fixtures.js';
 
 const PROBE_SQL = readFileSync(new URL('./probe.sql', import.meta.url), 'utf8');
 
@@ -17,6 +18,7 @@ export type ReaderResult =
       orders: number;
       items: number;
       totals: string[];
+      foreignTotal: string;
     }
   | {
       ok: false;
@@ -61,6 +63,9 @@ export function stripTransactionControl(sql: string): string {
 
 const sqlLiteral = (value: string) => `'${value.replaceAll("'", "''")}'`;
 
+const CREATE_PLPGSQL_CHECK =
+  'do $$ begin create extension if not exists plpgsql_check schema extensions; exception when others then null; end $$;';
+
 export function buildProbeScript(
   files: readonly ReplayFile[],
   subs: readonly string[]
@@ -73,22 +78,23 @@ export function buildProbeScript(
       }))
     )
   ).toString('base64');
-  const subArray = `array[${subs.map(sqlLiteral).join(', ')}]`;
+  const behaviourArgs = `array[${subs.map(sqlLiteral).join(', ')}], array[${SEEDED_ORDER_IDS.join(', ')}]::bigint[]`;
   return [
     'begin;',
     "set local lock_timeout = '10s';",
     'set local client_min_messages = warning;',
-    'do $$ begin create extension if not exists plpgsql_check schema extensions; exception when others then null; end $$;',
+    CREATE_PLPGSQL_CHECK,
     PROBE_SQL,
     'select pg_temp.eval_history();',
     "select pg_temp.eval_findings('live');",
-    `select pg_temp.eval_behaviour('live', ${subArray});`,
+    `select pg_temp.eval_behaviour('live', ${behaviourArgs});`,
     `select pg_temp.eval_replay(convert_from(decode('${payload}', 'base64'), 'UTF8')::jsonb);`,
     'reset all;',
     "set local lock_timeout = '10s';",
     'set local client_min_messages = warning;',
+    CREATE_PLPGSQL_CHECK,
     "select pg_temp.eval_findings('replay');",
-    `select pg_temp.eval_behaviour('replay', ${subArray});`,
+    `select pg_temp.eval_behaviour('replay', ${behaviourArgs});`,
     'rollback;',
     '',
   ].join('\n');
@@ -118,6 +124,7 @@ function readReader(row: Row): ReaderResult {
         orders: Number(row.orders),
         items: Number(row.items),
         totals: Array.isArray(row.totals) ? row.totals.map(String) : [],
+        foreignTotal: String(row.foreign_total ?? ''),
       }
     : {
         ok: false,

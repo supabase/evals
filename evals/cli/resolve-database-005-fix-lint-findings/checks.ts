@@ -63,7 +63,8 @@ export function checkAdvisorsClean(phase: PhaseReport): CheckResult {
       };
 }
 
-const shortSub = (sub: string | null) => `${(sub ?? 'unknown').slice(0, 4)}…`;
+export const shortSub = (sub: string | null) =>
+  `${(sub ?? 'unknown').slice(0, 4)}…`;
 
 function parseTotals(totals: readonly string[]): number[] | undefined {
   if (!totals.every((total) => NUMERIC_RE.test(total))) return undefined;
@@ -84,25 +85,43 @@ function describeFailedReader(reader: Extract<ReaderResult, { ok: false }>) {
   return `${reader.error} (${reader.sqlstate})`;
 }
 
+function checkForeignTotal(
+  who: string,
+  { foreignTotal }: Extract<ReaderResult, { ok: true }>
+): string[] {
+  if (!NUMERIC_RE.test(foreignTotal)) {
+    return [
+      `${who}: could not measure order_total on orders it can't read (got ${JSON.stringify(foreignTotal)})`,
+    ];
+  }
+  return Math.abs(Number(foreignTotal)) <= TOTAL_TOLERANCE
+    ? []
+    : [`${who}: order_total returns ${foreignTotal} for orders it can't read`];
+}
+
 function checkUserReads(
   readers: readonly ReaderResult[],
   expected: AppReader
-): string | undefined {
+): string[] {
   const who = shortSub(expected.sub);
   const reader = readers.find(
     (candidate) =>
       candidate.role === 'authenticated' && candidate.sub === expected.sub
   );
-  if (reader === undefined) return `${who}: no reader row`;
-  if (!reader.ok) return `${who}: ${describeFailedReader(reader)}`;
-  if (
+  if (reader === undefined) return [`${who}: no reader row`];
+  if (!reader.ok) return [`${who}: ${describeFailedReader(reader)}`];
+  const ownRowsRead =
     reader.orders === expected.orders &&
     reader.items === expected.items &&
-    sameTotals(reader.totals, expected.totals)
-  ) {
-    return undefined;
-  }
-  return `${who}: reads ${reader.orders} orders, ${reader.items} order_items rows and totals [${reader.totals.join(', ')}], expected ${expected.orders}, ${expected.items} and [${expected.totals.join(', ')}]`;
+    sameTotals(reader.totals, expected.totals);
+  return [
+    ...(ownRowsRead
+      ? []
+      : [
+          `${who}: reads ${reader.orders} orders, ${reader.items} order_items rows and totals [${reader.totals.join(', ')}], expected ${expected.orders}, ${expected.items} and [${expected.totals.join(', ')}]`,
+        ]),
+    ...checkForeignTotal(who, reader),
+  ];
 }
 
 function checkAnonReads(readers: readonly ReaderResult[]): string[] {
@@ -116,6 +135,7 @@ function checkAnonReads(readers: readonly ReaderResult[]): string[] {
   return [
     ...(anon.orders > 0 ? [`anon reads ${anon.orders} orders`] : []),
     ...(anon.items > 0 ? [`anon reads ${anon.items} order_items rows`] : []),
+    ...checkForeignTotal('anon', anon),
   ];
 }
 
@@ -137,7 +157,7 @@ export function checkAppBehaviour(
   readers: readonly AppReader[] = APP_READERS
 ): CheckResult {
   const problems = [
-    ...readers.map((expected) => checkUserReads(phase.readers, expected)),
+    ...readers.flatMap((expected) => checkUserReads(phase.readers, expected)),
     ...checkAnonReads(phase.readers),
     describeTriggerFailure(phase.trigger),
   ].filter((problem): problem is string => problem !== undefined);

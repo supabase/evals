@@ -29,6 +29,9 @@ export const APP_READERS: readonly AppReader[] = [
   },
 ];
 
+/** Every order id the seed inserts, probed for totals each reader must not be able to read. */
+export const SEEDED_ORDER_IDS: readonly number[] = [1, 2, 3];
+
 /** The contents of `local/<relativePath>`, the project the agent starts from. */
 export function readSeedFile(relativePath: string): string {
   return readFileSync(

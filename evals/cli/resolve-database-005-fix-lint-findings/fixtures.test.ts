@@ -1,7 +1,12 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/resolve-database-005-fix-lint-findings
 import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { APP_READERS, readSeedFile, SEEDED_MIGRATIONS } from './fixtures.js';
+import {
+  APP_READERS,
+  readSeedFile,
+  SEEDED_MIGRATIONS,
+  SEEDED_ORDER_IDS,
+} from './fixtures.js';
 
 const evalUrl = (path: string) => new URL(`./${path}`, import.meta.url);
 const read = (path: string) => readFileSync(evalUrl(path), 'utf8');
@@ -194,6 +199,26 @@ describe('APP_READERS', () => {
       });
     }
   );
+});
+
+describe('SEEDED_ORDER_IDS', () => {
+  it('lists every order id the seed inserts', () => {
+    const ids = [
+      ...read('local/supabase/seed.sql').matchAll(
+        /\((\d+), '[0-9a-f-]{36}', '[^']*'\)/g
+      ),
+    ].map(([, id]) => Number(id));
+    expect(ids.length).toBeGreaterThan(0);
+    expect([...SEEDED_ORDER_IDS].sort((a, b) => a - b)).toEqual(
+      ids.sort((a, b) => a - b)
+    );
+  });
+
+  it('is exactly the orders the app readers own between them', () => {
+    expect(SEEDED_ORDER_IDS).toHaveLength(
+      APP_READERS.reduce((sum, { orders }) => sum + orders, 0)
+    );
+  });
 });
 
 describe('readSeedFile', () => {
