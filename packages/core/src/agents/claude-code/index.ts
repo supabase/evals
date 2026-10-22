@@ -20,6 +20,11 @@ export function claudeCodeAgent(
     model?: AnthropicModel;
     /** Reasoning effort (`--effort`). Omit to use Claude Code's own default. */
     reasoningEffort?: ReasoningEffortLevel;
+    /**
+     * Claude Code tools the agent may not use (`--disallowedTools`), e.g.
+     * `['WebFetch', 'WebSearch']`. Omit to leave the full native toolset.
+     */
+    disallowedTools?: readonly string[];
     /** Override the pinned CLI version. */
     cliVersion?: string;
   } = {}
@@ -28,6 +33,7 @@ export function claudeCodeAgent(
     model: options.model ?? claudeCodeRunner.defaultModel,
     reasoningEffort: options.reasoningEffort,
     cliVersion: options.cliVersion,
+    disallowedTools: options.disallowedTools,
   });
 }
 

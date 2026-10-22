@@ -37,7 +37,9 @@ function streamJson(subtype: string, isError = false): string {
 }
 
 /** The `claude` invocation from one exec, with a fake sandbox. */
-async function captureRunCommand(): Promise<string> {
+async function captureRunCommand(
+  disallowedTools?: readonly string[]
+): Promise<string> {
   let runCommand = '';
   await claudeCodeRunner.exec({
     sandbox: {
@@ -53,6 +55,7 @@ async function captureRunCommand(): Promise<string> {
     apiKey: 'k',
     userPromptPath: '"$HOME/.eval/user-prompt.txt"',
     mcpServers: {},
+    disallowedTools,
     timeoutSec: 1,
   });
   return runCommand;
@@ -150,5 +153,14 @@ describe('claudeCodeRunner.extractStepCount', () => {
   it('reads num_turns off the result event', () => {
     expect(extract(streamJson('success'))).toBe(3);
     expect(extract(undefined)).toBeUndefined();
+  });
+});
+
+describe('claudeCodeRunner disallowedTools', () => {
+  it('passes --disallowedTools only when tools are given', async () => {
+    expect(await captureRunCommand()).not.toContain('--disallowedTools');
+    expect(await captureRunCommand(['WebFetch', 'WebSearch'])).toContain(
+      "--disallowedTools 'WebFetch,WebSearch'"
+    );
   });
 });

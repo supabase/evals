@@ -63,6 +63,8 @@ export function createCliAgent<M extends string = string>(
     model: M;
     cliVersion?: string;
     reasoningEffort?: ReasoningEffortLevel;
+    /** Tools to block, for runners that support it (Claude Code only). */
+    disallowedTools?: readonly string[];
   }
 ): AgentHarness {
   const version = options.cliVersion ?? runner.defaultCliVersion;
@@ -119,6 +121,7 @@ export function createCliAgent<M extends string = string>(
         // platform-lite; the runner writes them in its own config format.
         mcpServers: rewriteLoopback(args.mcpServers ?? {}),
         reasoningEffort: options.reasoningEffort,
+        disallowedTools: options.disallowedTools,
         timeoutSec: args.timeoutSec,
       });
       const { events } = raw
