@@ -1,3 +1,4 @@
+import { basename } from 'node:path';
 import type { CheckResult, ToolCallRecord } from '@supabase-evals/core';
 import {
   invocationPositionals,
@@ -12,10 +13,10 @@ export type InspectRun = {
   errored: boolean;
 };
 
-/** A tool call whose output may show an inspect report: one that ran inspect, or a later one that read a file such a call named. */
+/** A tool call whose output may show an inspect report: one that ran inspect, or a later one that names a path or report file such a call wrote. */
 export type EvidenceCall = {
   commandIndex: number;
-  kind: 'candidate' | 'later read';
+  kind: 'candidate' | 'later call naming an output path';
   command: string;
   output: string;
   namesOrders: boolean;
@@ -30,10 +31,11 @@ const PATH_VALUE_FLAGS = new Set(['--db-url', '--output-dir']);
 const CSI_SEQUENCE = /\x1b\[[0-9;?]*[ -\/]*[@-~]/g;
 const LOOSE_INSPECT_RE = /\bsupabase\b[\s\S]*\binspect\b/;
 const REPORT_RE = /\binspect\s+report\b/;
-const DATED_FOLDER_RE = /\b\d{4}-\d{2}-\d{2}\//;
+const DATED_FOLDER_RE = /\b\d{4}-\d{2}-\d{2}\b/;
+const REPORT_CSV_RE =
+  /\b(?:bloat|blocking|calls|db_stats|index_stats|locks|long_running_queries|outliers|replication_slots|role_stats|table_stats|traffic_profile|unused_indexes|vacuum_stats)\.csv\b/;
 const OUTPUT_PATH_RE =
-  /(?:&?>>?|\btee(?:\s+-\S+)*|--output-dir[=\s])\s*(?!&)(["']?)([^\s"'|;&<>()]+)\1/g;
-const UNHELPFUL_PATHS = new Set(['.', './', '/', '/dev/null']);
+  /(?:(?<![->])&?>>?|\btee(?:\s+-\S+)*|(--output-dir[=\s]))\s*(?![&=])(["']?)([^\s"'|;&<>()]+)\2/g;
 
 /** The report an executed `supabase inspect` invocation ran, such as `db outliers` or `report`; undefined for anything else, help included. */
 export function inspectReport(inv: SupabaseInvocation): string | undefined {
@@ -79,16 +81,30 @@ export function findInspectRuns(
   });
 }
 
+const unescapeQuotes = (command: string): string =>
+  command.replace(/\\(["\\])/g, '$1');
+
+const isOutputPath = (path: string): boolean =>
+  /\w/.test(path) && !/^\d+$/.test(path) && path !== '/dev/null';
+
+/** What a later call would contain if it read a file the command wrote: the target, and for a redirect or relative path its name, since the reader may `cd` first. */
 function outputPaths(command: string): string[] {
-  return [...command.matchAll(OUTPUT_PATH_RE)]
-    .map((match) => match[2])
-    .filter((path) => !UNHELPFUL_PATHS.has(path));
+  return [...unescapeQuotes(command).matchAll(OUTPUT_PATH_RE)].flatMap(
+    ([, outputDir, , target]) => {
+      const path = target.replace(/^\.\//, '');
+      if (!isOutputPath(path)) return [];
+      return (
+        outputDir && path.startsWith('/') ? [path] : [path, basename(path)]
+      ).filter(isOutputPath);
+    }
+  );
 }
 
 /**
  * The calls whose output may show an inspect report, in call order: those that
  * ran inspect (parsed, or matched loosely in case parsing missed the shape) and
- * the later calls that mention a path or dated folder one of them wrote.
+ * the later calls that mention a path one of them wrote or, after `inspect
+ * report`, a dated folder or report file name.
  */
 export function findInspectEvidence(
   toolCalls: readonly ToolCallRecord[],
@@ -104,11 +120,12 @@ export function findInspectEvidence(
   const written: string[] = [];
   let reported = false;
   const evidence: EvidenceCall[] = [];
-  entries.forEach(({ command }, commandIndex) => {
+  entries.forEach(({ command, cwd }, commandIndex) => {
     const candidate = candidates.has(commandIndex);
+    const text = `${cwd ?? ''} ${unescapeQuotes(command)}`;
     const read =
-      written.some((path) => command.includes(path)) ||
-      (reported && DATED_FOLDER_RE.test(command));
+      written.some((path) => text.includes(path)) ||
+      (reported && (DATED_FOLDER_RE.test(text) || REPORT_CSV_RE.test(text)));
     if (candidate) {
       written.push(...outputPaths(command));
       reported ||= REPORT_RE.test(command);
@@ -117,7 +134,7 @@ export function findInspectEvidence(
     const output = callText(calls[commandIndex]);
     evidence.push({
       commandIndex,
-      kind: candidate ? 'candidate' : 'later read',
+      kind: candidate ? 'candidate' : 'later call naming an output path',
       command,
       output,
       namesOrders: ORDERS_RE.test(output),
@@ -156,6 +173,6 @@ export const formatInspectJudgeInput = (
   evidence
     .map(
       ({ commandIndex, kind, command, output }) =>
-        `Tool call ${commandIndex + 1} (${kind === 'candidate' ? 'candidate' : 'later read'})\nCommand:\n${command}\nOutput:\n${output}`
+        `Tool call ${commandIndex + 1} (${kind})\nCommand:\n${command}\nOutput:\n${output}`
     )
     .join('\n\n');

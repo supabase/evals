@@ -1,6 +1,6 @@
 import { describeStack, type StackProbe } from '../lib/stack.js';
 import { SEEDED_ORDER_COUNT } from './fixtures.js';
-import type { InspectRun } from './inspect.js';
+import type { EvidenceCall, InspectRun } from './inspect.js';
 import type { CliFacts, ProjectFileFacts } from './metrics.js';
 import {
   describeMigrations,
@@ -74,13 +74,31 @@ function describeRecorded(probe: RecordedProbe): string {
     : `partly (${describeMigrations(recorded)} recorded; ${problems})`;
 }
 
-function describeInspectRuns(runs: readonly InspectRun[]): string {
-  if (runs.length === 0) return 'none';
-  return runs
-    .map(
-      ({ commandIndex, report, errored }) =>
-        `tool call ${commandIndex + 1}: ${report}${errored ? ' (errored)' : ''}`
-    )
+const UNPARSED_INSPECT =
+  'a call mentioning supabase inspect that the harness could not parse into a report';
+
+function describeInspectRuns(
+  runs: readonly InspectRun[],
+  evidence: readonly EvidenceCall[]
+): string {
+  const parsed = new Set(runs.map(({ commandIndex }) => commandIndex));
+  const entries = [
+    ...runs.map(({ commandIndex, report, errored }) => ({
+      commandIndex,
+      text: /[$`]/.test(report)
+        ? UNPARSED_INSPECT
+        : `${report}${errored ? ' (errored)' : ''}`,
+    })),
+    ...evidence
+      .filter(
+        ({ kind, commandIndex }) =>
+          kind === 'candidate' && !parsed.has(commandIndex)
+      )
+      .map(({ commandIndex }) => ({ commandIndex, text: UNPARSED_INSPECT })),
+  ].sort((a, b) => a.commandIndex - b.commandIndex);
+  if (entries.length === 0) return 'none';
+  return entries
+    .map(({ commandIndex, text }) => `tool call ${commandIndex + 1}: ${text}`)
     .join('; ');
 }
 
@@ -101,6 +119,7 @@ export function describeGroundTruth(facts: {
   migrations: IndexMigrationsProbe;
   recorded: RecordedProbe;
   inspectRuns: readonly InspectRun[];
+  inspectEvidence: readonly EvidenceCall[];
   files: ProjectFileFacts;
   cli: CliFacts;
 }): string[] {
@@ -114,7 +133,7 @@ export function describeGroundTruth(facts: {
     `- rows in public.orders: ${describeRows(facts.rows)}`,
     `- new migrations creating an index on orders.customer_email: ${describeFoundMigrations(facts.migrations)}`,
     `- recorded in the local migration history: ${describeRecorded(facts.recorded)}`,
-    `- supabase inspect reports the agent ran: ${describeInspectRuns(facts.inspectRuns)}`,
+    `- supabase inspect reports the agent ran: ${describeInspectRuns(facts.inspectRuns, facts.inspectEvidence)}`,
     `- seeded migration modified: ${describeSeededMigration(facts.files)}`,
   ];
 }

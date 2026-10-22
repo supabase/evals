@@ -1,7 +1,7 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/investigate-database-001-slow-query
 import { describe, expect, it } from 'vitest';
 import type { StackProbe } from '../lib/stack.js';
-import type { InspectRun } from './inspect.js';
+import type { EvidenceCall, InspectRun } from './inspect.js';
 import type { CliFacts, ProjectFileFacts } from './metrics.js';
 import type { IndexMigrationsProbe, RecordedProbe } from './migrations.js';
 import type { CountProbe, IndexesProbe, PlanProbe } from './orders.js';
@@ -86,6 +86,15 @@ const FACTS: Facts = {
       errored: false,
     },
   ],
+  inspectEvidence: [
+    {
+      commandIndex: 1,
+      kind: 'candidate',
+      command: 'supabase inspect db outliers --local',
+      output: 'public.orders',
+      namesOrders: true,
+    },
+  ],
   files: { seededMigrationModified: false, newMigrationFiles: 1 },
   cli: { versions: null, cliOverride: [] },
 };
@@ -127,6 +136,18 @@ const run = (overrides: Partial<InspectRun> = {}): InspectRun => ({
   ...overrides,
 });
 
+const evidence = (overrides: Partial<EvidenceCall> = {}): EvidenceCall => ({
+  commandIndex: 0,
+  kind: 'candidate',
+  command: 'supabase inspect db outliers --local',
+  output: '',
+  namesOrders: false,
+  ...overrides,
+});
+
+const UNPARSED =
+  'a call mentioning supabase inspect that the harness could not parse into a report';
+
 describe('describeGroundTruth', () => {
   it('describes a run that found the cause, added the index in a migration and applied it', () => {
     const all = lines();
@@ -152,6 +173,7 @@ describe('describeGroundTruth', () => {
       migrations: { ok: false, notes: 'no new migration files' },
       recorded: { ok: false, notes: 'no new migration files' },
       inspectRuns: [],
+      inspectEvidence: [],
       files: { seededMigrationModified: null, newMigrationFiles: null },
     });
     expect(all).toContain(`- local stack: none (${notes})`);
@@ -478,9 +500,9 @@ describe('describeGroundTruth', () => {
 
   describe('the inspect reports the agent ran', () => {
     it('says none when it ran none', () => {
-      expect(line(lines({ inspectRuns: [] }), INSPECT_LINE)).toBe(
-        `${INSPECT_LINE} none`
-      );
+      expect(
+        line(lines({ inspectRuns: [], inspectEvidence: [] }), INSPECT_LINE)
+      ).toBe(`${INSPECT_LINE} none`);
     });
 
     it('names the tool call and the report', () => {
@@ -491,7 +513,8 @@ describe('describeGroundTruth', () => {
 
     it('says a report errored', () => {
       const inspectRuns = [run({ errored: true })];
-      expect(line(lines({ inspectRuns }), INSPECT_LINE)).toBe(
+      const inspectEvidence = [evidence()];
+      expect(line(lines({ inspectRuns, inspectEvidence }), INSPECT_LINE)).toBe(
         `${INSPECT_LINE} tool call 1: db outliers (errored)`
       );
     });
@@ -501,9 +524,91 @@ describe('describeGroundTruth', () => {
         run({ commandIndex: 0, errored: true }),
         run({ commandIndex: 2, report: 'db table-stats' }),
       ];
-      expect(line(lines({ inspectRuns }), INSPECT_LINE)).toBe(
+      const inspectEvidence = [
+        evidence({ commandIndex: 0 }),
+        evidence({ commandIndex: 2 }),
+      ];
+      expect(line(lines({ inspectRuns, inspectEvidence }), INSPECT_LINE)).toBe(
         `${INSPECT_LINE} tool call 1: db outliers (errored); tool call 3: db table-stats`
       );
+    });
+
+    it('lists a call mentioning inspect that parsing found no report in', () => {
+      expect(
+        line(
+          lines({
+            inspectRuns: [],
+            inspectEvidence: [evidence({ commandIndex: 2 })],
+          }),
+          INSPECT_LINE
+        )
+      ).toBe(`${INSPECT_LINE} tool call 3: ${UNPARSED}`);
+    });
+
+    it('lists parsed runs and unparsed calls together in tool call order', () => {
+      expect(
+        line(
+          lines({
+            inspectRuns: [
+              run({ commandIndex: 3, report: 'db calls' }),
+              run({ commandIndex: 0 }),
+            ],
+            inspectEvidence: [
+              evidence({ commandIndex: 0 }),
+              evidence({ commandIndex: 1 }),
+              evidence({ commandIndex: 3 }),
+            ],
+          }),
+          INSPECT_LINE
+        )
+      ).toBe(
+        `${INSPECT_LINE} tool call 1: db outliers; tool call 2: ${UNPARSED}; tool call 4: db calls`
+      );
+    });
+
+    it('lists the parsed report of a call that parsing only partly read', () => {
+      expect(
+        line(
+          lines({
+            inspectRuns: [run({ report: 'db table-stats' })],
+            inspectEvidence: [evidence()],
+          }),
+          INSPECT_LINE
+        )
+      ).toBe(`${INSPECT_LINE} tool call 1: db table-stats`);
+    });
+
+    it.each(['db $r', 'db "$r"', 'db `echo outliers`', 'db $(echo calls)'])(
+      'does not name a report parsed out of shell syntax: %s',
+      (report) => {
+        expect(
+          line(
+            lines({
+              inspectRuns: [run({ report })],
+              inspectEvidence: [evidence()],
+            }),
+            INSPECT_LINE
+          )
+        ).toBe(`${INSPECT_LINE} tool call 1: ${UNPARSED}`);
+      }
+    );
+
+    it('leaves out a later call that only mentions an output path', () => {
+      expect(
+        line(
+          lines({
+            inspectRuns: [run()],
+            inspectEvidence: [
+              evidence(),
+              evidence({
+                commandIndex: 1,
+                kind: 'later call naming an output path',
+              }),
+            ],
+          }),
+          INSPECT_LINE
+        )
+      ).toBe(`${INSPECT_LINE} tool call 1: db outliers`);
     });
   });
 

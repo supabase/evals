@@ -817,12 +817,73 @@ describe('inspect evidence', () => {
     expect(evidence).toHaveLength(2);
     const sent = inspectCall(judge);
     expect(sent?.input).toBe(formatInspectJudgeInput(evidence));
-    expect(sent?.input).toContain('Tool call 5 (later read)');
+    expect(sent?.input).toContain(
+      'Tool call 5 (later call naming an output path)'
+    );
     expect(sent?.input).toContain('cat /tmp/o.txt');
     expect(sent?.input).toContain(OUTLIERS);
     expect(sent?.rubric).toContain('public.orders');
     expect(sent?.rubric).toContain('Cannot find project ref');
     expect(sent?.rubric).toMatch(/truncated/);
+  });
+
+  it('asks the judge about the report CSVs a later call read after a cd into the dated folder', async () => {
+    const calls = withInspect(
+      call('supabase inspect report --local', {
+        result:
+          'Reports saved to /ws/2026-10-22\n|RULE|STATUS|MATCHES|\n|-|-|-|\n|No unused indexes|✔||\n',
+      })
+    );
+    const read = call('cd 2026-10-22 && head -n 5 outliers.csv calls.csv', {
+      result:
+        'query,calls\nselect id from public.orders where customer_email = $1,200\n',
+    });
+    const { ctx, judge } = fakeCtx([...calls, read]);
+    expect(await failedNames(ctx)).toEqual([]);
+    expect(inspectCall(judge)?.input).toContain(
+      'Tool call 5 (later call naming an output path)\nCommand:\ncd 2026-10-22 && head -n 5 outliers.csv calls.csv'
+    );
+  });
+
+  it('carries the rubric clauses that keep orders text from other commands from counting', async () => {
+    const { ctx, judge } = fakeCtx(SETUP);
+    await scorer(ctx);
+    const rubric = inspectCall(judge)?.rubric ?? '';
+    for (const clause of [
+      /psql/,
+      /supabase db query/,
+      /\bcat\b.*\bgrep\b.*\brg\b.*project files/,
+      /heredoc/,
+      /echo or printf/,
+      /awk BEGIN/,
+      /help output/,
+      /Cannot find project ref/,
+      /overwr/,
+    ]) {
+      expect(rubric).toMatch(clause);
+    }
+  });
+
+  it('carries the rubric clauses that tell the judge how later calls were chosen and what inspect prints', async () => {
+    const { ctx, judge } = fakeCtx(SETUP);
+    await scorer(ctx);
+    const rubric = inspectCall(judge)?.rubric ?? '';
+    for (const clause of [
+      /report file name/,
+      /matched on text, so check what each command does/,
+      /for example/i,
+      /vacuum-stats/,
+      /bloat/,
+      /locks/,
+      /MATCHES cell/,
+      /\$1/,
+      /execution time and call counts/,
+      /public\.orders/,
+      /<output-dir>\/<YYYY-MM-DD>\/<name>\.csv/,
+      /RULE \| STATUS \| MATCHES/,
+    ]) {
+      expect(rubric).toMatch(clause);
+    }
   });
 
   it.each([
@@ -1234,6 +1295,47 @@ describe('report judge', () => {
     );
     expect(input).toContain('- seeded migration modified: no');
     expect(input).toContain('Transcript:');
+  });
+
+  const UNPARSED =
+    'a call mentioning supabase inspect that the harness could not parse into a report';
+
+  it.each([
+    [
+      'a timeout around bash -lc',
+      `timeout 120 bash -lc 'supabase inspect db outliers --local'`,
+      `tool call 2: ${UNPARSED}`,
+    ],
+    [
+      'a brace group',
+      '{ supabase inspect db outliers --local; supabase inspect db table-stats --local; } 2>&1 | head -80',
+      'tool call 2: db table-stats',
+    ],
+    [
+      'a loop over reports',
+      `for r in outliers calls; do echo "== $r"; supabase inspect db "$r" --local; done`,
+      `tool call 2: ${UNPARSED}`,
+    ],
+  ])(
+    'lists the inspect call the harness could not fully parse: %s',
+    async (_label, command, expected) => {
+      const { ctx, judge } = fakeCtx(
+        withInspect(call(command, { result: OUTLIERS }))
+      );
+      await scorer(ctx);
+      expect(reportCall(judge)?.input).toContain(
+        `- supabase inspect reports the agent ran: ${expected}`
+      );
+      expect(await checkOf(ctx, INSPECT)).toMatchObject({ passed: true });
+    }
+  );
+
+  it('tells the judge a report the transcript shows running is not contradicted by its absence from the inspect line', async () => {
+    const { ctx, judge } = fakeCtx(SETUP);
+    await scorer(ctx);
+    expect(reportCall(judge)?.rubric).toMatch(
+      /inspect line lists only what the harness could parse, and a report the transcript shows running is not contradicted by its absence/
+    );
   });
 
   it('receives the ground truth of a run that did nothing', async () => {

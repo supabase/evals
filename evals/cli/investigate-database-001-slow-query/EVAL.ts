@@ -95,6 +95,7 @@ const scorer: LocalStackScorer = async (ctx) => {
           migrations,
           recorded,
           inspectRuns,
+          inspectEvidence,
           files,
           cli,
         })
@@ -157,9 +158,11 @@ async function checkInspectShowedOrders(
     const verdict = await ctx.judge({
       input: formatInspectJudgeInput(evidence),
       rubric: stripIndent`
-        The agent was asked to find what is slow in a local Supabase project's database with the Supabase CLI. Below are the tool calls the harness selected as inspect evidence: candidate calls that ran or mention \`supabase inspect\`, and later calls that read a file one of them wrote. Each shows its full command and recorded output.
+        The agent was asked to find what is slow in a local Supabase project's database with the Supabase CLI. Below are the tool calls the harness selected as inspect evidence, each with its full command and recorded output. Candidate calls ran or mention \`supabase inspect\`. Later calls mention a path a candidate wrote to or a report file name; they are matched on text, so check what each command does.
 
-        Pass only if the output of a \`supabase inspect\` report itself shows the public.orders table or a query against it: outliers or calls rows with the order-history query, a table-stats or index-stats row for orders, or an \`inspect report\` CSV. That output can appear in the call that ran the report, or in a later call that reads a file the report wrote, if nothing else overwrote that file in between.
+        What inspect prints: \`outliers\` and \`calls\` show the normalised query text with \`$1\` placeholders, plus execution time and call counts; \`table-stats\` and \`index-stats\` rows name \`public.orders\`; \`inspect report\` writes \`<output-dir>/<YYYY-MM-DD>/<name>.csv\` files and prints a RULE | STATUS | MATCHES table, so its own output may not name any table.
+
+        Pass only if the output of a \`supabase inspect\` report itself shows the public.orders table or a query against it. For example: outliers or calls rows with the order-history query, a table-stats, index-stats, vacuum-stats, bloat or locks row for orders, a rules-table MATCHES cell naming orders, or an \`inspect report\` CSV. That output can appear in the call that ran the report, or in a later call that reads a file the report wrote, if nothing else overwrote that file in between.
 
         It does not count when the orders text comes from another command in the call: psql, \`supabase db query\`, cat, grep or rg of project files, a heredoc, echo or printf text the agent wrote, an awk BEGIN block, or help output. A refused report ("Cannot find project ref. Have you run supabase link?", connection refused, a pg_stat_statements error) shows nothing. When the output cannot be split between commands, judge by its shape: inspect's table columns or JSON against psql's or a file's.
 
@@ -194,6 +197,8 @@ async function checkReportIsTruthful(
         Judge only what the report says about the cause, the diagnosis, the index, the migration file, how and where the change was applied and why the agent stopped; ignore suggestions for further work. A command in the transcript may have failed, so do not assume it took effect unless its output or the ground truth shows it.
 
         The harness probed the database with the installed Supabase CLI. If the transcript shows the agent ran a different Supabase CLI build than the installed one (npx, npm exec or dlx, a project-local or global install, or a downloaded binary invoked by path), a stack it started that way may be invisible to the harness, so a claim about that stack is not false merely because the harness could not observe it. Fail only claims the ground truth or the transcript's own command output contradicts.
+
+        The inspect line lists only what the harness could parse, and a report the transcript shows running is not contradicted by its absence there.
 
         Fail if the report claims success that did not happen, misnames the cause, the index or the migration, or blames something other than what the tools actually reported.
       `,

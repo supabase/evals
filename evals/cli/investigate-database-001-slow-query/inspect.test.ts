@@ -33,17 +33,30 @@ const NO_PROJECT_REF = 'Cannot find project ref. Have you run supabase link?';
 
 function call(
   command: string,
-  output: { result?: unknown; error?: string } = {}
+  output: { result?: unknown; error?: string; cwd?: string } = {}
 ): ToolCallRecord {
   return {
     tool: { kind: 'other', toolName: 'shell' },
     body: { command },
     command,
+    ...(output.cwd === undefined ? {} : { cwd: output.cwd }),
     result: 'result' in output ? output.result : '',
     ...(output.error === undefined ? {} : { error: output.error }),
     ts: 0,
   };
 }
+
+const LATER = 'later call naming an output path';
+
+const RULES =
+  'Reports saved to /workspace/2026-10-22\n|RULE|STATUS|MATCHES|\n|-|-|-|\n|No unused indexes|✔||\n';
+
+const bashLc = (script: string) =>
+  `/bin/bash -lc ${
+    script.includes("'")
+      ? `"${script.replace(/([\\"])/g, '\\$1')}"`
+      : `'${script}'`
+  }`;
 
 const fileWrite = (result = ''): ToolCallRecord => ({
   tool: { kind: 'other', toolName: 'file_write' },
@@ -384,7 +397,7 @@ describe('findInspectEvidence', () => {
     ).toBe(true);
   });
 
-  describe('later reads', () => {
+  describe('later calls', () => {
     const csv =
       'query,calls\nselect id from public.orders where customer_email = $1,200\n';
 
@@ -402,7 +415,7 @@ describe('findInspectEvidence', () => {
         ])
       ).toEqual([
         [1, 'candidate', false],
-        [2, 'later read', true],
+        [2, LATER, true],
       ]);
     });
 
@@ -519,10 +532,7 @@ describe('findInspectEvidence', () => {
           { result: 'Seq Scan on orders' }
         ),
       ]);
-      expect(evidence.map(({ kind }) => kind)).toEqual([
-        'candidate',
-        'later read',
-      ]);
+      expect(evidence.map(({ kind }) => kind)).toEqual(['candidate', LATER]);
     });
 
     it('lists a call once when it both ran inspect and mentions an earlier path', () => {
@@ -534,6 +544,162 @@ describe('findInspectEvidence', () => {
         'candidate',
         'candidate',
       ]);
+    });
+
+    describe('after an inspect report', () => {
+      const report = () =>
+        call('supabase inspect report --local', { result: RULES });
+
+      it.each([
+        [
+          'a cd into the dated folder',
+          'cd 2026-10-22 && head -n 5 outliers.csv calls.csv',
+        ],
+        [
+          'a grep of the dated folder',
+          'grep -rn customer_email /workspace/2026-10-22',
+        ],
+        [
+          'a find -exec over the dated folder',
+          "find 2026-10-22 -name '*.csv' -exec head -3 {} +",
+        ],
+        ['a glob over the dated folders', 'head -n 5 */outliers.csv'],
+        [
+          'a python glob',
+          `python3 -c "import glob; [print(open(p).read()) for p in glob.glob('*/outliers.csv')]"`,
+        ],
+        ['a find by file name', 'cat $(find . -name outliers.csv | head -1)'],
+        ['a dated folder with a slash', 'head -n 5 2026-10-22/outliers.csv'],
+      ])('includes a call using %s', (_label, read) => {
+        expect(indexesOf([report(), call(read, { result: csv })])).toEqual([
+          0, 1,
+        ]);
+      });
+
+      it.each([
+        'bloat',
+        'blocking',
+        'calls',
+        'db_stats',
+        'index_stats',
+        'locks',
+        'long_running_queries',
+        'outliers',
+        'replication_slots',
+        'role_stats',
+        'table_stats',
+        'traffic_profile',
+        'unused_indexes',
+        'vacuum_stats',
+      ])('includes a call naming the %s report file', (name) => {
+        expect(
+          indexesOf([report(), call(`cat ${name}.csv`, { result: csv })])
+        ).toEqual([0, 1]);
+      });
+
+      it('includes a call run in the output directory through its working directory', () => {
+        expect(
+          indexesOf([
+            call('supabase inspect report --local --output-dir /tmp/r'),
+            call('head -5 outliers.csv', {
+              cwd: '/tmp/r/2026-10-22',
+              result: csv,
+            }),
+            call('ls', { cwd: '/tmp/r/results', result: csv }),
+          ])
+        ).toEqual([0, 1, 2]);
+      });
+
+      it('leaves out a call that names no report file or dated folder', () => {
+        expect(
+          indexesOf([
+            report(),
+            call('cat supabase/seed.sql', { cwd: '/workspace', result: csv }),
+            call('head -3 other.csv', { result: csv }),
+          ])
+        ).toEqual([0]);
+      });
+
+      it('does not follow report file names after a run of another report', () => {
+        expect(
+          indexesOf([
+            call('supabase inspect db outliers --local'),
+            call('head -5 outliers.csv', { result: csv }),
+          ])
+        ).toEqual([0]);
+      });
+    });
+
+    describe('after a redirect', () => {
+      it.each([
+        [
+          'a quoted target inside a double-quoted wrapper',
+          bashLc(
+            `supabase inspect db outliers --local > "/tmp/outliers.txt" 2>&1; echo 'saved'`
+          ),
+          'cat /tmp/outliers.txt',
+        ],
+        [
+          'an unquoted target inside a double-quoted wrapper',
+          bashLc(
+            `supabase inspect db outliers --local > /tmp/o.txt 2>&1; echo 'saved'`
+          ),
+          'cat /tmp/o.txt',
+        ],
+        [
+          'a ./ target read without the ./',
+          'supabase inspect db outliers --local > ./outliers.txt 2>&1',
+          'cat outliers.txt',
+        ],
+        [
+          'an absolute target read by name from its directory',
+          'supabase inspect db outliers --local > /tmp/reports/o.txt',
+          'cd /tmp/reports && cat o.txt',
+        ],
+        [
+          'a relative target read by name from its directory',
+          'supabase inspect db outliers --local > reports/o.txt',
+          'cd reports && cat o.txt',
+        ],
+      ])('follows %s', (_label, run, read) => {
+        expect(
+          indexesOf([call(run), call(read, { result: OUTLIERS })])
+        ).toEqual([0, 1]);
+      });
+
+      it.each([
+        [
+          'an awk comparison against a number',
+          `supabase inspect db table-stats --local | awk -F'|' '$6 > 5'`,
+          'psql "$DB" -p 54322 -c "select count(*) from orders"',
+        ],
+        [
+          'an awk comparison against a longer number',
+          `supabase inspect db table-stats --local | awk -F'|' '$6 > 100'`,
+          'psql "$DB" -c "select 100 from orders"',
+        ],
+        [
+          'an awk comparison with an equals sign',
+          `supabase inspect db table-stats --local | awk -F'|' '$6 >= 5'`,
+          'psql "$DB" -c "select * from orders where id=5"',
+        ],
+        [
+          'a json arrow operator',
+          `supabase inspect db outliers --local && psql "$DB" -c "select data->>'x' from events"`,
+          'grep -n index supabase/config.toml',
+        ],
+        [
+          'an escaped quote around a redirect target',
+          bashLc(
+            `supabase inspect db outliers --local > "/tmp/outliers.txt" 2>&1; echo 'saved'`
+          ),
+          `printf '%s\\n' '--- seed ---'; sed -n '1,5p' supabase/seed.sql`,
+        ],
+      ])('does not take %s for an output path', (_label, run, other) => {
+        expect(
+          indexesOf([call(run), call(other, { result: 'public.orders' })])
+        ).toEqual([0]);
+      });
     });
   });
 });
@@ -584,7 +750,7 @@ describe('gateInspectEvidence', () => {
     ).toBeUndefined();
   });
 
-  it('hands over to the judge when only a later read names orders', () => {
+  it('hands over to the judge when only a later call names orders', () => {
     expect(
       gate([
         call('supabase inspect db outliers --local > /tmp/o.txt'),
@@ -637,7 +803,7 @@ describe('formatInspectJudgeInput', () => {
     expect(input).toContain('supabase/seed.sql:4:insert into public.orders');
   });
 
-  it('marks a later read and does not truncate a long output', () => {
+  it('marks a later call and does not truncate a long output', () => {
     const long = `${'select 1 from public.orders;\n'.repeat(5000)}`;
     expect(long.length).toBeGreaterThan(100_000);
     const input = formatInspectJudgeInput(
@@ -646,9 +812,7 @@ describe('formatInspectJudgeInput', () => {
         call('cat /tmp/o.txt', { result: long }),
       ])
     );
-    expect(input).toContain(
-      'Tool call 2 (later read)\nCommand:\ncat /tmp/o.txt'
-    );
+    expect(input).toContain(`Tool call 2 (${LATER})\nCommand:\ncat /tmp/o.txt`);
     expect(input).toContain(long);
   });
 

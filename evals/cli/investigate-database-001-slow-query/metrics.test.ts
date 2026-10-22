@@ -507,7 +507,10 @@ describe('checkMetrics', () => {
           inspectEvidence: [
             evidenceCall({ commandIndex: 0, namesOrders: false }),
             evidenceCall({ commandIndex: 1 }),
-            evidenceCall({ commandIndex: 2, kind: 'later read' }),
+            evidenceCall({
+              commandIndex: 2,
+              kind: 'later call naming an output path',
+            }),
           ],
         })
       ).toMatchObject({
