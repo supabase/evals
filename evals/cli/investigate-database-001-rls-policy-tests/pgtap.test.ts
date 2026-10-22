@@ -1,30 +1,33 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/investigate-database-001-rls-policy-tests
-//
-// Interface assumptions the design leaves open:
-// - Test files are workspace-relative paths (`supabase/tests/<name>`), passed to psql as `-f <path>`.
-// - listTestFiles shells out to `find supabase/tests ...`; the fake answers with every file under the
-//   directory, unfiltered and unsorted, so the module filters `*.sql`/`*.pg` and sorts itself. A missing
-//   directory is find's "No such file or directory" failure.
-// - The pgtap probe is one psql command mentioning pg_extension; the fake answers in the shape the query asks for.
 import type { CommandResult } from '@supabase-evals/core';
 import { describe, expect, it, vi } from 'vitest';
 import type { StackProbe } from '../lib/stack.js';
 import { SEEDED_NOTES_POLICIES } from './fixtures.js';
 import {
+  buildControlSql,
   buildMutationSql,
   checkTestsCatchSeededPolicies,
   checkTestsPass,
+  CONTROL_MARKER,
   listTestFiles,
   parseTap,
   runSuite,
   tapPassed,
   TESTS_CATCH_CHECK_NAME,
   TESTS_PASS_CHECK_NAME,
+  withMarkerRemoved,
   withPgtap,
+  type CatchRun,
   type SuiteProbe,
   type TapResult,
   type TestFileRun,
 } from './pgtap.js';
+import {
+  buildRestoreSql,
+  buildSnapshotSql,
+  DROP_NOTES_POLICIES_SQL,
+  type NotesAccessSnapshot,
+} from './snapshot.js';
 
 const DB_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
 const STACK: StackProbe = {
@@ -78,9 +81,7 @@ function result(
 }
 
 const scriptOf = (command: string) => {
-  const payload = command
-    .match(/[A-Za-z0-9+/]{80,}={0,2}/g)
-    ?.sort((a, b) => b.length - a.length)[0];
+  const payload = /printf %s '([A-Za-z0-9+/]+={0,2})'/.exec(command)?.[1];
   return payload === undefined
     ? command
     : Buffer.from(payload, 'base64').toString('utf8');
@@ -405,10 +406,53 @@ describe('buildMutationSql', () => {
     const last = sql.lastIndexOf(SEEDED_NOTES_POLICIES.at(-1) ?? '');
     expect(sql.indexOf(MARKER)).toBeGreaterThan(last);
   });
+
+  it('drops the policies with the same loop the restore uses', () => {
+    expect(sql).toContain(DROP_NOTES_POLICIES_SQL);
+  });
+});
+
+describe('buildControlSql', () => {
+  const sql = buildControlSql();
+
+  it('opens a transaction like the mutation does and never ends it', () => {
+    expect(sql.trim()).toMatch(/^begin;/i);
+    expect(sql).not.toMatch(/\b(commit|rollback)\b/i);
+  });
+
+  it('prints its own marker and changes no policy', () => {
+    expect(sql.trim()).toMatch(/select 'eval-control-run';$/i);
+    expect(sql).not.toMatch(/\bpolicy\b|\balter\b|\bdrop\b/i);
+    expect(sql).not.toContain(MARKER);
+  });
+});
+
+describe('withMarkerRemoved', () => {
+  it('drops the marker line and keeps every other line', () => {
+    expect(
+      withMarkerRemoved(`${CONTROL_MARKER}\n${PASSING}`, CONTROL_MARKER)
+    ).toBe(PASSING);
+    expect(
+      withMarkerRemoved(
+        `ok 1 - a\n  ${CONTROL_MARKER}  \nok 2 - b\n`,
+        CONTROL_MARKER
+      )
+    ).toBe('ok 1 - a\nok 2 - b\n');
+  });
+
+  it('keeps a test description that merely mentions the marker', () => {
+    const line = `ok 1 - ${CONTROL_MARKER}`;
+    expect(withMarkerRemoved(`${line}\n`, CONTROL_MARKER)).toBe(`${line}\n`);
+  });
 });
 
 type Run = { stdout: string; exitCode?: number; stderr?: string };
-type Behaviour = { clean: Run; mutated?: Run; rerun?: Run };
+type Behaviour = {
+  clean: Run;
+  mutated?: Run;
+  rerun?: Run;
+  leaks?: boolean;
+};
 type Db = {
   files?: string[] | null;
   listFailure?: string;
@@ -417,7 +461,36 @@ type Db = {
   createFails?: boolean;
   probeFails?: boolean;
   throws?: string;
+  snapshotFailsBefore?: boolean;
+  snapshotFailsAfter?: boolean;
+  restoreTakes?: boolean;
+  restoreFails?: boolean;
 };
+
+const OWNER_POLICY = `create policy "Users can view their own notes" on public.notes as PERMISSIVE for SELECT to authenticated using ((( SELECT auth.uid() AS uid) = owner_id))`;
+const LEAKY_POLICY = `create policy "Enable read access for authenticated users" on public.notes as PERMISSIVE for SELECT to authenticated using (true)`;
+const BASELINE: NotesAccessSnapshot = {
+  policies: [LEAKY_POLICY, OWNER_POLICY],
+  rowSecurity: true,
+  forceRowSecurity: false,
+};
+const COMMITTED_MUTATION: NotesAccessSnapshot = {
+  policies: [...SEEDED_NOTES_POLICIES],
+  rowSecurity: true,
+  forceRowSecurity: false,
+};
+const snapshotOutput = ({
+  policies,
+  rowSecurity,
+  forceRowSecurity,
+}: NotesAccessSnapshot) =>
+  [
+    ...policies.map(
+      (policy) => `policy|${Buffer.from(policy, 'utf8').toString('hex')}`
+    ),
+    `rls|${rowSecurity}|${forceRowSecurity}`,
+    '',
+  ].join('\n');
 
 const tapText = (
   descriptions: readonly string[],
@@ -464,8 +537,11 @@ function pgtapAnswer(command: string, present: boolean): string {
 function fakeDb(db: Db = {}) {
   const log: string[] = [];
   const psqlTestCommands: string[] = [];
+  const restoreScripts: string[] = [];
   const state = { pgtap: db.pgtap ?? false };
-  const dirty = new Set<string>();
+  const policies = { current: { ...BASELINE } };
+  let afterMutation = false;
+  let lastMutated = '';
 
   const exec = vi.fn(async (command: string): Promise<CommandResult> => {
     if (db.throws !== undefined) throw new Error(db.throws);
@@ -529,9 +605,31 @@ function fakeDb(db: Db = {}) {
       ...command.matchAll(/(?:^|\s)-f\s+('[^']*'|"[^"]*"|\S+)/g),
     ].map(([, arg]) => arg.replace(/^['"]|['"]$/g, ''));
     const target = fileArgs.find((arg) => arg !== '-');
-    const key = target?.replace(/^.*supabase\/tests\//, '');
-    const behaviour = key === undefined ? undefined : db.behaviour?.[key];
-    if (key === undefined || behaviour === undefined) {
+    const script = fileArgs.includes('-') ? scriptOf(command) : '';
+
+    if (target === undefined) {
+      if (script.trim() === buildSnapshotSql().trim()) {
+        log.push('snapshot');
+        const failing = afterMutation
+          ? db.snapshotFailsAfter
+          : db.snapshotFailsBefore;
+        return failing
+          ? result('', false, 'psql: error: connection refused', 2)
+          : result(snapshotOutput(policies.current));
+      }
+      if (script.trim() === buildRestoreSql(BASELINE).trim()) {
+        log.push(`restore ${lastMutated}`);
+        restoreScripts.push(script);
+        if (db.restoreFails) return result('', false, 'ERROR:  deadlock', 3);
+        if (db.restoreTakes ?? true) policies.current = { ...BASELINE };
+        return result('');
+      }
+      return result('', false, `unexpected command: ${command}`);
+    }
+
+    const key = target.replace(/^.*supabase\/tests\//, '');
+    const behaviour = db.behaviour?.[key];
+    if (behaviour === undefined) {
       return result('', false, `unexpected command: ${command}`);
     }
     psqlTestCommands.push(command);
@@ -542,12 +640,14 @@ function fakeDb(db: Db = {}) {
         output.stderr ?? '',
         output.exitCode ?? 0
       );
-    if (fileArgs.includes('-') && scriptOf(command).includes(MARKER)) {
+    if (script.includes(MARKER)) {
       log.push(`mutate ${key}`);
-      dirty.add(key);
+      lastMutated = key;
+      afterMutation = true;
+      if (behaviour.leaks) policies.current = { ...COMMITTED_MUTATION };
       return run(behaviour.mutated ?? behaviour.clean);
     }
-    if (dirty.delete(key)) {
+    if (script.includes(CONTROL_MARKER)) {
       log.push(`rerun ${key}`);
       return run(behaviour.rerun ?? behaviour.clean);
     }
@@ -555,7 +655,7 @@ function fakeDb(db: Db = {}) {
     return run(behaviour.clean);
   });
 
-  return { exec, log, psqlTestCommands, state };
+  return { exec, log, psqlTestCommands, restoreScripts, state, policies };
 }
 
 const forFile = (log: string[], name: string) =>
@@ -757,22 +857,92 @@ describe('runSuite', () => {
     });
   });
 
+  const stdinOrder = (command: string, relative: string) => ({
+    stdin: command.search(/-f -(\s|$)/),
+    file: command.indexOf(`-f '${relative}'`),
+    rollback: command.search(/-c\s+['"]?rollback['"]?/),
+  });
+  const commandWith = (commands: string[], marker: string) =>
+    commands.find((command) => scriptOf(command).includes(marker)) ?? '';
+
   it('sends the mutation, the test file and a rollback to one psql session, in that order', async () => {
     const { ctx } = await suiteOf({ behaviour: { 'a_test.sql': CATCHING } });
-    const mutation = ctx.psqlTestCommands.find((command) =>
-      /-f -(\s|$)/.test(command)
-    );
-    expect(mutation).toBeDefined();
-    const command = mutation ?? '';
+    const command = commandWith(ctx.psqlTestCommands, MARKER);
+    expect(command).not.toBe('');
     expect(command).toContain(`'${DB_URL}'`);
     expect(command).toContain('-v ON_ERROR_STOP=1');
-    const stdin = command.search(/-f -(\s|$)/);
-    const file = command.indexOf(A);
-    const rollback = command.search(/-c\s+['"]?rollback['"]?/);
+    const { stdin, file, rollback } = stdinOrder(command, 'a_test.sql');
     expect(stdin).toBeGreaterThanOrEqual(0);
     expect(file).toBeGreaterThan(stdin);
     expect(rollback).toBeGreaterThan(file);
     expect(scriptOf(command)).toContain(buildMutationSql().trim());
+  });
+
+  it('re-runs the file in the same session shape as the mutated run, with only the policy DDL missing', async () => {
+    const { ctx } = await suiteOf({ behaviour: { 'a_test.sql': CATCHING } });
+    const mutation = commandWith(ctx.psqlTestCommands, MARKER);
+    const control = commandWith(ctx.psqlTestCommands, CONTROL_MARKER);
+    expect(control).not.toBe('');
+    expect(control).not.toBe(mutation);
+    expect(control).toContain('-v ON_ERROR_STOP=1');
+    const { stdin, file, rollback } = stdinOrder(control, 'a_test.sql');
+    expect(stdin).toBeGreaterThanOrEqual(0);
+    expect(file).toBeGreaterThan(stdin);
+    expect(rollback).toBeGreaterThan(file);
+    expect(scriptOf(control)).toContain(buildControlSql().trim());
+    expect(scriptOf(control)).not.toMatch(/\bpolicy\b/i);
+    expect(control.replace(/printf %s '[^']*'/, '')).toBe(
+      mutation.replace(/printf %s '[^']*'/, '')
+    );
+  });
+
+  it('keeps the plain clean run, the one pg_prove would do, free of stdin and rollback', async () => {
+    const { ctx } = await suiteOf({ behaviour: { 'a_test.sql': CATCHING } });
+    const plain = ctx.psqlTestCommands.filter(
+      (command) => !/-f -(\s|$)/.test(command)
+    );
+    expect(plain).toHaveLength(1);
+    expect(plain[0]).not.toContain('rollback');
+    expect(plain[0]).not.toContain('printf');
+  });
+
+  it('runs every test file from supabase/tests with a path relative to it, like supabase test db', async () => {
+    const { ctx } = await suiteOf({
+      files: ['a_test.sql', 'sub/dir/b_test.sql'],
+      behaviour: {
+        'a_test.sql': CATCHING,
+        'sub/dir/b_test.sql': CATCHING,
+      },
+    });
+    expect(ctx.psqlTestCommands).toHaveLength(6);
+    for (const command of ctx.psqlTestCommands) {
+      expect(command.startsWith("cd 'supabase/tests' && ")).toBe(true);
+      expect(command).not.toContain("-f 'supabase/tests/");
+    }
+    const files = ctx.psqlTestCommands.map(
+      (command) => /-f '([^']+)'/.exec(command)?.[1]
+    );
+    expect(files).toEqual([
+      'a_test.sql',
+      'sub/dir/b_test.sql',
+      'a_test.sql',
+      'a_test.sql',
+      'sub/dir/b_test.sql',
+      'sub/dir/b_test.sql',
+    ]);
+  });
+
+  it('reports files with their supabase/tests paths even though psql gets relative ones', async () => {
+    const { suite } = await suiteOf({
+      files: ['sub/b_test.sql'],
+      behaviour: { 'sub/b_test.sql': CATCHING },
+    });
+    expect(suite).toMatchObject({
+      ok: true,
+      files: ['supabase/tests/sub/b_test.sql'],
+      clean: [{ file: 'supabase/tests/sub/b_test.sql' }],
+      catches: [{ file: 'supabase/tests/sub/b_test.sql' }],
+    });
   });
 
   it('runs every clean and re-run file with ON_ERROR_STOP so an error surfaces as a non-zero exit', async () => {
@@ -780,12 +950,243 @@ describe('runSuite', () => {
     expect(ctx.psqlTestCommands).toHaveLength(3);
     for (const command of ctx.psqlTestCommands) {
       expect(command).toContain('-v ON_ERROR_STOP=1');
-      expect(command).toContain(A);
+      expect(command).toContain("-f 'a_test.sql'");
     }
-    const plain = ctx.psqlTestCommands.filter(
-      (command) => !/-f -(\s|$)/.test(command)
-    );
-    for (const command of plain) expect(command).not.toContain('rollback');
+  });
+
+  it('does not touch the policies when the file leaves them as they were', async () => {
+    const { ctx } = await suiteOf({ behaviour: { 'a_test.sql': CATCHING } });
+    expect(ctx.log).toContain('snapshot');
+    expect(ctx.log.some((line) => line.startsWith('restore'))).toBe(false);
+    expect(ctx.restoreScripts).toEqual([]);
+  });
+
+  it('snapshots the notes policies once before the first mutated run and once after each', async () => {
+    const { ctx } = await suiteOf({
+      files: ['a_test.sql', 'b_test.sql'],
+      behaviour: { 'a_test.sql': CATCHING, 'b_test.sql': CATCHING },
+    });
+    expect(ctx.log.filter((line) => line !== 'list')).toEqual([
+      'probe-extension',
+      'create-extension',
+      'clean a_test.sql',
+      'clean b_test.sql',
+      'snapshot',
+      'mutate a_test.sql',
+      'snapshot',
+      'rerun a_test.sql',
+      'mutate b_test.sql',
+      'snapshot',
+      'rerun b_test.sql',
+      'drop-extension',
+    ]);
+  });
+
+  describe('a test file whose own commit keeps the mutation', () => {
+    const leaking: Behaviour = { ...CATCHING, leaks: true };
+
+    it('restores the policies before the re-run and still counts the file as a catch', async () => {
+      const { ctx, suite } = await suiteOf({
+        behaviour: { 'a_test.sql': leaking },
+      });
+      expect(suite).toMatchObject({
+        ok: true,
+        catches: [
+          {
+            file: A,
+            leaked: true,
+            mutated: { passed: false, mutationApplied: true },
+            rerun: { passed: true },
+          },
+        ],
+      });
+      expect(forFile(ctx.log, 'a_test.sql')).toEqual([
+        'clean a_test.sql',
+        'mutate a_test.sql',
+        'restore a_test.sql',
+        'rerun a_test.sql',
+      ]);
+      expect(ctx.policies.current).toEqual(BASELINE);
+      expect(checkTestsCatchSeededPolicies(suite)).toMatchObject({
+        passed: true,
+      });
+    });
+
+    it('restores with a committed session that drops every policy, sets the flags and recreates the snapshot', async () => {
+      const { ctx } = await suiteOf({
+        behaviour: { 'a_test.sql': leaking },
+      });
+      expect(ctx.restoreScripts).toHaveLength(1);
+      const script = ctx.restoreScripts[0];
+      expect(script.trim()).toMatch(/^begin;/i);
+      expect(script.trim()).toMatch(/commit;$/i);
+      expect(script).toContain(DROP_NOTES_POLICIES_SQL);
+      expect(script).toContain(
+        'alter table public.notes enable row level security;'
+      );
+      expect(script).toContain(
+        'alter table public.notes no force row level security;'
+      );
+      for (const policy of BASELINE.policies) {
+        expect(script).toContain(`${policy};`);
+      }
+      expect(script.indexOf('create policy')).toBeGreaterThan(
+        script.indexOf('drop policy')
+      );
+    });
+
+    it('restores before the next file is mutated, so later files start from the same policies', async () => {
+      const { ctx } = await suiteOf({
+        files: ['a_test.sql', 'b_test.sql'],
+        behaviour: { 'a_test.sql': leaking, 'b_test.sql': CATCHING },
+      });
+      expect(
+        ctx.log.filter((line) => /^(mutate|restore|rerun)/.test(line))
+      ).toEqual([
+        'mutate a_test.sql',
+        'restore a_test.sql',
+        'rerun a_test.sql',
+        'mutate b_test.sql',
+        'rerun b_test.sql',
+      ]);
+    });
+
+    it('says in the check notes that the file committed the mutation and the scorer restored the policies', async () => {
+      const { suite } = await suiteOf({
+        behaviour: { 'a_test.sql': leaking },
+      });
+      const check = checkTestsCatchSeededPolicies(suite);
+      expect(check.passed).toBe(true);
+      expect(check.notes).toMatch(/committed the mutation/);
+      expect(check.notes).toMatch(
+        /restored the notes policies before the re-run/
+      );
+    });
+
+    it('does not count the file when the re-run still fails after the restore', async () => {
+      const { suite } = await suiteOf({
+        behaviour: {
+          'a_test.sql': {
+            ...leaking,
+            rerun: { stdout: tapText(DESCRIPTIONS, [3]) },
+          },
+        },
+      });
+      expect(checkTestsCatchSeededPolicies(suite).passed).toBe(false);
+    });
+
+    it('does not count the file, runs no re-run and mutates nothing further when the restore does not take', async () => {
+      const { ctx, suite } = await suiteOf({
+        files: ['a_test.sql', 'b_test.sql'],
+        restoreTakes: false,
+        behaviour: { 'a_test.sql': leaking, 'b_test.sql': CATCHING },
+      });
+      expect(suite).toMatchObject({
+        ok: true,
+        catches: [
+          {
+            file: A,
+            leaked: true,
+            rerun: null,
+            restoreFailure: expect.stringContaining('restore'),
+          },
+        ],
+        unmutated: [B],
+      });
+      expect((suite as Extract<SuiteProbe, { ok: true }>).catches).toHaveLength(
+        1
+      );
+      expect(ctx.log).not.toContain('mutate b_test.sql');
+      expect(ctx.log).not.toContain('rerun a_test.sql');
+      const check = checkTestsCatchSeededPolicies(suite);
+      expect(check.passed).toBe(false);
+      expect(check.notes).toContain(A);
+      expect(check.notes).toMatch(/could not restore/);
+      expect(check.notes).toContain(B);
+      expect(check.notes).toMatch(/not run under the seeded policies/);
+    });
+
+    it('stops the same way when the restore session itself fails', async () => {
+      const { ctx, suite } = await suiteOf({
+        files: ['a_test.sql', 'b_test.sql'],
+        restoreFails: true,
+        behaviour: { 'a_test.sql': leaking, 'b_test.sql': CATCHING },
+      });
+      expect(suite).toMatchObject({
+        ok: true,
+        catches: [{ file: A, leaked: true, rerun: null }],
+        unmutated: [B],
+      });
+      expect(checkTestsCatchSeededPolicies(suite).notes).toContain('deadlock');
+      expect(ctx.log).not.toContain('mutate b_test.sql');
+    });
+
+    it('keeps an earlier catch when a later file stops the run, and still reports the skipped files', async () => {
+      const { suite } = await suiteOf({
+        files: ['a_test.sql', 'b_test.sql', 'c_test.sql'],
+        restoreTakes: false,
+        behaviour: {
+          'a_test.sql': CATCHING,
+          'b_test.sql': leaking,
+          'c_test.sql': CATCHING,
+        },
+      });
+      const check = checkTestsCatchSeededPolicies(suite);
+      expect(check.passed).toBe(true);
+      expect(check.notes).toContain('supabase/tests/c_test.sql');
+      expect(check.notes).toMatch(/not run under the seeded policies/);
+    });
+  });
+
+  it('stops mutating when the policies cannot be re-read after a mutated run', async () => {
+    const { ctx, suite } = await suiteOf({
+      files: ['a_test.sql', 'b_test.sql'],
+      snapshotFailsAfter: true,
+      behaviour: { 'a_test.sql': CATCHING, 'b_test.sql': CATCHING },
+    });
+    expect(suite).toMatchObject({
+      ok: true,
+      catches: [
+        {
+          file: A,
+          rerun: null,
+          restoreFailure: expect.stringContaining('connection refused'),
+        },
+      ],
+      unmutated: [B],
+    });
+    expect(ctx.log).not.toContain('mutate b_test.sql');
+    expect(checkTestsCatchSeededPolicies(suite).passed).toBe(false);
+  });
+
+  it('runs no mutated run and fails the catch check with the reason when the policies cannot be read first', async () => {
+    const { ctx, suite } = await suiteOf({
+      snapshotFailsBefore: true,
+      behaviour: { 'a_test.sql': CATCHING },
+    });
+    expect(suite).toMatchObject({
+      ok: true,
+      clean: [{ file: A, passed: true }],
+      catches: [],
+      mutationBlocked: expect.stringContaining('connection refused'),
+    });
+    expect(ctx.log.some((line) => line.startsWith('mutate'))).toBe(false);
+    const probe = suite;
+    expect(checkTestsCatchSeededPolicies(probe)).toMatchObject({
+      name: TESTS_CATCH_CHECK_NAME,
+      passed: false,
+      notes: expect.stringContaining('connection refused'),
+    });
+    expect(checkTestsPass(probe).passed).toBe(true);
+  });
+
+  it('does not read the policies when no file passed clean', async () => {
+    const { ctx } = await suiteOf({
+      behaviour: {
+        'a_test.sql': { clean: { stdout: tapText(DESCRIPTIONS, [1]) } },
+      },
+    });
+    expect(ctx.log).not.toContain('snapshot');
   });
 
   it('creates pgtap before the first test file and drops it as the very last command when it was not installed', async () => {
@@ -936,7 +1337,9 @@ describe('check helpers', () => {
   const suite = (parts: {
     files: string[];
     clean: TestFileRun[];
-    catches?: Array<ReturnType<typeof catching>>;
+    catches?: CatchRun[];
+    mutationBlocked?: string;
+    unmutated?: string[];
   }): SuiteProbe => ({ ok: true, catches: [], ...parts });
 
   const failedSuite: SuiteProbe = {
@@ -1136,6 +1539,70 @@ describe('check helpers', () => {
       );
       expect(check.passed).toBe(false);
       expect(check.notes).toMatch(/re-?run/i);
+    });
+
+    it('passes a file that committed the mutation and was restored, and says so', () => {
+      const check = checkTestsCatchSeededPolicies(
+        suite({
+          files: [A],
+          clean: [run(A)],
+          catches: [{ ...catching(A), leaked: true }],
+        })
+      );
+      expect(check.passed).toBe(true);
+      expect(check.notes).toContain(A);
+      expect(check.notes).toMatch(/committed the mutation/);
+      expect(check.notes).toMatch(
+        /scorer restored the notes policies before the re-run/
+      );
+    });
+
+    it('does not mention a restore for a file that left the policies alone', () => {
+      const check = checkTestsCatchSeededPolicies(
+        suite({ files: [A], clean: [run(A)], catches: [catching(A)] })
+      );
+      expect(check.notes).not.toMatch(/restore/i);
+    });
+
+    it('does not count a file whose policies could not be restored, and names the files left unmutated', () => {
+      const check = checkTestsCatchSeededPolicies(
+        suite({
+          files: [A, B],
+          clean: [run(A), run(B)],
+          catches: [
+            {
+              file: A,
+              mutated: mutated(A, { failing: [2] }),
+              rerun: null,
+              leaked: true,
+              restoreFailure:
+                'the file committed the mutation and the scorer could not restore the notes policies (the restore session failed)',
+            },
+          ],
+          unmutated: [B],
+        })
+      );
+      expect(check.passed).toBe(false);
+      expect(check.notes).toContain(A);
+      expect(check.notes).toContain('could not restore the notes policies');
+      expect(check.notes).toMatch(/not counted/);
+      expect(check.notes).toContain(B);
+      expect(check.notes).toMatch(/not run under the seeded policies/);
+    });
+
+    it('fails with the reason when the policies could not be read before any mutated run', () => {
+      const check = checkTestsCatchSeededPolicies(
+        suite({
+          files: [A],
+          clean: [run(A)],
+          mutationBlocked:
+            'could not read the notes policies: exit 2: connection refused, so no test file was run under the seeded policies',
+        })
+      );
+      expect(check.name).toBe(TESTS_CATCH_CHECK_NAME);
+      expect(check.passed).toBe(false);
+      expect(check.notes).toContain('connection refused');
+      expect(check.notes).toContain('no test file was run');
     });
 
     it('fails when the clean run fails, since a failing suite cannot prove it catches anything', () => {

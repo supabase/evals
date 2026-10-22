@@ -80,7 +80,13 @@ function describeFoundMigrations(probe: PolicyMigrationsProbe): string {
     : `${found}; not ordered after the seeded migration: ${probe.misordered.join(', ')}`;
 }
 
-function describeRecorded(probe: RecordedPolicyMigrationsProbe): string {
+function describeRecorded(
+  probe: RecordedPolicyMigrationsProbe,
+  found: PolicyMigrationsProbe
+): string {
+  if (found.ok && found.migrations.length === 0) {
+    return 'n/a (no migration touches the notes policies)';
+  }
   if (!probe.ok) return `unknown (${probe.notes})`;
   const { recorded, missing, mismatched } = probe;
   if (missing.length === 0 && mismatched.length === 0) {
@@ -122,7 +128,14 @@ function describeCatch(
 ): string {
   const attempt = suite.catches.find((candidate) => candidate.file === file);
   if (attempt === undefined) return 'not tried against the seeded policies';
-  if (isCatch(attempt)) return 'caught the seeded policies';
+  if (attempt.restoreFailure !== undefined) {
+    return 'the notes policies could not be restored after the mutated run, so the run is not counted';
+  }
+  if (isCatch(attempt)) {
+    return attempt.leaked
+      ? 'caught the seeded policies (the file committed the mutation and the scorer restored the notes policies before the re-run)'
+      : 'caught the seeded policies';
+  }
   return attempt.mutated.mutationApplied
     ? 'did not catch the seeded policies'
     : 'the seeded policies could not be applied';
@@ -169,7 +182,7 @@ export function describeGroundTruth(facts: {
     `- reads of the probe notes: ${describeReads(facts.access)}`,
     `- writes to the probe notes: ${describeWrites(facts.access)}`,
     `- migrations touching the notes policies: ${describeFoundMigrations(facts.migrations)}`,
-    `- recorded in the local migration history: ${describeRecorded(facts.recorded)}`,
+    `- recorded in the local migration history: ${describeRecorded(facts.recorded, facts.migrations)}`,
     ...describeTestFiles(facts.suite),
     `- supabase test db runs: ${describeTestDbRuns(facts.testDbRuns)}`,
   ];

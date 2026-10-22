@@ -1,12 +1,8 @@
 import type { CheckResult, LocalStackEvalContext } from '@supabase-evals/core';
-import {
-  describeFailure,
-  errorMessage,
-  shellQuote,
-  truncate,
-} from '../lib/shell.js';
+import { describeFailure, errorMessage, truncate } from '../lib/shell.js';
 import type { StackProbe } from '../lib/stack.js';
 import { PROBE_TITLE_PREFIX, PROBE_USERS } from './fixtures.js';
+import { psqlCommand } from './psql.js';
 
 type ExecContext = Pick<LocalStackEvalContext, 'exec'>;
 
@@ -48,35 +44,27 @@ const OTHER_TITLES = [`${PROBE_TITLE_PREFIX}other-1`];
 const SQLSTATE_RE = /^[0-9A-Z]{5}$/;
 const ROW_COUNT_RE = /^\d+$/;
 
-/** A `psql` command against `dbUrl` that stops at the first error, with `script` piped to stdin when given. */
-export function psqlCommand(
-  dbUrl: string,
-  args: readonly string[],
-  script?: string
-): string {
-  const psql = `psql ${shellQuote(dbUrl)} -X -A -t -q -v ON_ERROR_STOP=1 ${args.join(' ')}`;
-  if (script === undefined) return psql;
-  const encoded = Buffer.from(script, 'utf8').toString('base64');
-  return `printf %s ${shellQuote(encoded)} | base64 -d | ${psql}`;
-}
-
 /** The SQL of the access probe: one rolled-back transaction that reads and writes the notes as the owner, another user and anon. */
 export function buildAccessProbeSql(): string {
   const { owner, other } = PROBE_USERS;
   const [ownerOne, ownerTwo] = OWNER_TITLES;
   const [otherOne] = OTHER_TITLES;
-  const step = (
+  const record = (key: string, outcome: string) =>
+    `insert into eval_probe.results values ('${key}', ${outcome})`;
+  const session = (
     who: string,
     key: string,
-    statement: string,
-    outcome: string
+    body: string,
+    afterReset = ''
   ) => `select eval_probe.act('${who}');
 do $$ declare n bigint; t text; begin
-  ${statement} insert into eval_probe.results values ('${key}', ${outcome});
-exception when others then insert into eval_probe.results values ('${key}', 'denied:' || sqlstate);
+  ${body}
+exception when others then ${record(key, `'denied:' || sqlstate`)};
 end $$;
 reset role;
-`;
+${afterReset}`;
+  const step = (who: string, key: string, statement: string, outcome: string) =>
+    session(who, key, `${statement} ${record(key, outcome)};`);
   const read = (name: ReadName, who: string) =>
     step(
       who,
@@ -91,10 +79,36 @@ reset role;
       `${statement} get diagnostics n = row_count;`,
       `'rows:' || n`
     );
+  const asClaims = (who: string) => `do $$ begin
+  perform set_config('request.jwt.claim.sub', '${who}', true);
+  perform set_config('request.jwt.claims', '{"sub":"${who}","role":"authenticated"}', true);
+end $$;`;
   const edit = (title: string) =>
     `update public.notes set body = '${PROBE_TITLE_PREFIX}edited' where title = '${title}';`;
-  const insert = (title: string) =>
-    `insert into public.notes (owner_id, title) values ('${owner.id}', '${title}');`;
+  const countOwned = (name: WriteName, title: string) => {
+    const key = `write.${name}`;
+    return `insert into eval_probe.results select '${key}', 'rows:' || (select count(*) from public.notes where title = '${title}' and owner_id = '${owner.id}')
+where not exists (select 1 from eval_probe.results where k = '${key}');
+`;
+  };
+  const forged = `${PROBE_TITLE_PREFIX}forged`;
+  const ownerThree = `${PROBE_TITLE_PREFIX}owner-3`;
+  const insertAsOther = session(
+    other.id,
+    'write.otherInsertAsOwner',
+    `insert into public.notes (owner_id, title) values ('${owner.id}', '${forged}');`,
+    countOwned('otherInsertAsOwner', forged)
+  );
+  const insertAsOwner = session(
+    owner.id,
+    'write.ownerInsert',
+    `begin
+    insert into public.notes (title) values ('${ownerThree}');
+  exception when others then
+    insert into public.notes (owner_id, title) values ('${owner.id}', '${ownerThree}');
+  end;`,
+    countOwned('ownerInsert', ownerThree)
+  );
 
   return `begin;
 create schema eval_probe;
@@ -116,18 +130,18 @@ end $$;
 insert into auth.users (id, email, aud, role) values
   ('${owner.id}', '${owner.email}', 'authenticated', 'authenticated'),
   ('${other.id}', '${other.email}', 'authenticated', 'authenticated');
-insert into public.notes (owner_id, title) values
-  ('${owner.id}', '${ownerOne}'),
-  ('${owner.id}', '${ownerTwo}'),
-  ('${other.id}', '${otherOne}');
+${asClaims(owner.id)}
+insert into public.notes (owner_id, title) values ('${owner.id}', '${ownerOne}'), ('${owner.id}', '${ownerTwo}');
+${asClaims(other.id)}
+insert into public.notes (owner_id, title) values ('${other.id}', '${otherOne}');
 ${read('owner', owner.id)}
 ${read('other', other.id)}
 ${read('anon', 'anon')}
 ${write('otherUpdate', other.id, edit(ownerOne))}
 ${write('otherDelete', other.id, `delete from public.notes where title = '${ownerTwo}';`)}
-${write('otherInsertAsOwner', other.id, insert(`${PROBE_TITLE_PREFIX}forged`))}
+${insertAsOther}
 ${write('ownerUpdate', owner.id, edit(ownerOne))}
-${write('ownerInsert', owner.id, insert(`${PROBE_TITLE_PREFIX}owner-3`))}
+${insertAsOwner}
 select k || '|' || v from eval_probe.results order by k;
 rollback;
 `;

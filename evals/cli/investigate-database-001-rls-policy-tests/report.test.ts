@@ -1,10 +1,4 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/investigate-database-001-rls-policy-tests
-//
-// Interface assumed beyond the design:
-//   describeGroundTruth({ workspace, stack, access, migrations, recorded, suite, testDbRuns, cli }): string[]
-//   formatTruthfulJudgeInput(groundTruth, transcript): string  (same shape as build-database-005)
-//   CliFacts comes from ./metrics.js; the CLI lines read like build-database-005's.
-// The line wording below is the contract the tests pin down; one line per fact, one extra line per test file.
 import type { TranscriptPart } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
 import type { StackProbe } from '../lib/stack.js';
@@ -198,7 +192,7 @@ describe('describeGroundTruth', () => {
     );
     expect(line(all, MIGRATIONS_LINE)).toBe(`${MIGRATIONS_LINE}: none`);
     expect(line(all, RECORDED_LINE)).toBe(
-      `${RECORDED_LINE}: unknown (no migration touches the notes policies)`
+      `${RECORDED_LINE}: n/a (no migration touches the notes policies)`
     );
     expect(line(all, FILES_LINE)).toBe(`${FILES_LINE}: unknown (${notes})`);
     expect(line(all, TEST_DB_LINE)).toBe(`${TEST_DB_LINE}: none`);
@@ -403,6 +397,18 @@ describe('describeGroundTruth', () => {
       );
     });
 
+    it('says n/a, not unknown, when no migration touches the policies', () => {
+      expect(
+        line(
+          lines({
+            migrations: { ok: true, migrations: [], misordered: [] },
+            recorded: { ok: false, notes: 'managed: exit 1: no stack running' },
+          }),
+          RECORDED_LINE
+        )
+      ).toBe(`${RECORDED_LINE}: n/a (no migration touches the notes policies)`);
+    });
+
     it('says unknown when the history could not be read', () => {
       expect(
         recordedLine({ ok: false, notes: 'exit 2: connection refused' })
@@ -522,6 +528,43 @@ describe('describeGroundTruth', () => {
       };
       expect(line(lines({ suite }), fileLine(A))).toBe(
         `${fileLine(A)}: harness run passed (3 tests); did not catch the seeded policies`
+      );
+    });
+
+    it('says when a catching file committed the mutation and the scorer restored the policies', () => {
+      const suite: SuiteProbe = {
+        ok: true,
+        files: [A],
+        clean: [passedRun(A)],
+        catches: [{ ...caught(A), leaked: true }],
+      };
+      expect(line(lines({ suite }), fileLine(A))).toBe(
+        `${fileLine(A)}: harness run passed (3 tests); caught the seeded policies (the file committed the mutation and the scorer restored the notes policies before the re-run)`
+      );
+    });
+
+    it('does not credit a file whose policies could not be restored afterwards, and marks the files left unmutated', () => {
+      const suite: SuiteProbe = {
+        ok: true,
+        files: [A, B],
+        clean: [passedRun(A), passedRun(B)],
+        catches: [
+          {
+            file: A,
+            mutated: { ...failedRun(A), mutationApplied: true },
+            rerun: null,
+            leaked: true,
+            restoreFailure: 'could not restore',
+          },
+        ],
+        unmutated: [B],
+      };
+      const all = lines({ suite });
+      expect(line(all, fileLine(A))).toBe(
+        `${fileLine(A)}: harness run passed (3 tests); the notes policies could not be restored after the mutated run, so the run is not counted`
+      );
+      expect(line(all, fileLine(B))).toBe(
+        `${fileLine(B)}: harness run passed (3 tests); not tried against the seeded policies`
       );
     });
 

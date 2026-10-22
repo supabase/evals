@@ -45,6 +45,7 @@ const RAW_FIXED = `${'\n'.repeat(8)}${FIXED_ROWS}`;
 const RAW_LEAKY = `${'\n'.repeat(8)}${LEAKY_ROWS}`;
 
 const OWNER_TITLES = ['eval-probe-owner-1', 'eval-probe-owner-2'];
+const OTHER_TITLES = ['eval-probe-other-1'];
 const ALL_TITLES = ['eval-probe-other-1', ...OWNER_TITLES];
 
 type Probe = Extract<AccessProbe, { ok: true }>;
@@ -84,9 +85,7 @@ function result(stdout: string, ok = true, stderr = ''): CommandResult {
 }
 
 const scriptOf = (command: string) => {
-  const payload = command
-    .match(/[A-Za-z0-9+/]{80,}={0,2}/g)
-    ?.sort((a, b) => b.length - a.length)[0];
+  const payload = /printf %s '([A-Za-z0-9+/]+={0,2})'/.exec(command)?.[1];
   return payload === undefined
     ? command
     : Buffer.from(payload, 'base64').toString('utf8');
@@ -127,11 +126,107 @@ describe('buildAccessProbeSql', () => {
     expect(sql).toMatch(/denied:/);
     expect(sql).toMatch(/\bsqlstate\b/i);
   });
+
+  describe('seeding the probe notes', () => {
+    const { owner, other } = PROBE_USERS;
+    const flat = sql.replace(/\s+/g, ' ');
+    const claims = (who: string) =>
+      `do $$ begin perform set_config('request.jwt.claim.sub', '${who}', true); perform set_config('request.jwt.claims', '{"sub":"${who}","role":"authenticated"}', true); end $$;`;
+
+    it("sets the claims to the owner before inserting the owner's two notes", () => {
+      expect(flat).toContain(
+        `${claims(owner.id)} insert into public.notes (owner_id, title) values ('${owner.id}', '${OWNER_TITLES[0]}'), ('${owner.id}', '${OWNER_TITLES[1]}');`
+      );
+    });
+
+    it("sets the claims to the other user before inserting the other user's note", () => {
+      expect(flat).toContain(
+        `${claims(other.id)} insert into public.notes (owner_id, title) values ('${other.id}', '${OTHER_TITLES[0]}');`
+      );
+    });
+
+    it('seeds every note before the first role switch', () => {
+      const firstAct = flat.indexOf("select eval_probe.act('");
+      expect(firstAct).toBeGreaterThan(flat.indexOf(OTHER_TITLES[0]));
+    });
+
+    it('does not print the claims it sets', () => {
+      expect(sql).not.toMatch(/select\s+set_config/i);
+    });
+  });
+
+  describe('the insert probes', () => {
+    const { owner, other } = PROBE_USERS;
+    const forged = `${PROBE_TITLE_PREFIX}forged`;
+    const ownerThree = `${PROBE_TITLE_PREFIX}owner-3`;
+    const flat = sql.replace(/\s+/g, ' ');
+    const open = (who: string) =>
+      `select eval_probe.act('${who}'); do $$ declare n bigint; t text; begin`;
+    const denied = (key: string) =>
+      `exception when others then insert into eval_probe.results values ('${key}', 'denied:' || sqlstate); end $$; reset role;`;
+    const counted = (key: string, title: string) =>
+      `insert into eval_probe.results select '${key}', 'rows:' || (select count(*) from public.notes where title = '${title}' and owner_id = '${owner.id}') where not exists (select 1 from eval_probe.results where k = '${key}');`;
+
+    it("inserts the other user's forged note and records only a denial from that role", () => {
+      expect(flat).toContain(
+        `${open(other.id)} insert into public.notes (owner_id, title) values ('${owner.id}', '${forged}'); ${denied('write.otherInsertAsOwner')} `
+      );
+    });
+
+    it('counts the forged rows owned by the owner as postgres once the role is reset', () => {
+      expect(flat).toContain(
+        `${denied('write.otherInsertAsOwner')} ${counted('write.otherInsertAsOwner', forged)}`
+      );
+    });
+
+    it('tries the owner insert without owner_id first, then naming it, each in its own exception block', () => {
+      expect(flat).toContain(
+        `${open(owner.id)} begin insert into public.notes (title) values ('${ownerThree}'); exception when others then insert into public.notes (owner_id, title) values ('${owner.id}', '${ownerThree}'); end; ${denied('write.ownerInsert')} `
+      );
+    });
+
+    it('counts the owner insert rows owned by the owner as postgres once the role is reset', () => {
+      expect(flat).toContain(
+        `${denied('write.ownerInsert')} ${counted('write.ownerInsert', ownerThree)}`
+      );
+    });
+
+    it('keeps the insert probe titles under the probe prefix', () => {
+      expect(forged.startsWith(PROBE_TITLE_PREFIX)).toBe(true);
+      expect(ownerThree.startsWith(PROBE_TITLE_PREFIX)).toBe(true);
+      const titles = [
+        ...sql.matchAll(
+          /insert into public\.notes \([^)]*title\) values \((?:'[^']+', )?'([^']+)'\)/g
+        ),
+      ].map(([, title]) => title);
+      expect(titles).toEqual(expect.arrayContaining([forged, ownerThree]));
+      for (const title of titles) {
+        expect(title.startsWith(PROBE_TITLE_PREFIX)).toBe(true);
+      }
+    });
+
+    it('stays one transaction that is rolled back', () => {
+      expect(sql.match(/\bbegin;/g)).toHaveLength(1);
+      expect(sql.match(/\brollback;/g)).toHaveLength(1);
+      expect(sql).not.toMatch(/\bcommit\b/i);
+    });
+  });
 });
 
 describe('parseAccessProbeOutput', () => {
   it('reads the output of a fixed database', () => {
     expect(parseAccessProbeOutput(RAW_FIXED)).toEqual(FIXED);
+  });
+
+  it('reads a forged insert that a trigger rewrote as zero rows under the owner', () => {
+    const output = FIXED_ROWS.replace(
+      'write.otherInsertAsOwner|denied:42501',
+      'write.otherInsertAsOwner|rows:0'
+    );
+    expect(parseAccessProbeOutput(output)).toMatchObject({
+      ok: true,
+      writes: { otherInsertAsOwner: { rows: 0 } },
+    });
   });
 
   it('reads the output of the seeded, leaky database', () => {
@@ -350,6 +445,19 @@ describe('checkWriteIsolation', () => {
     );
     expect(check.passed).toBe(false);
     expect(check.notes).toMatch(/insert/i);
+  });
+
+  it('passes when a trigger rewrites the forged owner_id, so no row lands under the owner', () => {
+    const check = checkWriteIsolation(
+      withWrites({ otherInsertAsOwner: { rows: 0 } })
+    );
+    expect(check).toMatchObject({ name: WRITE_CHECK_NAME, passed: true });
+  });
+
+  it('passes when the owner insert lands one row', () => {
+    expect(
+      checkWriteIsolation(withWrites({ ownerInsert: { rows: 1 } })).passed
+    ).toBe(true);
   });
 
   it.each([

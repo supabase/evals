@@ -1,9 +1,4 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/investigate-database-001-rls-policy-tests
-//
-// Assumed beyond the design: EVAL.ts default-exports the LocalStackScorer. The fake sandbox answers by command
-// shape: psql against the stack's DB_URL (select 1, pg_extension, create/drop extension, schema_migrations,
-// `-f <test file>`, `-f -` carrying a base64 script that is either the access probe or the mutation), `cat`/`ls`/`find`
-// over supabase/migrations, and `find` over supabase/tests. The two judge calls are told apart by their input.
 import { readFileSync } from 'node:fs';
 import type {
   CommandResult,
@@ -20,10 +15,12 @@ import {
   SEEDED_MIGRATION_FILE,
   SEEDED_MIGRATION_VERSION,
 } from './fixtures.js';
+import { buildSnapshotSql } from './snapshot.js';
 
 const WS = '/ws';
 const DB_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
 const MUTATION_MARKER = 'eval-mutation-applied';
+const CONTROL_MARKER = 'eval-control-run';
 
 const SEEDED_SQL = readFileSync(
   new URL(
@@ -150,15 +147,16 @@ function call(command: string, output = '', cwd?: string): ToolCallRecord {
 }
 
 const scriptOf = (command: string) => {
-  const payload = command
-    .match(/[A-Za-z0-9+/]{80,}={0,2}/g)
-    ?.sort((a, b) => b.length - a.length)[0];
+  const payload = /printf %s '([A-Za-z0-9+/]+={0,2})'/.exec(command)?.[1];
   return payload === undefined
     ? command
     : Buffer.from(payload, 'base64').toString('utf8');
 };
 
 const hex = (text: string) => Buffer.from(text, 'utf8').toString('hex');
+const SNAPSHOT_ROWS = `policy|${hex(`create policy "Users can view their own notes" on public.notes as PERMISSIVE for SELECT to authenticated using (true)`)}
+rls|true|false
+`;
 
 type Run = { stdout: string; exitCode?: number; stderr?: string };
 type Behaviour = { clean: Run; mutated?: Run; rerun?: Run };
@@ -271,7 +269,8 @@ function fakeCtx(toolCalls: ToolCallRecord[], world: World = {}) {
     ].map(([, arg]) => arg.replace(/^['"]|['"]$/g, ''));
     const target = fileArgs.find((arg) => arg !== '-');
     if (target === undefined) {
-      if (fileArgs.includes('-') && scriptOf(command).includes('eval_probe')) {
+      const script = fileArgs.includes('-') ? scriptOf(command) : '';
+      if (script.includes('eval_probe')) {
         return access === 'fails'
           ? result(
               '',
@@ -280,6 +279,9 @@ function fakeCtx(toolCalls: ToolCallRecord[], world: World = {}) {
               3
             )
           : result(access);
+      }
+      if (script.trim() === buildSnapshotSql().trim()) {
+        return result(SNAPSHOT_ROWS);
       }
       return result('', false, `unexpected command: ${command}`);
     }
@@ -301,6 +303,8 @@ function fakeCtx(toolCalls: ToolCallRecord[], world: World = {}) {
       return run(behaviour.mutated ?? behaviour.clean);
     }
     if (dirty.delete(key)) {
+      expect(fileArgs).toContain('-');
+      expect(scriptOf(command)).toContain(CONTROL_MARKER);
       log.push(`rerun ${key}`);
       return run(behaviour.rerun ?? behaviour.clean);
     }
@@ -1195,7 +1199,7 @@ describe('report judge', () => {
     expect(input).toContain('- reads of the probe notes: unavailable (');
     expect(input).toContain('- migrations touching the notes policies: none');
     expect(input).toContain(
-      '- recorded in the local migration history: unknown ('
+      '- recorded in the local migration history: n/a (no migration touches the notes policies)'
     );
     expect(input).toContain('- test files under supabase/tests: unknown (');
     expect(input).toContain('- supabase test db runs: none');

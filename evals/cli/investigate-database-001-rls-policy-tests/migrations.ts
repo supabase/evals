@@ -2,13 +2,13 @@ import type { CheckResult, LocalStackEvalContext } from '@supabase-evals/core';
 import { maskSqlLiteralsAndComments } from '../lib/migrations.js';
 import { describeFailure, errorMessage, shellQuote } from '../lib/shell.js';
 import type { StackProbe } from '../lib/stack.js';
-import { psqlCommand } from './access.js';
 import {
   NOTES_TABLE,
   SEEDED_MIGRATION_FILE,
   SEEDED_MIGRATION_VERSION,
   SEEDED_NOTES_POLICIES,
 } from './fixtures.js';
+import { compareText, psqlCommand } from './psql.js';
 
 type ExecContext = Pick<LocalStackEvalContext, 'exec'>;
 
@@ -68,8 +68,6 @@ const SEEDED_ACCESS_RULES = accessRuleStatements(
 
 const sameStatements = (a: readonly string[], b: readonly string[]) =>
   a.length === b.length && a.every((statement, i) => statement === b[i]);
-
-const compareText = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 async function readMigrationFile(
   ctx: ExecContext,

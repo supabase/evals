@@ -1,10 +1,4 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/investigate-database-001-rls-policy-tests
-//
-// Interface assumed beyond the design:
-//   checkMetrics(marker, { commands, invocations, stack, cli, migrations, suite, testDbRuns }): Promise<CheckResult>
-//   CliFacts = { versions: { cliVersion: string | null; cliVersionAfterRun?: string } | null; cliOverride: string[] | null }
-// testsPassedClean counts the passing tests across the clean runs; seededMigrationModified and newMigrationFiles
-// are read from `migrations` (the policy migrations), null when that probe failed.
 import type { LocalStackEnvironmentMarker } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
 import { findSupabaseInvocations } from '../lib/cli-invocations.js';

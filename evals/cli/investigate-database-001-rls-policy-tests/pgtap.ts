@@ -6,12 +6,20 @@ import type {
 import {
   describeFailure,
   errorMessage,
+  inProjectDir,
   shellQuote,
   truncate,
 } from '../lib/shell.js';
 import type { StackProbe } from '../lib/stack.js';
-import { psqlCommand } from './access.js';
 import { NOTES_TABLE, SEEDED_NOTES_POLICIES, TESTS_DIR } from './fixtures.js';
+import { compareText, psqlCommand } from './psql.js';
+import {
+  DROP_NOTES_POLICIES_SQL,
+  readNotesSnapshot,
+  restoreNotesAccess,
+  sameSnapshot,
+  type NotesAccessSnapshot,
+} from './snapshot.js';
 
 type ExecContext = Pick<LocalStackEvalContext, 'exec'>;
 
@@ -37,13 +45,22 @@ export type MutatedRun = TestFileRun & { mutationApplied: boolean };
 export type CatchRun = {
   file: string;
   mutated: MutatedRun;
-  rerun: TestFileRun;
+  rerun: TestFileRun | null;
+  leaked?: boolean;
+  restoreFailure?: string;
 };
 export type TestFilesProbe =
   | { ok: true; files: string[] }
   | { ok: false; notes: string };
 export type SuiteProbe =
-  | { ok: true; files: string[]; clean: TestFileRun[]; catches: CatchRun[] }
+  | {
+      ok: true;
+      files: string[];
+      clean: TestFileRun[];
+      catches: CatchRun[];
+      mutationBlocked?: string;
+      unmutated?: string[];
+    }
   | { ok: false; notes: string };
 
 export const TESTS_PASS_CHECK_NAME =
@@ -51,14 +68,13 @@ export const TESTS_PASS_CHECK_NAME =
 export const TESTS_CATCH_CHECK_NAME =
   'the tests fail when the seeded notes policies are put back';
 export const MUTATION_MARKER = 'eval-mutation-applied';
+export const CONTROL_MARKER = 'eval-control-run';
 
 const PLAN_RE = /^1\.\.(\d+)(?:\s+#.*)?$/;
 const RESULT_RE = /^(not )?ok\b(?:\s+(\d+))?\s*(?:-\s*)?(.*)$/;
 const DIRECTIVE_RE = /\s+#\s*(todo|skip)\b.*$/i;
 const NO_SUCH_DIRECTORY_RE = /No such file or directory/i;
 const TEST_FILE_RE = /\.(?:sql|pg)$/;
-
-const compareText = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 /** Reads the TAP lines of a pgTAP run the way `pg_prove` does: plan lines, `ok`/`not ok` results and their TODO directives. */
 export function parseTap(output: string): TapResult {
@@ -127,18 +143,17 @@ export function buildMutationSql(): string {
     '\n'
   );
   return `begin;
-do $$
-declare p record;
-begin
-  for p in select policyname from pg_policies where schemaname = 'public' and tablename = '${NOTES_TABLE}' loop
-    execute format('drop policy %I on public.${NOTES_TABLE}', p.policyname);
-  end loop;
-end $$;
+${DROP_NOTES_POLICIES_SQL}
 alter table public.${NOTES_TABLE} enable row level security;
 ${policies}
 select '${MUTATION_MARKER}';
 `;
 }
+
+/** SQL that opens a transaction like the mutation does, without touching any policy. */
+export const buildControlSql = () => `begin;
+select '${CONTROL_MARKER}';
+`;
 
 /** Runs `fn` with pgTAP installed, creating the extension first and dropping it afterwards when the project did not already have it. */
 export async function withPgtap<T>(
@@ -201,6 +216,13 @@ function describeExit(result: CommandResult): string {
   return stderr === '' ? exit : `${exit}: ${truncate(stderr, 200)}`;
 }
 
+/** `stdout` without the lines that are exactly `marker`. */
+export const withMarkerRemoved = (stdout: string, marker: string) =>
+  stdout
+    .split('\n')
+    .filter((line) => line.trim() !== marker)
+    .join('\n');
+
 function toRun(file: string, result: CommandResult): TestFileRun {
   const tap = parseTap(result.stdout);
   return {
@@ -212,27 +234,112 @@ function toRun(file: string, result: CommandResult): TestFileRun {
   };
 }
 
+const TESTS_PREFIX = `${TESTS_DIR}/`;
+
+/** Runs psql from `supabase/tests` over a path relative to it, as `supabase test db` runs pg_prove; `script` wraps the file in a rolled-back transaction. */
+function execTestFile(
+  ctx: ExecContext,
+  dbUrl: string,
+  file: string,
+  script?: string
+): Promise<CommandResult> {
+  const relative = file.startsWith(TESTS_PREFIX)
+    ? file.slice(TESTS_PREFIX.length)
+    : file;
+  const target = `-f ${shellQuote(relative)}`;
+  const psql =
+    script === undefined
+      ? psqlCommand(dbUrl, [target])
+      : psqlCommand(dbUrl, ['-f -', target, '-c rollback'], script);
+  return ctx.exec(inProjectDir(TESTS_DIR, psql));
+}
+
+const printedMarker = (result: CommandResult, marker: string) =>
+  result.stdout.split('\n').some((line) => line.trim() === marker);
+
 const runFile = async (ctx: ExecContext, dbUrl: string, file: string) =>
-  toRun(file, await ctx.exec(psqlCommand(dbUrl, [`-f ${shellQuote(file)}`])));
+  toRun(file, await execTestFile(ctx, dbUrl, file));
 
 async function runMutated(
   ctx: ExecContext,
   dbUrl: string,
   file: string
 ): Promise<MutatedRun> {
-  const result = await ctx.exec(
-    psqlCommand(
-      dbUrl,
-      ['-f -', `-f ${shellQuote(file)}`, '-c rollback'],
-      buildMutationSql()
-    )
-  );
+  const result = await execTestFile(ctx, dbUrl, file, buildMutationSql());
   return {
-    ...toRun(file, result),
-    mutationApplied: result.stdout
-      .split('\n')
-      .some((line) => line.trim() === MUTATION_MARKER),
+    ...toRun(file, {
+      ...result,
+      stdout: withMarkerRemoved(result.stdout, MUTATION_MARKER),
+    }),
+    mutationApplied: printedMarker(result, MUTATION_MARKER),
   };
+}
+
+async function runControl(
+  ctx: ExecContext,
+  dbUrl: string,
+  file: string
+): Promise<TestFileRun> {
+  const result = await execTestFile(ctx, dbUrl, file, buildControlSql());
+  return toRun(file, {
+    ...result,
+    stdout: withMarkerRemoved(result.stdout, CONTROL_MARKER),
+  });
+}
+
+/** Compares the notes policies with `baseline` after a mutated run, restoring them when the file's own commit kept the mutation. */
+async function settleNotesAccess(
+  ctx: ExecContext,
+  dbUrl: string,
+  baseline: NotesAccessSnapshot
+): Promise<{ leaked: boolean; failure?: string }> {
+  const after = await readNotesSnapshot(ctx, dbUrl);
+  if (!after.ok) {
+    return {
+      leaked: false,
+      failure: `could not confirm the notes policies after the mutated run (${after.notes})`,
+    };
+  }
+  if (sameSnapshot(after.snapshot, baseline)) return { leaked: false };
+  const restored = await restoreNotesAccess(ctx, dbUrl, baseline);
+  return restored.ok
+    ? { leaked: true }
+    : {
+        leaked: true,
+        failure: `the file committed the mutation and the scorer could not restore the notes policies (${restored.notes})`,
+      };
+}
+
+/** Mutates and re-runs each file in turn, stopping at the first file whose policies cannot be confirmed back in place. */
+async function runMutations(
+  ctx: ExecContext,
+  dbUrl: string,
+  files: readonly string[],
+  baseline: NotesAccessSnapshot
+): Promise<{ catches: CatchRun[]; unmutated: string[] }> {
+  const catches: CatchRun[] = [];
+  for (const [index, file] of files.entries()) {
+    const mutated = await runMutated(ctx, dbUrl, file);
+    const { leaked, failure } = await settleNotesAccess(ctx, dbUrl, baseline);
+    const flags = leaked ? { leaked } : {};
+    if (failure !== undefined) {
+      catches.push({
+        file,
+        mutated,
+        rerun: null,
+        ...flags,
+        restoreFailure: failure,
+      });
+      return { catches, unmutated: files.slice(index + 1) };
+    }
+    catches.push({
+      file,
+      mutated,
+      rerun: await runControl(ctx, dbUrl, file),
+      ...flags,
+    });
+  }
+  return { catches, unmutated: [] };
 }
 
 /** Runs every pgTAP file clean, then each passing file under the seeded-policy mutation and once more afterwards; never throws. */
@@ -251,13 +358,33 @@ export async function runSuite(
       for (const file of files) {
         clean.push(await runFile(ctx, stack.dbUrl, file));
       }
-      const catches: CatchRun[] = [];
-      for (const { file } of clean.filter((run) => run.passed)) {
-        const mutated = await runMutated(ctx, stack.dbUrl, file);
-        const rerun = await runFile(ctx, stack.dbUrl, file);
-        catches.push({ file, mutated, rerun });
+      const passing = clean.filter((run) => run.passed).map((run) => run.file);
+      if (passing.length === 0) {
+        return { ok: true, files, clean, catches: [] };
       }
-      return { ok: true, files, clean, catches };
+      const baseline = await readNotesSnapshot(ctx, stack.dbUrl);
+      if (!baseline.ok) {
+        return {
+          ok: true,
+          files,
+          clean,
+          catches: [],
+          mutationBlocked: `${baseline.notes}, so no test file was run under the seeded policies`,
+        };
+      }
+      const { catches, unmutated } = await runMutations(
+        ctx,
+        stack.dbUrl,
+        passing,
+        baseline.snapshot
+      );
+      return {
+        ok: true,
+        files,
+        clean,
+        catches,
+        ...(unmutated.length > 0 ? { unmutated } : {}),
+      };
     });
   } catch (error) {
     return { ok: false, notes: errorMessage(error) };
@@ -266,7 +393,7 @@ export async function runSuite(
 
 /** Whether a mutated run shows the tests catch the seeded policies: the mutation applied, the tests failed under it, and the re-run passed. */
 export const isCatch = ({ mutated, rerun }: CatchRun) =>
-  mutated.mutationApplied && !mutated.passed && rerun.passed;
+  mutated.mutationApplied && !mutated.passed && rerun?.passed === true;
 
 const firstFailing = (run: TestFileRun) =>
   run.tap.results.find((entry) => !entry.ok && !entry.todo);
@@ -308,15 +435,28 @@ export function checkTestsPass(suite: SuiteProbe): CheckResult {
   };
 }
 
-function describeNotCaught({ file, mutated, rerun }: CatchRun): string {
+function describeNotCaught({
+  file,
+  mutated,
+  rerun,
+  restoreFailure,
+}: CatchRun): string {
+  if (restoreFailure !== undefined) {
+    return `${file}: ${restoreFailure}, so the run is not counted`;
+  }
   if (!mutated.mutationApplied) {
     return `${file}: the mutation did not apply (${mutated.detail}), so the run proves nothing`;
   }
   if (mutated.passed) {
     return `${file}: the tests still passed with the seeded policies put back`;
   }
-  return `${file}: failed under the mutation, but the re-run afterwards failed too (${rerun.detail}), so the failure may be state drift rather than the policies`;
+  return `${file}: failed under the mutation, but the re-run afterwards failed too (${rerun?.detail}), so the failure may be state drift rather than the policies`;
 }
+
+const describeUnmutated = (files: readonly string[] | undefined) =>
+  files === undefined || files.length === 0
+    ? ''
+    : `; not run under the seeded policies because they could not be restored: ${files.join(', ')}`;
 
 /** Passes when at least one pgTAP file passes clean, fails once the seeded policies are put back, and passes again on a re-run. */
 export function checkTestsCatchSeededPolicies(suite: SuiteProbe): CheckResult {
@@ -325,15 +465,25 @@ export function checkTestsCatchSeededPolicies(suite: SuiteProbe): CheckResult {
   if (suite.files.length === 0) {
     return { name, passed: false, notes: noTestFiles };
   }
+  if (suite.mutationBlocked !== undefined) {
+    return { name, passed: false, notes: suite.mutationBlocked };
+  }
   const caught = suite.catches.filter(isCatch);
   if (caught.length > 0) {
     const notes = caught
-      .map(({ file, mutated }) => {
+      .map(({ file, mutated, leaked }) => {
         const failing = firstFailing(mutated);
-        return `${file} failed with the seeded policies put back (${failing === undefined ? mutated.detail : `first failing test: "${failing.description}"`}) and passed again on the re-run`;
+        const restored = leaked
+          ? '; the file committed the mutation, so the scorer restored the notes policies before the re-run'
+          : '';
+        return `${file} failed with the seeded policies put back (${failing === undefined ? mutated.detail : `first failing test: "${failing.description}"`}) and passed again on the re-run${restored}`;
       })
       .join('; ');
-    return { name, passed: true, notes };
+    return {
+      name,
+      passed: true,
+      notes: `${notes}${describeUnmutated(suite.unmutated)}`,
+    };
   }
   if (suite.catches.length === 0) {
     const failed = suite.clean.filter((run) => !run.passed);
@@ -346,6 +496,6 @@ export function checkTestsCatchSeededPolicies(suite: SuiteProbe): CheckResult {
   return {
     name,
     passed: false,
-    notes: suite.catches.map(describeNotCaught).join(' | '),
+    notes: `${suite.catches.map(describeNotCaught).join(' | ')}${describeUnmutated(suite.unmutated)}`,
   };
 }
