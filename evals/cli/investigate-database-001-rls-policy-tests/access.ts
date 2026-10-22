@@ -44,8 +44,8 @@ const OTHER_TITLES = [`${PROBE_TITLE_PREFIX}other-1`];
 const SQLSTATE_RE = /^[0-9A-Z]{5}$/;
 const ROW_COUNT_RE = /^\d+$/;
 
-/** The SQL of the access probe: one rolled-back transaction that reads and writes the notes as the owner, another user and anon. */
-export function buildAccessProbeSql(): string {
+/** The access probe without its own `begin` and `rollback`, so a caller can run it after a prefix inside one transaction. */
+export function buildAccessProbeBody(): string {
   const { owner, other } = PROBE_USERS;
   const [ownerOne, ownerTwo] = OWNER_TITLES;
   const [otherOne] = OTHER_TITLES;
@@ -110,8 +110,7 @@ where not exists (select 1 from eval_probe.results where k = '${key}');
     countOwned('ownerInsert', ownerThree)
   );
 
-  return `begin;
-create schema eval_probe;
+  return `create schema eval_probe;
 create table eval_probe.results (k text primary key, v text not null);
 grant usage on schema eval_probe to authenticated, anon;
 grant insert on eval_probe.results to authenticated, anon;
@@ -142,10 +141,12 @@ ${write('otherDelete', other.id, `delete from public.notes where title = '${owne
 ${insertAsOther}
 ${write('ownerUpdate', owner.id, edit(ownerOne))}
 ${insertAsOwner}
-select k || '|' || v from eval_probe.results order by k;
-rollback;
-`;
+select k || '|' || v from eval_probe.results order by k;`;
 }
+
+/** The SQL of the access probe: one rolled-back transaction that reads and writes the notes as the owner, another user and anon. */
+export const buildAccessProbeSql = () =>
+  `begin;\n${buildAccessProbeBody()}\nrollback;\n`;
 
 function parseRead(value: string): ReadOutcome | undefined {
   if (value.startsWith('titles:')) {

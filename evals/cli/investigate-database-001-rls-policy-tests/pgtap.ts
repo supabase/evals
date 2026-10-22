@@ -45,10 +45,24 @@ export type MutatedRun = TestFileRun & { mutationApplied: boolean };
 export type CatchRun = {
   file: string;
   mutated: MutatedRun;
-  rerun: TestFileRun | null;
+  safe: MutatedRun | null;
   leaked?: boolean;
   restoreFailure?: string;
 };
+export type FlippedTest = {
+  number: number;
+  description: string;
+  ranUnderLeak: boolean;
+};
+export type NotCaughtReason =
+  | 'unrestored'
+  | 'leak-not-applied'
+  | 'leak-passed'
+  | 'safe-not-applied'
+  | 'policy-set-only';
+export type CatchVerdict =
+  | { caught: true; test: FlippedTest }
+  | { caught: false; reason: NotCaughtReason };
 export type TestFilesProbe =
   | { ok: true; files: string[] }
   | { ok: false; notes: string };
@@ -68,7 +82,9 @@ export const TESTS_PASS_CHECK_NAME =
 export const TESTS_CATCH_CHECK_NAME =
   'the tests fail when the seeded notes policies are put back';
 export const MUTATION_MARKER = 'eval-mutation-applied';
-export const CONTROL_MARKER = 'eval-control-run';
+export const SAFE_MUTATION_MARKER = 'eval-safe-mutation-applied';
+/** One owner-only policy for every command: its name, count and per-command shape differ from the seed's owner policies, its behaviour does not. */
+export const SAFE_NOTES_POLICY = `create policy "eval-probe owners only" on public.${NOTES_TABLE} as permissive for all to authenticated using ((select auth.uid()) = owner_id) with check ((select auth.uid()) = owner_id)`;
 
 const PLAN_RE = /^1\.\.(\d+)(?:\s+#.*)?$/;
 const RESULT_RE = /^(not )?ok\b(?:\s+(\d+))?\s*(?:-\s*)?(.*)$/;
@@ -137,23 +153,21 @@ export async function listTestFiles(ctx: ExecContext): Promise<TestFilesProbe> {
   }
 }
 
-/** SQL that opens a transaction and leaves it open with the seeded notes policies back in place, ending with the marker that proves it ran. */
-export function buildMutationSql(): string {
-  const policies = SEEDED_NOTES_POLICIES.map((policy) => `${policy};`).join(
-    '\n'
-  );
-  return `begin;
+const buildPolicySwapSql = (policies: readonly string[], marker: string) =>
+  `begin;
 ${DROP_NOTES_POLICIES_SQL}
 alter table public.${NOTES_TABLE} enable row level security;
-${policies}
-select '${MUTATION_MARKER}';
+${policies.map((policy) => `${policy};`).join('\n')}
+select '${marker}';
 `;
-}
 
-/** SQL that opens a transaction like the mutation does, without touching any policy. */
-export const buildControlSql = () => `begin;
-select '${CONTROL_MARKER}';
-`;
+/** SQL that opens a transaction and leaves it open with the seeded notes policies back in place, ending with the marker that proves it ran. */
+export const buildMutationSql = () =>
+  buildPolicySwapSql(SEEDED_NOTES_POLICIES, MUTATION_MARKER);
+
+/** SQL shaped like the leak mutation that leaves the one owner-only safe policy in place instead. */
+export const buildSafeMutationSql = () =>
+  buildPolicySwapSql([SAFE_NOTES_POLICY], SAFE_MUTATION_MARKER);
 
 /** Runs `fn` with pgTAP installed, creating the extension first and dropping it afterwards when the project did not already have it. */
 export async function withPgtap<T>(
@@ -263,28 +277,18 @@ const runFile = async (ctx: ExecContext, dbUrl: string, file: string) =>
 async function runMutated(
   ctx: ExecContext,
   dbUrl: string,
-  file: string
+  file: string,
+  script: string,
+  marker: string
 ): Promise<MutatedRun> {
-  const result = await execTestFile(ctx, dbUrl, file, buildMutationSql());
+  const result = await execTestFile(ctx, dbUrl, file, script);
   return {
     ...toRun(file, {
       ...result,
-      stdout: withMarkerRemoved(result.stdout, MUTATION_MARKER),
+      stdout: withMarkerRemoved(result.stdout, marker),
     }),
-    mutationApplied: printedMarker(result, MUTATION_MARKER),
+    mutationApplied: printedMarker(result, marker),
   };
-}
-
-async function runControl(
-  ctx: ExecContext,
-  dbUrl: string,
-  file: string
-): Promise<TestFileRun> {
-  const result = await execTestFile(ctx, dbUrl, file, buildControlSql());
-  return toRun(file, {
-    ...result,
-    stdout: withMarkerRemoved(result.stdout, CONTROL_MARKER),
-  });
 }
 
 /** Compares the notes policies with `baseline` after a mutated run, restoring them when the file's own commit kept the mutation. */
@@ -310,7 +314,20 @@ async function settleNotesAccess(
       };
 }
 
-/** Mutates and re-runs each file in turn, stopping at the first file whose policies cannot be confirmed back in place. */
+/** Runs `file` under the policies `script` sets up, then settles the notes policies back to `baseline`. */
+async function runSettled(
+  ctx: ExecContext,
+  dbUrl: string,
+  file: string,
+  baseline: NotesAccessSnapshot,
+  script: string,
+  marker: string
+) {
+  const run = await runMutated(ctx, dbUrl, file, script, marker);
+  return { run, ...(await settleNotesAccess(ctx, dbUrl, baseline)) };
+}
+
+/** Runs each file under the seeded policies and under the safe policy in turn, stopping at the first file whose policies cannot be confirmed back in place. */
 async function runMutations(
   ctx: ExecContext,
   dbUrl: string,
@@ -319,30 +336,47 @@ async function runMutations(
 ): Promise<{ catches: CatchRun[]; unmutated: string[] }> {
   const catches: CatchRun[] = [];
   for (const [index, file] of files.entries()) {
-    const mutated = await runMutated(ctx, dbUrl, file);
-    const { leaked, failure } = await settleNotesAccess(ctx, dbUrl, baseline);
-    const flags = leaked ? { leaked } : {};
-    if (failure !== undefined) {
+    const leak = await runSettled(
+      ctx,
+      dbUrl,
+      file,
+      baseline,
+      buildMutationSql(),
+      MUTATION_MARKER
+    );
+    if (leak.failure !== undefined) {
       catches.push({
         file,
-        mutated,
-        rerun: null,
-        ...flags,
-        restoreFailure: failure,
+        mutated: leak.run,
+        safe: null,
+        ...(leak.leaked ? { leaked: true } : {}),
+        restoreFailure: leak.failure,
       });
       return { catches, unmutated: files.slice(index + 1) };
     }
+    const safe = await runSettled(
+      ctx,
+      dbUrl,
+      file,
+      baseline,
+      buildSafeMutationSql(),
+      SAFE_MUTATION_MARKER
+    );
     catches.push({
       file,
-      mutated,
-      rerun: await runControl(ctx, dbUrl, file),
-      ...flags,
+      mutated: leak.run,
+      safe: safe.run,
+      ...(leak.leaked || safe.leaked ? { leaked: true } : {}),
+      ...(safe.failure === undefined ? {} : { restoreFailure: safe.failure }),
     });
+    if (safe.failure !== undefined) {
+      return { catches, unmutated: files.slice(index + 1) };
+    }
   }
   return { catches, unmutated: [] };
 }
 
-/** Runs every pgTAP file clean, then each passing file under the seeded-policy mutation and once more afterwards; never throws. */
+/** Runs every pgTAP file clean, then each passing file under the seeded policies and under the safe owner-only policy; never throws. */
 export async function runSuite(
   ctx: ExecContext,
   stack: StackProbe
@@ -391,9 +425,61 @@ export async function runSuite(
   }
 }
 
-/** Whether a mutated run shows the tests catch the seeded policies: the mutation applied, the tests failed under it, and the re-run passed. */
-export const isCatch = ({ mutated, rerun }: CatchRun) =>
-  mutated.mutationApplied && !mutated.passed && rerun?.passed === true;
+function numberedResults(tap: TapResult): Map<number, TapEntry> {
+  const byNumber = new Map<number, TapEntry>();
+  for (const [index, entry] of tap.results.entries()) {
+    const number = entry.number ?? index + 1;
+    if (!byNumber.has(number)) byNumber.set(number, entry);
+  }
+  return byNumber;
+}
+
+/** The first top-level, non-TODO test that passed under the safe policy and failed, or never ran, under the seeded ones. */
+function flippedTest(leak: TestFileRun, safe: TestFileRun) {
+  const underLeak = numberedResults(leak.tap);
+  for (const [number, entry] of numberedResults(safe.tap)) {
+    if (entry.ok && !entry.todo && underLeak.get(number)?.ok !== true) {
+      return {
+        number,
+        description: entry.description,
+        ranUnderLeak: underLeak.has(number),
+      };
+    }
+  }
+  return undefined;
+}
+
+/** Whether the tests catch the seeded policies, or why not: the leak run failed and some test passes under an equivalent owner-only policy that fails under the leak. */
+export function catchVerdict({
+  mutated,
+  safe,
+  restoreFailure,
+}: CatchRun): CatchVerdict {
+  if (restoreFailure !== undefined) {
+    return { caught: false, reason: 'unrestored' };
+  }
+  if (!mutated.mutationApplied) {
+    return { caught: false, reason: 'leak-not-applied' };
+  }
+  if (mutated.passed) return { caught: false, reason: 'leak-passed' };
+  if (safe === null || !safe.mutationApplied) {
+    return { caught: false, reason: 'safe-not-applied' };
+  }
+  const test = flippedTest(mutated, safe);
+  return test === undefined
+    ? { caught: false, reason: 'policy-set-only' }
+    : { caught: true, test };
+}
+
+export const isCatch = (run: CatchRun) => catchVerdict(run).caught;
+
+/** `test 2 "b cannot see a's notes" failed with the seeded policies put back and passed with an equivalent owner-only policy`. */
+export const describeFlippedTest = ({
+  number,
+  description,
+  ranUnderLeak,
+}: FlippedTest) =>
+  `test ${number} "${description}" ${ranUnderLeak ? 'failed' : 'did not run'} with the seeded policies put back and passed with an equivalent owner-only policy`;
 
 const firstFailing = (run: TestFileRun) =>
   run.tap.results.find((entry) => !entry.ok && !entry.todo);
@@ -435,22 +521,22 @@ export function checkTestsPass(suite: SuiteProbe): CheckResult {
   };
 }
 
-function describeNotCaught({
-  file,
-  mutated,
-  rerun,
-  restoreFailure,
-}: CatchRun): string {
-  if (restoreFailure !== undefined) {
-    return `${file}: ${restoreFailure}, so the run is not counted`;
+function describeNotCaught(
+  { file, mutated, safe, restoreFailure }: CatchRun,
+  reason: NotCaughtReason
+): string {
+  switch (reason) {
+    case 'unrestored':
+      return `${file}: ${restoreFailure}, so the run is not counted`;
+    case 'leak-not-applied':
+      return `${file}: the mutation did not apply (${mutated.detail}), so the run proves nothing`;
+    case 'leak-passed':
+      return `${file}: the tests still passed with the seeded policies put back`;
+    case 'safe-not-applied':
+      return `${file}: the equivalent owner-only policy did not apply (${safe?.detail}), so the run proves nothing`;
+    case 'policy-set-only':
+      return `${file}: failed with the seeded policies put back, but it also failed with an equivalent owner-only policy in place, so it checks the policy set, not who can see which notes`;
   }
-  if (!mutated.mutationApplied) {
-    return `${file}: the mutation did not apply (${mutated.detail}), so the run proves nothing`;
-  }
-  if (mutated.passed) {
-    return `${file}: the tests still passed with the seeded policies put back`;
-  }
-  return `${file}: failed under the mutation, but the re-run afterwards failed too (${rerun?.detail}), so the failure may be state drift rather than the policies`;
 }
 
 const describeUnmutated = (files: readonly string[] | undefined) =>
@@ -458,7 +544,7 @@ const describeUnmutated = (files: readonly string[] | undefined) =>
     ? ''
     : `; not run under the seeded policies because they could not be restored: ${files.join(', ')}`;
 
-/** Passes when at least one pgTAP file passes clean, fails once the seeded policies are put back, and passes again on a re-run. */
+/** Passes when at least one pgTAP file passes clean, fails once the seeded policies are put back, and has a test that passes under an equivalent owner-only policy. */
 export function checkTestsCatchSeededPolicies(suite: SuiteProbe): CheckResult {
   const name = TESTS_CATCH_CHECK_NAME;
   if (!suite.ok) return { name, passed: false, notes: suite.notes };
@@ -468,23 +554,6 @@ export function checkTestsCatchSeededPolicies(suite: SuiteProbe): CheckResult {
   if (suite.mutationBlocked !== undefined) {
     return { name, passed: false, notes: suite.mutationBlocked };
   }
-  const caught = suite.catches.filter(isCatch);
-  if (caught.length > 0) {
-    const notes = caught
-      .map(({ file, mutated, leaked }) => {
-        const failing = firstFailing(mutated);
-        const restored = leaked
-          ? '; the file committed the mutation, so the scorer restored the notes policies before the re-run'
-          : '';
-        return `${file} failed with the seeded policies put back (${failing === undefined ? mutated.detail : `first failing test: "${failing.description}"`}) and passed again on the re-run${restored}`;
-      })
-      .join('; ');
-    return {
-      name,
-      passed: true,
-      notes: `${notes}${describeUnmutated(suite.unmutated)}`,
-    };
-  }
   if (suite.catches.length === 0) {
     const failed = suite.clean.filter((run) => !run.passed);
     return {
@@ -493,9 +562,30 @@ export function checkTestsCatchSeededPolicies(suite: SuiteProbe): CheckResult {
       notes: `no test file passed on a clean run, so none can show it catches the policies (${failed.map((run) => `${run.file} failed: ${run.detail}`).join(' | ')})`,
     };
   }
-  return {
-    name,
-    passed: false,
-    notes: `${suite.catches.map(describeNotCaught).join(' | ')}${describeUnmutated(suite.unmutated)}`,
-  };
+  const caught: string[] = [];
+  const missed: string[] = [];
+  for (const attempt of suite.catches) {
+    const verdict = catchVerdict(attempt);
+    if (verdict.caught) {
+      const restored = attempt.leaked
+        ? '; the file committed the mutation, so the scorer restored the notes policies between the runs'
+        : '';
+      caught.push(
+        `${attempt.file}: ${describeFlippedTest(verdict.test)}${restored}`
+      );
+    } else {
+      missed.push(describeNotCaught(attempt, verdict.reason));
+    }
+  }
+  return caught.length > 0
+    ? {
+        name,
+        passed: true,
+        notes: `${caught.join('; ')}${describeUnmutated(suite.unmutated)}`,
+      }
+    : {
+        name,
+        passed: false,
+        notes: `${missed.join(' | ')}${describeUnmutated(suite.unmutated)}`,
+      };
 }

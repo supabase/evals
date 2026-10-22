@@ -16,13 +16,16 @@ with the check that answers it:
   database`)
 - Are the tests real enough to catch the seeded bug? (`the tests fail when the
   seeded notes policies are put back`) This is a mutation test: the scorer puts
-  the leaky policies back and the tests have to notice. A suite that only
-  checks anon, only checks that the owner sees their own notes, or runs as a
-  role that skips row level security passes everything else and fails here.
+  the leaky policies back and the tests have to notice, then puts an equivalent
+  owner-only policy in their place and some test that failed under the leak has
+  to pass. A suite that only checks anon, only checks that the owner sees their
+  own notes, runs as a role that skips row level security, or only checks the
+  policy names and counts passes everything else and fails here.
 - Is the fix shipped as an applied migration, so a reset keeps it? (`the notes
   policy fix is in an applied migration`) This is the chain of custody: a
   policy dropped by hand with `psql` fixes the running database and leaves the
-  project leaky on the next reset.
+  project leaky on the next reset. The scorer replays the migrations' notes
+  policies from the seeded state to check that they close the leak.
 - Did the agent run the tests with the CLI's own runner, not only `psql`? (`the
   tests were run with supabase test db`)
 - Did the agent stay off container-runtime detours (`no container-runtime
@@ -45,6 +48,18 @@ about 40% of agent runs outside CI, against 25% for humans. It is a softer
 signal than a plain error rate, since some of those failures are tests failing
 as intended.
 
+- FDBKIN-8983
+  (https://linear.app/supabase/issue/FDBKIN-8983/provide-native-tooling-for-testing-and-validating-rls-policies):
+  a user built an external tool to test RLS after a misconfiguration leaked
+  data.
+- FDBKIN-36404
+  (https://linear.app/supabase/issue/FDBKIN-36404/improve-the-developer-experience-and-accessibility-of-testing-rls):
+  a user found the pgTAP route to testing RLS too hard and built their own.
+- FDBKIN-7467
+  (https://linear.app/supabase/issue/FDBKIN-7467/provide-a-callable-postgres-function-for-user-creation-to-aid-in-pgtap):
+  users have to insert into `auth.users` by hand to create test users for
+  pgTAP, which this seed's foreign key also requires.
+
 ## Area and journey phase
 
 - `area: tests-and-lint`
@@ -52,12 +67,16 @@ as intended.
 
 ## The prompt names no command, policy, or test framework
 
-`PROMPT.md` never says `supabase`, `pgTAP`, `test db`, `policy` or `policies`,
-`RLS`, `row level security`, `migration`, `auth` or `authenticated`,
-`supabase/tests`, `docker`, or the table and column names, and is identical
-under every experiment. `fixtures.test.ts` guards this: it fails when the body
-below the frontmatter contains any of those words (matched as whole words, so
-"notes" is fine).
+`PROMPT.md` keeps "notes", the user's own word and also the name of the table,
+and names no command, policy, test framework, column, schema or path. It is
+identical under every experiment. `fixtures.test.ts` guards this: it fails when
+the body below the frontmatter contains any of `supabase`, `pgtap`, `test db`,
+`policy`, `policies`, `rls`, `row level security`, `row-level security`,
+`migration`, `auth`, `authenticated`, `supabase/tests`, `public.notes`,
+`owner_id`, `title`, `body`, `created_at` or `docker`. Matches are
+case-insensitive whole words, and a word touching a letter, digit, underscore or
+hyphen doesn't match. Bare `notes` isn't on the list, and a separate test
+requires the body to say "notes".
 
 The prompt keeps the user's own words: "notes", "database tests", "run them" and
 "fix anything they turn up". Finding out that the CLI has a test runner, that
@@ -106,8 +125,10 @@ beta 2.122.0-beta.12, next 3.0.0-next.22.
   under `supabase/tests`, recursively, through `pg_prove --ext .pg --ext .sql
   -r`. It creates the `pgtap` extension in schema `extensions` if the database
   doesn't have it, and drops it afterwards.
-- An empty tests folder ends as the error `no pgTAP tests found`, with a
-  pg_prove summary of `Files=0, Tests=0` and `Result: NOTESTS`.
+- An empty tests folder behaves differently by CLI. On 3.x (TypeScript) it ends
+  as the error `no pgTAP tests found`. On the 2.x Go CLIs pg_prove prints
+  `Files=0, Tests=0` and `Result: NOTESTS`, and the command exits 0. Either way
+  the `the tests were run with supabase test db` check doesn't count it.
 - A failing run prints pg_prove's summary, ending `Result: FAIL`, and then an
   exit error: `error running container: exit N` on the legacy Docker path (the
   `supabase/pg_prove:3.36` image) or `error running pg_prove: exit N` on the
@@ -126,9 +147,9 @@ beta 2.122.0-beta.12, next 3.0.0-next.22.
 | `local stack is running for this project` | There is a local database to probe | The workspace's own stack is resolved (the managed `stack status` first, then the legacy `status`), and `select 1` through its DB URL must return `1`. If the default home has no stack, the lookup repeats under each `SUPABASE_HOME`/`HOME` the agent set on a start command. The notes say the backend and runtime, or why none resolved |
 | `each user can see only their own notes` | The leak is closed in the running database, and the owner still sees their notes | The access probe runs as the two seeded probe users and anon, inside one rolled-back transaction, so it leaves nothing behind. As `postgres` it inserts the users into `auth.users` and three notes (two owned by the owner, one by the other user, titles prefixed `eval-probe-`), setting the JWT claims to each note's owner before its insert so a `before insert` trigger that sets `owner_id` from `auth.uid()` keeps the owner, then reads the notes as each role with its JWT claims set. Passes when the owner sees exactly the owner's two notes, the other user exactly their own one, and anon none (or is denied). Fails on any extra note (`other user sees the owner's notes`, `owner also sees the other user's notes`), on a missing own note (`using (false)`, or a denied read), and on a probe that can't run. Any policy shape that gives that result passes: renamed policies, a restrictive owner policy added on top of the leak, a single `for all` owner policy |
 | `only a note's owner can change it` | The fix didn't open or break writes | The same probe. The other user's update and delete of the owner's notes must touch 0 rows or be denied. The other user's insert naming the owner's `owner_id` must be denied, or, when it succeeds, leave no row titled with the forged probe title and owned by the owner (a `before insert` trigger that sets `owner_id` to `auth.uid()` makes it the other user's own row, which is fine). That row count is taken as `postgres` after `reset role`, so row level security can't hide it. The owner's update must touch at least one row. The owner's insert is tried without `owner_id` first (the seeded default is `auth.uid()`), then naming it, each attempt in its own exception block; it must leave at least one row with that title owned by the owner, counted as `postgres` too, so revoking the column privilege on `owner_id` from `authenticated` passes. Fails if the fix recreated a write policy with `using (true)`, or dropped one so the owner lost access |
-| `the notes policy fix is in an applied migration` | The fix survives a reset, and the migration that holds it is the one the CLI applied | The migration files (`<digits>_<name>.sql`) that change the notes access rules are found: every new one (version greater than `20260101000000`, compared as strings) plus the seeded file when its access-rule statements differ from the seed's. Each must be in `supabase_migrations.schema_migrations`, with recorded `statements` whose access-rule statements equal the file's now. At least one must contribute. A file that touches the notes rules and sorts at or before the seeded version fails, because a reset applies it before `notes` exists. Fails when the fix was only a `psql -c 'drop policy …'`, a migration was written and never applied, a file was applied with `psql -f` (no history row), or the seeded file was edited with no reset since. Passes for a new migration applied with `migration up`, `db push --local` or `db reset`, for the seeded migration edited and reset, and for a declarative schema that generated a migration. How "access rules" are read is below |
+| `the notes policy fix is in an applied migration` | The fix survives a reset, and the migration that holds it is the one the CLI applied | The migration files (`<digits>_<name>.sql`) that change the notes access rules are found: every new one (version greater than `20260101000000`, compared as strings) plus the seeded file when its access-rule statements differ from the seed's. Each must be in `supabase_migrations.schema_migrations`, with recorded `statements` whose access-rule statements equal the file's now. At least one must contribute. A file that touches the notes rules and sorts at or before the seeded version fails, because a reset applies it before `notes` exists. When files and history are in order, the scorer replays the rules: in one rolled-back `psql` session it drops every policy on `public.notes`, disables and un-forces row level security, runs the seeded file's access-rule statements as the file holds them now and then each other contributor's in version order, each ended with `;`, and runs the access probe. The check passes only when both the read check and the write check pass on that replay, so the migrations have to close the leak from the seeded state, and a replay statement that errors fails it with psql's error. Fails when the fix was only a `psql -c 'drop policy …'`, a migration was written and never applied, a file was applied with `psql -f` (no history row), the seeded file was edited with no reset since, or the replay still leaks (a migration that drops a policy under the wrong name with `if exists`, say). Passes for a new migration applied with `migration up`, `db push --local` or `db reset`, for the seeded migration edited and reset, and for a declarative schema that generated a migration. How "access rules" are read, and what the replay can't see, is below |
 | `the project's pgTAP tests pass against the local database` | The agent wrote tests where `supabase test db` finds them, and they pass on the fixed database | Every `*.sql` and `*.pg` file under `supabase/tests`, recursively and sorted, is run through `psql -X -A -t -q -v ON_ERROR_STOP=1 -f <file>` with `supabase/tests` as the working directory and the path relative to it (`sub/x.sql`), as `supabase test db` runs pg_prove, so a cwd-relative `\i helper.sql` resolves. `pgtap` is created in `extensions` first and dropped afterwards if the project didn't have it, as the CLI does. The TAP output is judged the way pg_prove judges it: psql exits 0, there is exactly one plan, as many results as planned, and no `not ok` outside a TODO. Passes when there is at least one file, at least one test, and every file passes. Fails for no tests directory, a file that errors, a helper `.sql` file with no plan (pg_prove fails it too), and tests that still fail |
-| `the tests fail when the seeded notes policies are put back` | The tests actually detect the seeded bug | For each file that passed in the check above, one `psql` session (run from `supabase/tests`) opens a transaction, drops every policy on `public.notes`, enables row level security, recreates the five seeded policies verbatim and prints a marker, then runs the file, then rolls back. The file is then run again in a session of the same shape: it opens a transaction, prints its own marker, runs the file and rolls back, so the only difference from the mutated run is the policy DDL and `set local`, `set_config(…, true)` and `vacuum` behave alike in both. The re-run must pass. A file catches the bug when the marker printed, it failed under the mutation, and the re-run passed. Passes when at least one file catches it. Fails for tests that only check anon, only check that the owner sees their own notes, or run as `postgres`, whose role bypasses row level security, and for `select ok(true)`. A file that failed under the mutation but also failed on the re-run isn't counted, since the failure may be drift, not the policies. Before the first mutated run the scorer reads the notes policies (as `create policy` statements) and the `relrowsecurity` and `relforcerowsecurity` flags as `postgres`, and reads them again after each mutated run. A file that ends with `commit;` keeps the mutation; the scorer then drops every policy, sets the flags and recreates the snapshot's policies in one committed session, reads again to confirm, and only then runs the re-run. That file is marked as having committed the mutation and can still count. If the restore doesn't take, or the policies can't be read after a mutated run, the file isn't counted and no later file is mutated, since the database state is unknown. If the policies can't be read before the first mutated run, the check fails with that reason and no mutated run happens |
+| `the tests fail when the seeded notes policies are put back` | The tests actually detect the seeded bug, by what users can see and not by which policies exist | Two `psql` sessions per file that passed in the check above, each run from `supabase/tests`. Both open a transaction, drop every policy on `public.notes`, enable row level security, create their policies, print a marker, run the file, then roll back. The leak run creates the five seeded policies verbatim and prints `eval-mutation-applied`. The safe run creates one policy, `"eval-probe owners only"` (`as permissive for all to authenticated`, with `using` and `with check` both `(select auth.uid()) = owner_id`), and prints `eval-safe-mutation-applied`. A file catches the bug when the leak marker printed and the file failed under the leak, the safe marker printed, and some top-level, non-TODO test number N is `ok` in the safe run and `not ok` or absent in the leak run. Passes when at least one file catches it. Tests that only check anon, only check that the owner sees their own notes, run as `postgres`, whose role bypasses row level security, or are `select ok(true)` don't fail under the leak. Structural tests such as `policies_are`, a policy count or a per-command check fail under both runs, so they never flip and don't count; a file with no test that flips is reported as checking the policy set, not who can see which notes. Before the first mutated run the scorer reads the notes policies (as `create policy` statements) and the `relrowsecurity` and `relforcerowsecurity` flags as `postgres`, and reads them again after each mutated run. A file that ends with `commit;` keeps the mutation; the scorer then drops every policy, sets the flags and recreates the snapshot's policies in one committed session, reads again to confirm, and only then runs the next session. That file is marked as having committed the mutation and can still count. If the restore doesn't take, or the policies can't be read after a mutated run, the file isn't counted and no later file is mutated, since the database state is unknown. If the policies can't be read before the first mutated run, the check fails with that reason and no mutated run happens |
 | `the tests were run with supabase test db` | The agent used the CLI's runner, not only `psql` or a hand-run `pg_prove` | Executed `supabase` invocations whose first two positionals are `test db` or the hidden alias `db test`, one run per tool call. The call's output (result and error) must hold a pg_prove summary: a `Result: PASS` or `Result: FAIL` line, or a `Files=N, Tests=M` line with `M` above 0. Passes when at least one run shows one, so a FAIL run counts as having run it and a `NOTESTS` run does not. Fails when `test db` was never run, or only printed a Docker error or `no pgTAP tests found` |
 | `no container-runtime detours` | The agent didn't work around its environment | The shared detour judge from `../lib/detours.ts` over executed commands only. No commands passes without a judge call. Running `psql` or `pg_prove` against the local database, and starting, stopping or restarting the stack, are not detours. Naming a blocker in the report can't count, since only commands are judged |
 | `metrics` | Diagnostics only | Always passes; see below |
@@ -142,13 +163,18 @@ reason, so one probe failing doesn't blank the others.
 
 ### How the migration check reads access rules
 
-Each migration is masked first: `--` and `/* */` comments, string literals and
-dollar-quoted bodies are blanked, and quoted identifiers are kept. The result
-is split on `;`, whitespace is squashed and the text is lower-cased. A statement
-is an access rule when it is `create`, `alter` or `drop policy [if exists]
-<name> on [public.]notes`, or `alter table [if exists] [only] [public.]notes …`
-with `enable`, `disable`, `force` or `no force row level security`. The seeded
-file's rules are the `enable row level security` statement and the five policies.
+Each file is split into statements on `;` outside comments, quoted identifiers,
+string literals and dollar-quoted bodies, and each statement keeps its original
+text. A statement is an access rule when, with its comments, string literals and
+dollar-quoted bodies blanked and quoted identifiers kept, it is `create`,
+`alter` or `drop policy [if exists] <name> on [public.]notes`, or `alter table
+[if exists] [only] [public.]notes …` with `enable`, `disable`, `force` or `no
+force row level security`. A `do` block is also an access rule when its text,
+comments stripped, mentions both `policy` and `notes`. Two versions are compared
+by the rules' keys: the blanked, whitespace-squashed, lower-cased statement, or,
+for a `do` block, its comment-stripped, whitespace-squashed, lower-cased text
+with the body kept. The seeded file's rules are the `enable row level security`
+statement and the five policies.
 
 A file is a contributor when it is the seeded file with different rules, or any
 other file with at least one rule. A contributor must be recorded in the history
@@ -157,9 +183,13 @@ with other rules, counts as mismatched, so a file that was changed after it was
 applied fails: `recorded with different notes policy statements than the file
 now holds`.
 
-The check looks at what the files and the history hold, not at what the
-migration does. It never asks whether a migration removes the leaky policy; the
-two read checks above ask that of the running database.
+The replay then runs the original text of those rules, not the keys: the seeded
+file's rules as the file holds them now, then each other contributor's in
+version order. It starts from a table with every policy dropped and row level
+security off, so it doesn't depend on what the agent left in the database, and it
+rolls back. The files-and-history part reads what the files and the history hold;
+the replay is what asks whether the migrations close the leak, without asking
+whether any one of them drops the leaky policy by name.
 
 ### Metrics and the report judge
 
@@ -187,8 +217,9 @@ The report judge sees the transcript and these harness lines: the project
 directory, the installed CLI version (every probe used it) with any
 `cliOverride` runners, how the stack resolved, what each probe user read and
 wrote, the migrations that touch the notes policies and whether the history
-records them with matching statements (`n/a` when none touch them), each test file's clean run and whether it
-caught the seeded policies, and the `supabase test db` runs with their
+records them with matching statements (`n/a` when none touch them), what each probe user read and wrote after
+replaying the migrations' notes policies, each test file's clean run and whether
+it caught the seeded policies, and the `supabase test db` runs with their
 summaries. It fails a report that claims success that didn't happen, says the
 tests pass or catch the leak when they don't, says the fix is applied or
 recorded when it isn't, or blames something other than what the tools reported.
@@ -218,8 +249,9 @@ the PR.
 
 The four Docker arms can pass because every CLI can start a stack, run
 `test db` against it and apply a migration. They are not guaranteed to: whether a
-run passes depends on the agent writing tests that exercise two users, which
-the mutation check requires. The two Docker-less arms are red by design until
+run passes depends on the agent writing tests that exercise two users: the
+mutation check counts a file only when a test that fails with the seeded policies
+put back passes under an equivalent owner-only policy. The two Docker-less arms are red by design until
 CLI-2534.
 
 The frontmatter sets `needsDocker: false` and `projectRunning: false`, so all
@@ -229,12 +261,22 @@ came up on are reported through `metrics`.
 
 ## Known limitations
 
-- The migration comparison masks string literals, dollar-quoted bodies and
-  comments, so two versions of a policy that differ only inside a literal or a
-  `do $$ … $$` body compare equal, and a migration whose policy DDL lives only
-  inside a `do` block isn't recognised as touching the policies. Comparing the
-  statements with their literals kept would fix the first; replaying the
-  migrations into a scratch database and comparing `pg_policies` would fix both.
+- The replay re-executes only the notes access-rule statements, on top of the
+  live table, functions and extensions. A migration that depends on an object
+  made by hand outside the migrations, such as a helper function created with
+  `psql`, replays fine here and fails on a real reset. A migration that closes
+  the leak partly with other statements, such as a revoke or a trigger, has those
+  left out of the replay, so the replay can still show the leak. Running the
+  whole migration chain with `supabase db reset` in a scratch stack would cover
+  both.
+- A `do` block that only switches row level security and names no policy isn't
+  recognised as an access rule, so it is neither compared nor replayed, and a
+  file holding only that isn't a contributor. A comment inside a `do` body counts
+  as a mention of `policy` or `notes`.
+- The history comparison blanks string literals in statements that are not `do`
+  blocks, so two versions of a policy that differ only inside a literal compare
+  equal there. The replay runs the file's current text, so it still sees what
+  the policy does.
 - Tests must live under `supabase/tests`, where `supabase test db` looks by
   default. Tests kept elsewhere and run with `test db <path>` are invisible to
   the two test checks, which then fail with `no test files in supabase/tests`.
@@ -243,39 +285,34 @@ came up on are reported through `metrics`.
   target isn't detected. Only the commands the agent ran are parsed for a
   `supabase` invocation, and nothing expands `npm run` or `make`. Reading the
   output of those commands for a pg_prove summary would fix it.
-- An error under the mutation counts as a catch. A test file that errors when
-  the seeded policies are back is treated as failing, because the verdict needs
-  psql to exit 0, which is also what pg_prove does. A file that errors for a
-  reason unrelated to the policies counts too. Requiring a `not ok` line would
-  exclude it, at the cost of dropping real catches that error, such as a scalar
-  subquery that returns two rows under the leak.
-- Purely structural tests, such as `policies_are` naming the fixed policy set or
-  asserting that a policy name is absent, count as catches. Any change to the
-  policies fails them, so they pass the clean run and fail under the mutation
-  without testing that users only see their own notes. A second mutation that
-  swaps in safe owner-only policies under different names would separate them
-  from tests that check behaviour.
+- The `the tests were run with supabase test db` check reads only the output of
+  the tool call that ran `test db`. A same-call fallback such as `supabase test
+  db || pg_prove …` counts. Output redirected to a file and read in a later call
+  does not.
+- A catch needs a test that flips between the two runs, so an error that happens
+  under both, such as a file that fails for a reason unrelated to the policies,
+  doesn't count. An error caused by the leak itself, such as a scalar subquery
+  that returns two rows under it, still counts: the tests after it never run, and
+  a test that passes in the safe run and is absent from the leak run flips.
+- The safe run separates structural tests from behavioural ones: a test written
+  against the seeded policy names, counts or per-command shape fails under the
+  safe policy too, so it can't flip. It can't separate a structural test written
+  against the safe policy's exact shape (one `for all` policy named `eval-probe
+  owners only`), which would still count, but a test can't know that shape. A
+  test that differs between the two runs for a reason other than the policies,
+  such as one that depends on the time or on random data, can flip too.
 - The restore after a committed mutation puts back the notes policies and the two
   row level security flags only. Anything else a test file commits, such as rows
   or schema changes, stays.
 - The mutation only reverts the policies and the row level security flag on
   `public.notes`. It drops every policy there, whatever its name or kind, and
-  puts the seeded five back, so any fix made with policies is undone. A fix
-  made anywhere else, such as table or column grants, a trigger, or an object
-  the tests query instead of the table, stays in place under the mutation, so
-  tests of that protection still pass under it and the file doesn't count as
-  catching the bug. Replaying the seeded migration alone into a scratch database
-  and running the tests there, instead of mutating the live one, would cover
-  those fixes.
-- The migration check doesn't tie the migration to the leak fix. It requires
-  every migration that changes the notes access rules to be recorded with the
-  statements the file holds, but not that any of them drops the leaky policy. An
-  agent that fixes the running database by hand with `psql` and also applies
-  some other migration that touches the notes policies (a new policy, say)
-  passes this check even though the fix itself was never migrated. The two read
-  checks see the fixed database and the history is clean, so nothing fails.
-  Replaying the migration chain in a scratch database and running the access
-  probe there would catch it. `metrics.directPolicyDdl` shows the hand fix.
+  puts the seeded five or the safe one in their place, so any fix made with
+  policies is undone. A fix made anywhere else, such as table or column grants,
+  a trigger, or an object the tests query instead of the table, stays in place
+  under the mutation, so tests of that protection still pass under it and the
+  file doesn't count as catching the bug. Replaying the seeded migration alone
+  into a scratch database and running the tests there, instead of mutating the
+  live one, would cover those fixes.
 - Stopping the stack after the fix fails the stack, read, write, migration and
   the two pgTAP checks. This is intended: the scorer reads the running local database the
   prompt asked the agent to work with.

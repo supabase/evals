@@ -3,6 +3,7 @@ import type { CommandResult } from '@supabase-evals/core';
 import { describe, expect, it, vi } from 'vitest';
 import type { StackProbe } from '../lib/stack.js';
 import {
+  buildAccessProbeBody,
   buildAccessProbeSql,
   checkReadIsolation,
   checkWriteIsolation,
@@ -95,6 +96,25 @@ describe('check names', () => {
   it('are the documented ones', () => {
     expect(READ_CHECK_NAME).toBe('each user can see only their own notes');
     expect(WRITE_CHECK_NAME).toBe("only a note's owner can change it");
+  });
+});
+
+describe('buildAccessProbeBody', () => {
+  const body = buildAccessProbeBody();
+
+  it('holds no transaction control, so it can follow a prefix in one session', () => {
+    expect(body.trim()).not.toMatch(/^begin;/i);
+    expect(body).not.toMatch(/\b(commit|rollback)\b/i);
+  });
+
+  it('is what the live probe wraps in its own begin and rollback', () => {
+    expect(buildAccessProbeSql()).toBe(`begin;\n${body}\nrollback;\n`);
+  });
+
+  it('ends with the select that prints the results', () => {
+    expect(body.trim()).toMatch(
+      /select k \|\| '\|' \|\| v from eval_probe\.results order by k;$/
+    );
   });
 });
 

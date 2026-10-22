@@ -15,12 +15,13 @@ import {
   SEEDED_MIGRATION_FILE,
   SEEDED_MIGRATION_VERSION,
 } from './fixtures.js';
+import { splitStatements } from './migrations.js';
 import { buildSnapshotSql } from './snapshot.js';
 
 const WS = '/ws';
 const DB_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
 const MUTATION_MARKER = 'eval-mutation-applied';
-const CONTROL_MARKER = 'eval-control-run';
+const SAFE_MARKER = 'eval-safe-mutation-applied';
 
 const SEEDED_SQL = readFileSync(
   new URL(
@@ -41,6 +42,28 @@ const SECOND_FILE = '20260103000000_tighten_notes.sql';
 const SECOND_VERSION = '20260103000000';
 const SECOND_SQL =
   'alter policy "Users can view their own notes" on public.notes using ((select auth.uid()) = owner_id);\n';
+
+const HARDEN_FILE = '20260103000000_harden_notes.sql';
+const HARDEN_VERSION = '20260103000000';
+const WRONG_NAME_DROP =
+  'drop policy if exists "Enable read access for all users" on public.notes;\n';
+const STRICT_WRONG_NAME_DROP =
+  'drop policy "Enable read access for all users" on public.notes;\n';
+const DO_DROP = `do $$
+begin
+  drop policy if exists "${LEAKY_POLICY_NAME}" on public.notes;
+end $$;
+`;
+const DO_WRONG_NAME_DROP = `do $$
+begin
+  drop policy if exists "Enable read access for all users" on public.notes;
+end $$;
+`;
+const withHarden = (sql: string) =>
+  ({
+    files: { [SEEDED_MIGRATION_FILE]: SEEDED_SQL, [HARDEN_FILE]: sql },
+    history: [SEEDED_MIGRATION_VERSION, HARDEN_VERSION],
+  }) satisfies World;
 
 const MARKER: LocalStackEnvironmentMarker = {
   runtime: 'local-stack',
@@ -67,6 +90,108 @@ const LEAKY_ROWS = FIXED_ROWS.replace(
   'read.owner|titles:eval-probe-other-1,eval-probe-owner-1,eval-probe-owner-2'
 );
 const withBlankLines = (rows: string) => `${'\n'.repeat(8)}${rows}`;
+
+const ALL_TITLES = [
+  'eval-probe-other-1',
+  'eval-probe-owner-1',
+  'eval-probe-owner-2',
+];
+const OWNER_TITLES = ['eval-probe-owner-1', 'eval-probe-owner-2'];
+const OTHER_TITLES = ['eval-probe-other-1'];
+const WRITE_ROWS = FIXED_ROWS.split('\n')
+  .filter((row) => row.startsWith('write.'))
+  .join('\n');
+
+type SimulatedPolicy = {
+  name: string;
+  command: string;
+  restrictive: boolean;
+  open: boolean;
+};
+const POLICY_STATEMENT =
+  /^(create|alter|drop) policy (if exists )?("[^"]+"|\S+) on (?:"?public"?\.)?"?notes"?\b(.*)$/;
+
+/** What a rolled-back replay leaves the probe users reading, worked out from the replayed statements; a missing policy fails as in Postgres. */
+function replayedProbe(script: string): CommandResult {
+  const prefix = 'no force row level security;';
+  const policies: SimulatedPolicy[] = [];
+  let rowSecurity = false;
+  const apply = (statement: string): void => {
+    const text = statement
+      .replace(/\s+/g, ' ')
+      .replace(/^begin /i, '')
+      .trim()
+      .toLowerCase();
+    const match = POLICY_STATEMENT.exec(text);
+    if (match !== null) {
+      const [, verb, ifExists, name, rest] = match;
+      const policy = policies.find((candidate) => candidate.name === name);
+      if (verb === 'create') {
+        policies.push({
+          name,
+          command:
+            /\bfor (select|insert|update|delete|all)\b/.exec(rest)?.[1] ??
+            'all',
+          restrictive: /\bas restrictive\b/.test(rest),
+          open: /\busing \(true\)/.test(rest),
+        });
+      } else if (policy === undefined) {
+        if (verb === 'alter' || ifExists === undefined) {
+          throw new Error(`policy ${name} for table "notes" does not exist`);
+        }
+      } else if (verb === 'drop') {
+        policies.splice(policies.indexOf(policy), 1);
+      } else {
+        const renamed = /^ rename to ("[^"]+"|\S+)/.exec(rest)?.[1];
+        if (renamed === undefined) policy.open = /\busing \(true\)/.test(rest);
+        else policy.name = renamed;
+      }
+    } else if (/^alter table .* row level security/.test(text)) {
+      rowSecurity = /\benable row level security\b/.test(text);
+    } else if (text.startsWith('do ')) {
+      const body = text.slice(text.indexOf('$$') + 2, text.lastIndexOf('$$'));
+      splitStatements(body).forEach(apply);
+    }
+  };
+  try {
+    splitStatements(
+      script.slice(
+        script.indexOf(prefix) + prefix.length,
+        script.indexOf('create schema eval_probe;')
+      )
+    ).forEach(apply);
+  } catch (error) {
+    return result(
+      '',
+      false,
+      `psql:<stdin>:31: ERROR:  ${(error as Error).message}`,
+      3
+    );
+  }
+  const visible = (own: readonly string[]) => {
+    if (!rowSecurity) return ALL_TITLES;
+    const select = policies.filter(
+      ({ command }) => command === 'select' || command === 'all'
+    );
+    const permissive = select.filter(({ restrictive }) => !restrictive);
+    if (permissive.length === 0) return [];
+    const titles = permissive.some(({ open }) => open) ? ALL_TITLES : own;
+    return select.some(({ restrictive, open }) => restrictive && !open)
+      ? titles.filter((title) => own.includes(title))
+      : titles;
+  };
+  return result(
+    withBlankLines(
+      [
+        `read.anon|titles:${(rowSecurity ? [] : ALL_TITLES).join(',')}`,
+        `read.other|titles:${visible(OTHER_TITLES).join(',')}`,
+        `read.owner|titles:${visible(OWNER_TITLES).join(',')}`,
+        WRITE_ROWS,
+        '',
+      ].join('\n')
+    )
+  );
+}
 
 const PASSING_TAP = `1..3
 ok 1 - owner sees their own notes
@@ -159,17 +284,40 @@ rls|true|false
 `;
 
 type Run = { stdout: string; exitCode?: number; stderr?: string };
-type Behaviour = { clean: Run; mutated?: Run; rerun?: Run };
+type Behaviour = { clean: Run; mutated?: Run; safe?: Run };
 
 const CATCHING: Behaviour = {
   clean: { stdout: PASSING_TAP },
   mutated: { stdout: `${MUTATION_MARKER}\n${FAILING_TAP}` },
-  rerun: { stdout: PASSING_TAP },
+  safe: { stdout: `${SAFE_MARKER}\n${PASSING_TAP}` },
 };
 const BLIND: Behaviour = {
   clean: { stdout: PASSING_TAP },
   mutated: { stdout: `${MUTATION_MARKER}\n${PASSING_TAP}` },
-  rerun: { stdout: PASSING_TAP },
+  safe: { stdout: `${SAFE_MARKER}\n${PASSING_TAP}` },
+};
+const STRUCTURAL_AND_BEHAVIOURAL: Behaviour = {
+  clean: { stdout: PASSING_TAP },
+  mutated: {
+    stdout: `${MUTATION_MARKER}\n1..3\nnot ok 1 - notes has five policies\nnot ok 2 - other user sees none of the owner's notes\nok 3 - anon sees no notes\n`,
+  },
+  safe: {
+    stdout: `${SAFE_MARKER}\n1..3\nnot ok 1 - notes has five policies\nok 2 - other user sees none of the owner's notes\nok 3 - anon sees no notes\n`,
+  },
+};
+const STRUCTURAL_ONLY: Behaviour = {
+  clean: { stdout: PASSING_TAP },
+  mutated: {
+    stdout: `${MUTATION_MARKER}\n1..3\nnot ok 1 - notes has five policies\nok 2 - other user sees none of the owner's notes\nok 3 - anon sees no notes\n`,
+  },
+  safe: {
+    stdout: `${SAFE_MARKER}\n1..3\nnot ok 1 - notes has five policies\nok 2 - other user sees none of the owner's notes\nok 3 - anon sees no notes\n`,
+  },
+};
+const SAFE_NOT_APPLIED: Behaviour = {
+  clean: { stdout: PASSING_TAP },
+  mutated: { stdout: `${MUTATION_MARKER}\n${FAILING_TAP}` },
+  safe: { stdout: PASSING_TAP },
 };
 const FAILING: Behaviour = { clean: { stdout: FAILING_TAP } };
 const ERRORING: Behaviour = {
@@ -215,7 +363,6 @@ function fakeCtx(toolCalls: ToolCallRecord[], world: World = {}) {
     world.judge ?? (async () => ({ passed: true, notes: 'ok' }))
   );
   const state = { pgtap: world.pgtap ?? false };
-  const dirty = new Set<string>();
   const log: string[] = [];
 
   const homeMatches = (command: string) =>
@@ -270,6 +417,13 @@ function fakeCtx(toolCalls: ToolCallRecord[], world: World = {}) {
     const target = fileArgs.find((arg) => arg !== '-');
     if (target === undefined) {
       const script = fileArgs.includes('-') ? scriptOf(command) : '';
+      if (
+        script.includes('eval_probe') &&
+        script.includes('disable row level security')
+      ) {
+        log.push('replay');
+        return replayedProbe(script);
+      }
       if (script.includes('eval_probe')) {
         return access === 'fails'
           ? result(
@@ -297,16 +451,16 @@ function fakeCtx(toolCalls: ToolCallRecord[], world: World = {}) {
         output.stderr ?? '',
         output.exitCode ?? 0
       );
-    if (fileArgs.includes('-') && scriptOf(command).includes(MUTATION_MARKER)) {
-      log.push(`mutate ${key}`);
-      dirty.add(key);
-      return run(behaviour.mutated ?? behaviour.clean);
-    }
-    if (dirty.delete(key)) {
-      expect(fileArgs).toContain('-');
-      expect(scriptOf(command)).toContain(CONTROL_MARKER);
-      log.push(`rerun ${key}`);
-      return run(behaviour.rerun ?? behaviour.clean);
+    if (fileArgs.includes('-')) {
+      const script = scriptOf(command);
+      if (script.includes(MUTATION_MARKER)) {
+        log.push(`mutate ${key}`);
+        return run(behaviour.mutated ?? behaviour.clean);
+      }
+      if (script.includes(SAFE_MARKER)) {
+        log.push(`safe ${key}`);
+        return run(behaviour.safe ?? behaviour.clean);
+      }
     }
     log.push(`clean ${key}`);
     return run(behaviour.clean);
@@ -501,14 +655,31 @@ describe('notes test scorer', () => {
     expect(log).not.toContain('drop-extension');
   });
 
-  it('runs a passing file clean, under the seeded policies, then clean again', async () => {
+  it('runs a passing file clean, under the seeded policies, then under an owner-only policy', async () => {
     const { ctx, log } = fakeCtx(SETUP);
     await scorer(ctx);
     expect(log.filter((line) => line.endsWith(' notes_rls_test.sql'))).toEqual([
       'clean notes_rls_test.sql',
       'mutate notes_rls_test.sql',
-      'rerun notes_rls_test.sql',
+      'safe notes_rls_test.sql',
     ]);
+  });
+
+  it('replays the migrations once, before it runs any of the agent tests', async () => {
+    const { ctx, log } = fakeCtx(SETUP);
+    await scorer(ctx);
+    expect(log.filter((line) => line === 'replay')).toHaveLength(1);
+    expect(log.indexOf('replay')).toBeLessThan(
+      log.findIndex((line) => line.startsWith('clean '))
+    );
+  });
+
+  it('does not replay migrations whose files and history are not in order', async () => {
+    const { ctx, log } = fakeCtx(SETUP, {
+      history: [SEEDED_MIGRATION_VERSION],
+    });
+    await scorer(ctx);
+    expect(log).not.toContain('replay');
   });
 });
 
@@ -690,6 +861,24 @@ describe('known-bad runs', () => {
       [WRITE],
     ],
     [
+      'wrote a migration that drops a differently named policy with if exists, so a reset still leaks',
+      SETUP,
+      withHarden(WRONG_NAME_DROP),
+      [MIGRATION],
+    ],
+    [
+      'wrote a migration whose do block drops a differently named policy, so a reset still leaks',
+      SETUP,
+      withHarden(DO_WRONG_NAME_DROP),
+      [MIGRATION],
+    ],
+    [
+      'wrote a migration that drops a policy that is not there, so a reset errors',
+      SETUP,
+      withHarden(STRICT_WRONG_NAME_DROP),
+      [MIGRATION],
+    ],
+    [
       'broke the database so the access probe cannot run',
       SETUP,
       { access: 'fails' },
@@ -711,6 +900,18 @@ describe('known-bad runs', () => {
       'wrote tests that pass whatever the policies are',
       SETUP,
       { tests: { 'notes_rls_test.sql': BLIND } },
+      [TESTS_CATCH],
+    ],
+    [
+      'wrote tests that only check the policy set, so they fail under an owner-only policy too',
+      SETUP,
+      { tests: { 'notes_rls_test.sql': STRUCTURAL_ONLY } },
+      [TESTS_CATCH],
+    ],
+    [
+      'wrote tests whose owner-only policy run never printed its marker, so the run is not counted',
+      SETUP,
+      { tests: { 'notes_rls_test.sql': SAFE_NOT_APPLIED } },
       [TESTS_CATCH],
     ],
     [
@@ -839,6 +1040,33 @@ describe('valid alternatives', () => {
       },
     ],
     [
+      'drops the leaky policy inside a do block',
+      SETUP,
+      {
+        files: {
+          [SEEDED_MIGRATION_FILE]: SEEDED_SQL,
+          [FIX_FILE]: DO_DROP,
+        },
+      },
+    ],
+    [
+      'drops the leaky policy in one migration and a stray one with if exists in the next',
+      SETUP,
+      {
+        files: {
+          [SEEDED_MIGRATION_FILE]: SEEDED_SQL,
+          [FIX_FILE]: DROP_LEAK,
+          [HARDEN_FILE]: WRONG_NAME_DROP,
+        },
+        history: [SEEDED_MIGRATION_VERSION, FIX_VERSION, HARDEN_VERSION],
+      },
+    ],
+    [
+      'mixes a structural test with behavioural ones in one file',
+      SETUP,
+      { tests: { 'notes_rls_test.sql': STRUCTURAL_AND_BEHAVIOURAL } },
+    ],
+    [
       'writes two policy migrations and applies both',
       SETUP,
       {
@@ -877,7 +1105,7 @@ describe('valid alternatives', () => {
           'notes_rls_test.sql': {
             clean: { stdout: NO_PLAN_PASSING_TAP },
             mutated: { stdout: `${MUTATION_MARKER}\n${NO_PLAN_FAILING_TAP}` },
-            rerun: { stdout: NO_PLAN_PASSING_TAP },
+            safe: { stdout: `${SAFE_MARKER}\n${NO_PLAN_PASSING_TAP}` },
           },
         },
       },
@@ -1001,6 +1229,35 @@ describe('check notes', () => {
     expect(check?.notes).toMatch(/other user.*owner/i);
   });
 
+  it('says a reset would still leak when the replayed migrations leave the leaky policy', async () => {
+    const { ctx } = fakeCtx(SETUP, withHarden(WRONG_NAME_DROP));
+    const check = await checkOf(ctx, MIGRATION);
+    expect(check?.passed).toBe(false);
+    expect(check?.notes).toContain(
+      'replaying the migrations does not give each user only their own notes'
+    );
+    expect(check?.notes).toMatch(/other user.*owner/i);
+  });
+
+  it('gives the psql error when the replayed migrations fail', async () => {
+    const { ctx } = fakeCtx(SETUP, withHarden(STRICT_WRONG_NAME_DROP));
+    const check = await checkOf(ctx, MIGRATION);
+    expect(check?.passed).toBe(false);
+    expect(check?.notes).toContain('could not be replayed');
+    expect(check?.notes).toContain(
+      'policy "enable read access for all users" for table "notes" does not exist'
+    );
+  });
+
+  it('says the replay of the migrations left each user with only their own notes', async () => {
+    const { ctx } = fakeCtx(SETUP);
+    const check = await checkOf(ctx, MIGRATION);
+    expect(check?.passed).toBe(true);
+    expect(check?.notes).toContain(
+      "replaying the migrations' notes policies from the seeded state leaves each user with only their own notes"
+    );
+  });
+
   it('names the file that did not catch the seeded policies', async () => {
     const { ctx } = fakeCtx(SETUP, {
       tests: { 'notes_rls_test.sql': BLIND },
@@ -1008,6 +1265,15 @@ describe('check notes', () => {
     const check = await checkOf(ctx, TESTS_CATCH);
     expect(check?.passed).toBe(false);
     expect(check?.notes).toContain('supabase/tests/notes_rls_test.sql');
+  });
+
+  it('says the owner-only policy run failed too when a file only checks the policy set', async () => {
+    const { ctx } = fakeCtx(SETUP, {
+      tests: { 'notes_rls_test.sql': STRUCTURAL_ONLY },
+    });
+    const check = await checkOf(ctx, TESTS_CATCH);
+    expect(check?.passed).toBe(false);
+    expect(check?.notes).toContain('equivalent owner-only policy');
   });
 
   it('names the failing file in the pass check', async () => {
@@ -1177,6 +1443,12 @@ describe('report judge', () => {
       `- recorded in the local migration history: yes (${FIX_FILE} (version ${FIX_VERSION}))`
     );
     expect(input).toContain(
+      "- reads after replaying the migrations' notes policies: owner sees eval-probe-owner-1, eval-probe-owner-2; other user sees eval-probe-other-1; anon sees nothing"
+    );
+    expect(input).toContain(
+      "- writes after replaying the migrations' notes policies: "
+    );
+    expect(input).toContain(
       '- test files under supabase/tests: supabase/tests/notes_rls_test.sql'
     );
     expect(input).toContain(
@@ -1197,6 +1469,9 @@ describe('report judge', () => {
     const input = judgeCall(judge, 'report')?.input ?? '';
     expect(input).toContain('- local stack: none (');
     expect(input).toContain('- reads of the probe notes: unavailable (');
+    expect(input).toContain(
+      "- reads after replaying the migrations' notes policies: unavailable ("
+    );
     expect(input).toContain('- migrations touching the notes policies: none');
     expect(input).toContain(
       '- recorded in the local migration history: n/a (no migration touches the notes policies)'
@@ -1229,6 +1504,15 @@ describe('report judge', () => {
     const input = judgeCall(judge, 'report')?.input ?? '';
     expect(input).toContain(
       '- test file supabase/tests/notes_rls_test.sql: harness run passed (3 tests); did not catch the seeded policies'
+    );
+  });
+
+  it('shows the leak surviving the replay when the migrations leave the leaky policy', async () => {
+    const { ctx, judge } = fakeCtx(SETUP, withHarden(WRONG_NAME_DROP));
+    await scorer(ctx);
+    const input = judgeCall(judge, 'report')?.input ?? '';
+    expect(input).toContain(
+      "- reads after replaying the migrations' notes policies: owner sees eval-probe-other-1, eval-probe-owner-1, eval-probe-owner-2; other user sees eval-probe-other-1, eval-probe-owner-1, eval-probe-owner-2; anon sees nothing"
     );
   });
 

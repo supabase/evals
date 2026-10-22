@@ -100,8 +100,11 @@ const failedRun = (file: string): TestFileRun => ({
 const caught = (file: string) => ({
   file,
   mutated: { ...failedRun(file), mutationApplied: true },
-  rerun: passedRun(file),
+  safe: { ...passedRun(file), mutationApplied: true },
 });
+
+const FLIPPED =
+  'test 1 "passing 1" failed with the seeded policies put back and passed with an equivalent owner-only policy';
 
 const SUITE: SuiteProbe = {
   ok: true,
@@ -116,6 +119,7 @@ const FACTS: Facts = {
   workspace: '/ws',
   stack: STACK,
   access: FIXED_ACCESS,
+  replayed: FIXED_ACCESS,
   migrations: { ok: true, migrations: [FIX], misordered: [] },
   recorded: { ok: true, recorded: [FIX], missing: [], mismatched: [] },
   suite: SUITE,
@@ -133,6 +137,10 @@ const READS_LINE = '- reads of the probe notes';
 const WRITES_LINE = '- writes to the probe notes';
 const MIGRATIONS_LINE = '- migrations touching the notes policies';
 const RECORDED_LINE = '- recorded in the local migration history';
+const REPLAY_READS_LINE =
+  "- reads after replaying the migrations' notes policies";
+const REPLAY_WRITES_LINE =
+  "- writes after replaying the migrations' notes policies";
 const FILES_LINE = '- test files under supabase/tests';
 const TEST_DB_LINE = '- supabase test db runs';
 const fileLine = (file: string) => `- test file ${file}`;
@@ -169,8 +177,10 @@ describe('describeGroundTruth', () => {
       `${WRITES_LINE}: other user's update touched 0 rows; other user's delete touched 0 rows; other user's insert as the owner is denied (42501); owner's update touched 1 row; owner's insert touched 1 row`,
       `${MIGRATIONS_LINE}: ${FIX_FILE} (version 20260102000000)`,
       `${RECORDED_LINE}: yes (${FIX_FILE} (version 20260102000000))`,
+      `${REPLAY_READS_LINE}: owner sees eval-probe-owner-1, eval-probe-owner-2; other user sees eval-probe-other-1; anon sees nothing`,
+      `${REPLAY_WRITES_LINE}: other user's update touched 0 rows; other user's delete touched 0 rows; other user's insert as the owner is denied (42501); owner's update touched 1 row; owner's insert touched 1 row`,
       `${FILES_LINE}: ${A}`,
-      `${fileLine(A)}: harness run passed (3 tests); caught the seeded policies`,
+      `${fileLine(A)}: harness run passed (3 tests); caught the seeded policies (${FLIPPED})`,
       `${TEST_DB_LINE}: 1: PASS (Tests=3)`,
     ]);
   });
@@ -180,6 +190,11 @@ describe('describeGroundTruth', () => {
     const all = lines({
       stack: { ok: false, notes },
       access: { ok: false, notes },
+      replayed: {
+        ok: false,
+        notes:
+          'no migration touches the notes policies, so nothing was replayed',
+      },
       migrations: { ok: true, migrations: [], misordered: [] },
       recorded: { ok: false, notes: 'no migration touches the notes policies' },
       suite: { ok: false, notes },
@@ -190,6 +205,10 @@ describe('describeGroundTruth', () => {
     expect(line(all, WRITES_LINE)).toBe(
       `${WRITES_LINE}: unavailable (${notes})`
     );
+    expect(line(all, REPLAY_READS_LINE)).toBe(
+      `${REPLAY_READS_LINE}: unavailable (no migration touches the notes policies, so nothing was replayed)`
+    );
+    expect(line(all, REPLAY_WRITES_LINE)).toContain('unavailable (');
     expect(line(all, MIGRATIONS_LINE)).toBe(`${MIGRATIONS_LINE}: none`);
     expect(line(all, RECORDED_LINE)).toBe(
       `${RECORDED_LINE}: n/a (no migration touches the notes policies)`
@@ -427,6 +446,46 @@ describe('describeGroundTruth', () => {
     });
   });
 
+  describe('replayed migrations', () => {
+    it('shows the other user still reading the owner notes after the replay', () => {
+      const replayed: AccessProbe = {
+        ...(FIXED_ACCESS as Extract<AccessProbe, { ok: true }>),
+        reads: {
+          owner: { titles: ['eval-probe-owner-1', 'eval-probe-owner-2'] },
+          other: {
+            titles: [
+              'eval-probe-other-1',
+              'eval-probe-owner-1',
+              'eval-probe-owner-2',
+            ],
+          },
+          anon: { titles: [] },
+        },
+      };
+      const all = lines({ replayed });
+      expect(line(all, REPLAY_READS_LINE)).toContain(
+        'other user sees eval-probe-other-1, eval-probe-owner-1, eval-probe-owner-2'
+      );
+      expect(line(all, READS_LINE)).toContain(
+        'other user sees eval-probe-other-1;'
+      );
+    });
+
+    it('shows a replay that errored with its reason on both lines', () => {
+      const all = lines({
+        replayed: {
+          ok: false,
+          notes:
+            'the migrations do not replay: ERROR:  policy "x" for table "notes" does not exist',
+        },
+      });
+      expect(line(all, REPLAY_READS_LINE)).toBe(
+        `${REPLAY_READS_LINE}: unavailable (the migrations do not replay: ERROR:  policy "x" for table "notes" does not exist)`
+      );
+      expect(line(all, REPLAY_WRITES_LINE)).toContain('does not exist');
+    });
+  });
+
   describe('test files', () => {
     it('lists every test file found', () => {
       const suite: SuiteProbe = {
@@ -486,7 +545,7 @@ describe('describeGroundTruth', () => {
           {
             file: A,
             mutated: { ...passedRun(A), mutationApplied: true },
-            rerun: passedRun(A),
+            safe: { ...passedRun(A), mutationApplied: true },
           },
         ],
       };
@@ -504,7 +563,7 @@ describe('describeGroundTruth', () => {
           {
             file: A,
             mutated: { ...failedRun(A), mutationApplied: false },
-            rerun: passedRun(A),
+            safe: { ...passedRun(A), mutationApplied: true },
           },
         ],
       };
@@ -513,7 +572,7 @@ describe('describeGroundTruth', () => {
       );
     });
 
-    it('does not credit a catch when the re-run after the mutation failed', () => {
+    it('does not credit a file that also failed under the equivalent owner-only policy, and says it checks the policy set', () => {
       const suite: SuiteProbe = {
         ok: true,
         files: [A],
@@ -522,12 +581,30 @@ describe('describeGroundTruth', () => {
           {
             file: A,
             mutated: { ...failedRun(A), mutationApplied: true },
-            rerun: failedRun(A),
+            safe: { ...failedRun(A), mutationApplied: true },
           },
         ],
       };
       expect(line(lines({ suite }), fileLine(A))).toBe(
-        `${fileLine(A)}: harness run passed (3 tests); did not catch the seeded policies`
+        `${fileLine(A)}: harness run passed (3 tests); did not catch the seeded policies (it also failed with an equivalent owner-only policy, so it checks the policy set, not who can see which notes)`
+      );
+    });
+
+    it('does not credit a file when the equivalent owner-only policy could not be applied', () => {
+      const suite: SuiteProbe = {
+        ok: true,
+        files: [A],
+        clean: [passedRun(A)],
+        catches: [
+          {
+            file: A,
+            mutated: { ...failedRun(A), mutationApplied: true },
+            safe: { ...passedRun(A), mutationApplied: false },
+          },
+        ],
+      };
+      expect(line(lines({ suite }), fileLine(A))).toBe(
+        `${fileLine(A)}: harness run passed (3 tests); the equivalent owner-only policy could not be applied, so the run is not counted`
       );
     });
 
@@ -539,7 +616,7 @@ describe('describeGroundTruth', () => {
         catches: [{ ...caught(A), leaked: true }],
       };
       expect(line(lines({ suite }), fileLine(A))).toBe(
-        `${fileLine(A)}: harness run passed (3 tests); caught the seeded policies (the file committed the mutation and the scorer restored the notes policies before the re-run)`
+        `${fileLine(A)}: harness run passed (3 tests); caught the seeded policies (${FLIPPED}; the file committed the mutation and the scorer restored the notes policies between the runs)`
       );
     });
 
@@ -552,7 +629,7 @@ describe('describeGroundTruth', () => {
           {
             file: A,
             mutated: { ...failedRun(A), mutationApplied: true },
-            rerun: null,
+            safe: null,
             leaked: true,
             restoreFailure: 'could not restore',
           },
@@ -578,7 +655,7 @@ describe('describeGroundTruth', () => {
           {
             file: B,
             mutated: { ...passedRun(B, 5), mutationApplied: true },
-            rerun: passedRun(B, 5),
+            safe: { ...passedRun(B, 5), mutationApplied: true },
           },
         ],
       };

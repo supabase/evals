@@ -3,21 +3,28 @@ import { readFileSync } from 'node:fs';
 import type { CommandResult } from '@supabase-evals/core';
 import { describe, expect, it, vi } from 'vitest';
 import type { StackProbe } from '../lib/stack.js';
+import { buildAccessProbeBody, type AccessProbe } from './access.js';
 import {
   LEAKY_POLICY_NAME,
   SEEDED_MIGRATION_FILE,
   SEEDED_MIGRATION_VERSION,
+  SEEDED_NOTES_POLICIES,
 } from './fixtures.js';
 import {
+  accessRules,
   accessRuleStatements,
+  buildReplayProbeSql,
   checkFixInAppliedMigration,
   findPolicyMigrations,
   MIGRATION_CHECK_NAME,
   readRecordedPolicyMigrations,
+  readReplayedNotesAccess,
+  splitStatements,
   type PolicyMigration,
   type PolicyMigrationsProbe,
   type RecordedPolicyMigrationsProbe,
 } from './migrations.js';
+import { DROP_NOTES_POLICIES_SQL } from './snapshot.js';
 
 const DB_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
 const STACK: StackProbe = {
@@ -70,6 +77,41 @@ function result(stdout: string, ok = true, stderr = ''): CommandResult {
 
 const hex = (text: string) => Buffer.from(text, 'utf8').toString('hex');
 
+type OkAccess = Extract<AccessProbe, { ok: true }>;
+
+const FIXED_ACCESS: OkAccess = {
+  ok: true,
+  reads: {
+    owner: { titles: ['eval-probe-owner-1', 'eval-probe-owner-2'] },
+    other: { titles: ['eval-probe-other-1'] },
+    anon: { titles: [] },
+  },
+  writes: {
+    otherUpdate: { rows: 0 },
+    otherDelete: { rows: 0 },
+    otherInsertAsOwner: { denied: '42501' },
+    ownerUpdate: { rows: 1 },
+    ownerInsert: { rows: 1 },
+  },
+};
+const LEAKY_ACCESS: OkAccess = {
+  ...FIXED_ACCESS,
+  reads: {
+    ...FIXED_ACCESS.reads,
+    other: {
+      titles: [
+        'eval-probe-other-1',
+        'eval-probe-owner-1',
+        'eval-probe-owner-2',
+      ],
+    },
+  },
+};
+const OPEN_WRITES_ACCESS: OkAccess = {
+  ...FIXED_ACCESS,
+  writes: { ...FIXED_ACCESS.writes, otherUpdate: { rows: 1 } },
+};
+
 const policyNames = [
   'users can view their own notes',
   'users can create their own notes',
@@ -86,6 +128,100 @@ describe('check name', () => {
   });
 });
 
+describe('splitStatements', () => {
+  it('returns each top-level statement as written, without its terminator', () => {
+    expect(
+      splitStatements('DROP POLICY "P" ON public.notes;\nselect  1 ;\n')
+    ).toEqual(['DROP POLICY "P" ON public.notes', 'select  1']);
+  });
+
+  it('keeps a final statement that has no terminator', () => {
+    expect(splitStatements('select 1; select 2')).toEqual([
+      'select 1',
+      'select 2',
+    ]);
+  });
+
+  it('skips empty statements', () => {
+    expect(splitStatements(';; select 1;;\n;')).toEqual(['select 1']);
+    expect(splitStatements('')).toEqual([]);
+    expect(splitStatements('-- only a comment\n')).toEqual([]);
+  });
+
+  it.each([
+    ['a single-quoted literal', "select 'a;b';"],
+    ['an escaped quote in a literal', "select 'it''s; fine';"],
+    ['an E-string with a backslash-escaped quote', "select E'it\\'s; fine';"],
+    ['a double-quoted identifier', 'select 1 as "a;b";'],
+    ['a dollar-quoted body', 'do $$ begin perform 1; end $$;'],
+    ['a tagged dollar-quoted body', 'do $do$ begin perform 1; end $do$;'],
+    ['a dollar-quoted body holding another tag', 'do $a$ x $b$ ; $b$ y $a$;'],
+    ['a line comment inside the statement', 'select 1 -- a; b\n, 2;'],
+    ['a block comment inside the statement', 'select 1 /* a; b */, 2;'],
+    ['a nested block comment', 'select 1 /* a /* b; */ c; */, 2;'],
+  ])('does not split inside %s', (_label, statement) => {
+    expect(splitStatements(`${statement}\nselect 3;`)).toEqual([
+      statement.slice(0, -1),
+      'select 3',
+    ]);
+  });
+
+  it('does not read a parameter such as $1 as a dollar quote', () => {
+    expect(splitStatements('select $1; select $2;')).toEqual([
+      'select $1',
+      'select $2',
+    ]);
+  });
+
+  it('drops comments before and after a statement but keeps those inside it', () => {
+    expect(
+      splitStatements(
+        '-- close the leak\n/* really */ drop policy /* x */ "p" on public.notes -- bye\n;'
+      )
+    ).toEqual(['drop policy /* x */ "p" on public.notes']);
+  });
+
+  it('splits the seeded migration into its statements, the policies verbatim', () => {
+    expect(
+      splitStatements(SEEDED_SQL).filter((statement) =>
+        statement.startsWith('create policy')
+      )
+    ).toEqual(SEEDED_NOTES_POLICIES);
+  });
+});
+
+describe('accessRules', () => {
+  it('pairs each access rule statement with its original text', () => {
+    expect(
+      accessRules(
+        '-- c\nCREATE TABLE x (id int);\nDROP POLICY "P" ON PUBLIC.NOTES;\nselect 1;'
+      )
+    ).toEqual([
+      {
+        text: 'DROP POLICY "P" ON PUBLIC.NOTES',
+        key: 'drop policy "p" on public.notes',
+      },
+    ]);
+  });
+
+  it('keys agree with accessRuleStatements', () => {
+    expect(accessRules(SEEDED_SQL).map(({ key }) => key)).toEqual(
+      accessRuleStatements(SEEDED_SQL)
+    );
+  });
+
+  it('keeps the literals of a DO block in its text and its key', () => {
+    const sql =
+      "DO $$ BEGIN EXECUTE format('drop policy %I on public.notes', 'X'); END $$;";
+    expect(accessRules(sql)).toEqual([
+      {
+        text: sql.slice(0, -1),
+        key: "do $$ begin execute format('drop policy %i on public.notes', 'x'); end $$",
+      },
+    ]);
+  });
+});
+
 describe('accessRuleStatements', () => {
   it.each([
     [
@@ -99,6 +235,14 @@ describe('accessRuleStatements', () => {
     [
       'a quoted schema and table as db diff writes them',
       'create policy "p" on "public"."notes" for select to authenticated using (true);',
+    ],
+    [
+      'a quoted policy name with spaces on a quoted schema and table',
+      `drop policy "${LEAKY_POLICY_NAME}" on "public"."notes";`,
+    ],
+    [
+      'a quoted policy name with spaces and if exists',
+      `drop policy if exists "${LEAKY_POLICY_NAME}" on "public"."notes";`,
     ],
     ['whitespace around the dot', 'drop policy "p" on public . notes;'],
     [
@@ -216,13 +360,84 @@ describe('accessRuleStatements', () => {
       'a tagged dollar-quoted body',
       'select $body$drop policy "p" on public.notes$body$;',
     ],
-    ['a DO block', 'do $$ begin drop policy "p" on public.notes; end $$;'],
     [
-      'a tagged DO block',
-      'do $do$ begin\n  alter table public.notes enable row level security;\nend $do$;',
+      'a quoted policy name that mentions notes, on another table',
+      'drop policy "p on public.notes" on public.other;',
+    ],
+    [
+      'a function that mentions a policy on notes',
+      'create function policy_notes() returns void language sql as $$ select 1 $$;',
+    ],
+    [
+      'a DO block that only switches row level security, naming no policy',
+      'do $$ begin alter table public.notes enable row level security; end $$;',
+    ],
+    [
+      'a DO block that mentions only notes',
+      'do $$ begin delete from public.notes; end $$;',
+    ],
+    [
+      'a DO block that mentions only a policy',
+      'do $$ begin drop policy "p" on public.other; end $$;',
+    ],
+    [
+      'a DO block that mentions both only in comments',
+      'do /* policy on notes */ $$ begin perform 1; end $$ -- policy notes\n;',
     ],
   ])('ignores %s', (_label, sql) => {
     expect(accessRuleStatements(sql)).toEqual([]);
+  });
+
+  describe('a DO block', () => {
+    it.each([
+      [
+        'dropping the policy',
+        'do $$ begin drop policy "p" on public.notes; end $$;',
+      ],
+      [
+        'with a tag and a language clause',
+        'do language plpgsql $do$ begin\n  drop policy if exists "p" on public.notes;\nend $do$;',
+      ],
+      ['upper-cased', 'DO $$ BEGIN DROP POLICY "P" ON PUBLIC.NOTES; END $$;'],
+      [
+        'looping over pg_policies with a dynamic drop',
+        "do $$ declare p record; begin for p in select policyname from pg_policies where tablename = 'notes' loop execute format('drop policy %I on public.notes', p.policyname); end loop; end $$;",
+      ],
+      [
+        'whose policy and table are named only in a string literal',
+        'do $$ begin execute \'drop policy "p" on public.notes\'; end $$;',
+      ],
+    ])('counts one %s as an access rule', (_label, sql) => {
+      const statements = accessRuleStatements(sql);
+      expect(statements).toHaveLength(1);
+      expect(statements[0]).toMatch(/^do\b/);
+    });
+
+    it('compares by its body, so two DO blocks with different bodies differ', () => {
+      const drop = 'do $$ begin drop policy "a" on public.notes; end $$;';
+      const other = 'do $$ begin drop policy "b" on public.notes; end $$;';
+      expect(accessRuleStatements(drop)).not.toEqual(
+        accessRuleStatements(other)
+      );
+    });
+
+    it('compares equal after formatting and comment changes', () => {
+      const a = 'do $$ begin drop policy "a" on public.notes; end $$;';
+      const b =
+        '-- close it\nDO  $$ begin drop policy "a" on public.notes; end $$ ; /* done */';
+      expect(accessRuleStatements(a)).toEqual(accessRuleStatements(b));
+    });
+
+    it('keeps its place among the other access rules', () => {
+      const sql = [
+        'alter table public.notes enable row level security;',
+        'do $$ begin drop policy "a" on public.notes; end $$;',
+        'create policy "b" on public.notes for select using (true);',
+      ].join('\n');
+      const statements = accessRuleStatements(sql);
+      expect(statements).toHaveLength(3);
+      expect(statements[1]).toMatch(/^do\b/);
+    });
   });
 
   it('finds the access rules among other statements and keeps their order', () => {
@@ -384,6 +599,11 @@ describe('findPolicyMigrations', () => {
       'alter table public.notes force row level security;',
     ],
     ['a transaction around the drop', `begin;\n${DROP_LEAK}commit;`],
+    ['a DO block that drops the policy', `do $$ begin ${DROP_LEAK} end $$;`],
+    [
+      'a DO block that drops every notes policy dynamically',
+      "do $$ declare p record; begin for p in select policyname from pg_policies where tablename = 'notes' loop execute format('drop policy %I on public.notes', p.policyname); end loop; end $$;",
+    ],
   ])('counts a new migration with %s', async (_label, sql) => {
     const probe = await scan({
       [SEEDED_MIGRATION_FILE]: SEEDED_SQL,
@@ -409,8 +629,8 @@ describe('findPolicyMigrations', () => {
     ['a commented-out drop policy', `-- ${DROP_LEAK}`],
     ['a drop policy inside a string literal', `select '${DROP_LEAK.trim()}';`],
     [
-      'a drop policy inside a dollar-quoted body',
-      `do $$ begin ${DROP_LEAK} end $$;`,
+      'a drop policy inside a dollar-quoted function body',
+      `create function f() returns void language plpgsql as $$ begin ${DROP_LEAK} end $$;`,
     ],
     ['no statements', ''],
   ])('does not count a new migration with %s', async (_label, sql) => {
@@ -720,6 +940,34 @@ describe('readRecordedPolicyMigrations', () => {
     });
   });
 
+  describe('a DO block migration', () => {
+    const doDrop = `do $$ begin drop policy "${LEAKY_POLICY_NAME}" on public.notes; end $$;\n`;
+    const doDropOther = doDrop.replace(LEAKY_POLICY_NAME, 'Something else');
+    const files = { [SEEDED_MIGRATION_FILE]: SEEDED_SQL, [FIX_FILE]: doDrop };
+
+    it('records when the history holds the same body, whatever the formatting and comments', async () => {
+      const ctx = fakeHistory({
+        files,
+        statements: {
+          [FIX_VERSION]: `-- close it\nDO $$ begin drop policy "${LEAKY_POLICY_NAME}" on public.notes; end $$`,
+        },
+      });
+      expect(
+        await readRecordedPolicyMigrations(ctx, STACK, found([FIX]))
+      ).toMatchObject({ recorded: [FIX], mismatched: [] });
+    });
+
+    it('marks a DO block recorded with a different body as mismatched, not equal because both mask to the same text', async () => {
+      const ctx = fakeHistory({
+        files,
+        statements: { [FIX_VERSION]: doDropOther },
+      });
+      expect(
+        await readRecordedPolicyMigrations(ctx, STACK, found([FIX]))
+      ).toMatchObject({ recorded: [], mismatched: [FIX] });
+    });
+  });
+
   it('records the edited seeded migration when the history holds the edited statements, as after a reset', async () => {
     const ctx = fakeHistory({
       files: { [SEEDED_MIGRATION_FILE]: SEEDED_WITHOUT_LEAK },
@@ -868,6 +1116,301 @@ describe('readRecordedPolicyMigrations', () => {
   });
 });
 
+describe('buildReplayProbeSql', () => {
+  const statements = [
+    'alter table public.notes enable row level security',
+    'DROP POLICY "p" ON public.notes',
+  ];
+  const sql = buildReplayProbeSql(statements);
+
+  it('runs in one transaction that is rolled back and never committed', () => {
+    expect(sql.trim()).toMatch(/^begin;/i);
+    expect(sql.trim()).toMatch(/rollback;$/i);
+    expect(sql).not.toMatch(/\bcommit\b/i);
+  });
+
+  it('clears the notes policies and row level security before replaying anything', () => {
+    const drop = sql.indexOf(DROP_NOTES_POLICIES_SQL);
+    const disable = sql.indexOf(
+      'alter table public.notes disable row level security;'
+    );
+    const noForce = sql.indexOf(
+      'alter table public.notes no force row level security;'
+    );
+    const first = sql.indexOf(`${statements[0]};`);
+    expect(drop).toBeGreaterThan(0);
+    expect(disable).toBeGreaterThan(drop);
+    expect(noForce).toBeGreaterThan(disable);
+    expect(first).toBeGreaterThan(noForce);
+  });
+
+  it('replays every statement in order, each terminated with a semicolon', () => {
+    expect(sql).toContain(`${statements[0]};\n${statements[1]};\n`);
+  });
+
+  it('runs the access probe body after the replayed statements, inside the same transaction', () => {
+    const body = buildAccessProbeBody();
+    expect(sql).toContain(body);
+    expect(sql.indexOf(body)).toBeGreaterThan(sql.indexOf(`${statements[1]};`));
+    expect(sql.indexOf(body) + body.length).toBeLessThan(
+      sql.lastIndexOf('rollback;')
+    );
+  });
+});
+
+describe('readReplayedNotesAccess', () => {
+  const found = (
+    migrations: PolicyMigration[],
+    misordered: string[] = []
+  ): PolicyMigrationsProbe => ({ ok: true, migrations, misordered });
+  const recorded = (
+    parts: Partial<Extract<RecordedPolicyMigrationsProbe, { ok: true }>> = {}
+  ): RecordedPolicyMigrationsProbe => ({
+    ok: true,
+    recorded: [],
+    missing: [],
+    mismatched: [],
+    ...parts,
+  });
+
+  const FIXED_ROWS = `${'\n'.repeat(8)}read.anon|titles:
+read.other|titles:eval-probe-other-1
+read.owner|titles:eval-probe-owner-1,eval-probe-owner-2
+write.otherDelete|rows:0
+write.otherInsertAsOwner|denied:42501
+write.otherUpdate|rows:0
+write.ownerInsert|rows:1
+write.ownerUpdate|rows:1
+`;
+
+  function fakeReplay(
+    options: {
+      files?: Record<string, string>;
+      unreadable?: string[];
+      psql?: CommandResult;
+      throws?: string;
+    } = {}
+  ) {
+    const files = options.files ?? {
+      [SEEDED_MIGRATION_FILE]: SEEDED_SQL,
+      [FIX_FILE]: DROP_LEAK,
+    };
+    const scripts: string[] = [];
+    const exec = vi.fn(async (command: string): Promise<CommandResult> => {
+      if (options.throws !== undefined) throw new Error(options.throws);
+      const cat = command.match(
+        /^cat\s+'?supabase\/migrations\/([^'\s]+)'?\s*$/
+      );
+      if (cat) {
+        return options.unreadable?.includes(cat[1]) || !(cat[1] in files)
+          ? result('', false, `cat: ${cat[1]}: No such file or directory`)
+          : result(files[cat[1]]);
+      }
+      if (/\bpsql\b/.test(command)) {
+        const payload = /printf %s '([A-Za-z0-9+/]+={0,2})'/.exec(command)?.[1];
+        scripts.push(
+          payload === undefined
+            ? command
+            : Buffer.from(payload, 'base64').toString('utf8')
+        );
+        if (!command.includes(DB_URL)) {
+          return result('', false, 'psql: error: connection refused');
+        }
+        return options.psql ?? result(FIXED_ROWS);
+      }
+      return result('', false, `unexpected command: ${command}`);
+    });
+    return { exec, scripts };
+  }
+
+  const replay = (
+    ctx: ReturnType<typeof fakeReplay>,
+    probe = found([FIX]),
+    history = recorded({ recorded: [FIX] })
+  ) => readReplayedNotesAccess(ctx, STACK, probe, history);
+
+  it('runs the replay in one psql session as the stack database user, stopping on error', async () => {
+    const ctx = fakeReplay();
+    await replay(ctx);
+    const psqlCalls = ctx.exec.mock.calls
+      .map(([command]) => command)
+      .filter((command) => /\bpsql\b/.test(command));
+    expect(psqlCalls).toHaveLength(1);
+    expect(psqlCalls[0]).toContain(`'${DB_URL}'`);
+    expect(psqlCalls[0]).toContain('-v ON_ERROR_STOP=1');
+    expect(psqlCalls[0]).toMatch(/-f -(\s|$)/);
+    expect(ctx.scripts[0]).toContain(DROP_NOTES_POLICIES_SQL);
+  });
+
+  it('returns the parsed outcomes of the replay', async () => {
+    expect(await replay(fakeReplay())).toEqual(FIXED_ACCESS);
+  });
+
+  it("replays the seeded file's access rules first, even when the seeded file is unchanged, then the contributors", async () => {
+    const ctx = fakeReplay({
+      files: {
+        [SEEDED_MIGRATION_FILE]: SEEDED_SQL,
+        [FIX_FILE]: DROP_LEAK,
+        [SECOND_FILE]: SECOND_SQL,
+      },
+    });
+    await replay(
+      ctx,
+      found([FIX, SECOND]),
+      recorded({ recorded: [FIX, SECOND] })
+    );
+    const [script] = ctx.scripts;
+    const at = (text: string) => script.indexOf(`${text};`);
+    const seededRules = accessRules(SEEDED_SQL).map(({ text }) => text);
+    expect(seededRules).toHaveLength(6);
+    const positions = [
+      ...seededRules,
+      DROP_LEAK.trim().replace(/;$/, ''),
+      SECOND_SQL.trim().replace(/;$/, ''),
+    ].map(at);
+    expect(positions.every((position) => position > 0)).toBe(true);
+    expect([...positions].sort((a, b) => a - b)).toEqual(positions);
+  });
+
+  it("replays the edited seeded file's current content, not the original", async () => {
+    const ctx = fakeReplay({
+      files: { [SEEDED_MIGRATION_FILE]: SEEDED_WITHOUT_LEAK },
+    });
+    await replay(ctx, found([SEEDED]), recorded({ recorded: [SEEDED] }));
+    expect(ctx.scripts[0]).toContain(
+      'create policy "Users can view their own notes"'
+    );
+    expect(ctx.scripts[0]).not.toContain(
+      `create policy "${LEAKY_POLICY_NAME}"`
+    );
+  });
+
+  it('replays only the access rule statements, in their original text', async () => {
+    const ctx = fakeReplay({
+      files: {
+        [SEEDED_MIGRATION_FILE]: SEEDED_SQL,
+        [FIX_FILE]: `-- close the leak\nalter table public.notes add column pinned boolean;\nDROP POLICY  "${LEAKY_POLICY_NAME}"\n  ON PUBLIC.NOTES; -- done\nselect 1;\n`,
+      },
+    });
+    await replay(ctx);
+    expect(ctx.scripts[0]).toContain(
+      `DROP POLICY  "${LEAKY_POLICY_NAME}"\n  ON PUBLIC.NOTES;`
+    );
+    expect(ctx.scripts[0]).not.toContain('add column pinned');
+    expect(ctx.scripts[0]).not.toContain('close the leak');
+  });
+
+  it('replays a DO block with its body, as one statement', async () => {
+    const doDrop = `do $$ begin drop policy "${LEAKY_POLICY_NAME}" on public.notes; end $$;\n`;
+    const ctx = fakeReplay({
+      files: { [SEEDED_MIGRATION_FILE]: SEEDED_SQL, [FIX_FILE]: doDrop },
+    });
+    await replay(ctx);
+    expect(ctx.scripts[0]).toContain(`${doDrop.trim()}\n`);
+  });
+
+  it('reads each migration file once through cat', async () => {
+    const ctx = fakeReplay();
+    await replay(ctx);
+    const cats = ctx.exec.mock.calls
+      .map(([command]) => command)
+      .filter((command) => command.startsWith('cat '));
+    expect(cats).toHaveLength(2);
+    expect(cats.join('\n')).toContain(SEEDED_MIGRATION_FILE);
+    expect(cats.join('\n')).toContain(FIX_FILE);
+  });
+
+  it.each([
+    [
+      'a contributor missing from the history',
+      found([FIX]),
+      recorded({ missing: [FIX] }),
+    ],
+    [
+      'a contributor recorded with other statements',
+      found([FIX]),
+      recorded({ mismatched: [FIX] }),
+    ],
+    [
+      'a file that sorts before the seeded one',
+      found([FIX], [MISORDERED_FILE]),
+      recorded({ recorded: [FIX] }),
+    ],
+    ['no contributor at all', found([]), recorded()],
+    [
+      'a history that could not be read',
+      found([FIX]),
+      { ok: false as const, notes: 'no stack' },
+    ],
+    [
+      'migration files that could not be read',
+      { ok: false as const, notes: 'no dir' },
+      recorded(),
+    ],
+  ])('does not replay with %s', async (_label, probe, history) => {
+    const ctx = fakeReplay();
+    const outcome = await replay(ctx, probe, history);
+    expect(outcome).toEqual({
+      ok: false,
+      notes: expect.stringContaining('not replayed'),
+    });
+    expect(ctx.exec).not.toHaveBeenCalled();
+  });
+
+  it('reports the stack failure without running anything when the stack did not resolve', async () => {
+    const ctx = fakeReplay();
+    const outcome = await readReplayedNotesAccess(
+      ctx,
+      { ok: false, notes: 'managed: exit 1: no stack running' },
+      found([FIX]),
+      recorded({ recorded: [FIX] })
+    );
+    expect(outcome).toEqual({
+      ok: false,
+      notes: expect.stringContaining('no stack running'),
+    });
+    expect(ctx.exec).not.toHaveBeenCalled();
+  });
+
+  it('reports the psql error when a replayed statement fails, even if rows were printed', async () => {
+    const ctx = fakeReplay({
+      psql: result(
+        FIXED_ROWS,
+        false,
+        'psql:<stdin>:31: ERROR:  policy "x" for table "notes" does not exist'
+      ),
+    });
+    const outcome = await replay(ctx);
+    expect(outcome.ok).toBe(false);
+    expect(outcome.ok ? '' : outcome.notes).toContain(
+      'policy "x" for table "notes" does not exist'
+    );
+  });
+
+  it('reports unreadable probe output instead of reading it as an outcome', async () => {
+    const outcome = await replay(
+      fakeReplay({ psql: result('something else entirely') })
+    );
+    expect(outcome.ok).toBe(false);
+    expect(outcome.ok ? '' : outcome.notes).toContain(
+      'something else entirely'
+    );
+  });
+
+  it('reports a migration file it cannot read', async () => {
+    const outcome = await replay(fakeReplay({ unreadable: [FIX_FILE] }));
+    expect(outcome.ok).toBe(false);
+    expect(outcome.ok ? '' : outcome.notes).toContain(FIX_FILE);
+  });
+
+  it('reports a thrown exec instead of rejecting', async () => {
+    expect(await replay(fakeReplay({ throws: 'sandbox gone' }))).toEqual({
+      ok: false,
+      notes: expect.stringContaining('sandbox gone'),
+    });
+  });
+});
+
 describe('checkFixInAppliedMigration', () => {
   const found = (
     migrations: PolicyMigration[],
@@ -883,20 +1426,23 @@ describe('checkFixInAppliedMigration', () => {
     ...parts,
   });
 
-  it('passes a new migration that is recorded with its statements', () => {
+  it('passes a new migration that is recorded with its statements and replays to the fixed behaviour', () => {
     const check = checkFixInAppliedMigration(
       found([FIX]),
-      recorded({ recorded: [FIX] })
+      recorded({ recorded: [FIX] }),
+      FIXED_ACCESS
     );
     expect(check).toMatchObject({ name: MIGRATION_CHECK_NAME, passed: true });
     expect(check.notes).toContain(FIX_VERSION);
+    expect(check.notes).toMatch(/replay/i);
   });
 
   it('passes the edited seeded migration recorded with the edited statements, as after a reset', () => {
     expect(
       checkFixInAppliedMigration(
         found([SEEDED]),
-        recorded({ recorded: [SEEDED] })
+        recorded({ recorded: [SEEDED] }),
+        FIXED_ACCESS
       ).passed
     ).toBe(true);
   });
@@ -905,15 +1451,87 @@ describe('checkFixInAppliedMigration', () => {
     expect(
       checkFixInAppliedMigration(
         found([SEEDED, FIX]),
-        recorded({ recorded: [SEEDED, FIX] })
+        recorded({ recorded: [SEEDED, FIX] }),
+        FIXED_ACCESS
       ).passed
     ).toBe(true);
+  });
+
+  describe('the replay', () => {
+    const replayed = (access: AccessProbe) =>
+      checkFixInAppliedMigration(
+        found([FIX]),
+        recorded({ recorded: [FIX] }),
+        access
+      );
+
+    it('fails a recorded migration whose replay still lets the other user read the owner notes', () => {
+      const check = replayed(LEAKY_ACCESS);
+      expect(check.name).toBe(MIGRATION_CHECK_NAME);
+      expect(check.passed).toBe(false);
+      expect(check.notes).toMatch(/replay/i);
+      expect(check.notes).toMatch(/reset/i);
+      expect(check.notes).toContain(
+        "other user sees the owner's notes (eval-probe-owner-1, eval-probe-owner-2)"
+      );
+    });
+
+    it('fails a replay in which the owner loses their own notes', () => {
+      const check = replayed({
+        ...FIXED_ACCESS,
+        reads: { ...FIXED_ACCESS.reads, owner: { titles: [] } },
+      });
+      expect(check.passed).toBe(false);
+      expect(check.notes).toContain('owner cannot see their own notes');
+    });
+
+    it('fails a replay that leaves writes open, naming the write problem', () => {
+      const check = replayed(OPEN_WRITES_ACCESS);
+      expect(check.passed).toBe(false);
+      expect(check.notes).toContain(
+        "other user's update touched 1 of the owner's notes"
+      );
+      expect(check.notes).not.toContain('read each other');
+    });
+
+    it('reports both the read and the write problem when the replay has both', () => {
+      const check = replayed({
+        ...LEAKY_ACCESS,
+        writes: { ...FIXED_ACCESS.writes, otherUpdate: { rows: 1 } },
+      });
+      expect(check.notes).toContain("other user sees the owner's notes");
+      expect(check.notes).toContain("other user's update touched 1");
+    });
+
+    it('fails a replay that errored, with the psql error, saying the migrations could not be replayed', () => {
+      const check = replayed({
+        ok: false,
+        notes: 'exit 3: ERROR:  policy "x" for table "notes" does not exist',
+      });
+      expect(check.passed).toBe(false);
+      expect(check.notes).toMatch(/could not be replayed/);
+      expect(check.notes).toContain(
+        'policy "x" for table "notes" does not exist'
+      );
+    });
+
+    it('reports the file and history problems alone, without the replay outcome, when they fail', () => {
+      const check = checkFixInAppliedMigration(
+        found([FIX]),
+        recorded({ missing: [FIX] }),
+        LEAKY_ACCESS
+      );
+      expect(check.passed).toBe(false);
+      expect(check.notes).toContain(FIX_VERSION);
+      expect(check.notes).not.toMatch(/replay/i);
+    });
   });
 
   it('fails the edited seeded migration that the history still holds in its original form', () => {
     const check = checkFixInAppliedMigration(
       found([SEEDED]),
-      recorded({ mismatched: [SEEDED] })
+      recorded({ mismatched: [SEEDED] }),
+      FIXED_ACCESS
     );
     expect(check.name).toBe(MIGRATION_CHECK_NAME);
     expect(check.passed).toBe(false);
@@ -923,7 +1541,8 @@ describe('checkFixInAppliedMigration', () => {
   it('fails a migration that is not in the history, naming it', () => {
     const check = checkFixInAppliedMigration(
       found([FIX]),
-      recorded({ missing: [FIX] })
+      recorded({ missing: [FIX] }),
+      FIXED_ACCESS
     );
     expect(check.passed).toBe(false);
     expect(check.notes).toContain(FIX_VERSION);
@@ -932,7 +1551,8 @@ describe('checkFixInAppliedMigration', () => {
   it('fails a migration recorded with different statements than the file, naming it', () => {
     const check = checkFixInAppliedMigration(
       found([FIX]),
-      recorded({ mismatched: [FIX] })
+      recorded({ mismatched: [FIX] }),
+      FIXED_ACCESS
     );
     expect(check.passed).toBe(false);
     expect(check.notes).toContain(FIX_VERSION);
@@ -942,7 +1562,8 @@ describe('checkFixInAppliedMigration', () => {
     expect(
       checkFixInAppliedMigration(
         found([SEEDED, FIX]),
-        recorded({ recorded: [SEEDED], missing: [FIX] })
+        recorded({ recorded: [SEEDED], missing: [FIX] }),
+        FIXED_ACCESS
       ).passed
     ).toBe(false);
   });
@@ -950,14 +1571,19 @@ describe('checkFixInAppliedMigration', () => {
   it('fails a misordered file even next to a good, recorded one', () => {
     const check = checkFixInAppliedMigration(
       found([FIX], [MISORDERED_FILE]),
-      recorded({ recorded: [FIX] })
+      recorded({ recorded: [FIX] }),
+      FIXED_ACCESS
     );
     expect(check.passed).toBe(false);
     expect(check.notes).toContain(MISORDERED_FILE);
   });
 
   it('fails with a note that the fix is not in any migration when none touches the policies', () => {
-    const check = checkFixInAppliedMigration(found([]), recorded());
+    const check = checkFixInAppliedMigration(
+      found([]),
+      recorded(),
+      FIXED_ACCESS
+    );
     expect(check.name).toBe(MIGRATION_CHECK_NAME);
     expect(check.passed).toBe(false);
     expect(check.notes).toMatch(/(not|n't) in any migration/i);
@@ -966,17 +1592,22 @@ describe('checkFixInAppliedMigration', () => {
   it('fails with the scan notes when the migrations could not be read', () => {
     const check = checkFixInAppliedMigration(
       { ok: false, notes: 'supabase/migrations does not exist' },
-      recorded({ recorded: [FIX] })
+      recorded({ recorded: [FIX] }),
+      FIXED_ACCESS
     );
     expect(check.passed).toBe(false);
     expect(check.notes).toContain('supabase/migrations does not exist');
   });
 
   it('fails with the history notes when the history could not be read', () => {
-    const check = checkFixInAppliedMigration(found([FIX]), {
-      ok: false,
-      notes: 'managed: exit 1: no stack running',
-    });
+    const check = checkFixInAppliedMigration(
+      found([FIX]),
+      {
+        ok: false,
+        notes: 'managed: exit 1: no stack running',
+      },
+      FIXED_ACCESS
+    );
     expect(check.name).toBe(MIGRATION_CHECK_NAME);
     expect(check.passed).toBe(false);
     expect(check.notes).toContain('no stack running');

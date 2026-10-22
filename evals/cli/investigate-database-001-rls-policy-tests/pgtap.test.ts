@@ -4,14 +4,17 @@ import { describe, expect, it, vi } from 'vitest';
 import type { StackProbe } from '../lib/stack.js';
 import { SEEDED_NOTES_POLICIES } from './fixtures.js';
 import {
-  buildControlSql,
   buildMutationSql,
+  buildSafeMutationSql,
+  catchVerdict,
   checkTestsCatchSeededPolicies,
   checkTestsPass,
-  CONTROL_MARKER,
+  isCatch,
   listTestFiles,
   parseTap,
   runSuite,
+  SAFE_MUTATION_MARKER,
+  SAFE_NOTES_POLICY,
   tapPassed,
   TESTS_CATCH_CHECK_NAME,
   TESTS_PASS_CHECK_NAME,
@@ -412,37 +415,78 @@ describe('buildMutationSql', () => {
   });
 });
 
-describe('buildControlSql', () => {
-  const sql = buildControlSql();
+describe('buildSafeMutationSql', () => {
+  const sql = buildSafeMutationSql();
+  const trimmed = sql.trim();
 
-  it('opens a transaction like the mutation does and never ends it', () => {
-    expect(sql.trim()).toMatch(/^begin;/i);
+  it('starts a transaction and never ends it', () => {
+    expect(trimmed).toMatch(/^begin;/i);
     expect(sql).not.toMatch(/\b(commit|rollback)\b/i);
   });
 
-  it('prints its own marker and changes no policy', () => {
-    expect(sql.trim()).toMatch(/select 'eval-control-run';$/i);
-    expect(sql).not.toMatch(/\bpolicy\b|\balter\b|\bdrop\b/i);
-    expect(sql).not.toContain(MARKER);
+  it('drops every policy with the same loop as the leak mutation, then enables row level security', () => {
+    expect(sql).toContain(DROP_NOTES_POLICIES_SQL);
+    expect(sql).toMatch(
+      /alter table\s+public\.notes\s+enable row level security;/i
+    );
+    expect(sql.indexOf('alter table')).toBeGreaterThan(
+      sql.indexOf(DROP_NOTES_POLICIES_SQL)
+    );
+  });
+
+  it('shares its prefix with the leak mutation, up to the policies', () => {
+    const prefix = (text: string) =>
+      text.slice(0, text.indexOf('create policy'));
+    expect(prefix(sql)).toBe(prefix(buildMutationSql()));
+  });
+
+  it('creates exactly one owner-only policy for all commands', () => {
+    expect(sql.match(/create policy/gi)).toHaveLength(1);
+    expect(sql).toContain(
+      'create policy "eval-probe owners only" on public.notes as permissive for all to authenticated using ((select auth.uid()) = owner_id) with check ((select auth.uid()) = owner_id);'
+    );
+    expect(sql).toContain(`${SAFE_NOTES_POLICY};`);
+  });
+
+  it('names no seeded policy, so name-based structural tests fail under it', () => {
+    for (const statement of SEEDED_NOTES_POLICIES) {
+      const name = /create policy\s+("[^"]+")/.exec(statement)?.[1] ?? '';
+      expect(sql).not.toContain(name);
+    }
+  });
+
+  it('ends by selecting its own marker, after the policy', () => {
+    expect(trimmed).toMatch(/select 'eval-safe-mutation-applied';$/i);
+    expect(SAFE_MUTATION_MARKER).toBe('eval-safe-mutation-applied');
+    expect(SAFE_MUTATION_MARKER).not.toBe(MARKER);
+    expect(sql.indexOf(SAFE_MUTATION_MARKER)).toBeGreaterThan(
+      sql.indexOf(SAFE_NOTES_POLICY)
+    );
+    expect(sql).not.toContain(`'${MARKER}'`);
   });
 });
 
 describe('withMarkerRemoved', () => {
   it('drops the marker line and keeps every other line', () => {
     expect(
-      withMarkerRemoved(`${CONTROL_MARKER}\n${PASSING}`, CONTROL_MARKER)
+      withMarkerRemoved(
+        `${SAFE_MUTATION_MARKER}\n${PASSING}`,
+        SAFE_MUTATION_MARKER
+      )
     ).toBe(PASSING);
     expect(
       withMarkerRemoved(
-        `ok 1 - a\n  ${CONTROL_MARKER}  \nok 2 - b\n`,
-        CONTROL_MARKER
+        `ok 1 - a\n  ${SAFE_MUTATION_MARKER}  \nok 2 - b\n`,
+        SAFE_MUTATION_MARKER
       )
     ).toBe('ok 1 - a\nok 2 - b\n');
   });
 
   it('keeps a test description that merely mentions the marker', () => {
-    const line = `ok 1 - ${CONTROL_MARKER}`;
-    expect(withMarkerRemoved(`${line}\n`, CONTROL_MARKER)).toBe(`${line}\n`);
+    const line = `ok 1 - ${SAFE_MUTATION_MARKER}`;
+    expect(withMarkerRemoved(`${line}\n`, SAFE_MUTATION_MARKER)).toBe(
+      `${line}\n`
+    );
   });
 });
 
@@ -450,8 +494,9 @@ type Run = { stdout: string; exitCode?: number; stderr?: string };
 type Behaviour = {
   clean: Run;
   mutated?: Run;
-  rerun?: Run;
+  safe?: Run;
   leaks?: boolean;
+  safeLeaks?: boolean;
 };
 type Db = {
   files?: string[] | null;
@@ -476,6 +521,11 @@ const BASELINE: NotesAccessSnapshot = {
 };
 const COMMITTED_MUTATION: NotesAccessSnapshot = {
   policies: [...SEEDED_NOTES_POLICIES],
+  rowSecurity: true,
+  forceRowSecurity: false,
+};
+const COMMITTED_SAFE_MUTATION: NotesAccessSnapshot = {
+  policies: [SAFE_NOTES_POLICY],
   rowSecurity: true,
   forceRowSecurity: false,
 };
@@ -521,10 +571,16 @@ const cleanPass: Run = { stdout: tapText(DESCRIPTIONS) };
 const mutatedFail: Run = {
   stdout: `${MARKER}\n${tapText(DESCRIPTIONS, [2])}`,
 };
+const safePass: Run = {
+  stdout: `${SAFE_MUTATION_MARKER}\n${tapText(DESCRIPTIONS)}`,
+};
+const safeFailsEverything: Run = {
+  stdout: `${SAFE_MUTATION_MARKER}\n${tapText(DESCRIPTIONS, [1, 2, 3])}`,
+};
 const CATCHING: Behaviour = {
   clean: cleanPass,
   mutated: mutatedFail,
-  rerun: cleanPass,
+  safe: safePass,
 };
 
 function pgtapAnswer(command: string, present: boolean): string {
@@ -647,9 +703,13 @@ function fakeDb(db: Db = {}) {
       if (behaviour.leaks) policies.current = { ...COMMITTED_MUTATION };
       return run(behaviour.mutated ?? behaviour.clean);
     }
-    if (script.includes(CONTROL_MARKER)) {
-      log.push(`rerun ${key}`);
-      return run(behaviour.rerun ?? behaviour.clean);
+    if (script.includes(SAFE_MUTATION_MARKER)) {
+      log.push(`safe ${key}`);
+      lastMutated = key;
+      if (behaviour.safeLeaks) {
+        policies.current = { ...COMMITTED_SAFE_MUTATION };
+      }
+      return run(behaviour.safe ?? behaviour.clean);
     }
     log.push(`clean ${key}`);
     return run(behaviour.clean);
@@ -734,7 +794,7 @@ describe('runSuite', () => {
     return { ctx, suite: await runSuite(ctx, STACK) };
   };
 
-  it('runs every file clean, then mutates and re-runs only the files that passed', async () => {
+  it('runs every file clean, then under the leak and the safe policy, only the files that passed', async () => {
     const { ctx, suite } = await suiteOf({
       files: ['a_test.sql', 'b_test.sql'],
       behaviour: {
@@ -755,14 +815,14 @@ describe('runSuite', () => {
         {
           file: A,
           mutated: { passed: false, mutationApplied: true },
-          rerun: { passed: true },
+          safe: { passed: true, mutationApplied: true },
         },
       ],
     });
     expect(forFile(ctx.log, 'a_test.sql')).toEqual([
       'clean a_test.sql',
       'mutate a_test.sql',
-      'rerun a_test.sql',
+      'safe a_test.sql',
     ]);
     expect(forFile(ctx.log, 'b_test.sql')).toEqual(['clean b_test.sql']);
   });
@@ -803,7 +863,7 @@ describe('runSuite', () => {
         'a_test.sql': {
           clean: cleanPass,
           mutated: { stdout: `${MARKER}\n${tapText([D3])}` },
-          rerun: cleanPass,
+          safe: safePass,
         },
       },
     });
@@ -823,7 +883,7 @@ describe('runSuite', () => {
             exitCode: 2,
             stderr: 'psql: error: connection refused',
           },
-          rerun: cleanPass,
+          safe: safePass,
         },
       },
     });
@@ -835,13 +895,39 @@ describe('runSuite', () => {
     });
   });
 
-  it('reports a re-run that fails after a mutation that caught the tests', async () => {
+  it('reports mutationApplied false on the safe run when its marker never printed', async () => {
     const { suite } = await suiteOf({
       behaviour: {
         'a_test.sql': {
           clean: cleanPass,
           mutated: mutatedFail,
-          rerun: { stdout: tapText(DESCRIPTIONS, [3]) },
+          safe: {
+            stdout: tapText(DESCRIPTIONS),
+            exitCode: 2,
+            stderr: 'psql: error: connection refused',
+          },
+        },
+      },
+    });
+    expect(suite).toMatchObject({
+      ok: true,
+      catches: [
+        {
+          file: A,
+          mutated: { mutationApplied: true },
+          safe: { passed: false, mutationApplied: false },
+        },
+      ],
+    });
+  });
+
+  it('reports a safe run that fails the tests as failed, with its marker removed from the tap', async () => {
+    const { suite } = await suiteOf({
+      behaviour: {
+        'a_test.sql': {
+          clean: cleanPass,
+          mutated: mutatedFail,
+          safe: safeFailsEverything,
         },
       },
     });
@@ -851,7 +937,11 @@ describe('runSuite', () => {
         {
           file: A,
           mutated: { passed: false, mutationApplied: true },
-          rerun: { passed: false },
+          safe: {
+            passed: false,
+            mutationApplied: true,
+            tap: { planned: 3, plans: 1 },
+          },
         },
       ],
     });
@@ -878,20 +968,19 @@ describe('runSuite', () => {
     expect(scriptOf(command)).toContain(buildMutationSql().trim());
   });
 
-  it('re-runs the file in the same session shape as the mutated run, with only the policy DDL missing', async () => {
+  it('runs the file under the safe mutation in the same session shape as the leak mutation, with only the script differing', async () => {
     const { ctx } = await suiteOf({ behaviour: { 'a_test.sql': CATCHING } });
     const mutation = commandWith(ctx.psqlTestCommands, MARKER);
-    const control = commandWith(ctx.psqlTestCommands, CONTROL_MARKER);
-    expect(control).not.toBe('');
-    expect(control).not.toBe(mutation);
-    expect(control).toContain('-v ON_ERROR_STOP=1');
-    const { stdin, file, rollback } = stdinOrder(control, 'a_test.sql');
+    const safe = commandWith(ctx.psqlTestCommands, SAFE_MUTATION_MARKER);
+    expect(safe).not.toBe('');
+    expect(safe).not.toBe(mutation);
+    expect(safe).toContain('-v ON_ERROR_STOP=1');
+    const { stdin, file, rollback } = stdinOrder(safe, 'a_test.sql');
     expect(stdin).toBeGreaterThanOrEqual(0);
     expect(file).toBeGreaterThan(stdin);
     expect(rollback).toBeGreaterThan(file);
-    expect(scriptOf(control)).toContain(buildControlSql().trim());
-    expect(scriptOf(control)).not.toMatch(/\bpolicy\b/i);
-    expect(control.replace(/printf %s '[^']*'/, '')).toBe(
+    expect(scriptOf(safe)).toContain(buildSafeMutationSql().trim());
+    expect(safe.replace(/printf %s '[^']*'/, '')).toBe(
       mutation.replace(/printf %s '[^']*'/, '')
     );
   });
@@ -945,7 +1034,7 @@ describe('runSuite', () => {
     });
   });
 
-  it('runs every clean and re-run file with ON_ERROR_STOP so an error surfaces as a non-zero exit', async () => {
+  it('runs every clean and mutated file with ON_ERROR_STOP so an error surfaces as a non-zero exit', async () => {
     const { ctx } = await suiteOf({ behaviour: { 'a_test.sql': CATCHING } });
     expect(ctx.psqlTestCommands).toHaveLength(3);
     for (const command of ctx.psqlTestCommands) {
@@ -961,7 +1050,7 @@ describe('runSuite', () => {
     expect(ctx.restoreScripts).toEqual([]);
   });
 
-  it('snapshots the notes policies once before the first mutated run and once after each', async () => {
+  it('snapshots the notes policies once before the first mutated run and once after each of the two runs per file', async () => {
     const { ctx } = await suiteOf({
       files: ['a_test.sql', 'b_test.sql'],
       behaviour: { 'a_test.sql': CATCHING, 'b_test.sql': CATCHING },
@@ -974,10 +1063,12 @@ describe('runSuite', () => {
       'snapshot',
       'mutate a_test.sql',
       'snapshot',
-      'rerun a_test.sql',
+      'safe a_test.sql',
+      'snapshot',
       'mutate b_test.sql',
       'snapshot',
-      'rerun b_test.sql',
+      'safe b_test.sql',
+      'snapshot',
       'drop-extension',
     ]);
   });
@@ -985,7 +1076,9 @@ describe('runSuite', () => {
   describe('a test file whose own commit keeps the mutation', () => {
     const leaking: Behaviour = { ...CATCHING, leaks: true };
 
-    it('restores the policies before the re-run and still counts the file as a catch', async () => {
+    const safeLeaking: Behaviour = { ...CATCHING, safeLeaks: true };
+
+    it('restores the policies before the safe run and still counts the file as a catch', async () => {
       const { ctx, suite } = await suiteOf({
         behaviour: { 'a_test.sql': leaking },
       });
@@ -996,7 +1089,7 @@ describe('runSuite', () => {
             file: A,
             leaked: true,
             mutated: { passed: false, mutationApplied: true },
-            rerun: { passed: true },
+            safe: { passed: true, mutationApplied: true },
           },
         ],
       });
@@ -1004,12 +1097,45 @@ describe('runSuite', () => {
         'clean a_test.sql',
         'mutate a_test.sql',
         'restore a_test.sql',
-        'rerun a_test.sql',
+        'safe a_test.sql',
       ]);
       expect(ctx.policies.current).toEqual(BASELINE);
       expect(checkTestsCatchSeededPolicies(suite)).toMatchObject({
         passed: true,
       });
+    });
+
+    it('restores after the safe run too when the file commits under it, and still counts the file', async () => {
+      const { ctx, suite } = await suiteOf({
+        behaviour: { 'a_test.sql': safeLeaking },
+      });
+      expect(suite).toMatchObject({
+        ok: true,
+        catches: [{ file: A, leaked: true, safe: { passed: true } }],
+      });
+      expect(forFile(ctx.log, 'a_test.sql')).toEqual([
+        'clean a_test.sql',
+        'mutate a_test.sql',
+        'safe a_test.sql',
+        'restore a_test.sql',
+      ]);
+      expect(ctx.policies.current).toEqual(BASELINE);
+      expect(checkTestsCatchSeededPolicies(suite).passed).toBe(true);
+    });
+
+    it('restores after both runs when the file commits under each', async () => {
+      const { ctx } = await suiteOf({
+        behaviour: { 'a_test.sql': { ...leaking, safeLeaks: true } },
+      });
+      expect(forFile(ctx.log, 'a_test.sql')).toEqual([
+        'clean a_test.sql',
+        'mutate a_test.sql',
+        'restore a_test.sql',
+        'safe a_test.sql',
+        'restore a_test.sql',
+      ]);
+      expect(ctx.restoreScripts).toHaveLength(2);
+      expect(ctx.policies.current).toEqual(BASELINE);
     });
 
     it('restores with a committed session that drops every policy, sets the flags and recreates the snapshot', async () => {
@@ -1041,13 +1167,13 @@ describe('runSuite', () => {
         behaviour: { 'a_test.sql': leaking, 'b_test.sql': CATCHING },
       });
       expect(
-        ctx.log.filter((line) => /^(mutate|restore|rerun)/.test(line))
+        ctx.log.filter((line) => /^(mutate|restore|safe)/.test(line))
       ).toEqual([
         'mutate a_test.sql',
         'restore a_test.sql',
-        'rerun a_test.sql',
+        'safe a_test.sql',
         'mutate b_test.sql',
-        'rerun b_test.sql',
+        'safe b_test.sql',
       ]);
     });
 
@@ -1059,23 +1185,20 @@ describe('runSuite', () => {
       expect(check.passed).toBe(true);
       expect(check.notes).toMatch(/committed the mutation/);
       expect(check.notes).toMatch(
-        /restored the notes policies before the re-run/
+        /restored the notes policies between the runs/
       );
     });
 
-    it('does not count the file when the re-run still fails after the restore', async () => {
+    it('does not count the file when the safe run still fails every test after the restore', async () => {
       const { suite } = await suiteOf({
         behaviour: {
-          'a_test.sql': {
-            ...leaking,
-            rerun: { stdout: tapText(DESCRIPTIONS, [3]) },
-          },
+          'a_test.sql': { ...leaking, safe: safeFailsEverything },
         },
       });
       expect(checkTestsCatchSeededPolicies(suite).passed).toBe(false);
     });
 
-    it('does not count the file, runs no re-run and mutates nothing further when the restore does not take', async () => {
+    it('does not count the file, runs no safe run and mutates nothing further when the restore does not take', async () => {
       const { ctx, suite } = await suiteOf({
         files: ['a_test.sql', 'b_test.sql'],
         restoreTakes: false,
@@ -1087,7 +1210,7 @@ describe('runSuite', () => {
           {
             file: A,
             leaked: true,
-            rerun: null,
+            safe: null,
             restoreFailure: expect.stringContaining('restore'),
           },
         ],
@@ -1097,7 +1220,7 @@ describe('runSuite', () => {
         1
       );
       expect(ctx.log).not.toContain('mutate b_test.sql');
-      expect(ctx.log).not.toContain('rerun a_test.sql');
+      expect(ctx.log).not.toContain('safe a_test.sql');
       const check = checkTestsCatchSeededPolicies(suite);
       expect(check.passed).toBe(false);
       expect(check.notes).toContain(A);
@@ -1114,11 +1237,36 @@ describe('runSuite', () => {
       });
       expect(suite).toMatchObject({
         ok: true,
-        catches: [{ file: A, leaked: true, rerun: null }],
+        catches: [{ file: A, leaked: true, safe: null }],
         unmutated: [B],
       });
       expect(checkTestsCatchSeededPolicies(suite).notes).toContain('deadlock');
       expect(ctx.log).not.toContain('mutate b_test.sql');
+    });
+
+    it('stops after the safe run, keeping both runs, when its restore does not take', async () => {
+      const { ctx, suite } = await suiteOf({
+        files: ['a_test.sql', 'b_test.sql'],
+        restoreTakes: false,
+        behaviour: { 'a_test.sql': safeLeaking, 'b_test.sql': CATCHING },
+      });
+      expect(suite).toMatchObject({
+        ok: true,
+        catches: [
+          {
+            file: A,
+            leaked: true,
+            mutated: { mutationApplied: true },
+            safe: { passed: true, mutationApplied: true },
+            restoreFailure: expect.stringContaining('restore'),
+          },
+        ],
+        unmutated: [B],
+      });
+      expect(ctx.log).not.toContain('mutate b_test.sql');
+      const check = checkTestsCatchSeededPolicies(suite);
+      expect(check.passed).toBe(false);
+      expect(check.notes).toMatch(/could not restore/);
     });
 
     it('keeps an earlier catch when a later file stops the run, and still reports the skipped files', async () => {
@@ -1149,7 +1297,7 @@ describe('runSuite', () => {
       catches: [
         {
           file: A,
-          rerun: null,
+          safe: null,
           restoreFailure: expect.stringContaining('connection refused'),
         },
       ],
@@ -1178,6 +1326,106 @@ describe('runSuite', () => {
       notes: expect.stringContaining('connection refused'),
     });
     expect(checkTestsPass(probe).passed).toBe(true);
+  });
+
+  describe('what counts as a catch', () => {
+    const POLICY_SET = 'public.notes has the expected policies';
+    const POLICY_COUNT = 'public.notes has four policies';
+    const A_OWN = "a sees a's notes";
+    const B_BLOCKED = "b cannot see a's notes";
+    const ANON_NONE = 'anon sees no notes';
+    const CROSS_USER = [A_OWN, B_BLOCKED, ANON_NONE];
+
+    const behaviourOf = (
+      descriptions: readonly string[],
+      leak: readonly number[],
+      safe: readonly number[]
+    ): Behaviour => ({
+      clean: { stdout: tapText(descriptions) },
+      mutated: { stdout: `${MARKER}\n${tapText(descriptions, leak)}` },
+      safe: {
+        stdout: `${SAFE_MUTATION_MARKER}\n${tapText(descriptions, safe)}`,
+      },
+    });
+
+    const verdictOf = async (behaviour: Behaviour) => {
+      const { suite } = await suiteOf({
+        behaviour: { 'a_test.sql': behaviour },
+      });
+      return checkTestsCatchSeededPolicies(suite);
+    };
+
+    it('does not count a file that only checks the policy set by name', async () => {
+      const check = await verdictOf(behaviourOf([POLICY_SET], [1], [1]));
+      expect(check.passed).toBe(false);
+      expect(check.notes).toContain(A);
+      expect(check.notes).toMatch(
+        /also failed with an equivalent owner-only policy in place, so it checks the policy set, not who can see which notes/
+      );
+    });
+
+    it('does not count a file that only counts the policies', async () => {
+      const check = await verdictOf(behaviourOf([POLICY_COUNT], [1], [1]));
+      expect(check.passed).toBe(false);
+      expect(check.notes).toMatch(/checks the policy set/);
+    });
+
+    it('counts a cross-user behavioural file and names the test that flipped', async () => {
+      const check = await verdictOf(behaviourOf(CROSS_USER, [2], []));
+      expect(check.passed).toBe(true);
+      expect(check.notes).toContain(
+        `test 2 "${B_BLOCKED}" failed with the seeded policies put back and passed with an equivalent owner-only policy`
+      );
+    });
+
+    it('counts a mixed file through its behavioural test, not its structural one', async () => {
+      const check = await verdictOf(
+        behaviourOf([POLICY_SET, B_BLOCKED], [1, 2], [1])
+      );
+      expect(check.passed).toBe(true);
+      expect(check.notes).toContain(`test 2 "${B_BLOCKED}"`);
+      expect(check.notes).not.toContain(`"${POLICY_SET}"`);
+    });
+
+    it('counts a file whose leak run errors after the first test while the safe run passes everything', async () => {
+      const check = await verdictOf({
+        clean: { stdout: tapText(CROSS_USER) },
+        mutated: {
+          stdout: `${MARKER}\n1..3\nok 1 - ${A_OWN}\n`,
+          exitCode: 3,
+          stderr:
+            'psql:b_test.sql:14: ERROR:  more than one row returned by a subquery used as an expression',
+        },
+        safe: {
+          stdout: `${SAFE_MUTATION_MARKER}\n${tapText(CROSS_USER)}`,
+        },
+      });
+      expect(check.passed).toBe(true);
+      expect(check.notes).toContain(
+        `test 2 "${B_BLOCKED}" did not run with the seeded policies put back and passed with an equivalent owner-only policy`
+      );
+    });
+
+    it('does not count a file whose safe run never printed its marker', async () => {
+      const check = await verdictOf({
+        clean: { stdout: tapText(CROSS_USER) },
+        mutated: { stdout: `${MARKER}\n${tapText(CROSS_USER, [2])}` },
+        safe: {
+          stdout: tapText(CROSS_USER),
+          exitCode: 2,
+          stderr: 'psql: error: connection refused',
+        },
+      });
+      expect(check.passed).toBe(false);
+      expect(check.notes).toMatch(/owner-only policy did not apply/);
+      expect(check.notes).toContain('connection refused');
+    });
+
+    it('does not count a file that also failed behaviourally under the safe policy', async () => {
+      const check = await verdictOf(behaviourOf(CROSS_USER, [2], [2]));
+      expect(check.passed).toBe(false);
+      expect(check.notes).not.toMatch(/drift|re-?run/i);
+    });
   });
 
   it('does not read the policies when no file passed clean', async () => {
@@ -1331,8 +1579,19 @@ describe('check helpers', () => {
   const catching = (file: string) => ({
     file,
     mutated: mutated(file, { failing: [2] }),
-    rerun: run(file),
+    safe: mutated(file),
   });
+
+  const runOfTap = (file: string, text: string, exitCode = 0): TestFileRun => {
+    const tap = parseTap(text);
+    return {
+      file,
+      passed: tapPassed(exitCode, tap),
+      exitCode,
+      tap,
+      detail: `psql exit ${exitCode}`,
+    };
+  };
 
   const suite = (parts: {
     files: string[];
@@ -1426,7 +1685,7 @@ describe('check helpers', () => {
   });
 
   describe('checkTestsCatchSeededPolicies', () => {
-    it('passes when a file passed clean, failed under the mutation with the marker, and passed the re-run', () => {
+    it('passes when a file passed clean, failed under the leak with its marker, and a test passed under the safe policy', () => {
       const check = checkTestsCatchSeededPolicies(
         suite({ files: [A], clean: [run(A)], catches: [catching(A)] })
       );
@@ -1435,14 +1694,16 @@ describe('check helpers', () => {
         passed: true,
       });
       expect(check.notes).toContain(A);
-      expect(check.notes).toContain(D2);
+      expect(check.notes).toContain(
+        `test 2 "${D2}" failed with the seeded policies put back and passed with an equivalent owner-only policy`
+      );
     });
 
     it('passes when one of two files catches the policies', () => {
       const notCaught = {
         file: B,
         mutated: mutated(B),
-        rerun: run(B),
+        safe: mutated(B),
       };
       expect(
         checkTestsCatchSeededPolicies(
@@ -1481,7 +1742,7 @@ describe('check helpers', () => {
                 exitCode: 2,
                 applied: false,
               }),
-              rerun: run(A),
+              safe: mutated(A),
             },
           ],
         })
@@ -1501,7 +1762,7 @@ describe('check helpers', () => {
             {
               file: A,
               mutated: mutated(A, { failing: [2], applied: false }),
-              rerun: run(A),
+              safe: mutated(A),
             },
           ],
         })
@@ -1514,7 +1775,7 @@ describe('check helpers', () => {
         suite({
           files: [A],
           clean: [run(A)],
-          catches: [{ file: A, mutated: mutated(A), rerun: run(A) }],
+          catches: [{ file: A, mutated: mutated(A), safe: mutated(A) }],
         })
       );
       expect(check.name).toBe(TESTS_CATCH_CHECK_NAME);
@@ -1523,7 +1784,7 @@ describe('check helpers', () => {
       expect(check.notes).toMatch(/pass/i);
     });
 
-    it('fails when the re-run fails, since the failure may be state drift rather than the policies', () => {
+    it('fails a file that failed under the leak and also failed the same test under the safe policy, saying it checks the policy set', () => {
       const check = checkTestsCatchSeededPolicies(
         suite({
           files: [A],
@@ -1532,13 +1793,164 @@ describe('check helpers', () => {
             {
               file: A,
               mutated: mutated(A, { failing: [2] }),
-              rerun: run(A, { failing: [3] }),
+              safe: mutated(A, { failing: [2] }),
             },
           ],
         })
       );
       expect(check.passed).toBe(false);
-      expect(check.notes).toMatch(/re-?run/i);
+      expect(check.notes).toContain(A);
+      expect(check.notes).toContain(
+        'also failed with an equivalent owner-only policy in place, so it checks the policy set, not who can see which notes'
+      );
+      expect(check.notes).not.toMatch(/drift|re-?run/i);
+    });
+
+    it('fails when the safe policy never applied, naming why', () => {
+      const check = checkTestsCatchSeededPolicies(
+        suite({
+          files: [A],
+          clean: [run(A)],
+          catches: [
+            {
+              file: A,
+              mutated: mutated(A, { failing: [2] }),
+              safe: mutated(A, {
+                applied: false,
+                exitCode: 2,
+                detail: 'psql exit 2: connection refused',
+              }),
+            },
+          ],
+        })
+      );
+      expect(check.passed).toBe(false);
+      expect(check.notes).toContain(A);
+      expect(check.notes).toMatch(/owner-only policy did not apply/);
+      expect(check.notes).toContain('connection refused');
+    });
+
+    it('passes through the test that flipped, even when a structural test fails under both policies', () => {
+      const descriptions = ['policy set', D2];
+      const check = checkTestsCatchSeededPolicies(
+        suite({
+          files: [A],
+          clean: [run(A)],
+          catches: [
+            {
+              file: A,
+              mutated: mutated(A, { descriptions, failing: [1, 2] }),
+              safe: mutated(A, { descriptions, failing: [1] }),
+            },
+          ],
+        })
+      );
+      expect(check.passed).toBe(true);
+      expect(check.notes).toContain(`test 2 "${D2}"`);
+      expect(check.notes).not.toContain('"policy set"');
+    });
+
+    it('names a flipped test the leak run never reached as one that did not run', () => {
+      const check = checkTestsCatchSeededPolicies(
+        suite({
+          files: [A],
+          clean: [run(A)],
+          catches: [
+            {
+              file: A,
+              mutated: mutated(A, {
+                descriptions: [D1],
+                planned: 3,
+                exitCode: 3,
+              }),
+              safe: mutated(A),
+            },
+          ],
+        })
+      );
+      expect(check.passed).toBe(true);
+      expect(check.notes).toContain(
+        `test 2 "${D2}" did not run with the seeded policies put back and passed with an equivalent owner-only policy`
+      );
+    });
+
+    it('does not flip on a TODO test', () => {
+      const check = checkTestsCatchSeededPolicies(
+        suite({
+          files: [A],
+          clean: [run(A)],
+          catches: [
+            {
+              file: A,
+              mutated: {
+                ...runOfTap(
+                  A,
+                  '1..2\nnot ok 1 - set\nnot ok 2 - later # TODO later\n'
+                ),
+                mutationApplied: true,
+              },
+              safe: {
+                ...runOfTap(
+                  A,
+                  '1..2\nnot ok 1 - set\nok 2 - later # TODO later\n'
+                ),
+                mutationApplied: true,
+              },
+            },
+          ],
+        })
+      );
+      expect(check.passed).toBe(false);
+    });
+
+    it('does not flip on a nested subtest result', () => {
+      const check = checkTestsCatchSeededPolicies(
+        suite({
+          files: [A],
+          clean: [run(A)],
+          catches: [
+            {
+              file: A,
+              mutated: {
+                ...runOfTap(A, '1..1\nnot ok 1 - set\n'),
+                mutationApplied: true,
+              },
+              safe: {
+                ...runOfTap(A, '1..1\nnot ok 1 - set\n    ok 1 - nested\n'),
+                mutationApplied: true,
+              },
+            },
+          ],
+        })
+      );
+      expect(check.passed).toBe(false);
+    });
+
+    it('flips on a result number rather than its description', () => {
+      const check = checkTestsCatchSeededPolicies(
+        suite({
+          files: [A],
+          clean: [run(A)],
+          catches: [
+            {
+              file: A,
+              mutated: {
+                ...runOfTap(
+                  A,
+                  '1..2\nok 1 - set\nnot ok 2 - reads under leak\n'
+                ),
+                mutationApplied: true,
+              },
+              safe: {
+                ...runOfTap(A, '1..2\nok 1 - set\nok 2 - reads under safe\n'),
+                mutationApplied: true,
+              },
+            },
+          ],
+        })
+      );
+      expect(check.passed).toBe(true);
+      expect(check.notes).toContain('test 2 "reads under safe"');
     });
 
     it('passes a file that committed the mutation and was restored, and says so', () => {
@@ -1553,7 +1965,7 @@ describe('check helpers', () => {
       expect(check.notes).toContain(A);
       expect(check.notes).toMatch(/committed the mutation/);
       expect(check.notes).toMatch(
-        /scorer restored the notes policies before the re-run/
+        /scorer restored the notes policies between the runs/
       );
     });
 
@@ -1573,7 +1985,7 @@ describe('check helpers', () => {
             {
               file: A,
               mutated: mutated(A, { failing: [2] }),
-              rerun: null,
+              safe: null,
               leaked: true,
               restoreFailure:
                 'the file committed the mutation and the scorer could not restore the notes policies (the restore session failed)',

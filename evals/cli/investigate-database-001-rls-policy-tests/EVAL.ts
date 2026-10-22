@@ -28,6 +28,7 @@ import {
   checkFixInAppliedMigration,
   findPolicyMigrations,
   readRecordedPolicyMigrations,
+  readReplayedNotesAccess,
 } from './migrations.js';
 import {
   checkTestsCatchSeededPolicies,
@@ -57,6 +58,12 @@ const scorer: LocalStackScorer = async (ctx) => {
     const access = await readNotesAccess(ctx, stack);
     const migrations = await findPolicyMigrations(ctx);
     const recorded = await readRecordedPolicyMigrations(ctx, stack, migrations);
+    const replayed = await readReplayedNotesAccess(
+      ctx,
+      stack,
+      migrations,
+      recorded
+    );
     const cli = await readCliFacts(ctx, marker, invocations);
     const suite = await runSuite(ctx, stack);
 
@@ -64,7 +71,7 @@ const scorer: LocalStackScorer = async (ctx) => {
       await checkStackRunning(ctx, stack),
       checkReadIsolation(access),
       checkWriteIsolation(access),
-      checkFixInAppliedMigration(migrations, recorded),
+      checkFixInAppliedMigration(migrations, recorded, replayed),
       checkTestsPass(suite),
       checkTestsCatchSeededPolicies(suite),
       checkRanWithTestDb(testDbRuns),
@@ -86,6 +93,7 @@ const scorer: LocalStackScorer = async (ctx) => {
           access,
           migrations,
           recorded,
+          replayed,
           suite,
           testDbRuns,
           cli,

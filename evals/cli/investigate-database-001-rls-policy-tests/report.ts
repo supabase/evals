@@ -11,8 +11,9 @@ import {
   type RecordedPolicyMigrationsProbe,
 } from './migrations.js';
 import {
+  catchVerdict,
+  describeFlippedTest,
   describeTapCounts,
-  isCatch,
   type SuiteProbe,
   type TestFileRun,
 } from './pgtap.js';
@@ -128,17 +129,25 @@ function describeCatch(
 ): string {
   const attempt = suite.catches.find((candidate) => candidate.file === file);
   if (attempt === undefined) return 'not tried against the seeded policies';
-  if (attempt.restoreFailure !== undefined) {
-    return 'the notes policies could not be restored after the mutated run, so the run is not counted';
+  const verdict = catchVerdict(attempt);
+  if (verdict.caught) {
+    const restored = attempt.leaked
+      ? '; the file committed the mutation and the scorer restored the notes policies between the runs'
+      : '';
+    return `caught the seeded policies (${describeFlippedTest(verdict.test)}${restored})`;
   }
-  if (isCatch(attempt)) {
-    return attempt.leaked
-      ? 'caught the seeded policies (the file committed the mutation and the scorer restored the notes policies before the re-run)'
-      : 'caught the seeded policies';
+  switch (verdict.reason) {
+    case 'unrestored':
+      return 'the notes policies could not be restored after the mutated run, so the run is not counted';
+    case 'leak-not-applied':
+      return 'the seeded policies could not be applied';
+    case 'leak-passed':
+      return 'did not catch the seeded policies';
+    case 'safe-not-applied':
+      return 'the equivalent owner-only policy could not be applied, so the run is not counted';
+    case 'policy-set-only':
+      return 'did not catch the seeded policies (it also failed with an equivalent owner-only policy, so it checks the policy set, not who can see which notes)';
   }
-  return attempt.mutated.mutationApplied
-    ? 'did not catch the seeded policies'
-    : 'the seeded policies could not be applied';
 }
 
 function describeTestFiles(suite: SuiteProbe): string[] {
@@ -169,6 +178,7 @@ export function describeGroundTruth(facts: {
   workspace: string;
   stack: StackProbe;
   access: AccessProbe;
+  replayed: AccessProbe;
   migrations: PolicyMigrationsProbe;
   recorded: RecordedPolicyMigrationsProbe;
   suite: SuiteProbe;
@@ -183,6 +193,8 @@ export function describeGroundTruth(facts: {
     `- writes to the probe notes: ${describeWrites(facts.access)}`,
     `- migrations touching the notes policies: ${describeFoundMigrations(facts.migrations)}`,
     `- recorded in the local migration history: ${describeRecorded(facts.recorded, facts.migrations)}`,
+    `- reads after replaying the migrations' notes policies: ${describeReads(facts.replayed)}`,
+    `- writes after replaying the migrations' notes policies: ${describeWrites(facts.replayed)}`,
     ...describeTestFiles(facts.suite),
     `- supabase test db runs: ${describeTestDbRuns(facts.testDbRuns)}`,
   ];

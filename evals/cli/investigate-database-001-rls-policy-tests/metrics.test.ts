@@ -92,7 +92,7 @@ const SUITE: SuiteProbe = {
   ok: true,
   files: [A],
   clean: [run(A)],
-  catches: [{ file: A, mutated: mutated(A, [2]), rerun: run(A) }],
+  catches: [{ file: A, mutated: mutated(A, [2]), safe: mutated(A, []) }],
 };
 
 const PASS_RUN: TestDbRun = {
@@ -210,7 +210,7 @@ describe('checkMetrics', () => {
     });
   });
 
-  it('counts only the files that caught the mutation with its marker and passed the re-run', async () => {
+  it('counts only the files with a test that fails under the seeded policies and passes under the safe policy', async () => {
     const { metrics } = await metricsOf({
       suite: {
         ok: true,
@@ -222,17 +222,17 @@ describe('checkMetrics', () => {
           'supabase/tests/d_test.sql',
         ].map((file) => run(file)),
         catches: [
-          { file: A, mutated: mutated(A, [2]), rerun: run(A) },
-          { file: B, mutated: mutated(B, []), rerun: run(B) },
+          { file: A, mutated: mutated(A, [2]), safe: mutated(A, []) },
+          { file: B, mutated: mutated(B, []), safe: mutated(B, []) },
           {
             file: 'supabase/tests/c_test.sql',
             mutated: mutated('supabase/tests/c_test.sql', [2], false),
-            rerun: run('supabase/tests/c_test.sql'),
+            safe: mutated('supabase/tests/c_test.sql', []),
           },
           {
             file: 'supabase/tests/d_test.sql',
             mutated: mutated('supabase/tests/d_test.sql', [2]),
-            rerun: run('supabase/tests/d_test.sql', 3, [1]),
+            safe: mutated('supabase/tests/d_test.sql', [2]),
           },
         ],
       },
