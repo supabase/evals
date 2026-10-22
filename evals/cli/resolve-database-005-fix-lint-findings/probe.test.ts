@@ -308,37 +308,55 @@ describe('probe.sql', () => {
     expect(dropExtension).toBeLessThan(replay.indexOf('array_agg(d)'));
   });
 
-  it('measures order_total on the seeded orders a reader cannot see', () => {
+  it('measures order_total on each seeded order a reader cannot see', () => {
     const behaviour = functionBody('eval_behaviour');
     expect(behaviour).toContain('order_ids bigint[]');
     expect(behaviour).toContain(
-      "'select coalesce(sum(public.order_total(p_order_id => x)), 0)::text from unnest($1) as x where x not in (select o.id from public.orders o)' into foreign_total using order_ids"
+      "for foreign_id in execute 'select x from unnest($1) as x where x not in (select o.id from public.orders o)' using order_ids loop"
     );
+    expect(behaviour).toContain(
+      "execute 'select public.order_total(p_order_id => $1)' into foreign_one using foreign_id;"
+    );
+    expect(behaviour).toContain(
+      'foreign_sum := foreign_sum + coalesce(foreign_one, 0);'
+    );
+    expect(behaviour).toContain('foreign_total := foreign_sum::text;');
     expect(behaviour).toContain("'foreign_total', foreign_total");
   });
 
-  it('counts an error from order_total on a foreign order as no leak, after the reader own reads and before the role resets', () => {
+  it('skips an order_total error on one foreign order so the others still count, after the reader own reads and before the role resets', () => {
     const behaviour = functionBody('eval_behaviour');
-    const nested = behaviour.match(
-      /\n\s+begin\n\s+(execute 'select coalesce\(sum\([^\n]*)\n\s+exception when others then\n\s+foreign_total := '0';\n\s+end;\n\s+perform set_config\('role', 'none', true\);/
+    const perOrder = behaviour.match(
+      /foreign_sum := 0;\n\s+for foreign_id in execute [^\n]*loop\n\s+begin\n\s+execute [^\n]*into foreign_one using foreign_id;\n\s+foreign_sum := [^\n]*\n\s+exception when others then\n\s+null;\n\s+end;\n\s+end loop;\n\s+foreign_total := foreign_sum::text;\n\s+perform set_config\('role', 'none', true\);/
     );
-    expect(nested?.[1]).toContain('into foreign_total using order_ids;');
+    expect(perOrder).not.toBeNull();
     const ownReads = behaviour.indexOf(
       "execute 'select coalesce(json_agg(public.order_total"
     );
     expect(ownReads).toBeGreaterThan(-1);
-    expect(ownReads).toBeLessThan(behaviour.indexOf('into foreign_total'));
+    expect(ownReads).toBeLessThan(behaviour.indexOf('foreign_sum := 0;'));
     expect(
       behaviour.indexOf("perform set_config('role', usr.role, true);")
-    ).toBeLessThan(behaviour.indexOf('into foreign_total'));
+    ).toBeLessThan(behaviour.indexOf('foreign_sum := 0;'));
   });
 
-  it('accepts any trigger that stamps a later time than the 2000-01-01 the probe sets', () => {
+  it('accepts any trigger that stamps the update time, but not one that keeps the 2000-01-01 the probe sets', () => {
     const behaviour = functionBody('eval_behaviour');
     expect(behaviour).toContain(
-      "update public.orders set updated_at = ''2000-01-01'' where id = 1 returning updated_at > ''2000-01-01''::timestamptz"
+      "update public.orders set updated_at = ''2000-01-01'' where id = 1 returning updated_at >= now()"
     );
     expect(behaviour).not.toMatch(/updated_at = now\(\)/);
+  });
+
+  it('leaves the routines that belong to a type to the type drop', () => {
+    const replay = functionBody('eval_replay');
+    const routines = replay.slice(
+      replay.indexOf("select format('drop routine"),
+      replay.indexOf("select format('drop type")
+    );
+    expect(routines).toContain(
+      "not exists (select 1 from pg_depend d where d.objid = p.oid and d.deptype = 'i')"
+    );
   });
 
   it('drops standalone composite types in the replay but not table row types or multiranges', () => {
