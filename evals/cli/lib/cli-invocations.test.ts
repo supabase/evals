@@ -692,6 +692,65 @@ describe('readStackLifecycle', () => {
       stoppedByAgent: false,
     });
   });
+
+  it('reads the stop that ended a pinned run, flags and workdir included', () => {
+    expect(
+      lifecycle([
+        'supabase start',
+        'supabase db reset --local --no-seed && supabase test db --local && supabase migration list --local',
+        'supabase stop --help',
+        `node <<'NODE'
+const fs = require('node:fs');
+fs.writeFileSync('summary.md', 'notes tests added and passing');
+NODE
+supabase stop --no-backup --workdir /tmp/sandbox-56d60ea5`,
+      ])
+    ).toEqual({
+      lastCommand: 'supabase stop --no-backup --workdir /tmp/sandbox-56d60ea5',
+      stoppedByAgent: true,
+    });
+  });
+
+  it('reads the stop that ended a run that tested before starting', () => {
+    expect(
+      lifecycle([
+        'supabase test db',
+        'supabase start',
+        'supabase test db',
+        'supabase stop',
+      ])
+    ).toEqual({ lastCommand: 'supabase stop', stoppedByAgent: true });
+  });
+
+  it('is not stopped when the agent started the stack again after a stop', () => {
+    expect(lifecycle(['supabase stop', 'supabase start'])).toEqual({
+      lastCommand: 'supabase start',
+      stoppedByAgent: false,
+    });
+  });
+
+  it('ignores a stop that only asked for help', () => {
+    expect(lifecycle(['supabase start', 'supabase stop --help'])).toEqual({
+      lastCommand: 'supabase start',
+      stoppedByAgent: false,
+    });
+  });
+
+  it('reads stack destroy after stack start as a stop', () => {
+    expect(
+      lifecycle(['supabase stack start', 'supabase stack destroy'])
+    ).toEqual({ lastCommand: 'supabase stack destroy', stoppedByAgent: true });
+  });
+
+  it('reports no lifecycle command when only test, reset and list commands ran', () => {
+    expect(
+      lifecycle([
+        'supabase test db',
+        'supabase db reset --local',
+        'supabase migration list --local',
+      ])
+    ).toEqual({ lastCommand: null, stoppedByAgent: false });
+  });
 });
 
 describe('invocationTargets', () => {
