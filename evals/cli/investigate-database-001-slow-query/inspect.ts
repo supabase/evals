@@ -34,6 +34,12 @@ const REPORT_RE = /\binspect\s+report\b/;
 const DATED_FOLDER_RE = /\b\d{4}-\d{2}-\d{2}\b/;
 const REPORT_CSV_RE =
   /\b(?:bloat|blocking|calls|db_stats|index_stats|locks|long_running_queries|outliers|replication_slots|role_stats|table_stats|traffic_profile|unused_indexes|vacuum_stats)\.csv\b/;
+const OUTPUT_DIR_RE = /--output-dir(?:=|\s+)(["']?)([^\s"'|;&<>()]*)\1/g;
+const CWD_DIR_RE = /^\.\/?$/;
+const CSV_GLOB_RE =
+  /(?<![^\s"'=(])(?:\.\/)?\*{1,2}\/[^\s"'|;&<>()\/]*\.csv(?![\w.])/;
+const CSV_FIND_RE =
+  /\bfind(?:\s+\.\/?)?(?=\s+-)[^|;&]*?\s-i?name\s+(["']?)\*\.csv\1(?![\w.])/;
 const OUTPUT_PATH_RE =
   /(?:(?<![->])&?>>?|\btee(?:\s+-\S+)*|(--output-dir[=\s]))\s*(?![&=])(["']?)([^\s"'|;&<>()]+)\2/g;
 
@@ -87,6 +93,20 @@ const unescapeQuotes = (command: string): string =>
 const isOutputPath = (path: string): boolean =>
   /\w/.test(path) && !/^\d+$/.test(path) && path !== '/dev/null';
 
+const reportsIntoCwd = (command: string): boolean => {
+  const text = unescapeQuotes(command);
+  return (
+    REPORT_RE.test(text) &&
+    [...text.matchAll(OUTPUT_DIR_RE)].every(([, , dir]) => CWD_DIR_RE.test(dir))
+  );
+};
+
+const readsCsvsFromCwd = (command: string): boolean =>
+  CSV_GLOB_RE.test(command) || CSV_FIND_RE.test(command);
+
+const sameDirectory = (a: string | undefined, b: string | undefined): boolean =>
+  a === undefined || b === undefined || a === b;
+
 /** What a later call would contain if it read a file the command wrote: the target, and for a redirect or relative path its name, since the reader may `cd` first. */
 function outputPaths(command: string): string[] {
   return [...unescapeQuotes(command).matchAll(OUTPUT_PATH_RE)].flatMap(
@@ -104,7 +124,8 @@ function outputPaths(command: string): string[] {
  * The calls whose output may show an inspect report, in call order: those that
  * ran inspect (parsed, or matched loosely in case parsing missed the shape) and
  * the later calls that mention a path one of them wrote or, after `inspect
- * report`, a dated folder or report file name.
+ * report`, a dated folder or report file name, or a CSV glob from the
+ * directory the report wrote into.
  */
 export function findInspectEvidence(
   toolCalls: readonly ToolCallRecord[],
@@ -119,16 +140,21 @@ export function findInspectEvidence(
 
   const written: string[] = [];
   let reported = false;
+  const reportCwds: Array<string | undefined> = [];
   const evidence: EvidenceCall[] = [];
   entries.forEach(({ command, cwd }, commandIndex) => {
     const candidate = candidates.has(commandIndex);
-    const text = `${cwd ?? ''} ${unescapeQuotes(command)}`;
+    const body = unescapeQuotes(command);
+    const text = `${cwd ?? ''} ${body}`;
     const read =
       written.some((path) => text.includes(path)) ||
-      (reported && (DATED_FOLDER_RE.test(text) || REPORT_CSV_RE.test(text)));
+      (reported && (DATED_FOLDER_RE.test(text) || REPORT_CSV_RE.test(text))) ||
+      (reportCwds.some((reportCwd) => sameDirectory(reportCwd, cwd)) &&
+        readsCsvsFromCwd(body));
     if (candidate) {
       written.push(...outputPaths(command));
       reported ||= REPORT_RE.test(command);
+      if (reportsIntoCwd(command)) reportCwds.push(cwd);
     }
     if (!candidate && !read) return;
     const output = callText(calls[commandIndex]);

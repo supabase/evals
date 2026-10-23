@@ -628,6 +628,143 @@ describe('findInspectEvidence', () => {
           ])
         ).toEqual([0]);
       });
+
+      it.each([
+        ['a glob one folder down', 'cat */*.csv'],
+        ['a ./ glob one folder down', 'head -n 20 ./*/*.csv'],
+        ['a recursive glob', 'cat **/*.csv'],
+        ['a glob on a report file suffix', 'tail -n +1 */*_stats.csv'],
+        ['a glob after a recursive listing', 'ls -R && cat */*.csv'],
+        ['a find from . by *.csv', "find . -name '*.csv' -exec cat {} +"],
+        [
+          'a find with no start path piped to xargs',
+          'find -type f -name "*.csv" | xargs head -5',
+        ],
+        [
+          'a find from . by a case-insensitive *.csv with a depth limit',
+          "find . -maxdepth 2 -iname '*.csv' -print -exec head -3 {} \\;",
+        ],
+        [
+          'a shell loop over the glob',
+          bashLc(`for f in */*.csv; do printf '%s\\n' "== $f"; cat "$f"; done`),
+        ],
+      ])(
+        'includes a call reading the report CSVs through %s',
+        (_label, read) => {
+          expect(indexesOf([report(), call(read, { result: csv })])).toEqual([
+            0, 1,
+          ]);
+        }
+      );
+
+      it.each([
+        [
+          'the current directory as the output directory',
+          'supabase inspect report --local --output-dir .',
+          'cat */*.csv',
+        ],
+        [
+          'a relative output directory',
+          'supabase inspect report --local --output-dir out',
+          'cat out/*/*.csv',
+        ],
+        [
+          'an absolute output directory',
+          'supabase inspect report --local --output-dir /tmp/r',
+          'head /tmp/r/*/*.csv',
+        ],
+      ])('includes a glob read after a report into %s', (_label, run, read) => {
+        expect(indexesOf([call(run), call(read, { result: csv })])).toEqual([
+          0, 1,
+        ]);
+      });
+
+      it.each([
+        ['both calls run in the same directory', '/workspace', '/workspace'],
+        ['the reader has no recorded directory', '/workspace', undefined],
+        ['the report has no recorded directory', undefined, '/workspace'],
+      ])('includes a glob read when %s', (_label, reportCwd, readCwd) => {
+        expect(
+          indexesOf([
+            call('supabase inspect report --local', {
+              result: RULES,
+              cwd: reportCwd,
+            }),
+            call('cat */*.csv', { result: csv, cwd: readCwd }),
+          ])
+        ).toEqual([0, 1]);
+      });
+
+      it('lists a glob read in the same call as the report once, as a candidate', () => {
+        const evidence = evidenceOf([
+          call('supabase inspect report --local && cat */*.csv', {
+            result: csv,
+          }),
+        ]);
+        expect(
+          evidence.map(({ commandIndex, kind }) => [commandIndex, kind])
+        ).toEqual([[0, 'candidate']]);
+      });
+
+      it.each([
+        ['a bare glob, since the report CSVs are a folder down', 'cat *.csv'],
+        ['a glob under another folder', 'cat data/*/*.csv'],
+        ['a glob under an absolute path', 'cat /tmp/exports/*/*.csv'],
+        ['a glob under the home directory', 'cat ~/exports/*/*.csv'],
+        [
+          'a find from another directory',
+          "find /tmp -name '*.csv' -exec cat {} +",
+        ],
+        ['a glob over backup files', 'cat */*.csv.bak'],
+        ['a find by a backup file pattern', 'find . -name *.csv.bak'],
+      ])('leaves out a call reading %s', (_label, read) => {
+        expect(indexesOf([report(), call(read, { result: csv })])).toEqual([0]);
+      });
+
+      it('leaves out a glob read after a report of another kind', () => {
+        expect(
+          indexesOf([
+            call('supabase inspect db outliers --local'),
+            call('cat */*.csv', { result: csv }),
+          ])
+        ).toEqual([0]);
+      });
+
+      it('leaves out a glob read before the report', () => {
+        expect(
+          indexesOf([call('cat */*.csv', { result: csv }), report()])
+        ).toEqual([1]);
+      });
+
+      it('leaves out a glob read run in another directory than the report', () => {
+        expect(
+          indexesOf([
+            call('supabase inspect report --local', {
+              result: RULES,
+              cwd: '/workspace',
+            }),
+            call('cat */*.csv', { result: csv, cwd: '/tmp' }),
+          ])
+        ).toEqual([0]);
+      });
+
+      it.each([
+        [
+          'an absolute output directory',
+          'supabase inspect report --local --output-dir /tmp/r',
+        ],
+        [
+          'a relative output directory',
+          'supabase inspect report --local --output-dir reports',
+        ],
+      ])('leaves out a glob read after a report into %s', (_label, run) => {
+        expect(
+          indexesOf([
+            call(run, { result: RULES, cwd: '/workspace' }),
+            call('cat */*.csv', { result: csv, cwd: '/workspace' }),
+          ])
+        ).toEqual([0]);
+      });
     });
 
     describe('after a redirect', () => {
