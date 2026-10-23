@@ -1,4 +1,4 @@
-import type { CheckResult } from '@supabase-evals/core';
+import type { CheckResult, ToolCallRecord } from '@supabase-evals/core';
 import {
   invocationFlag,
   invocationPositionals,
@@ -22,6 +22,10 @@ const LOOPBACK_IPV4_RE = /^127(?:\.\d{1,3}){3}$/;
 const SHELL_EXPANSION_RE = /[$`]/;
 const URL_AUTHORITY_RE =
   /^[a-z][a-z\d+.-]*:\/\/(?:[^/?#]*@)?(\[[^\]]*\]|[^/?#:@]*)(?::([^/?#]*))?/i;
+const CHECK_OUTPUT_RE =
+  /"results"\s*:|No issues found|No schema errors found|Linting schema:/;
+const CLI_FAILURE_RE =
+  /"_tag"\s*:\s*"(?:Error|Help)"|failed to connect|command not found|unknown flag|unknown command|invalid argument/i;
 
 const hasFlag = (invocation: SupabaseInvocation, flag: string) =>
   invocation.argv.some((arg) => arg === flag || arg.startsWith(`${flag}=`));
@@ -65,18 +69,32 @@ export function targetsLocalDatabase(
   );
 }
 
+/** Whether a check's tool call shows it failed before checking anything. */
+export function checkRunFailed(call: ToolCallRecord | undefined): boolean {
+  if (call === undefined) return false;
+  const output =
+    (typeof call.result === 'string' ? call.result : '') + (call.error ?? '');
+  // `--fail-on` exits non-zero when it finds something, so results in the output mean the check ran.
+  if (CHECK_OUTPUT_RE.test(output)) return false;
+  if (CLI_FAILURE_RE.test(output)) return true;
+  // A blank errored output (e.g. redirected to a file) gets the benefit of the doubt.
+  return call.error !== undefined && output.trim() !== '';
+}
+
 export function countDatabaseCheckRuns(
   invocations: readonly SupabaseInvocation[],
-  stackDbUrl?: string
-): { lint: number; advisors: number; remote: number } {
-  const counts = { lint: 0, advisors: 0, remote: 0 };
+  stackDbUrl?: string,
+  calls?: readonly ToolCallRecord[]
+): { lint: number; advisors: number; remote: number; failed: number } {
+  const counts = { lint: 0, advisors: 0, remote: 0, failed: 0 };
   for (const invocation of invocations) {
     if (invocationVerb(invocation) !== 'db') continue;
     const subcommand = invocationSubcommand(invocation);
     if (subcommand !== 'lint' && subcommand !== 'advisors') continue;
     if (invocationPositionals(invocation).includes('help')) continue;
-    if (targetsLocalDatabase(invocation, stackDbUrl)) counts[subcommand]++;
-    else counts.remote++;
+    if (!targetsLocalDatabase(invocation, stackDbUrl)) counts.remote++;
+    else if (checkRunFailed(calls?.[invocation.commandIndex])) counts.failed++;
+    else counts[subcommand]++;
   }
   return counts;
 }
@@ -85,11 +103,18 @@ export function checkRanDatabaseChecks(counts: {
   lint: number;
   advisors: number;
   remote: number;
+  failed: number;
 }): CheckResult {
-  const skipped =
-    counts.remote > 0
-      ? ` (${counts.remote} remote run${counts.remote === 1 ? '' : 's'} not counted)`
-      : '';
+  const plural = (n: number) => (n === 1 ? '' : 's');
+  const parts = [
+    ...(counts.remote > 0
+      ? [`${counts.remote} remote run${plural(counts.remote)}`]
+      : []),
+    ...(counts.failed > 0
+      ? [`${counts.failed} failed run${plural(counts.failed)}`]
+      : []),
+  ];
+  const skipped = parts.length > 0 ? ` (${parts.join(', ')} not counted)` : '';
   return {
     name: RAN_CHECKS_CHECK,
     passed: counts.lint + counts.advisors > 0,

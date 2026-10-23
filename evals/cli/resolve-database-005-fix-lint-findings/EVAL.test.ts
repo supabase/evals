@@ -67,6 +67,16 @@ function call(command: string): ToolCallRecord {
   };
 }
 
+const succeeded = (command: string, result: string): ToolCallRecord => ({
+  ...call(command),
+  result,
+});
+
+const errored = (command: string, error: string): ToolCallRecord => {
+  const { result: _result, ...record } = call(command);
+  return { ...record, error };
+};
+
 type Phase = 'live' | 'replay';
 type Defects = { lint?: boolean; advisor?: boolean; reads?: boolean };
 
@@ -258,6 +268,12 @@ const SCORER_FAILED = 'scorer evaluated resolve-database-005-fix-lint-findings';
 const REMOTE_DB_URL =
   'postgresql://postgres:pw@db.abcdefghijklmnopqrst.supabase.co:5432/postgres';
 
+const CONNECT_FAILURE = `Connecting to local database...\n{"_tag":"Error","error":{"code":"DbConnectError","message":"failed to connect to postgres: failed to connect to \`host=127.0.0.1 user=postgres database=postgres\`: dial error (connect ECONNREFUSED 127.0.0.1:54322)","suggestion":"Make sure Docker is running, then run: supabase start"}}\n`;
+const LINT_FINDINGS_FAIL_ON = `Target: local stack (127.0.0.1:54322)\nLinting schema: extensions\nLinting schema: public\n{"results":[{"function":"public.order_total","issues":[{"level":"error","message":"column oi.price does not exist"}]}],"message":"db lint"}\n`;
+const LINT_CLEAN = `Connecting to local database...\nLinting schema: public\n{"results":[],"message":"db lint"}\n\nNo schema errors found\n`;
+const BOTH_CHECKS_COMMAND =
+  "supabase db advisors --local --type all 2>&1; printf '\\n--- DB LINT ---\\n'; supabase db lint --local 2>&1";
+
 const SETUP = [
   call('supabase db advisors --local'),
   call('supabase db lint --local'),
@@ -354,6 +370,119 @@ describe('fix-lint-findings scorer', () => {
       name: RAN,
       passed: true,
       notes: 'db lint ×1, db advisors ×1 (1 remote run not counted)',
+    });
+  });
+
+  it.each([
+    [
+      'separate runs that could not connect',
+      [
+        errored('supabase db advisors --local', CONNECT_FAILURE),
+        errored('supabase db lint --local --level warning', CONNECT_FAILURE),
+      ],
+    ],
+    [
+      'one command running both checks that could not connect',
+      [
+        errored(
+          BOTH_CHECKS_COMMAND,
+          `${CONNECT_FAILURE}\n--- DB LINT ---\n${CONNECT_FAILURE}`
+        ),
+      ],
+    ],
+  ])(
+    'fails the run when the only database checks were %s',
+    async (_label, checkCalls) => {
+      const { ctx } = fakeCtx([...checkCalls, call('supabase migration up')]);
+      expect(await checkNamed(ctx, RAN)).toEqual({
+        name: RAN,
+        passed: false,
+        notes: 'db lint ×0, db advisors ×0 (2 failed runs not counted)',
+      });
+      expect(await failedNames(ctx)).toEqual([RAN]);
+      expect((await scorer(ctx)).passed).toBe(false);
+    }
+  );
+
+  it('fails the run when a lint that could not connect was the only check, in the singular', async () => {
+    const { ctx } = fakeCtx([
+      errored('supabase db lint --local', CONNECT_FAILURE),
+    ]);
+    expect(await checkNamed(ctx, RAN)).toEqual({
+      name: RAN,
+      passed: false,
+      notes: 'db lint ×0, db advisors ×0 (1 failed run not counted)',
+    });
+  });
+
+  it('fails the run naming both the remote and the failed runs it did not count', async () => {
+    const { ctx } = fakeCtx([
+      call('supabase db lint --linked'),
+      errored('supabase db lint --local', CONNECT_FAILURE),
+    ]);
+    expect(await checkNamed(ctx, RAN)).toEqual({
+      name: RAN,
+      passed: false,
+      notes:
+        'db lint ×0, db advisors ×0 (1 remote run, 1 failed run not counted)',
+    });
+  });
+
+  it('passes the run when a lint exited non-zero because it found issues', async () => {
+    const { ctx } = fakeCtx([
+      errored('supabase db lint --fail-on warning', LINT_FINDINGS_FAIL_ON),
+      call('supabase migration up'),
+    ]);
+    expect(await checkNamed(ctx, RAN)).toEqual({
+      name: RAN,
+      passed: true,
+      notes: 'db lint ×1, db advisors ×0',
+    });
+    expect(await failedNames(ctx)).toEqual([]);
+  });
+
+  it('passes the run on the lint that worked after one that could not connect, naming the failed run', async () => {
+    const { ctx } = fakeCtx([
+      errored('supabase db lint --local', CONNECT_FAILURE),
+      succeeded('supabase db lint --local', LINT_CLEAN),
+    ]);
+    expect(await checkNamed(ctx, RAN)).toEqual({
+      name: RAN,
+      passed: true,
+      notes: 'db lint ×1, db advisors ×0 (1 failed run not counted)',
+    });
+  });
+
+  it('judges each check by its own tool call when other commands ran before it', async () => {
+    const { ctx } = fakeCtx([
+      succeeded('supabase start', 'started\n'),
+      succeeded('supabase migration up', 'applied\n'),
+      errored('supabase db advisors --local', CONNECT_FAILURE),
+    ]);
+    expect(await checkNamed(ctx, RAN)).toEqual({
+      name: RAN,
+      passed: false,
+      notes: 'db lint ×0, db advisors ×0 (1 failed run not counted)',
+    });
+  });
+
+  it('judges each check by its own tool call when non-command tool calls came first', async () => {
+    const readFile: ToolCallRecord = {
+      tool: { kind: 'other', toolName: 'read_file' },
+      body: { path: 'supabase/migrations/20260101000000_init.sql' },
+      path: 'supabase/migrations/20260101000000_init.sql',
+      result: 'create table orders ();',
+      ts: 0,
+    };
+    const { ctx } = fakeCtx([
+      readFile,
+      readFile,
+      errored('supabase db lint --local', CONNECT_FAILURE),
+    ]);
+    expect(await checkNamed(ctx, RAN)).toEqual({
+      name: RAN,
+      passed: false,
+      notes: 'db lint ×0, db advisors ×0 (1 failed run not counted)',
     });
   });
 
@@ -646,6 +775,30 @@ describe('report judge', () => {
     );
   });
 
+  it('is told how many database checks failed before reporting results and were not counted', async () => {
+    const { ctx, judge } = fakeCtx([
+      ...SETUP,
+      errored('supabase db lint --local', CONNECT_FAILURE),
+      errored('supabase db advisors --local', CONNECT_FAILURE),
+    ]);
+    await scorer(ctx);
+    const input = reportCall(judge)?.input ?? '';
+    expect(input).toContain(
+      '- db lint runs by the agent against the local database: 1'
+    );
+    expect(input).toContain(
+      '- db lint or db advisors runs that failed before reporting results (not counted above): 2'
+    );
+  });
+
+  it('does not mention failed runs when every check reported results', async () => {
+    const { ctx, judge } = fakeCtx(SETUP);
+    await scorer(ctx);
+    expect(reportCall(judge)?.input ?? '').not.toContain(
+      'failed before reporting results'
+    );
+  });
+
   it('receives the transcript with tool outputs after the ground truth', async () => {
     const { ctx, judge } = fakeCtx(SETUP, {
       transcript: [
@@ -702,8 +855,40 @@ describe('metrics check and robustness', () => {
     expect(JSON.parse(metrics?.notes ?? '{}')).toMatchObject({
       lintRuns: 2,
       advisorsRuns: 1,
+      remoteCheckRuns: 0,
+      failedCheckRuns: 0,
       liveLintIssues: 0,
       newMigrationFiles: 1,
+    });
+  });
+
+  it('carries the failed check runs apart from the local and remote run counts', async () => {
+    const { ctx } = fakeCtx([
+      call('supabase db lint'),
+      errored('supabase db lint --local', CONNECT_FAILURE),
+      errored('supabase db advisors --local', CONNECT_FAILURE),
+      errored('supabase db lint --fail-on warning', LINT_FINDINGS_FAIL_ON),
+      call('supabase db lint --linked'),
+    ]);
+    const metrics = await checkNamed(ctx, METRICS);
+    expect(metrics?.passed).toBe(true);
+    expect(JSON.parse(metrics?.notes ?? '{}')).toMatchObject({
+      lintRuns: 2,
+      advisorsRuns: 0,
+      remoteCheckRuns: 1,
+      failedCheckRuns: 2,
+    });
+  });
+
+  it('keeps counting a reset that errored as an attempt', async () => {
+    const { ctx } = fakeCtx([
+      call('supabase db lint'),
+      errored('supabase db reset', CONNECT_FAILURE),
+    ]);
+    const metrics = await checkNamed(ctx, METRICS);
+    expect(JSON.parse(metrics?.notes ?? '{}')).toMatchObject({
+      resetRuns: 1,
+      failedCheckRuns: 0,
     });
   });
 
@@ -720,6 +905,7 @@ describe('metrics check and robustness', () => {
       lintRuns: 1,
       advisorsRuns: 0,
       remoteCheckRuns: 2,
+      failedCheckRuns: 0,
       resetRuns: 0,
       dbQueryRuns: 0,
     });

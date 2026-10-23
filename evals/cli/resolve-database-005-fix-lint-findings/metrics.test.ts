@@ -1,5 +1,8 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/resolve-database-005-fix-lint-findings
-import type { LocalStackEnvironmentMarker } from '@supabase-evals/core';
+import type {
+  LocalStackEnvironmentMarker,
+  ToolCallRecord,
+} from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
 import { findSupabaseInvocations } from '../lib/cli-invocations.js';
 import type { StackProbe } from '../lib/stack.js';
@@ -13,6 +16,8 @@ type Facts = Parameters<typeof checkMetrics>[1];
 const DB_URL = 'postgresql://postgres:hunter2@127.0.0.1:54322/postgres';
 const REMOTE_URL =
   'postgresql://postgres:pw@db.abcdefghijklmnopqrst.supabase.co:5432/postgres';
+const CONNECT_FAILURE = `Connecting to local database...\n{"_tag":"Error","error":{"code":"DbConnectError","message":"failed to connect to postgres: failed to connect to \`host=127.0.0.1 user=postgres database=postgres\`: dial error (connect ECONNREFUSED 127.0.0.1:54322)","suggestion":"Make sure Docker is running, then run: supabase start"}}\n`;
+const LINT_FINDINGS_FAIL_ON = `Target: local stack (127.0.0.1:54322)\nLinting schema: public\n{"results":[{"function":"public.order_total","issues":[{"level":"error","message":"column oi.price does not exist"}]}],"message":"db lint"}\n`;
 
 const MARKER: LocalStackEnvironmentMarker = {
   runtime: 'local-stack',
@@ -72,7 +77,7 @@ const PROBE_REPORT: ProbeReport = {
 const facts = (overrides: Partial<Facts> = {}): Facts => ({
   commands: [],
   invocations: [],
-  counts: { lint: 0, advisors: 0, remote: 0 },
+  counts: { lint: 0, advisors: 0, remote: 0, failed: 0 },
   stack: STACK,
   cli: { versions: { cliVersion: '2.0.0' }, cliOverride: [] },
   migrations: { ok: true, migrations: seededFiles() },
@@ -86,6 +91,29 @@ const ran = (...commands: string[]): Partial<Facts> => {
     commands,
     invocations,
     counts: countDatabaseCheckRuns(invocations, DB_URL),
+  };
+};
+
+const ranWithOutput = (
+  ...runs: ReadonlyArray<
+    readonly [command: string, output: { result?: string; error?: string }]
+  >
+): Partial<Facts> => {
+  const commands = runs.map(([command]) => command);
+  const invocations = findSupabaseInvocations(commands);
+  const calls = runs.map(
+    ([command, output]): ToolCallRecord => ({
+      tool: { kind: 'other', toolName: 'command_execution' },
+      body: {},
+      command,
+      ts: 0,
+      ...output,
+    })
+  );
+  return {
+    commands,
+    invocations,
+    counts: countDatabaseCheckRuns(invocations, DB_URL, calls),
   };
 };
 
@@ -164,19 +192,82 @@ describe('checkMetrics', () => {
         dbQueryRuns: 1,
         psqlCommands: 3,
         remoteCheckRuns: 0,
+        failedCheckRuns: 0,
       });
     });
 
     it('reports the database check counts it is given instead of recounting the invocations', async () => {
       expect(
-        await metricsOf({ counts: { lint: 5, advisors: 6, remote: 0 } })
+        await metricsOf({
+          counts: { lint: 5, advisors: 6, remote: 0, failed: 0 },
+        })
       ).toMatchObject({ lintRuns: 5, advisorsRuns: 6 });
     });
 
     it('reports the remote check count it is given instead of recounting the invocations', async () => {
       expect(
-        await metricsOf({ counts: { lint: 1, advisors: 0, remote: 4 } })
+        await metricsOf({
+          counts: { lint: 1, advisors: 0, remote: 4, failed: 0 },
+        })
       ).toMatchObject({ lintRuns: 1, advisorsRuns: 0, remoteCheckRuns: 4 });
+    });
+
+    it('reports the failed check count it is given instead of recounting the invocations', async () => {
+      expect(
+        await metricsOf({
+          counts: { lint: 1, advisors: 0, remote: 2, failed: 3 },
+        })
+      ).toMatchObject({
+        lintRuns: 1,
+        advisorsRuns: 0,
+        remoteCheckRuns: 2,
+        failedCheckRuns: 3,
+      });
+    });
+
+    it('reports a failed check count of zero by default', async () => {
+      expect(await metricsOf()).toMatchObject({ failedCheckRuns: 0 });
+    });
+
+    it('counts db lint and db advisors runs that failed before reporting results only as failed check runs', async () => {
+      expect(
+        await metricsOf(
+          ranWithOutput(
+            ['supabase db lint --local', { error: CONNECT_FAILURE }],
+            [
+              'supabase db advisors --local || true',
+              { result: CONNECT_FAILURE },
+            ],
+            [
+              'supabase db lint --fail-on warning',
+              { error: LINT_FINDINGS_FAIL_ON },
+            ],
+            ['supabase db lint --linked', { error: CONNECT_FAILURE }]
+          )
+        )
+      ).toMatchObject({
+        lintRuns: 1,
+        advisorsRuns: 0,
+        remoteCheckRuns: 1,
+        failedCheckRuns: 2,
+      });
+    });
+
+    it('keeps counting resets, migration ups and db queries that errored as attempts', async () => {
+      expect(
+        await metricsOf(
+          ranWithOutput(
+            ['supabase db reset', { error: CONNECT_FAILURE }],
+            ['supabase migration up', { error: CONNECT_FAILURE }],
+            ['supabase db query "select 1"', { error: CONNECT_FAILURE }]
+          )
+        )
+      ).toMatchObject({
+        resetRuns: 1,
+        migrationUpRuns: 1,
+        dbQueryRuns: 1,
+        failedCheckRuns: 0,
+      });
     });
 
     it('counts db lint and db advisors runs against a remote database only as remote check runs', async () => {
@@ -271,6 +362,7 @@ describe('checkMetrics', () => {
         dbQueryRuns: 0,
         psqlCommands: 0,
         remoteCheckRuns: 0,
+        failedCheckRuns: 0,
       });
     });
   });

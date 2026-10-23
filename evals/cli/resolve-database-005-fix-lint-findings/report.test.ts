@@ -119,7 +119,7 @@ const FACTS: Facts = {
   probe: { ok: true, report: REPORT },
   migrations: { ok: true, migrations: seededFiles() },
   history: { name: HISTORY_CHECK, passed: true, notes: '4 files recorded' },
-  counts: { lint: 7, advisors: 9, remote: 0 },
+  counts: { lint: 7, advisors: 9, remote: 0, failed: 0 },
   cli: { versions: { cliVersion: '2.117.0' }, cliOverride: [] },
 };
 
@@ -187,8 +187,8 @@ describe('describeGroundTruth', () => {
     });
 
     it.each([
-      ['db lint', { lint: 0, advisors: 3, remote: 0 }],
-      ['db advisors', { lint: 3, advisors: 0, remote: 0 }],
+      ['db lint', { lint: 0, advisors: 3, remote: 0, failed: 0 }],
+      ['db advisors', { lint: 3, advisors: 0, remote: 0, failed: 0 }],
     ])('says %s ran zero times when its count is zero', (check, counts) => {
       expect(
         lineMatching(lines({ counts }), new RegExp(`${check}[^\\n]*\\b0\\b`))
@@ -206,7 +206,9 @@ describe('describeGroundTruth', () => {
     });
 
     it('states a zero run count as a run count against the local database', () => {
-      const all = lines({ counts: { lint: 0, advisors: 0, remote: 5 } });
+      const all = lines({
+        counts: { lint: 0, advisors: 0, remote: 5, failed: 0 },
+      });
       expect(all).toContain(
         '- db lint runs by the agent against the local database: 0'
       );
@@ -222,7 +224,9 @@ describe('describeGroundTruth', () => {
     it('states how many db lint or db advisors runs targeted a remote database and were not counted', () => {
       const remoteLine =
         '- db lint or db advisors runs against a remote database (not counted above): 3';
-      const all = lines({ counts: { lint: 7, advisors: 9, remote: 3 } });
+      const all = lines({
+        counts: { lint: 7, advisors: 9, remote: 3, failed: 0 },
+      });
       expect(all).toContain(remoteLine);
       expect(all).toContain(
         '- db lint runs by the agent against the local database: 7'
@@ -238,9 +242,59 @@ describe('describeGroundTruth', () => {
     });
 
     it('states a remote run count of one', () => {
-      expect(lines({ counts: { lint: 0, advisors: 0, remote: 1 } })).toContain(
+      expect(
+        lines({ counts: { lint: 0, advisors: 0, remote: 1, failed: 0 } })
+      ).toContain(
         '- db lint or db advisors runs against a remote database (not counted above): 1'
       );
+    });
+
+    it('does not mention failed runs when none failed', () => {
+      expect(text()).not.toMatch(/failed before reporting/i);
+    });
+
+    it('states how many db lint or db advisors runs failed before reporting results and were not counted', () => {
+      const failedLine =
+        '- db lint or db advisors runs that failed before reporting results (not counted above): 2';
+      const all = lines({
+        counts: { lint: 1, advisors: 0, remote: 0, failed: 2 },
+      });
+      expect(all).toContain(failedLine);
+      expect(all).toContain(
+        '- db lint runs by the agent against the local database: 1'
+      );
+      expect(all.indexOf(failedLine)).toBe(
+        all.indexOf(
+          '- db advisors runs by the agent against the local database: 0'
+        ) + 1
+      );
+    });
+
+    it('states a failed run count of one', () => {
+      expect(
+        lines({ counts: { lint: 0, advisors: 0, remote: 0, failed: 1 } })
+      ).toContain(
+        '- db lint or db advisors runs that failed before reporting results (not counted above): 1'
+      );
+    });
+
+    it('puts the failed line after the remote line when both are present', () => {
+      const remoteLine =
+        '- db lint or db advisors runs against a remote database (not counted above): 3';
+      const failedLine =
+        '- db lint or db advisors runs that failed before reporting results (not counted above): 4';
+      const all = lines({
+        counts: { lint: 7, advisors: 9, remote: 3, failed: 4 },
+      });
+      expect(all).toContain(remoteLine);
+      expect(all).toContain(failedLine);
+      expect(all.indexOf(failedLine)).toBe(all.indexOf(remoteLine) + 1);
+    });
+
+    it('does not mention a remote database for a failed run alone', () => {
+      expect(
+        text({ counts: { lint: 0, advisors: 0, remote: 0, failed: 2 } })
+      ).not.toMatch(/remote database/i);
     });
   });
 

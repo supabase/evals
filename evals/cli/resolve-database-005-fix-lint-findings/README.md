@@ -172,7 +172,7 @@ Verified on `supabase@2.117.0` (this repo's pin), `2.121.0` (npm `latest`),
 | check | what it proves | how it's measured |
 | --- | --- | --- |
 | `local stack is running for this project` | There is a local database for the checks to read | The project's default stack is resolved from the workspace (the managed `stack status` first, then the legacy `status`), and `select 1` through its DB URL must return `1`. If the default home has no stack, the lookup repeats under each `SUPABASE_HOME`/`HOME` the agent set on a start command. The notes say the backend and runtime, or why none resolved |
-| `ran supabase db lint or db advisors` | The agent found the CLI's own checks and pointed them at the local database | Counts the agent's `supabase` invocations with verb `db` and subcommand `lint` or `advisors`, `npx` runners included, that run against the local database: no target flag, `--local`, or a `--db-url` (or `--remote=<url>`) on a loopback host at the stack's port, where an unreadable `$VAR` URL counts. `--linked`, `--project-ref`, a bare `--remote` or `--remote=<ref>`, and any other host or port don't count; the notes name them as remote runs. Help runs (`--help`, `-h`, a `help` argument) never count. Passes when at least one counted run happened, whether or not it succeeded; the notes read `db lint ×N, db advisors ×M`, plus `(K remote runs not counted)` when any. Fails when the agent only read the migrations, ran the advisor SQL by hand, or checked a remote database |
+| `ran supabase db lint or db advisors` | The agent found the CLI's own checks and pointed them at the local database | Counts the agent's `supabase` invocations with verb `db` and subcommand `lint` or `advisors`, `npx` runners included, that run against the local database: no target flag, `--local`, or a `--db-url` (or `--remote=<url>`) on a loopback host at the stack's port, where an unreadable `$VAR` URL counts. `--linked`, `--project-ref`, a bare `--remote` or `--remote=<ref>`, and any other host or port don't count; the notes name them as remote runs. Help runs (`--help`, `-h`, a `help` argument) never count. A counted run is one whose output shows it checked (results JSON, `No issues found`, `No schema errors found`, or lint's `Linting schema:`) or shows no failure: a run that exits non-zero under `--fail-on` because it found something still counts, and a call with no output at all gets the benefit of the doubt. A run whose output shows a CLI error (a failed connection, a usage error, `command not found`), or that errored with other output and no check output, isn't counted, and the notes name it as a failed run. Passes when at least one run counted; the notes read `db lint ×N, db advisors ×M`, plus `(K remote runs, J failed runs not counted)` when any. Fails when the agent only read the migrations, ran the advisor SQL by hand, or checked a remote database |
 | `db lint reports no errors or warnings in the project functions` | The broken function is fixed | The probe runs plpgsql_check over the functions `db lint` covers and fails on any issue at level `error` or `warning*`; the notes list `function: level message`. Fails while `order_total` still reads `oi.price`; passes after correcting the body or rewriting it as `language sql`. A probe that errors or doesn't finish fails |
 | `advisors no longer flag the seeded findings` | The four advisor findings are gone | The probe evaluates the splinter predicates of the four seeded lint types (`rls_disabled_in_public`, `policy_exists_rls_disabled`, `auth_rls_initplan`, `function_search_path_mutable`) over user schemas. Any finding fails; the notes list `name on object`. Passes with row level security on `order_items`, `(select auth.uid())`, and `set search_path` to `''` or `pg_catalog`, whether the policy was altered or dropped and recreated |
 | `the app still reads only its own orders and totals` | The fixes kept the app working and didn't widen access | The probe reads as each seeded user (role `authenticated`, JWT claims set): the order count, the count of `order_items` rows with a non-null `unit_price`, and `order_total(p_order_id => id)` for every visible order. User `6f1c…` must get 2, 3 and totals {30, 12}; user `b8e4…` 1, 1 and {99.99}; totals compare numerically, unordered, within 0.005. The probe calls `order_total` once per seeded order id the reader can't read, and the sum of those results must be 0, which catches a `security definer` `order_total` that leaks other users' totals; an error from `order_total` on one of those orders counts as not leaking and is skipped while the others still count, and errors in the reader's own reads still fail it. As `anon` it must read 0 orders and 0 items with that same sum 0, or get permission denied (`42501`); any other error fails. It also sets order 1's `updated_at` to 2000-01-01 and requires the trigger to stamp it at or after the probe's transaction start (`updated_at >= now()`), so a trigger stamping `now()`, `clock_timestamp()` or `statement_timestamp()` passes and one that keeps the old value fails. One note clause per failing part. Fails when `order_total` or `set_updated_at` was dropped, the orders policy became `using (true)`, `authenticated`'s grants were revoked or the `order_items` policy dropped, or `unit_price` was renamed back. Also revoking `anon`'s grants still passes |
@@ -216,13 +216,16 @@ fails its own check without blanking the rest.
 of another explicit CLI version), `channel` (`pinned` when the experiment has
 none), `stackBackend`, `stackRuntime`, `dbPort` and `relocatedHome` (`null` when
 no stack resolved), `lintRuns`, `advisorsRuns`, `remoteCheckRuns` (`db lint` and
-`db advisors` runs against a remote database), `resetRuns`, `migrationUpRuns`,
+`db advisors` runs against a remote database), `failedCheckRuns` (local runs that
+failed before reporting results), `resetRuns`, `migrationUpRuns`,
 `dbQueryRuns`, `psqlCommands`, `newMigrationFiles`, `seededMigrationsModified`
 (seeded files whose content differs after `trim()`), `seededMigrationsMissing`,
 `liveLintIssues` and `liveAdvisorFindings`, the counts left in the running
 database, and `probeUnparsedLines`, how many probe output lines weren't rows
 (both `null` when the probe failed). The lint, advisors, reset, `migration up`
-and `db query` counts cover runs against the local database only.
+and `db query` counts cover runs against the local database only. The lint and
+advisors counts leave out failed runs; the reset, `migration up` and `db query`
+counts are attempts, failed or not.
 
 ### The truthful-report judge
 
@@ -230,7 +233,8 @@ The judge sees the transcript, including each tool call's output, and these
 harness lines: the installed CLI version (every probe used it) with any
 `cliOverride` runners; how the stack resolved; how often the agent ran `db lint`
 and `db advisors` against the local database, plus the number of runs against a
-remote database when any ran; the live lint issues, advisor findings, per-user
+remote database and of runs that failed before reporting results, when any
+ran; the live lint issues, advisor findings, per-user
 app reads and trigger result; the replay outcome and what it showed; whether the
 history records every file; the new and modified migration files, with the
 contents of each (a file written by a patch tool shows only its path in the
@@ -266,7 +270,7 @@ ground truth or the transcript's own output contradicts fail.
 | `codex-gpt-6-luna-cli-stable` | npm `latest` (2.121.0 when verified) | Docker available | pass |
 | `codex-gpt-6-luna-cli-beta` | npm `beta` (2.122.0-beta.12 when verified) | Docker available | pass |
 | `codex-gpt-6-luna-cli-next` | npm `next` (3.0.0-next.22 when verified) | Docker available | pass; `--local` is gone, local is the default target |
-| `codex-gpt-6-luna-cli-nodaemon` | `beta` | Docker client present, daemon unreachable | the stack check and every check that needs the database fail: the Docker-less gap. `supabase start` defaults to the legacy Docker backend, and the native runtime needs the stack backend switched on, which nothing in the seed does ([CLI-2534](https://linear.app/supabase/issue/CLI-2534/bc-make-the-new-local-stack-the-default-backend-for-all-projects-opt)). The ran-checks check passes when the agent tries a command, and detours, metrics and the truthful report can pass too. A run passes only if the agent finds the stack backend |
+| `codex-gpt-6-luna-cli-nodaemon` | `beta` | Docker client present, daemon unreachable | the stack check and every check that needs the database fail: the Docker-less gap. `supabase start` defaults to the legacy Docker backend, and the native runtime needs the stack backend switched on, which nothing in the seed does ([CLI-2534](https://linear.app/supabase/issue/CLI-2534/bc-make-the-new-local-stack-the-default-backend-for-all-projects-opt)). The ran-checks check fails too when the agent's runs can't connect, and detours, metrics and the truthful report can pass. A run passes only if the agent finds the stack backend |
 | `codex-gpt-6-luna-cli-absent` | `beta` | no Docker at all | as nodaemon |
 
 The four Docker arms are expected to pass, because every CLI can start a stack,
@@ -303,3 +307,5 @@ runs under; the backend and runtime the stack came up on are reported through
   another client for longer fails it.
 - The scorer reads the running local database. Stopping the stack after the
   fixes fails the stack check and every check that reads the database.
+- A shell call that runs both `db lint` and `db advisors` shares one output, so
+  if one printed results and the other failed, both count.

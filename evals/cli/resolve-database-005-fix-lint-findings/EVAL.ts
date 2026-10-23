@@ -5,6 +5,7 @@ import {
 } from '@supabase-evals/core';
 import { findSupabaseInvocations } from '../lib/cli-invocations.js';
 import {
+  commandToolCalls,
   DETOUR_CHECK_NAME,
   detourJudgeRubric,
   extractCommandEntries,
@@ -58,7 +59,8 @@ const scorer: LocalStackScorer = async (ctx) => {
     const probe = await probeDatabase(ctx, stack, migrations);
     const counts = countDatabaseCheckRuns(
       invocations,
-      stack.ok ? stack.dbUrl : undefined
+      stack.ok ? stack.dbUrl : undefined,
+      commandToolCalls(ctx.toolCalls)
     );
     const cli = await readCliFacts(ctx, marker, invocations);
     const history = checkHistory(migrations, probe);

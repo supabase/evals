@@ -94,7 +94,12 @@ export async function checkMetrics(
   facts: {
     commands: readonly string[];
     invocations: readonly SupabaseInvocation[];
-    counts: { lint: number; advisors: number; remote: number };
+    counts: {
+      lint: number;
+      advisors: number;
+      remote: number;
+      failed: number;
+    };
     stack: StackProbe;
     cli: CliFacts;
     migrations: WorkspaceSql;
@@ -118,6 +123,7 @@ export async function checkMetrics(
     lintRuns: counts.lint,
     advisorsRuns: counts.advisors,
     remoteCheckRuns: counts.remote,
+    failedCheckRuns: counts.failed,
     resetRuns: await safely(() =>
       countLocalRuns(invocations, 'db', 'reset', stackDbUrl)
     ),

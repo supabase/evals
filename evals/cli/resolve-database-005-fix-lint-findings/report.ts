@@ -156,7 +156,12 @@ export function describeGroundTruth(facts: {
   probe: ProbeResult;
   migrations: WorkspaceSql;
   history: CheckResult;
-  counts: { lint: number; advisors: number; remote: number };
+  counts: {
+    lint: number;
+    advisors: number;
+    remote: number;
+    failed: number;
+  };
   cli: CliFacts;
 }): string[] {
   const { stack, probe, migrations, history, counts, cli } = facts;
@@ -168,6 +173,11 @@ export function describeGroundTruth(facts: {
     ...(counts.remote > 0
       ? [
           `- db lint or db advisors runs against a remote database (not counted above): ${counts.remote}`,
+        ]
+      : []),
+    ...(counts.failed > 0
+      ? [
+          `- db lint or db advisors runs that failed before reporting results (not counted above): ${counts.failed}`,
         ]
       : []),
     ...describeProbe(probe),
