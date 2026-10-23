@@ -702,9 +702,11 @@ const judgeOutputSchema = z.object({
   notes: z.string(),
 });
 
-const DEFAULT_JUDGE_MODEL = openai('gpt-6-sol');
+const DEFAULT_JUDGE_MODEL = openai('gpt-6.1-sol');
 const DEFAULT_JUDGE_PROVIDER_OPTIONS: AiSdkProviderOptions = {
   openai: {
+    // @ai-sdk/openai only treats gpt-5 and o-series ids as reasoning models. Without this it drops reasoningEffort for gpt-6.
+    forceReasoning: true,
     reasoningEffort: 'medium',
     textVerbosity: 'low',
   },
