@@ -1,0 +1,149 @@
+{
+  "title": "Supabase evals advisory AI review output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "reviewer",
+    "summary",
+    "pinned_target",
+    "instruction_sources",
+    "review_identity",
+    "consulted_sources",
+    "evidence_limitations",
+    "findings",
+    "refuted_candidates",
+    "stats"
+  ],
+  "properties": {
+    "schema_version": { "enum": ["evals-ai-review-output-v1"] },
+    "reviewer": {
+      "type": "string",
+      "enum": ["claude", "codex", "consolidated"]
+    },
+    "summary": { "type": "string" },
+    "pinned_target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pr_number",
+        "pr_url",
+        "base_ref",
+        "base_sha",
+        "head_ref",
+        "head_sha"
+      ],
+      "properties": {
+        "pr_number": { "type": "integer" },
+        "pr_url": { "type": "string" },
+        "base_ref": { "type": "string" },
+        "base_sha": { "type": "string" },
+        "head_ref": { "type": "string" },
+        "head_sha": { "type": "string" }
+      }
+    },
+    "instruction_sources": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/source" }
+    },
+    "review_identity": { "type": "string" },
+    "consulted_sources": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/source" }
+    },
+    "evidence_limitations": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "refuted_candidates": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "description": "Reviewer attribution, candidate identifier, and concrete counter-evidence for a dropped candidate."
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "label",
+          "file",
+          "line",
+          "claim",
+          "evidence",
+          "impact",
+          "suggested_fix",
+          "source_links",
+          "reviewers",
+          "evidence_limitations"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "label": {
+            "type": "string",
+            "enum": ["blocker", "question", "suggestion"]
+          },
+          "file": {
+            "type": "string",
+            "description": "Repository-relative file path, or an empty string for repository-wide findings."
+          },
+          "line": { "type": ["integer", "null"] },
+          "claim": { "type": "string" },
+          "evidence": { "type": "string" },
+          "impact": { "type": "string" },
+          "suggested_fix": { "type": ["string", "null"] },
+          "reviewers": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "enum": ["claude", "codex"] }
+          },
+          "source_links": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/source" }
+          },
+          "evidence_limitations": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "stats": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["claude_findings", "codex_findings"],
+          "properties": {
+            "claude_findings": {
+              "anyOf": [{ "type": "integer" }, { "type": "null" }]
+            },
+            "codex_findings": {
+              "anyOf": [{ "type": "integer" }, { "type": "null" }]
+            }
+          }
+        },
+        { "type": "null" }
+      ]
+    }
+  },
+  "$defs": {
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "url", "path", "ref", "sha", "status", "informed"],
+      "properties": {
+        "kind": { "type": "string" },
+        "url": { "type": ["string", "null"] },
+        "path": { "type": ["string", "null"] },
+        "ref": { "type": ["string", "null"] },
+        "sha": { "type": ["string", "null"] },
+        "status": { "type": "string" },
+        "informed": { "type": "string" }
+      }
+    }
+  }
+}
