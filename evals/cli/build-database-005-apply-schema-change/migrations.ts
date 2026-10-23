@@ -1,5 +1,11 @@
 import type { CheckResult, LocalStackEvalContext } from '@supabase-evals/core';
-import { maskSqlLiteralsAndComments } from '../lib/migrations.js';
+import {
+  checkMigrationsRecorded,
+  maskSqlLiteralsAndComments,
+  readMigrationHistory,
+  sortMigrationsByHistory,
+  type SortedMigrations,
+} from '../lib/migrations.js';
 import { describeFailure, errorMessage, shellQuote } from '../lib/shell.js';
 import type { StackProbe } from '../lib/stack.js';
 import {
@@ -18,14 +24,7 @@ export type ColumnMigrationsProbe =
       notes: string;
     }
   | { ok: false; notes: string };
-export type RecordedMigrationsProbe =
-  | {
-      ok: true;
-      recorded: ColumnMigration[];
-      missing: ColumnMigration[];
-      mismatched: ColumnMigration[];
-    }
-  | { ok: false; notes: string };
+export type RecordedMigrationsProbe = SortedMigrations<ColumnMigration>;
 
 export const NEW_MIGRATION_CHECK_NAME =
   'a new migration adds due_date to tasks as a nullable date or timestamp';
@@ -37,7 +36,6 @@ const ACCEPTED_TYPE_RE =
   /^(?:"?pg_catalog"?\s*\.\s*)?"?(?:date|timestamptz|timestamp)"?(?:\s*\(\s*\d+\s*\))?(?:\s+(?:with|without)\s+time\s+zone)?(?![\w$"])/i;
 const ARRAY_SUFFIX_RE = /^\s*(?:\[|array(?![\w$"]))/i;
 const NOT_NULL_RE = /\bnot\s+null\b/i;
-const HISTORY_ROW_RE = /^(\d+)\|((?:[0-9a-f]{2})*)$/i;
 const GENERATED_RE = /\bgenerated\b/i;
 const NO_NEW_MIGRATION_NOTE = `no new migration adds ${DUE_DATE_COLUMN} to ${TASKS_TABLE}`;
 const SEEDED_ONLY_NOTE = `only the seeded migration ${SEEDED_MIGRATION_FILE} adds ${DUE_DATE_COLUMN}; no new migration does`;
@@ -443,9 +441,6 @@ export function checkNewMigrationAddsDueDate(
   };
 }
 
-export const describeMissingVersions = (missing: readonly ColumnMigration[]) =>
-  `version(s) ${missing.map(({ version }) => version).join(', ')} not in supabase_migrations.schema_migrations`;
-
 export const describeMismatchedVersions = (
   mismatched: readonly ColumnMigration[]
 ) =>
@@ -472,69 +467,31 @@ export async function readRecordedMigrations(
   if (migrations.length === 0) {
     return { ok: false, notes: `no new migration touches ${DUE_DATE_COLUMN}` };
   }
-  try {
-    const versions = migrations.map(({ version }) => `'${version}'`);
-    const result = await ctx.exec(
-      `psql ${shellQuote(stack.dbUrl)} -tAc "select version || '|' || encode(convert_to(coalesce(array_to_string(statements, ';' || chr(10)), ''), 'UTF8'), 'hex') from supabase_migrations.schema_migrations where version in (${versions.join(', ')})"`
-    );
-    if (!result.ok) return { ok: false, notes: describeFailure(result) };
-    const history = new Map<string, string>();
-    for (const line of result.stdout.split('\n')) {
-      const trimmed = line.trim();
-      if (trimmed === '') continue;
-      const row = HISTORY_ROW_RE.exec(trimmed);
-      if (row === null) {
-        return {
-          ok: false,
-          notes: `unrecognised migration history row: ${trimmed.slice(0, 120)}`,
-        };
-      }
-      history.set(row[1], Buffer.from(row[2], 'hex').toString('utf8'));
-    }
-
-    const recorded: ColumnMigration[] = [];
-    const missing: ColumnMigration[] = [];
-    const mismatched: ColumnMigration[] = [];
-    for (const migration of migrations) {
-      const statements = history.get(migration.version);
-      if (statements === undefined) {
-        missing.push(migration);
-        continue;
-      }
-      const file = await ctx.exec(
-        `cat ${shellQuote(`supabase/migrations/${migration.file}`)}`
+  const read = await readMigrationHistory(
+    ctx,
+    stack,
+    migrations.map(({ version }) => version)
+  );
+  if (!read.ok) return read;
+  return sortMigrationsByHistory(
+    migrations,
+    read.history,
+    async (statements, { file }) => {
+      const current = await ctx.exec(
+        `cat ${shellQuote(`supabase/migrations/${file}`)}`
       );
-      if (!file.ok) return { ok: false, notes: describeFailure(file) };
-      const matches =
-        actionSignature(statements) === actionSignature(file.stdout);
-      (matches ? recorded : mismatched).push(migration);
+      if (!current.ok) throw new Error(describeFailure(current));
+      return actionSignature(statements) === actionSignature(current.stdout);
     }
-    return { ok: true, recorded, missing, mismatched };
-  } catch (error) {
-    return { ok: false, notes: errorMessage(error) };
-  }
+  );
 }
 
 /** Passes when every migration that touches the column is recorded in the CLI's migration history with the due_date statements the file holds now. */
 export function checkMigrationRecorded(
   probe: RecordedMigrationsProbe
 ): CheckResult {
-  const name = MIGRATION_RECORDED_CHECK_NAME;
-  if (!probe.ok) return { name, passed: false, notes: probe.notes };
-  const problems = [
-    ...(probe.missing.length > 0
-      ? [describeMissingVersions(probe.missing)]
-      : []),
-    ...(probe.mismatched.length > 0
-      ? [describeMismatchedVersions(probe.mismatched)]
-      : []),
-  ];
-  if (problems.length > 0 || probe.recorded.length === 0) {
-    return { name, passed: false, notes: problems.join('; ') };
-  }
-  return {
-    name,
-    passed: true,
-    notes: `${describeMigrations(probe.recorded)} ${probe.recorded.length === 1 ? 'is' : 'are'} in supabase_migrations.schema_migrations`,
-  };
+  return checkMigrationsRecorded(MIGRATION_RECORDED_CHECK_NAME, probe, {
+    describeRecorded: describeMigrations,
+    describeMismatched: describeMismatchedVersions,
+  });
 }

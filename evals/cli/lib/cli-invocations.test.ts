@@ -13,6 +13,7 @@ import {
   isStartInvocation,
   listCliOverrides,
   listUnverifiedRunners,
+  readStackLifecycle,
   type CommandEntry,
   type SupabaseInvocation,
 } from './cli-invocations.js';
@@ -616,6 +617,80 @@ describe('invocationSubcommand', () => {
     expect(found).toBeDefined();
     expect(invocationVerb(found)).toBe('functions');
     expect(invocationSubcommand(found)).toBe('serve');
+  });
+});
+
+describe('readStackLifecycle', () => {
+  const lifecycle = (commands: string[]) =>
+    readStackLifecycle(findSupabaseInvocations(commands));
+
+  it.each([
+    ['no supabase command ran', [] as string[]],
+    [
+      'only non-lifecycle commands ran',
+      [
+        'supabase gen types typescript --local',
+        'supabase migration up',
+        'supabase db reset',
+      ],
+    ],
+  ])('reports no lifecycle command when %s', (_name, commands) => {
+    expect(lifecycle(commands)).toEqual({
+      lastCommand: null,
+      stoppedByAgent: false,
+    });
+  });
+
+  it.each([
+    ['supabase start', 'supabase start'],
+    ['supabase stack start', 'supabase stack start'],
+    ['supabase stack restart', 'supabase stack restart'],
+    ['supabase db start', 'supabase db start'],
+    ['supabase --workdir app db start', 'supabase --workdir app db start'],
+  ])('treats %s as a start', (command, last) => {
+    expect(lifecycle([command])).toEqual({
+      lastCommand: last,
+      stoppedByAgent: false,
+    });
+  });
+
+  it.each([
+    ['supabase stop', 'supabase stop'],
+    ['supabase stop --no-backup', 'supabase stop --no-backup'],
+    [
+      'supabase stop --project-id scratch',
+      'supabase stop --project-id scratch',
+    ],
+    ['supabase stack stop', 'supabase stack stop'],
+    ['supabase stack destroy', 'supabase stack destroy'],
+  ])('treats %s as a stop', (command, last) => {
+    expect(lifecycle(['supabase start', command])).toEqual({
+      lastCommand: last,
+      stoppedByAgent: true,
+    });
+  });
+
+  it('uses the last lifecycle command when the agent stopped and then started again', () => {
+    expect(
+      lifecycle(['supabase start', 'supabase stop', 'supabase start'])
+    ).toEqual({ lastCommand: 'supabase start', stoppedByAgent: false });
+  });
+
+  it('ignores commands that follow the last lifecycle command', () => {
+    expect(
+      lifecycle([
+        'supabase start',
+        'supabase stop',
+        'supabase gen types typescript --local',
+      ])
+    ).toEqual({ lastCommand: 'supabase stop', stoppedByAgent: true });
+  });
+
+  it('does not count a stop that was only echoed', () => {
+    expect(lifecycle(['supabase start', 'echo "supabase stop"'])).toEqual({
+      lastCommand: 'supabase start',
+      stoppedByAgent: false,
+    });
   });
 });
 

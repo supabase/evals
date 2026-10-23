@@ -2,7 +2,10 @@
 import type { ToolCallRecord } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
 import type { StackProbe } from '../lib/stack.js';
-import { findSupabaseInvocations } from '../lib/cli-invocations.js';
+import {
+  findSupabaseInvocations,
+  type StackLifecycle,
+} from '../lib/cli-invocations.js';
 import { extractCommandEntries } from '../lib/detours.js';
 import {
   analysisFixture,
@@ -15,7 +18,6 @@ import {
   listSilentFailures,
   type CliFacts,
   type GenTypesRuns,
-  type StackLifecycle,
 } from './metrics.js';
 import { describeGroundTruth } from './report.js';
 import type { SchemaProbe } from './schema.js';
