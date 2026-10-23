@@ -101,8 +101,8 @@ const SUITE: SuiteProbe = {
     {
       file: A,
       mutated: mutated(A, [2]),
-      safe: mutated(A, []),
-      safeRestrictive: mutated(A, []),
+      ownerOnly: mutated(A, []),
+      openReads: mutated(A, [2]),
     },
   ],
 };
@@ -330,7 +330,7 @@ describe('checkMetrics', () => {
     });
   });
 
-  it('counts only the files with a test that fails under the seeded policies and passes under both safe policy sets', async () => {
+  it("counts only the files whose results change between the twins in the owner-only twin's favour", async () => {
     const { metrics } = await metricsOf({
       suite: {
         ok: true,
@@ -352,32 +352,32 @@ describe('checkMetrics', () => {
           {
             file: A,
             mutated: mutated(A, [2]),
-            safe: mutated(A, []),
-            safeRestrictive: mutated(A, []),
+            ownerOnly: mutated(A, []),
+            openReads: mutated(A, [2]),
           },
           {
             file: B,
             mutated: mutated(B, []),
-            safe: mutated(B, []),
-            safeRestrictive: mutated(B, []),
+            ownerOnly: mutated(B, []),
+            openReads: mutated(B, [2]),
           },
           {
             file: 'supabase/tests/c_test.sql',
             mutated: mutated('supabase/tests/c_test.sql', [2], false),
-            safe: mutated('supabase/tests/c_test.sql', []),
-            safeRestrictive: mutated('supabase/tests/c_test.sql', []),
+            ownerOnly: mutated('supabase/tests/c_test.sql', []),
+            openReads: mutated('supabase/tests/c_test.sql', [2]),
           },
           {
             file: 'supabase/tests/d_test.sql',
             mutated: mutated('supabase/tests/d_test.sql', [2]),
-            safe: mutated('supabase/tests/d_test.sql', [2]),
-            safeRestrictive: mutated('supabase/tests/d_test.sql', [2]),
+            ownerOnly: mutated('supabase/tests/d_test.sql', [2]),
+            openReads: mutated('supabase/tests/d_test.sql', [2]),
           },
           {
             file: 'supabase/tests/e_test.sql',
             mutated: mutated('supabase/tests/e_test.sql', [2]),
-            safe: mutated('supabase/tests/e_test.sql', []),
-            safeRestrictive: mutated('supabase/tests/e_test.sql', [2]),
+            ownerOnly: mutated('supabase/tests/e_test.sql', []),
+            openReads: mutated('supabase/tests/e_test.sql', []),
           },
         ],
       },

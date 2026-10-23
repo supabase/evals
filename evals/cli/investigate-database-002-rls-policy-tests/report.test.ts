@@ -100,12 +100,12 @@ const failedRun = (file: string): TestFileRun => ({
 const caught = (file: string) => ({
   file,
   mutated: { ...failedRun(file), mutationApplied: true },
-  safe: { ...passedRun(file), mutationApplied: true },
-  safeRestrictive: { ...passedRun(file), mutationApplied: true },
+  ownerOnly: { ...passedRun(file), mutationApplied: true },
+  openReads: { ...failedRun(file), mutationApplied: true },
 });
 
 const FLIPPED =
-  'test 1 "passing 1" failed with the seeded policies put back and passed under both equivalent owner-only policy sets';
+  'test 1 "passing 1" passed when only owners could read notes and failed once every signed-in user could, under identical policies';
 
 const SUITE: SuiteProbe = {
   ok: true,
@@ -589,8 +589,8 @@ describe('describeGroundTruth', () => {
           {
             file: A,
             mutated: { ...passedRun(A), mutationApplied: true },
-            safe: { ...passedRun(A), mutationApplied: true },
-            safeRestrictive: { ...passedRun(A), mutationApplied: true },
+            ownerOnly: { ...passedRun(A), mutationApplied: true },
+            openReads: { ...passedRun(A), mutationApplied: true },
           },
         ],
       };
@@ -608,8 +608,8 @@ describe('describeGroundTruth', () => {
           {
             file: A,
             mutated: { ...failedRun(A), mutationApplied: false },
-            safe: { ...passedRun(A), mutationApplied: true },
-            safeRestrictive: { ...passedRun(A), mutationApplied: true },
+            ownerOnly: { ...passedRun(A), mutationApplied: true },
+            openReads: { ...failedRun(A), mutationApplied: true },
           },
         ],
       };
@@ -618,7 +618,7 @@ describe('describeGroundTruth', () => {
       );
     });
 
-    it('does not credit a file that also failed under both equivalent owner-only policy sets, and says it checks the policy set', () => {
+    it('does not credit a file whose results did not change between the twins, and says it checks how the policies are written', () => {
       const suite: SuiteProbe = {
         ok: true,
         files: [A],
@@ -627,17 +627,17 @@ describe('describeGroundTruth', () => {
           {
             file: A,
             mutated: { ...failedRun(A), mutationApplied: true },
-            safe: { ...failedRun(A), mutationApplied: true },
-            safeRestrictive: { ...failedRun(A), mutationApplied: true },
+            ownerOnly: { ...failedRun(A), mutationApplied: true },
+            openReads: { ...failedRun(A), mutationApplied: true },
           },
         ],
       };
       expect(line(lines({ suite }), fileLine(A))).toBe(
-        `${fileLine(A)}: harness run passed (3 tests); did not catch the seeded policies (it also failed under at least one equivalent owner-only policy set (a single owner-only policy and the seeded policies plus a restrictive owner policy), so it checks the policy set, not who can see which notes)`
+        `${fileLine(A)}: harness run passed (3 tests); did not catch the seeded policies (its results did not change when every signed-in user could read notes under identical policies, so it checks how the policies are written, not who can see which notes)`
       );
     });
 
-    it('names the one owner-only policy set a file failed under', () => {
+    it('does not credit a file that passes in both twins and fails only under the seeded policies', () => {
       const suite: SuiteProbe = {
         ok: true,
         files: [A],
@@ -646,17 +646,17 @@ describe('describeGroundTruth', () => {
           {
             file: A,
             mutated: { ...failedRun(A), mutationApplied: true },
-            safe: { ...passedRun(A), mutationApplied: true },
-            safeRestrictive: { ...failedRun(A), mutationApplied: true },
+            ownerOnly: { ...passedRun(A), mutationApplied: true },
+            openReads: { ...passedRun(A), mutationApplied: true },
           },
         ],
       };
-      expect(line(lines({ suite }), fileLine(A))).toBe(
-        `${fileLine(A)}: harness run passed (3 tests); did not catch the seeded policies (it also failed under at least one equivalent owner-only policy set (the seeded policies plus a restrictive owner policy), so it checks the policy set, not who can see which notes)`
+      expect(line(lines({ suite }), fileLine(A))).toContain(
+        'did not catch the seeded policies (its results did not change'
       );
     });
 
-    it('says a file that passed outright under both owner-only policy sets caught the policies', () => {
+    it('says a file that passed outright only when owners could read notes caught the policies', () => {
       const suite: SuiteProbe = {
         ok: true,
         files: [A],
@@ -669,17 +669,21 @@ describe('describeGroundTruth', () => {
               tap: tap(3, [], 2),
               mutationApplied: true,
             },
-            safe: { ...passedRun(A, 2), mutationApplied: true },
-            safeRestrictive: { ...passedRun(A, 2), mutationApplied: true },
+            ownerOnly: { ...passedRun(A, 2), mutationApplied: true },
+            openReads: {
+              ...failedRun(A),
+              tap: tap(3, [], 2),
+              mutationApplied: true,
+            },
           },
         ],
       };
       expect(line(lines({ suite }), fileLine(A))).toBe(
-        `${fileLine(A)}: harness run passed (3 tests); caught the seeded policies (it failed with the seeded policies put back and passed outright with owner-only policies in place (both variants))`
+        `${fileLine(A)}: harness run passed (3 tests); caught the seeded policies (it passed outright when only owners could read notes and failed once every signed-in user could, under identical policies)`
       );
     });
 
-    it('names a failure that exists only under the seeded policies', () => {
+    it('names a failure that exists only once every signed-in user could read notes', () => {
       const result = (ok: boolean, number: number, description: string) => ({
         ok,
         number,
@@ -695,6 +699,14 @@ describe('describeGroundTruth', () => {
           results: [result(false, 1, 'policy set'), result(true, 2, 'a note')],
         },
       };
+      const underOpenReads: TestFileRun = {
+        ...failedRun(A),
+        tap: {
+          planned: 3,
+          plans: 1,
+          results: [...underOwnerOnly.tap.results, result(false, 3, 'b note')],
+        },
+      };
       const suite: SuiteProbe = {
         ok: true,
         files: [A],
@@ -702,29 +714,18 @@ describe('describeGroundTruth', () => {
         catches: [
           {
             file: A,
-            mutated: {
-              ...failedRun(A),
-              tap: {
-                planned: 3,
-                plans: 1,
-                results: [
-                  ...underOwnerOnly.tap.results,
-                  result(false, 3, 'b note'),
-                ],
-              },
-              mutationApplied: true,
-            },
-            safe: { ...underOwnerOnly, mutationApplied: true },
-            safeRestrictive: { ...underOwnerOnly, mutationApplied: true },
+            mutated: { ...underOpenReads, mutationApplied: true },
+            ownerOnly: { ...underOwnerOnly, mutationApplied: true },
+            openReads: { ...underOpenReads, mutationApplied: true },
           },
         ],
       };
       expect(line(lines({ suite }), fileLine(A))).toBe(
-        `${fileLine(A)}: harness run passed (3 tests); caught the seeded policies (test 3 "b note" failed only with the seeded policies put back (absent under both equivalent owner-only policy sets))`
+        `${fileLine(A)}: harness run passed (3 tests); caught the seeded policies (test 3 "b note" failed only once every signed-in user could read notes (it did not run when only owners could), under identical policies)`
       );
     });
 
-    it('does not credit a file when the equivalent owner-only policy could not be applied', () => {
+    it('does not credit a file when the owner-only twin could not be applied', () => {
       const suite: SuiteProbe = {
         ok: true,
         files: [A],
@@ -733,17 +734,17 @@ describe('describeGroundTruth', () => {
           {
             file: A,
             mutated: { ...failedRun(A), mutationApplied: true },
-            safe: { ...passedRun(A), mutationApplied: false },
-            safeRestrictive: { ...passedRun(A), mutationApplied: true },
+            ownerOnly: { ...passedRun(A), mutationApplied: false },
+            openReads: { ...failedRun(A), mutationApplied: true },
           },
         ],
       };
       expect(line(lines({ suite }), fileLine(A))).toBe(
-        `${fileLine(A)}: harness run passed (3 tests); an equivalent owner-only policy set (a single owner-only policy) could not be applied, so the run is not counted`
+        `${fileLine(A)}: harness run passed (3 tests); the identical-policy runs (owner-only twin) could not be applied, so the run is not counted`
       );
     });
 
-    it('names the restrictive owner-only policy set when only that one could not be applied', () => {
+    it('names the open-reads twin when only that one could not be applied', () => {
       const suite: SuiteProbe = {
         ok: true,
         files: [A],
@@ -752,13 +753,13 @@ describe('describeGroundTruth', () => {
           {
             file: A,
             mutated: { ...failedRun(A), mutationApplied: true },
-            safe: { ...passedRun(A), mutationApplied: true },
-            safeRestrictive: { ...passedRun(A), mutationApplied: false },
+            ownerOnly: { ...passedRun(A), mutationApplied: true },
+            openReads: { ...failedRun(A), mutationApplied: false },
           },
         ],
       };
       expect(line(lines({ suite }), fileLine(A))).toContain(
-        '(the seeded policies plus a restrictive owner policy) could not be applied'
+        '(open-reads twin) could not be applied'
       );
     });
 
@@ -783,8 +784,8 @@ describe('describeGroundTruth', () => {
           {
             file: A,
             mutated: { ...failedRun(A), mutationApplied: true },
-            safe: null,
-            safeRestrictive: null,
+            ownerOnly: null,
+            openReads: null,
             leaked: true,
             restoreFailure: 'could not restore',
           },
@@ -810,8 +811,8 @@ describe('describeGroundTruth', () => {
           {
             file: B,
             mutated: { ...passedRun(B, 5), mutationApplied: true },
-            safe: { ...passedRun(B, 5), mutationApplied: true },
-            safeRestrictive: { ...passedRun(B, 5), mutationApplied: true },
+            ownerOnly: { ...passedRun(B, 5), mutationApplied: true },
+            openReads: { ...passedRun(B, 5), mutationApplied: true },
           },
         ],
       };

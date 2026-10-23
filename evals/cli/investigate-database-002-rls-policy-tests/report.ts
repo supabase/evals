@@ -13,8 +13,8 @@ import {
 import {
   catchVerdict,
   describeCatchBasis,
-  describeSafeVariants,
   describeTapCounts,
+  describeTwins,
   type SuiteProbe,
   type TestFileRun,
 } from './pgtap.js';
@@ -144,10 +144,10 @@ function describeCatch(
       return 'the seeded policies could not be applied';
     case 'leak-passed':
       return 'did not catch the seeded policies';
-    case 'safe-not-applied':
-      return `an equivalent owner-only policy set (${describeSafeVariants(verdict.variants)}) could not be applied, so the run is not counted`;
-    case 'policy-set-only':
-      return `did not catch the seeded policies (it also failed under at least one equivalent owner-only policy set (${describeSafeVariants(verdict.variants)}), so it checks the policy set, not who can see which notes)`;
+    case 'twins-not-applied':
+      return `the identical-policy runs (${describeTwins(verdict.twins)}) could not be applied, so the run is not counted`;
+    case 'same-under-twins':
+      return 'did not catch the seeded policies (its results did not change when every signed-in user could read notes under identical policies, so it checks how the policies are written, not who can see which notes)';
   }
 }
 

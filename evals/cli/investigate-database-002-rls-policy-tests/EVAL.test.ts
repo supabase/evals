@@ -21,8 +21,8 @@ import { buildSnapshotSql } from './snapshot.js';
 const WS = '/ws';
 const DB_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
 const MUTATION_MARKER = 'eval-mutation-applied';
-const SAFE_MARKER = 'eval-safe-mutation-applied';
-const SAFE_RESTRICTIVE_MARKER = 'eval-safe-restrictive-mutation-applied';
+const OWNER_ONLY_MARKER = 'eval-twin-owner-only-applied';
+const OPEN_READS_MARKER = 'eval-twin-open-reads-applied';
 
 const SEEDED_SQL = readFileSync(
   new URL(
@@ -288,20 +288,20 @@ type Run = { stdout: string; exitCode?: number; stderr?: string };
 type Behaviour = {
   clean: Run;
   mutated?: Run;
-  safe?: Run;
-  safeRestrictive?: Run;
+  ownerOnly?: Run;
+  openReads?: Run;
 };
 
 const behaviourOfTap = (
   clean: string,
   leak: string,
-  safe: string,
-  restrictive = safe
+  ownerOnly: string,
+  openReads: string
 ): Behaviour => ({
   clean: { stdout: clean },
   mutated: { stdout: `${MUTATION_MARKER}\n${leak}` },
-  safe: { stdout: `${SAFE_MARKER}\n${safe}` },
-  safeRestrictive: { stdout: `${SAFE_RESTRICTIVE_MARKER}\n${restrictive}` },
+  ownerOnly: { stdout: `${OWNER_ONLY_MARKER}\n${ownerOnly}` },
+  openReads: { stdout: `${OPEN_READS_MARKER}\n${openReads}` },
 });
 const tapOf = (descriptions: readonly string[], failing: readonly number[]) =>
   [
@@ -322,26 +322,38 @@ const withFirst = (first: string) => [first, ...CROSS_USER.slice(1)];
 const policyChecks = (
   name: string,
   leak: readonly number[],
-  safe: readonly number[],
-  restrictive: readonly number[]
+  ownerOnly: readonly number[],
+  openReads: readonly number[]
 ) =>
   behaviourOfTap(
     tapOf([name], []),
     tapOf([name], leak),
-    tapOf([name], safe),
-    tapOf([name], restrictive)
+    tapOf([name], ownerOnly),
+    tapOf([name], openReads)
   );
 
-const CATCHING = behaviourOfTap(PASSING_TAP, FAILING_TAP, PASSING_TAP);
-const BLIND = behaviourOfTap(PASSING_TAP, PASSING_TAP, PASSING_TAP);
+const CATCHING = behaviourOfTap(
+  PASSING_TAP,
+  FAILING_TAP,
+  PASSING_TAP,
+  FAILING_TAP
+);
+const BLIND = behaviourOfTap(
+  PASSING_TAP,
+  PASSING_TAP,
+  PASSING_TAP,
+  PASSING_TAP
+);
 const STRUCTURAL = withFirst('notes has five policies');
 const STRUCTURAL_AND_BEHAVIOURAL = behaviourOfTap(
   tapOf(STRUCTURAL, []),
   tapOf(STRUCTURAL, [1, 2]),
-  tapOf(STRUCTURAL, [1])
+  tapOf(STRUCTURAL, [1]),
+  tapOf(STRUCTURAL, [1, 2])
 );
 const STRUCTURAL_ONLY = behaviourOfTap(
   tapOf(STRUCTURAL, []),
+  tapOf(STRUCTURAL, [1]),
   tapOf(STRUCTURAL, [1]),
   tapOf(STRUCTURAL, [1])
 );
@@ -349,19 +361,19 @@ const LEAKY_NAME_GONE = policyChecks(
   'no policy is named "Enable read access for authenticated users"',
   [1],
   [],
-  [1]
+  []
 );
 const NO_TRUE_QUAL = policyChecks(
   'no policy on public.notes has qual true',
   [1],
   [],
-  [1]
-);
-const HAS_RESTRICTIVE = policyChecks(
-  'public.notes has a restrictive policy',
-  [1],
-  [1],
   []
+);
+const FOR_ALL_EXISTS = policyChecks(
+  'public.notes has a for all policy using auth.uid()',
+  [1],
+  [1],
+  [1]
 );
 const PER_ROW_NOTES = ['a-note-1', 'a-note-2', 'b-note-1'];
 const perRow = (notes: readonly string[], plan: string | null) =>
@@ -377,20 +389,24 @@ const perRow = (notes: readonly string[], plan: string | null) =>
 const PER_ROW_NO_PLAN = behaviourOfTap(
   perRow(PER_ROW_NOTES.slice(0, 2), null),
   perRow(PER_ROW_NOTES, null),
-  perRow(PER_ROW_NOTES.slice(0, 2), null)
+  perRow(PER_ROW_NOTES.slice(0, 2), null),
+  perRow(PER_ROW_NOTES, null)
 );
+const PLAN_ONE_TWO_ROWS =
+  '1..1\nok 1 - a can see note: a-note-1\nok 2 - a can see note: a-note-2\n# Looks like you planned 1 test but ran 2\n';
 const PER_ROW_PLAN_ONE: Behaviour = behaviourOfTap(
   '1..1\nok 1 - a can see note: a-note-1\n',
-  '1..1\nok 1 - a can see note: a-note-1\nok 2 - a can see note: a-note-2\n# Looks like you planned 1 test but ran 2\n',
-  '1..1\nok 1 - a can see note: a-note-1\n'
+  PLAN_ONE_TWO_ROWS,
+  '1..1\nok 1 - a can see note: a-note-1\n',
+  PLAN_ONE_TWO_ROWS
 );
-const SAFE_NOT_APPLIED: Behaviour = {
+const OWNER_ONLY_NOT_APPLIED: Behaviour = {
   ...CATCHING,
-  safe: { stdout: PASSING_TAP },
+  ownerOnly: { stdout: PASSING_TAP },
 };
-const SAFE_RESTRICTIVE_NOT_APPLIED: Behaviour = {
+const OPEN_READS_NOT_APPLIED: Behaviour = {
   ...CATCHING,
-  safeRestrictive: { stdout: PASSING_TAP },
+  openReads: { stdout: FAILING_TAP },
 };
 const FAILING: Behaviour = { clean: { stdout: FAILING_TAP } };
 const ERRORING: Behaviour = {
@@ -467,6 +483,10 @@ function fakeCtx(toolCalls: ToolCallRecord[], world: World = {}) {
       log.push('drop-extension');
       return result('');
     }
+    if (/drop\s+function/i.test(command)) {
+      log.push('drop-function');
+      return result('');
+    }
     if (command.includes('schema_migrations')) {
       const asked = [...command.matchAll(/'(\d+)'/g)].map((m) => m[1]);
       const rows = history
@@ -530,13 +550,13 @@ function fakeCtx(toolCalls: ToolCallRecord[], world: World = {}) {
         log.push(`mutate ${key}`);
         return run(behaviour.mutated ?? behaviour.clean);
       }
-      if (script.includes(SAFE_RESTRICTIVE_MARKER)) {
-        log.push(`safe-restrictive ${key}`);
-        return run(behaviour.safeRestrictive ?? behaviour.clean);
+      if (script.includes(OPEN_READS_MARKER)) {
+        log.push(`open-reads ${key}`);
+        return run(behaviour.openReads ?? behaviour.clean);
       }
-      if (script.includes(SAFE_MARKER)) {
-        log.push(`safe ${key}`);
-        return run(behaviour.safe ?? behaviour.clean);
+      if (script.includes(OWNER_ONLY_MARKER)) {
+        log.push(`owner-only ${key}`);
+        return run(behaviour.ownerOnly ?? behaviour.clean);
       }
     }
     log.push(`clean ${key}`);
@@ -732,15 +752,19 @@ describe('notes test scorer', () => {
     expect(log).not.toContain('drop-extension');
   });
 
-  it('runs a passing file clean, under the seeded policies, then under each owner-only policy set', async () => {
+  it('runs a passing file clean, under the seeded policies, then under each twin, and drops the probe function once afterwards', async () => {
     const { ctx, log } = fakeCtx(SETUP);
     await scorer(ctx);
     expect(log.filter((line) => line.endsWith(' notes_rls_test.sql'))).toEqual([
       'clean notes_rls_test.sql',
       'mutate notes_rls_test.sql',
-      'safe notes_rls_test.sql',
-      'safe-restrictive notes_rls_test.sql',
+      'owner-only notes_rls_test.sql',
+      'open-reads notes_rls_test.sql',
     ]);
+    expect(log.filter((line) => line === 'drop-function')).toHaveLength(1);
+    expect(log.indexOf('drop-function')).toBeGreaterThan(
+      log.indexOf('open-reads notes_rls_test.sql')
+    );
   });
 
   it('replays the migrations once, before it runs any of the agent tests', async () => {
@@ -1022,39 +1046,39 @@ describe('known-bad runs', () => {
       [TESTS_CATCH],
     ],
     [
-      'wrote tests that only check the policy set, so they fail under an owner-only policy too',
+      'wrote tests that only check the policy set, so they fail the same way in both twins',
       SETUP,
       { tests: { 'notes_rls_test.sql': STRUCTURAL_ONLY } },
       [TESTS_CATCH],
     ],
     [
-      'wrote a test that only checks the leaky policy name is gone, which fails once the seeded policies are kept beside a restrictive owner policy',
+      'wrote a test that only checks the leaky policy name is gone, which passes in both twins',
       SETUP,
       { tests: { 'notes_rls_test.sql': LEAKY_NAME_GONE } },
       [TESTS_CATCH],
     ],
     [
-      'wrote a test that only checks no policy has qual true',
+      'wrote a test that only checks no policy has qual true, which passes in both twins',
       SETUP,
       { tests: { 'notes_rls_test.sql': NO_TRUE_QUAL } },
       [TESTS_CATCH],
     ],
     [
-      'wrote a test that only checks a restrictive policy exists, which a single permissive owner policy fails',
+      'wrote a test that only checks a for all owner policy exists, which fails in both twins',
       SETUP,
-      { tests: { 'notes_rls_test.sql': HAS_RESTRICTIVE } },
+      { tests: { 'notes_rls_test.sql': FOR_ALL_EXISTS } },
       [TESTS_CATCH],
     ],
     [
-      'wrote tests whose owner-only policy run never printed its marker, so the run is not counted',
+      'wrote tests whose owner-only twin never printed its marker, so the run is not counted',
       SETUP,
-      { tests: { 'notes_rls_test.sql': SAFE_NOT_APPLIED } },
+      { tests: { 'notes_rls_test.sql': OWNER_ONLY_NOT_APPLIED } },
       [TESTS_CATCH],
     ],
     [
-      'wrote tests whose restrictive owner-only policy run never printed its marker, so the run is not counted',
+      'wrote tests whose open-reads twin never printed its marker, so the run is not counted',
       SETUP,
-      { tests: { 'notes_rls_test.sql': SAFE_RESTRICTIVE_NOT_APPLIED } },
+      { tests: { 'notes_rls_test.sql': OPEN_READS_NOT_APPLIED } },
       [TESTS_CATCH],
     ],
     [
@@ -1266,9 +1290,11 @@ describe('valid alternatives', () => {
           'notes_rls_test.sql': {
             clean: { stdout: NO_PLAN_PASSING_TAP },
             mutated: { stdout: `${MUTATION_MARKER}\n${NO_PLAN_FAILING_TAP}` },
-            safe: { stdout: `${SAFE_MARKER}\n${NO_PLAN_PASSING_TAP}` },
-            safeRestrictive: {
-              stdout: `${SAFE_RESTRICTIVE_MARKER}\n${NO_PLAN_PASSING_TAP}`,
+            ownerOnly: {
+              stdout: `${OWNER_ONLY_MARKER}\n${NO_PLAN_PASSING_TAP}`,
+            },
+            openReads: {
+              stdout: `${OPEN_READS_MARKER}\n${NO_PLAN_FAILING_TAP}`,
             },
           },
         },
@@ -1431,13 +1457,15 @@ describe('check notes', () => {
     expect(check?.notes).toContain('supabase/tests/notes_rls_test.sql');
   });
 
-  it('says the owner-only policy run failed too when a file only checks the policy set', async () => {
+  it('says the results did not change between the twins when a file only checks the policy set', async () => {
     const { ctx } = fakeCtx(SETUP, {
       tests: { 'notes_rls_test.sql': STRUCTURAL_ONLY },
     });
     const check = await checkOf(ctx, TESTS_CATCH);
     expect(check?.passed).toBe(false);
-    expect(check?.notes).toContain('equivalent owner-only policy');
+    expect(check?.notes).toContain(
+      'its results did not change when every signed-in user could read notes under identical policies'
+    );
   });
 
   it('names the failing file in the pass check', async () => {
