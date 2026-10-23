@@ -7,6 +7,7 @@ import {
   checkRanWithTestDb,
   findTestDbRuns,
   readTestDbSummary,
+  runsPgProve,
   TEST_DB_CHECK_NAME,
   type TestDbRun,
 } from './test-db-runs.js';
@@ -41,6 +42,9 @@ Result: NOTESTS
 
 const DOCKER_ERROR =
   'Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?';
+
+const PG_PROVE =
+  'pg_prove -d postgresql://postgres:postgres@127.0.0.1:54322/postgres supabase/tests';
 
 const PASS = { result: 'PASS', tests: 3 } as const;
 const FAIL = { result: 'FAIL', tests: 1 } as const;
@@ -113,6 +117,25 @@ describe('readTestDbSummary', () => {
     ],
   ])('finds no summary in %s', (_label, text) => {
     expect(readTestDbSummary(text)).toBeNull();
+  });
+});
+
+describe('runsPgProve', () => {
+  it.each([
+    PG_PROVE,
+    `supabase test db || ${PG_PROVE}`,
+    `cd /ws && ${PG_PROVE} 2>&1 | tail -5`,
+  ])('is true for %j', (command) => {
+    expect(runsPgProve(command)).toBe(true);
+  });
+
+  it.each([
+    'supabase test db',
+    'command -v pg_prove; supabase test db',
+    'echo "pg_prove later"; supabase test db',
+    'cat supabase/tests/pg_prove.md',
+  ])('is false for %j', (command) => {
+    expect(runsPgProve(command)).toBe(false);
   });
 });
 
@@ -249,6 +272,64 @@ describe('findTestDbRuns', () => {
   it('finds nothing without tool calls', () => {
     expect(runsOf([])).toEqual([]);
   });
+
+  describe('a pg_prove run by hand in the same call', () => {
+    const FALLBACK_OUTPUT = `${DOCKER_ERROR}\n${PASS_OUTPUT}`;
+    const NOTE =
+      "command(s) 1 also ran pg_prove by hand in the same call, so the summary can't be credited to supabase test db";
+
+    it.each([
+      ['||', `supabase test db || ${PG_PROVE}`],
+      [';', `supabase test db; ${PG_PROVE}`],
+      ['&&', `supabase test db && ${PG_PROVE}`],
+    ])(
+      'is not credited to supabase test db when joined with %s',
+      (_operator, command) => {
+        const runs = runsOf([call(command, { result: FALLBACK_OUTPUT })]);
+        expect(runs).toEqual([
+          { commandIndex: 0, summary: null, withPgProve: true },
+        ]);
+        const check = checkRanWithTestDb(runs);
+        expect(check.passed).toBe(false);
+        expect(check.notes).toContain(NOTE);
+        expect(check.notes).toContain('printed no pg_prove summary');
+      }
+    );
+
+    it('credits a later plain supabase test db call that printed a summary', () => {
+      const runs = runsOf([
+        call(`supabase test db || ${PG_PROVE}`, { result: FALLBACK_OUTPUT }),
+        call('supabase test db', { result: PASS_OUTPUT }),
+      ]);
+      expect(runs).toEqual([
+        { commandIndex: 0, summary: null, withPgProve: true },
+        { commandIndex: 1, summary: PASS },
+      ]);
+      const check = checkRanWithTestDb(runs);
+      expect(check.passed).toBe(true);
+      expect(check.notes).toContain('(command 2)');
+    });
+
+    it.each([
+      'command -v pg_prove; supabase test db',
+      'echo "pg_prove later"; supabase test db',
+    ])('still credits %j, which never runs pg_prove', (command) => {
+      const runs = runsOf([call(command, { result: PASS_OUTPUT })]);
+      expect(runs).toEqual([{ commandIndex: 0, summary: PASS }]);
+      expect(checkRanWithTestDb(runs).passed).toBe(true);
+    });
+
+    it('lists every same-call run by its 1-based command number', () => {
+      const runs = runsOf([
+        call(`supabase test db || ${PG_PROVE}`, { result: FALLBACK_OUTPUT }),
+        call('psql -c "select 1"'),
+        call(`supabase test db; ${PG_PROVE}`, { result: FALLBACK_OUTPUT }),
+      ]);
+      expect(checkRanWithTestDb(runs).notes).toContain(
+        "command(s) 1, 3 also ran pg_prove by hand in the same call, so the summary can't be credited to supabase test db"
+      );
+    });
+  });
 });
 
 describe('checkRanWithTestDb', () => {
@@ -286,6 +367,10 @@ describe('checkRanWithTestDb', () => {
     const check = checkRanWithTestDb([run(null), run(null, 1)]);
     expect(check.name).toBe(TEST_DB_CHECK_NAME);
     expect(check.passed).toBe(false);
+  });
+
+  it('adds no pg_prove note when no run also ran it by hand', () => {
+    expect(checkRanWithTestDb([run(null)]).notes).not.toContain('by hand');
   });
 
   it('fails with a note that the tests were never run through supabase test db when there are no runs', () => {

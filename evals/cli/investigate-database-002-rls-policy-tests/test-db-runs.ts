@@ -3,14 +3,23 @@ import {
   invocationPositionals,
   type SupabaseInvocation,
 } from '../lib/cli-invocations.js';
-import { commandToolCalls } from '../lib/detours.js';
+import {
+  commandToolCalls,
+  extractCommandEntries,
+  leadingWord,
+  unmaskedCommandSegments,
+} from '../lib/detours.js';
 import { collectStringValues } from '../lib/stack-list.js';
 
 export type TestDbSummary = {
   result: 'PASS' | 'FAIL' | null;
   tests: number | null;
 };
-export type TestDbRun = { commandIndex: number; summary: TestDbSummary | null };
+export type TestDbRun = {
+  commandIndex: number;
+  summary: TestDbSummary | null;
+  withPgProve?: true;
+};
 
 export const TEST_DB_CHECK_NAME = 'the tests were run with supabase test db';
 
@@ -39,18 +48,28 @@ const isTestDb = (invocation: SupabaseInvocation) => {
   );
 };
 
-/** One run per tool call that executed `supabase test db`, with the summary its output printed. */
+/** Whether the command runs `pg_prove` by hand in any executable segment. */
+export const runsPgProve = (command: string) =>
+  unmaskedCommandSegments(command).some(
+    (segment) => leadingWord(segment) === 'pg_prove'
+  );
+
+/** One run per tool call that executed `supabase test db`, with the summary its output printed; a call that also ran `pg_prove` gets none, since either command could have printed it. */
 export function findTestDbRuns(
   toolCalls: readonly ToolCallRecord[],
   invocations: readonly SupabaseInvocation[]
 ): TestDbRun[] {
   const calls = commandToolCalls(toolCalls);
+  const entries = extractCommandEntries(toolCalls);
   const indexes = [
     ...new Set(
       invocations.filter(isTestDb).map((invocation) => invocation.commandIndex)
     ),
   ].sort((a, b) => a - b);
   return indexes.map((commandIndex) => {
+    if (runsPgProve(entries[commandIndex].command)) {
+      return { commandIndex, summary: null, withPgProve: true };
+    }
     const { result, error } = calls[commandIndex];
     const output = collectStringValues([result, error]).join('\n');
     return { commandIndex, summary: readTestDbSummary(output) };
@@ -79,10 +98,17 @@ export function checkRanWithTestDb(runs: readonly TestDbRun[]): CheckResult {
   const summarised = runs.filter((run) => run.summary !== null);
   const last = summarised.at(-1);
   if (last?.summary == null) {
+    const handRun = runs
+      .filter((run) => run.withPgProve)
+      .map((run) => run.commandIndex + 1);
+    const pgProveNote =
+      handRun.length === 0
+        ? ''
+        : `; command(s) ${handRun.join(', ')} also ran pg_prove by hand in the same call, so the summary can't be credited to supabase test db`;
     return {
       name,
       passed: false,
-      notes: `${runs.length} supabase test db run(s) printed no pg_prove summary, so no test ran through it`,
+      notes: `${runs.length} supabase test db run(s) printed no pg_prove summary, so no test ran through it${pgProveNote}`,
     };
   }
   return {

@@ -174,6 +174,34 @@ describe('parseTap', () => {
     });
   });
 
+  it('marks a skipped test as skip, with or without a description, and strips the directive', () => {
+    expect(
+      parseTap(
+        '1..3\nok 1 - a\nok 2 # SKIP no notes to read\nok 3 - c # skip later\n'
+      )
+    ).toEqual({
+      planned: 3,
+      plans: 1,
+      results: [
+        entry(true, 1, 'a'),
+        { ...entry(true, 2, ''), skip: true },
+        { ...entry(true, 3, 'c'), skip: true },
+      ],
+    });
+  });
+
+  it('marks a TODO test with no description as todo', () => {
+    expect(parseTap('1..1\nnot ok 1 # TODO later\n').results).toEqual([
+      entry(false, 1, '', true),
+    ]);
+  });
+
+  it('does not mark a description that merely mentions skip', () => {
+    expect(
+      parseTap('1..1\nok 1 - does not skip rows # not a directive\n').results
+    ).toEqual([entry(true, 1, 'does not skip rows # not a directive')]);
+  });
+
   it('ignores diagnostics, blank lines and psql noise between results', () => {
     const tap = parseTap(`
 1..2
@@ -235,6 +263,12 @@ describe('tapPassed', () => {
 
   it('passes a skipped file', () => {
     expect(tapPassed(0, parseTap('1..0 # SKIP\n'))).toBe(true);
+  });
+
+  it('passes a file with a skipped test', () => {
+    expect(
+      tapPassed(0, parseTap('1..2\nok 1 - a\nok 2 # SKIP no notes to read\n'))
+    ).toBe(true);
   });
 
   it('passes a file whose only failure is a TODO test', () => {
@@ -943,6 +977,75 @@ describe('runSuite', () => {
     });
   });
 
+  describe('where a run stopped', () => {
+    const mutatedStoppedAt = async (stderr: string, exitCode = 3) => {
+      const { suite } = await suiteOf({
+        behaviour: {
+          'a_test.sql': {
+            clean: cleanPass,
+            mutated: { stdout: `${MARKER}\n1..3\n`, exitCode, stderr },
+            ownerOnly: ownerOnlyPass,
+            openReads: openReadsFail,
+          },
+        },
+      });
+      const [attempt] = (suite as Extract<SuiteProbe, { ok: true }>).catches;
+      return attempt.mutated;
+    };
+
+    it('reads the file and line of an error in the test file', async () => {
+      const run = await mutatedStoppedAt(
+        'psql:a_test.sql:14: ERROR:  more than one row returned by a subquery used as an expression'
+      );
+      expect(run.stoppedAt).toBe('a_test.sql:14');
+    });
+
+    it('reads an error in the setup script piped on stdin as <stdin>', async () => {
+      const run = await mutatedStoppedAt(
+        'psql:<stdin>:3: ERROR:  policy "x" already exists'
+      );
+      expect(run.stoppedAt).toBe('<stdin>:3');
+    });
+
+    it('reads the first error, skipping notices before it and errors after it', async () => {
+      const run = await mutatedStoppedAt(
+        [
+          'psql:a_test.sql:2: NOTICE:  table "t" does not exist, skipping',
+          'psql:helpers/h.sql:9: ERROR:  first',
+          'psql:a_test.sql:20: ERROR:  second',
+        ].join('\n')
+      );
+      expect(run.stoppedAt).toBe('helpers/h.sql:9');
+    });
+
+    it.each([
+      ['empty stderr', ''],
+      ['a connection error', 'psql: error: connection to server failed'],
+      ['a notice only', 'psql:a_test.sql:2: NOTICE:  something'],
+    ])('leaves it absent for %s', async (_label, stderr) => {
+      const run = await mutatedStoppedAt(stderr, 2);
+      expect(run).not.toHaveProperty('stoppedAt');
+    });
+
+    it('reads it on a clean run too', async () => {
+      const { suite } = await suiteOf({
+        behaviour: {
+          'a_test.sql': {
+            clean: {
+              stdout: FAILING_WITH_ERROR,
+              exitCode: 3,
+              stderr: 'psql:a_test.sql:12: ERROR:  more than one row',
+            },
+          },
+        },
+      });
+      expect(suite).toMatchObject({
+        ok: true,
+        clean: [{ stoppedAt: 'a_test.sql:12' }],
+      });
+    });
+  });
+
   it('reports a file whose tests pass under the mutation as not caught', async () => {
     const { suite } = await suiteOf({
       behaviour: {
@@ -1605,6 +1708,8 @@ describe('runSuite', () => {
     const ANON_NONE = 'anon sees no notes';
     const CROSS_USER = [A_OWN, B_BLOCKED, ANON_NONE];
     const SAME_UNDER_TWINS = `${A}: failed with the seeded policies put back, but its results did not change when every signed-in user could read notes under identical policies, so it checks how the policies are written, not who can see which notes`;
+    const FAILED_AFTER_LEAK =
+      'with the seeded policies put back and once every signed-in user could read notes';
 
     const behaviourOf = (
       descriptions: readonly string[],
@@ -1635,6 +1740,17 @@ describe('runSuite', () => {
         behaviour: { 'a_test.sql': behaviour },
       });
       return checkTestsCatchSeededPolicies(suite);
+    };
+
+    const outcomeOf = async (behaviour: Behaviour) => {
+      const { suite } = await suiteOf({
+        behaviour: { 'a_test.sql': behaviour },
+      });
+      const [attempt] = (suite as Extract<SuiteProbe, { ok: true }>).catches;
+      return {
+        check: checkTestsCatchSeededPolicies(suite),
+        verdict: catchVerdict(attempt),
+      };
     };
 
     const sameInEveryTwin = (
@@ -1737,27 +1853,46 @@ describe('runSuite', () => {
         const check = await verdictOf(behaviourOf(CROSS_USER, [2], [], [2]));
         expect(check.passed).toBe(true);
         expect(check.notes).toContain(
-          `test 2 "${B_BLOCKED}" passed when only owners could read notes and failed once every signed-in user could, under identical policies`
+          `test 2 "${B_BLOCKED}" failed ${FAILED_AFTER_LEAK}, and passed when only owners could, under identical policies`
         );
       });
 
-      it('counts a file whose open-reads run errors after the first test while the owner-only run passes everything', async () => {
-        const { suite } = await suiteOf({
-          behaviour: {
-            'a_test.sql': {
-              clean: { stdout: tapText(CROSS_USER) },
-              mutated: tapOf(MARKER, tapText(CROSS_USER, [2])),
-              ownerOnly: tapOf(OWNER_ONLY_TWIN_MARKER, tapText(CROSS_USER)),
-              openReads: {
-                ...tapOf(OPEN_READS_TWIN_MARKER, `1..3\nok 1 - ${A_OWN}\n`, 3),
-                stderr:
-                  'psql:b_test.sql:14: ERROR:  more than one row returned by a subquery used as an expression',
-              },
-            },
+      it('counts a file whose leak and open-reads runs both stop at the same statement while the owner-only run passes everything', async () => {
+        const stopped = (marker: string): Run => ({
+          ...tapOf(marker, `1..3\nok 1 - ${A_OWN}\n`, 3),
+          stderr:
+            'psql:b_test.sql:14: ERROR:  more than one row returned by a subquery used as an expression',
+        });
+        const { check, verdict } = await outcomeOf({
+          clean: { stdout: tapText(CROSS_USER) },
+          mutated: stopped(MARKER),
+          ownerOnly: tapOf(OWNER_ONLY_TWIN_MARKER, tapText(CROSS_USER)),
+          openReads: stopped(OPEN_READS_TWIN_MARKER),
+        });
+        expect(verdict).toEqual({
+          caught: true,
+          test: {
+            number: 2,
+            description: B_BLOCKED,
+            ranUnderOpenReads: false,
+            stoppedAt: 'b_test.sql:14',
           },
         });
-        const [attempt] = (suite as Extract<SuiteProbe, { ok: true }>).catches;
-        expect(catchVerdict(attempt)).toEqual({
+        expect(check.notes).toContain(
+          `test 2 "${B_BLOCKED}" did not run with the seeded policies put back or once every signed-in user could read notes (both stopped at b_test.sql:14), and passed when only owners could, under identical policies`
+        );
+      });
+
+      it('counts a file whose leak and open-reads runs both end early with no error line', async () => {
+        const early = (marker: string) =>
+          tapOf(marker, `1..3\nok 1 - ${A_OWN}\n`, 3);
+        const { check, verdict } = await outcomeOf({
+          clean: { stdout: tapText(CROSS_USER) },
+          mutated: early(MARKER),
+          ownerOnly: tapOf(OWNER_ONLY_TWIN_MARKER, tapText(CROSS_USER)),
+          openReads: early(OPEN_READS_TWIN_MARKER),
+        });
+        expect(verdict).toEqual({
           caught: true,
           test: {
             number: 2,
@@ -1765,8 +1900,59 @@ describe('runSuite', () => {
             ranUnderOpenReads: false,
           },
         });
-        expect(checkTestsCatchSeededPolicies(suite).notes).toContain(
-          `test 2 "${B_BLOCKED}" passed when only owners could read notes and did not run once every signed-in user could, under identical policies`
+        expect(check.notes).toContain(
+          `test 2 "${B_BLOCKED}" did not run with the seeded policies put back or once every signed-in user could read notes (both ended early), and passed when only owners could, under identical policies`
+        );
+      });
+
+      it('does not count a test the open-reads run never reached when the leak run failed it instead', async () => {
+        const { verdict } = await outcomeOf({
+          clean: { stdout: tapText(CROSS_USER) },
+          mutated: tapOf(MARKER, tapText(CROSS_USER, [2])),
+          ownerOnly: tapOf(OWNER_ONLY_TWIN_MARKER, tapText(CROSS_USER)),
+          openReads: {
+            ...tapOf(OPEN_READS_TWIN_MARKER, `1..3\nok 1 - ${A_OWN}\n`, 3),
+            stderr:
+              'psql:b_test.sql:14: ERROR:  more than one row returned by a subquery used as an expression',
+          },
+        });
+        expect(verdict).toMatchObject({
+          caught: false,
+          reason: 'leak-failed-elsewhere',
+        });
+      });
+
+      it('keeps looking past a flipped test the leak run passes and counts the next one it fails', async () => {
+        const { check, verdict } = await outcomeOf(
+          behaviourOf(CROSS_USER, [3], [], [2, 3])
+        );
+        expect(verdict).toMatchObject({
+          caught: true,
+          test: { number: 3, description: ANON_NONE },
+        });
+        expect(check.notes).not.toContain(`"${B_BLOCKED}"`);
+      });
+
+      it('does not count a test the owner-only twin skipped as a pass', async () => {
+        const { check, verdict } = await outcomeOf({
+          clean: { stdout: `1..1\nok 1 - ${B_BLOCKED}\n` },
+          mutated: tapOf(MARKER, `1..1\nnot ok 1 - ${B_BLOCKED}\n`),
+          ownerOnly: tapOf(
+            OWNER_ONLY_TWIN_MARKER,
+            '1..1\nok 1 # SKIP no notes\n'
+          ),
+          openReads: tapOf(
+            OPEN_READS_TWIN_MARKER,
+            `1..1\nnot ok 1 - ${B_BLOCKED}\n`
+          ),
+        });
+        expect(verdict).toEqual({
+          caught: false,
+          reason: 'leak-failed-elsewhere',
+          changed: { wholeFile: true },
+        });
+        expect(check.notes).toContain(
+          "the file's overall result changed between the identical-policy runs"
         );
       });
 
@@ -1814,7 +2000,7 @@ describe('runSuite', () => {
           });
           expect(check.passed).toBe(true);
           expect(check.notes).toContain(
-            'test 3 "a can see note: b-note-1 (owner_id is b\'s)" failed only once every signed-in user could read notes (it did not run when only owners could), under identical policies'
+            `test 3 "a can see note: b-note-1 (owner_id is b's)" failed ${FAILED_AFTER_LEAK}, and did not run when only owners could, under identical policies`
           );
         });
 
@@ -1827,7 +2013,7 @@ describe('runSuite', () => {
           });
           expect(check.passed).toBe(true);
           expect(check.notes).toContain(
-            'test 3 "a can see note: b-note-1 (owner_id is b\'s)" failed only once every signed-in user could read notes'
+            `test 3 "a can see note: b-note-1 (owner_id is b's)" failed ${FAILED_AFTER_LEAK}, and did not run when only owners could`
           );
         });
 
@@ -1852,7 +2038,7 @@ describe('runSuite', () => {
           });
           expect(check.passed).toBe(true);
           expect(check.notes).toContain(
-            'it passed outright when only owners could read notes and failed once every signed-in user could, under identical policies'
+            `it failed its plan ${FAILED_AFTER_LEAK}, and passed outright when only owners could, under identical policies`
           );
         });
 
@@ -1899,7 +2085,7 @@ describe('runSuite', () => {
           });
           expect(check.passed).toBe(true);
           expect(check.notes).toContain(
-            `test 3 "${B_NOTE}" failed only once every signed-in user could read notes`
+            `test 3 "${B_NOTE}" failed ${FAILED_AFTER_LEAK}, and did not run when only owners could`
           );
         });
 
@@ -1917,6 +2103,288 @@ describe('runSuite', () => {
           });
           expect(check.passed).toBe(false);
           expect(check.notes).toBe(SAME_UNDER_TWINS);
+        });
+      });
+    });
+
+    describe('when the leak run fails on a different assertion than the one that flips between the twins', () => {
+      const NOT_OPEN = 'no policy on public.notes has qual true';
+      const POLICY_NAME =
+        'the select policy is named Users can view their own notes';
+      const A_ONE = 'a sees one note';
+      const A_NOTE = 'a sees a note';
+      const ROWS_ERROR =
+        'more than one row returned by a subquery used as an expression';
+
+      const CHANGED = (what: string) =>
+        `${A}: ${what} changed between the identical-policy runs, but it did not fail the same way with the seeded policies put back (it passed, was skipped, or the run stopped somewhere else), so the file failed under the leak on a different assertion, such as one about how the policies are written`;
+
+      const errored = (
+        marker: string,
+        tap: string,
+        line: number,
+        file: string
+      ): Run => ({
+        ...tapOf(marker, tap, 3),
+        stderr: `psql:${file}:${line}: ERROR:  ${ROWS_ERROR}`,
+      });
+
+      const twoTests = (first: string, second: string) =>
+        `1..2\n${first}\n${second}\n`;
+
+      it('does not count a leak run that fails a policy-shape test and skips the cross-user test', async () => {
+        const { check, verdict } = await outcomeOf({
+          clean: {
+            stdout: twoTests(`ok 1 - ${NOT_OPEN}`, `ok 2 - ${A_ONE}`),
+          },
+          mutated: tapOf(
+            MARKER,
+            twoTests(
+              `not ok 1 - ${NOT_OPEN}`,
+              'ok 2 # skip an open policy exists'
+            )
+          ),
+          ownerOnly: tapOf(
+            OWNER_ONLY_TWIN_MARKER,
+            twoTests(`ok 1 - ${NOT_OPEN}`, `ok 2 - ${A_ONE}`)
+          ),
+          openReads: tapOf(
+            OPEN_READS_TWIN_MARKER,
+            twoTests(`ok 1 - ${NOT_OPEN}`, `not ok 2 - ${A_ONE}`)
+          ),
+        });
+        expect(check.passed).toBe(false);
+        expect(check.notes).toBe(CHANGED(`test 2 "${A_ONE}"`));
+        expect(verdict).toEqual({
+          caught: false,
+          reason: 'leak-failed-elsewhere',
+          changed: { number: 2, description: A_ONE },
+        });
+      });
+
+      it('does not count a leak run that errors on a policy-shape test before the cross-user test', async () => {
+        const { check, verdict } = await outcomeOf({
+          clean: {
+            stdout: twoTests(`ok 1 - ${POLICY_NAME}`, `ok 2 - ${A_ONE}`),
+          },
+          mutated: errored(MARKER, '1..2\n', 3, 'skip_error_test.sql'),
+          ownerOnly: tapOf(
+            OWNER_ONLY_TWIN_MARKER,
+            twoTests(`not ok 1 - ${POLICY_NAME}`, `ok 2 - ${A_ONE}`)
+          ),
+          openReads: tapOf(
+            OPEN_READS_TWIN_MARKER,
+            twoTests(`not ok 1 - ${POLICY_NAME}`, `not ok 2 - ${A_ONE}`)
+          ),
+        });
+        expect(check.passed).toBe(false);
+        expect(check.notes).toBe(CHANGED(`test 2 "${A_ONE}"`));
+        expect(verdict).toMatchObject({
+          reason: 'leak-failed-elsewhere',
+          changed: { number: 2 },
+        });
+      });
+
+      it('does not count a leak run that fails a policy-shape test and skips a test while only the open-reads run overruns the plan', async () => {
+        const visible = (count: number) =>
+          Array.from(
+            { length: count },
+            (_, i) => `ok ${i + 2} - visible: note-${i + 1}`
+          );
+        const { check, verdict } = await outcomeOf({
+          clean: {
+            stdout: `1..2\nok 1 - ${NOT_OPEN}\n${visible(1).join('\n')}\n`,
+          },
+          mutated: tapOf(
+            MARKER,
+            twoTests(
+              `not ok 1 - ${NOT_OPEN}`,
+              'ok 2 # skip an open policy exists'
+            )
+          ),
+          ownerOnly: tapOf(
+            OWNER_ONLY_TWIN_MARKER,
+            `1..2\nok 1 - ${NOT_OPEN}\n${visible(1).join('\n')}\n`
+          ),
+          openReads: tapOf(
+            OPEN_READS_TWIN_MARKER,
+            `1..2\nok 1 - ${NOT_OPEN}\n${visible(2).join('\n')}\n`
+          ),
+        });
+        expect(check.passed).toBe(false);
+        expect(check.notes).toBe(CHANGED("the file's overall result"));
+        expect(verdict).toEqual({
+          caught: false,
+          reason: 'leak-failed-elsewhere',
+          changed: { wholeFile: true },
+        });
+      });
+
+      it('does not count a file whose leak and open-reads runs stop at different statements', async () => {
+        const cleanTap = twoTests(`ok 1 - ${A_NOTE}`, `ok 2 - ${A_ONE}`);
+        const { check, verdict } = await outcomeOf({
+          clean: { stdout: cleanTap },
+          mutated: errored(MARKER, '1..2\n', 12, 'honest_error_test.sql'),
+          ownerOnly: tapOf(OWNER_ONLY_TWIN_MARKER, cleanTap),
+          openReads: errored(
+            OPEN_READS_TWIN_MARKER,
+            '1..2\n',
+            14,
+            'honest_error_test.sql'
+          ),
+        });
+        expect(check.passed).toBe(false);
+        expect(check.notes).toBe(CHANGED(`test 1 "${A_NOTE}"`));
+        expect(verdict).toMatchObject({ reason: 'leak-failed-elsewhere' });
+      });
+
+      it('does not count a failure only under open reads that the leak run passes', async () => {
+        const { check, verdict } = await outcomeOf({
+          clean: { stdout: '1..1\nok 1 - set\n' },
+          mutated: tapOf(
+            MARKER,
+            twoTests('not ok 1 - set', 'ok 2 - extra row')
+          ),
+          ownerOnly: tapOf(OWNER_ONLY_TWIN_MARKER, '1..1\nok 1 - set\n'),
+          openReads: tapOf(
+            OPEN_READS_TWIN_MARKER,
+            twoTests('ok 1 - set', 'not ok 2 - extra row')
+          ),
+        });
+        expect(check.passed).toBe(false);
+        expect(check.notes).toBe(CHANGED('test 2 "extra row"'));
+        expect(verdict).toMatchObject({ reason: 'leak-failed-elsewhere' });
+      });
+
+      it('counts a file whose leak and open-reads runs stop at the same statement after every test ran', async () => {
+        const full = twoTests('ok 1 - a', 'ok 2 - b');
+        const { check, verdict } = await outcomeOf({
+          clean: { stdout: full },
+          mutated: errored(MARKER, full, 20, 'honest_error_test.sql'),
+          ownerOnly: tapOf(OWNER_ONLY_TWIN_MARKER, full),
+          openReads: errored(
+            OPEN_READS_TWIN_MARKER,
+            full,
+            20,
+            'honest_error_test.sql'
+          ),
+        });
+        expect(verdict).toEqual({
+          caught: true,
+          passedOutright: true,
+          exited: { stoppedAt: 'honest_error_test.sql:20' },
+        });
+        expect(check.notes).toContain(
+          `it stopped at honest_error_test.sql:20 ${FAILED_AFTER_LEAK}, and passed outright when only owners could, under identical policies`
+        );
+      });
+
+      it('does not count a file that stops at different statements after every test ran', async () => {
+        const full = twoTests('ok 1 - a', 'ok 2 - b');
+        const { verdict } = await outcomeOf({
+          clean: { stdout: full },
+          mutated: errored(MARKER, full, 20, 'honest_error_test.sql'),
+          ownerOnly: tapOf(OWNER_ONLY_TWIN_MARKER, full),
+          openReads: errored(
+            OPEN_READS_TWIN_MARKER,
+            full,
+            22,
+            'honest_error_test.sql'
+          ),
+        });
+        expect(verdict).toEqual({
+          caught: false,
+          reason: 'leak-failed-elsewhere',
+          changed: { wholeFile: true },
+        });
+      });
+
+      describe('the honest shapes', () => {
+        it('counts a leak and open-reads run that error on the same cross-user test', async () => {
+          const cleanTap = twoTests(`ok 1 - ${A_NOTE}`, `ok 2 - ${A_ONE}`);
+          const { check, verdict } = await outcomeOf({
+            clean: { stdout: cleanTap },
+            mutated: errored(MARKER, '1..2\n', 12, 'honest_error_test.sql'),
+            ownerOnly: tapOf(OWNER_ONLY_TWIN_MARKER, cleanTap),
+            openReads: errored(
+              OPEN_READS_TWIN_MARKER,
+              '1..2\n',
+              12,
+              'honest_error_test.sql'
+            ),
+          });
+          expect(verdict).toEqual({
+            caught: true,
+            test: {
+              number: 1,
+              description: A_NOTE,
+              ranUnderOpenReads: false,
+              stoppedAt: 'honest_error_test.sql:12',
+            },
+          });
+          expect(check.passed).toBe(true);
+          expect(check.notes).toContain(
+            `test 1 "${A_NOTE}" did not run with the seeded policies put back or once every signed-in user could read notes (both stopped at honest_error_test.sql:12), and passed when only owners could, under identical policies`
+          );
+        });
+
+        it('counts a per-row no_plan file through the extra not ok', async () => {
+          const rows = (count: number) =>
+            noPlan(
+              Array.from({ length: count }, (_, i) =>
+                i < 1
+                  ? `ok ${i + 1} - a can see n${i + 1}`
+                  : `not ok ${i + 1} - a can see n${i + 1}`
+              )
+            );
+          const { check, verdict } = await outcomeOf({
+            clean: { stdout: rows(1) },
+            mutated: tapOf(MARKER, rows(2)),
+            ownerOnly: tapOf(OWNER_ONLY_TWIN_MARKER, rows(1)),
+            openReads: tapOf(OPEN_READS_TWIN_MARKER, rows(2)),
+          });
+          expect(verdict).toEqual({
+            caught: true,
+            test: {
+              number: 2,
+              description: 'a can see n2',
+              ranUnderOpenReads: true,
+              openReadsOnly: true,
+            },
+          });
+          expect(check.passed).toBe(true);
+        });
+
+        it('counts a plan(1) file whose leak and open-reads runs overrun the plan', async () => {
+          const plan1 = (rows: number) =>
+            `1..1\n${Array.from({ length: rows }, (_, i) => `ok ${i + 1} - visible: n${i + 1}`).join('\n')}\n`;
+          const { verdict } = await outcomeOf({
+            clean: { stdout: plan1(1) },
+            mutated: tapOf(MARKER, plan1(2)),
+            ownerOnly: tapOf(OWNER_ONLY_TWIN_MARKER, plan1(1)),
+            openReads: tapOf(OPEN_READS_TWIN_MARKER, plan1(2)),
+          });
+          expect(verdict).toEqual({
+            caught: true,
+            passedOutright: true,
+            failedPlan: true,
+          });
+        });
+
+        it('counts the shape every real catch has: the leak run equals the open-reads run and owner-only flips test 3', async () => {
+          const descriptions = Array.from(
+            { length: 16 },
+            (_, i) => `test ${i + 1}`
+          );
+          const failingUnderLeak = [2, 3, 4, 13, 14];
+          const { check, verdict } = await outcomeOf(
+            behaviourOf(descriptions, failingUnderLeak, [2], failingUnderLeak)
+          );
+          expect(verdict).toMatchObject({
+            caught: true,
+            test: { number: 3, description: 'test 3', ranUnderOpenReads: true },
+          });
+          expect(check.passed).toBe(true);
         });
       });
     });
@@ -2090,6 +2558,7 @@ describe('check helpers', () => {
       planned?: number | null;
       exitCode?: number | null;
       detail?: string;
+      stoppedAt?: string;
     } = {}
   ): TestFileRun => {
     const descriptions = options.descriptions ?? DESCRIPTIONS;
@@ -2105,6 +2574,9 @@ describe('check helpers', () => {
       exitCode,
       tap,
       detail: options.detail ?? 'psql exit 0',
+      ...(options.stoppedAt === undefined
+        ? {}
+        : { stoppedAt: options.stoppedAt }),
     };
   };
 
@@ -2240,7 +2712,7 @@ describe('check helpers', () => {
       });
       expect(check.notes).toContain(A);
       expect(check.notes).toContain(
-        `test 2 "${D2}" passed when only owners could read notes and failed once every signed-in user could, under identical policies`
+        `test 2 "${D2}" failed with the seeded policies put back and once every signed-in user could read notes, and passed when only owners could, under identical policies`
       );
     });
 
@@ -2387,11 +2859,12 @@ describe('check helpers', () => {
       expect(check.passed).toBe(true);
       expect(check.notes).toContain(A);
       expect(check.notes).toContain(
-        'it passed outright when only owners could read notes and failed once every signed-in user could, under identical policies'
+        'it failed its plan with the seeded policies put back and once every signed-in user could read notes, and passed outright when only owners could, under identical policies'
       );
       expect(catchVerdict(attempt)).toEqual({
         caught: true,
         passedOutright: true,
+        failedPlan: true,
       });
     });
 
@@ -2506,28 +2979,76 @@ describe('check helpers', () => {
       expect(check.notes).not.toContain('"policy set"');
     });
 
-    it('names a test the open-reads run never reached as one that did not run', () => {
+    it('names a test neither the leak run nor the open-reads run reached as one that did not run', () => {
+      const stopped = { descriptions: [D1], planned: 3, exitCode: 3 };
       const attempt = {
         file: A,
-        mutated: mutated(A, { failing: [2] }),
+        mutated: mutated(A, stopped),
         ownerOnly: mutated(A),
-        openReads: mutated(A, {
-          descriptions: [D1],
-          planned: 3,
-          exitCode: 3,
-        }),
+        openReads: mutated(A, stopped),
       };
       const check = checkTestsCatchSeededPolicies(
         suite({ files: [A], clean: [run(A)], catches: [attempt] })
       );
       expect(check.passed).toBe(true);
       expect(check.notes).toContain(
-        `test 2 "${D2}" passed when only owners could read notes and did not run once every signed-in user could, under identical policies`
+        `test 2 "${D2}" did not run with the seeded policies put back or once every signed-in user could read notes (both ended early), and passed when only owners could, under identical policies`
       );
       expect(catchVerdict(attempt)).toMatchObject({
         caught: true,
         test: { number: 2, ranUnderOpenReads: false },
       });
+    });
+
+    it('names where both runs stopped when they stopped at the same statement', () => {
+      const stopped = {
+        descriptions: [D1],
+        planned: 3,
+        exitCode: 3,
+        stoppedAt: 'a_test.sql:14',
+      };
+      const check = checkTestsCatchSeededPolicies(
+        suite({
+          files: [A],
+          clean: [run(A)],
+          catches: [
+            {
+              file: A,
+              mutated: mutated(A, stopped),
+              ownerOnly: mutated(A),
+              openReads: mutated(A, stopped),
+            },
+          ],
+        })
+      );
+      expect(check.passed).toBe(true);
+      expect(check.notes).toContain('(both stopped at a_test.sql:14)');
+    });
+
+    it('does not count a test the open-reads run never reached when the leak run stopped at another statement', () => {
+      const attempt = {
+        file: A,
+        mutated: mutated(A, {
+          descriptions: [D1],
+          planned: 3,
+          exitCode: 3,
+          stoppedAt: 'a_test.sql:9',
+        }),
+        ownerOnly: mutated(A),
+        openReads: mutated(A, {
+          descriptions: [D1],
+          planned: 3,
+          exitCode: 3,
+          stoppedAt: 'a_test.sql:14',
+        }),
+      };
+      const check = checkTestsCatchSeededPolicies(
+        suite({ files: [A], clean: [run(A)], catches: [attempt] })
+      );
+      expect(check.passed).toBe(false);
+      expect(check.notes).toBe(
+        `${A}: test 2 "${D2}" changed between the identical-policy runs, but it did not fail the same way with the seeded policies put back (it passed, was skipped, or the run stopped somewhere else), so the file failed under the leak on a different assertion, such as one about how the policies are written`
+      );
     });
 
     it('marks a failure that exists only under open reads', () => {
@@ -2551,7 +3072,7 @@ describe('check helpers', () => {
           suite({ files: [A], clean: [run(A)], catches: [attempt] })
         ).notes
       ).toContain(
-        'test 2 "extra row" failed only once every signed-in user could read notes (it did not run when only owners could), under identical policies'
+        'test 2 "extra row" failed with the seeded policies put back and once every signed-in user could read notes, and did not run when only owners could, under identical policies'
       );
     });
 

@@ -1135,6 +1135,18 @@ describe('known-bad runs', () => {
       [TEST_DB],
     ],
     [
+      'ran supabase test db with a same-call pg_prove fallback',
+      [
+        ...SETUP.slice(0, 4),
+        call(
+          'supabase test db || pg_prove -d "$DATABASE_URL" supabase/tests',
+          `${DOCKER_ERROR}\n${TEST_DB_PASS}`
+        ),
+      ],
+      {},
+      [TEST_DB],
+    ],
+    [
       'only mentioned supabase test db in a heredoc',
       [
         ...SETUP.slice(0, 4),

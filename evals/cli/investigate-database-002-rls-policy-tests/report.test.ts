@@ -105,7 +105,7 @@ const caught = (file: string) => ({
 });
 
 const FLIPPED =
-  'test 1 "passing 1" passed when only owners could read notes and failed once every signed-in user could, under identical policies';
+  'test 1 "passing 1" failed with the seeded policies put back and once every signed-in user could read notes, and passed when only owners could, under identical policies';
 
 const SUITE: SuiteProbe = {
   ok: true,
@@ -637,6 +637,51 @@ describe('describeGroundTruth', () => {
       );
     });
 
+    it('says a file whose leak run failed on a different assertion than the one that changed between the twins did not catch the policies', () => {
+      const result = (ok: boolean, number: number, description: string) => ({
+        ok,
+        number,
+        description,
+        todo: false,
+      });
+      const withResults = (
+        run: TestFileRun,
+        results: TestFileRun['tap']['results']
+      ): TestFileRun => ({
+        ...run,
+        exitCode: 0,
+        tap: { planned: 2, plans: 1, results },
+      });
+      const underLeak = withResults(failedRun(A), [
+        result(false, 1, 'no policy has qual true'),
+        { ...result(true, 2, ''), skip: true },
+      ]);
+      const underOwnerOnly = withResults(passedRun(A), [
+        result(true, 1, 'no policy has qual true'),
+        result(true, 2, 'a sees one note'),
+      ]);
+      const underOpenReads = withResults(failedRun(A), [
+        result(true, 1, 'no policy has qual true'),
+        result(false, 2, 'a sees one note'),
+      ]);
+      const suite: SuiteProbe = {
+        ok: true,
+        files: [A],
+        clean: [passedRun(A)],
+        catches: [
+          {
+            file: A,
+            mutated: { ...underLeak, mutationApplied: true },
+            ownerOnly: { ...underOwnerOnly, mutationApplied: true },
+            openReads: { ...underOpenReads, mutationApplied: true },
+          },
+        ],
+      };
+      expect(line(lines({ suite }), fileLine(A))).toBe(
+        `${fileLine(A)}: harness run passed (3 tests); did not catch the seeded policies (test 2 "a sees one note" changed between the identical-policy runs, but it did not fail the same way with the seeded policies put back (it passed, was skipped, or the run stopped somewhere else), so the file failed under the leak on a different assertion, such as one about how the policies are written)`
+      );
+    });
+
     it('does not credit a file that passes in both twins and fails only under the seeded policies', () => {
       const suite: SuiteProbe = {
         ok: true,
@@ -679,7 +724,7 @@ describe('describeGroundTruth', () => {
         ],
       };
       expect(line(lines({ suite }), fileLine(A))).toBe(
-        `${fileLine(A)}: harness run passed (3 tests); caught the seeded policies (it passed outright when only owners could read notes and failed once every signed-in user could, under identical policies)`
+        `${fileLine(A)}: harness run passed (3 tests); caught the seeded policies (it failed its plan and exited non-zero with the seeded policies put back and once every signed-in user could read notes, and passed outright when only owners could, under identical policies)`
       );
     });
 
@@ -721,7 +766,7 @@ describe('describeGroundTruth', () => {
         ],
       };
       expect(line(lines({ suite }), fileLine(A))).toBe(
-        `${fileLine(A)}: harness run passed (3 tests); caught the seeded policies (test 3 "b note" failed only once every signed-in user could read notes (it did not run when only owners could), under identical policies)`
+        `${fileLine(A)}: harness run passed (3 tests); caught the seeded policies (test 3 "b note" failed with the seeded policies put back and once every signed-in user could read notes, and did not run when only owners could, under identical policies)`
       );
     });
 
@@ -842,6 +887,14 @@ describe('describeGroundTruth', () => {
     it('says a run printed no pg_prove summary', () => {
       expect(runsLine([{ commandIndex: 2, summary: null }])).toBe(
         `${TEST_DB_LINE}: 1: no pg_prove summary`
+      );
+    });
+
+    it('says a run also ran pg_prove by hand in the same call', () => {
+      expect(
+        runsLine([{ commandIndex: 2, summary: null, withPgProve: true }])
+      ).toBe(
+        `${TEST_DB_LINE}: 1: also ran pg_prove by hand in the same call, so the summary can't be credited to supabase test db`
       );
     });
 

@@ -18,7 +18,7 @@ import { readCliVersions, safely } from '../lib/metrics.js';
 import { urlPort, type StackProbe } from '../lib/stack.js';
 import type { PolicyMigrationsProbe } from './migrations.js';
 import { isCatch, type SuiteProbe } from './pgtap.js';
-import type { TestDbRun } from './test-db-runs.js';
+import { runsPgProve, type TestDbRun } from './test-db-runs.js';
 
 type ExecContext = Pick<LocalStackEvalContext, 'exec'>;
 
@@ -39,11 +39,7 @@ export function countDirectPolicyDdl(commands: readonly string[]): number {
 
 /** Commands that ran `pg_prove` by hand. A regex diagnostic. */
 export function countPgProveDirect(commands: readonly string[]): number {
-  return commands.filter((command) =>
-    unmaskedCommandSegments(command).some(
-      (segment) => leadingWord(segment) === 'pg_prove'
-    )
-  ).length;
+  return commands.filter(runsPgProve).length;
 }
 
 export type StackLifecycle = {

@@ -28,6 +28,7 @@ export type TapEntry = {
   number: number | null;
   description: string;
   todo: boolean;
+  skip?: true;
 };
 export type TapResult = {
   planned: number | null;
@@ -40,6 +41,7 @@ export type TestFileRun = {
   exitCode: number | null;
   tap: TapResult;
   detail: string;
+  stoppedAt?: string;
 };
 export type MutatedRun = TestFileRun & { mutationApplied: boolean };
 export type CatchRun = {
@@ -56,17 +58,36 @@ export type FlippedTest = {
   description: string;
   ranUnderOpenReads: boolean;
   openReadsOnly?: true;
+  stoppedAt?: string;
 };
+export type TwinDifference =
+  | { number: number; description: string }
+  | { wholeFile: true };
 export type NotCaughtReason =
   | 'unrestored'
   | 'leak-not-applied'
   | 'leak-passed'
   | 'twins-not-applied'
-  | 'same-under-twins';
+  | 'same-under-twins'
+  | 'leak-failed-elsewhere';
 export type CatchVerdict =
   | { caught: true; test: FlippedTest }
-  | { caught: true; passedOutright: true }
-  | { caught: false; reason: NotCaughtReason; twins?: Twin[] };
+  | {
+      caught: true;
+      passedOutright: true;
+      failedPlan?: true;
+      exited?: { stoppedAt?: string };
+    }
+  | {
+      caught: false;
+      reason: Exclude<NotCaughtReason, 'leak-failed-elsewhere'>;
+      twins?: Twin[];
+    }
+  | {
+      caught: false;
+      reason: 'leak-failed-elsewhere';
+      changed: TwinDifference;
+    };
 export type TestFilesProbe =
   | { ok: true; files: string[] }
   | { ok: false; notes: string };
@@ -102,11 +123,12 @@ export const TWIN_NOTES_POLICIES: readonly string[] = [
 
 const PLAN_RE = /^1\.\.(\d+)(?:\s+#.*)?$/;
 const RESULT_RE = /^(not )?ok\b(?:\s+(\d+))?\s*(?:-\s*)?(.*)$/;
-const DIRECTIVE_RE = /\s+#\s*(todo|skip)\b.*$/i;
+const DIRECTIVE_RE = /(?:^|\s+)#\s*(todo|skip)\b.*$/i;
+const STOPPED_AT_RE = /^psql:(.+?):(\d+): ERROR:/m;
 const NO_SUCH_DIRECTORY_RE = /No such file or directory/i;
 const TEST_FILE_RE = /\.(?:sql|pg)$/;
 
-/** Reads the TAP lines of a pgTAP run the way `pg_prove` does: plan lines, `ok`/`not ok` results and their TODO directives. */
+/** Reads the TAP lines of a pgTAP run the way `pg_prove` does: plan lines, `ok`/`not ok` results and their TODO and SKIP directives. */
 export function parseTap(output: string): TapResult {
   let planned: number | null = null;
   let plans = 0;
@@ -121,12 +143,13 @@ export function parseTap(output: string): TapResult {
     }
     const result = RESULT_RE.exec(line);
     if (result === null) continue;
-    const directive = DIRECTIVE_RE.exec(result[3]);
+    const directive = DIRECTIVE_RE.exec(result[3])?.[1].toLowerCase();
     results.push({
       ok: result[1] === undefined,
       number: result[2] === undefined ? null : Number(result[2]),
       description: result[3].replace(DIRECTIVE_RE, '').trim(),
-      todo: directive?.[1].toLowerCase() === 'todo',
+      todo: directive === 'todo',
+      ...(directive === 'skip' ? { skip: true } : {}),
     });
   }
   return { planned, plans, results };
@@ -270,12 +293,14 @@ export const withMarkerRemoved = (stdout: string, marker: string) =>
 
 function toRun(file: string, result: CommandResult): TestFileRun {
   const tap = parseTap(result.stdout);
+  const stop = STOPPED_AT_RE.exec(result.stderr);
   return {
     file,
     passed: tapPassed(result.exitCode, tap),
     exitCode: result.exitCode,
     tap,
     detail: describeExit(result),
+    ...(stop === null ? {} : { stoppedAt: `${stop[1]}:${stop[2]}` }),
   };
 }
 
@@ -480,45 +505,114 @@ function numberedResults(tap: TapResult): Map<number, TapEntry> {
   return byNumber;
 }
 
-const isFailure = (entry: TapEntry) => !entry.ok && !entry.todo;
+type Status = 'pass' | 'fail' | 'absent' | 'other';
+
+function statusOf(entry: TapEntry | undefined): Status {
+  if (entry === undefined) return 'absent';
+  if (entry.ok && !entry.todo && !entry.skip) return 'pass';
+  if (!entry.ok && !entry.todo) return 'fail';
+  return 'other';
+}
+
+const hasPlanProblem = ({ plans, planned, results }: TapResult) =>
+  plans !== 1 || planned !== results.length;
+
+type LeakFlip =
+  | { caught: Extract<CatchVerdict, { caught: true }> }
+  | { changed?: TwinDifference };
 
 /**
- * The first top-level, non-TODO test that passed when only owners could read notes and failed, or never ran, once every signed-in user could; failing that, the first failure under open reads whose number the owner-only twin lacks.
- * The twins hold identical policies, so a difference between them comes from which notes the test could read.
+ * A twin difference the seeded-leak run shares with the open-reads twin, as a test (passed under owner-only reads, failed or never ran under open reads) or as the whole file (passed outright under owner-only reads, failed its plan or stopped under open reads).
+ * The twins hold identical policies, so a difference between them comes from which notes the test could read; the first one the leak run does not share comes back as `changed`.
  */
-function twinFlip(
+function leakFlip(
+  leak: TestFileRun,
   ownerOnly: TestFileRun,
   openReads: TestFileRun
-): FlippedTest | undefined {
+): LeakFlip {
+  const underLeak = numberedResults(leak.tap);
   const underOwners = numberedResults(ownerOnly.tap);
   const underOpen = numberedResults(openReads.tap);
+  const stoppedTogether = leak.stoppedAt === openReads.stoppedAt;
+  let changed: TwinDifference | undefined;
+
   for (const [number, entry] of underOwners) {
-    const open = underOpen.get(number);
-    if (entry.ok && !entry.todo && (open === undefined || isFailure(open))) {
-      return {
-        number,
-        description: entry.description,
-        ranUnderOpenReads: open !== undefined,
-      };
+    const openStatus = statusOf(underOpen.get(number));
+    if (
+      statusOf(entry) !== 'pass' ||
+      (openStatus !== 'fail' && openStatus !== 'absent')
+    ) {
+      continue;
     }
+    const leakStatus = statusOf(underLeak.get(number));
+    const sameWay =
+      openStatus === 'fail'
+        ? leakStatus === 'fail'
+        : leakStatus === 'absent' && stoppedTogether;
+    if (!sameWay) {
+      changed ??= { number, description: entry.description };
+      continue;
+    }
+    return {
+      caught: {
+        caught: true,
+        test: {
+          number,
+          description: entry.description,
+          ranUnderOpenReads: openStatus === 'fail',
+          ...(openStatus === 'absent' && leak.stoppedAt !== undefined
+            ? { stoppedAt: leak.stoppedAt }
+            : {}),
+        },
+      },
+    };
   }
+
   for (const [number, entry] of underOpen) {
-    if (isFailure(entry) && !underOwners.has(number)) {
+    if (statusOf(entry) !== 'fail' || underOwners.has(number)) continue;
+    if (statusOf(underLeak.get(number)) !== 'fail') {
+      changed ??= { number, description: entry.description };
+      continue;
+    }
+    return {
+      caught: {
+        caught: true,
+        test: {
+          number,
+          description: entry.description,
+          ranUnderOpenReads: true,
+          openReadsOnly: true,
+        },
+      },
+    };
+  }
+
+  if (ownerOnly.passed && !openReads.passed) {
+    const planProblem = hasPlanProblem(openReads.tap);
+    const exitProblem = openReads.exitCode !== 0;
+    const sharedPlan = !planProblem || hasPlanProblem(leak.tap);
+    const sharedExit = !exitProblem || (leak.exitCode !== 0 && stoppedTogether);
+    if ((planProblem || exitProblem) && sharedPlan && sharedExit) {
+      const stopped =
+        leak.stoppedAt === undefined ? {} : { stoppedAt: leak.stoppedAt };
       return {
-        number,
-        description: entry.description,
-        ranUnderOpenReads: true,
-        openReadsOnly: true,
+        caught: {
+          caught: true,
+          passedOutright: true,
+          ...(planProblem ? { failedPlan: true } : {}),
+          ...(exitProblem ? { exited: stopped } : {}),
+        },
       };
     }
+    changed ??= { wholeFile: true };
   }
-  return undefined;
+  return { changed };
 }
 
 const appliedRun = (run: MutatedRun | null): run is MutatedRun =>
   run !== null && run.mutationApplied;
 
-/** Whether the tests catch the seeded policies, or why not: the leak run failed, and the results differ between the twins in the owner-only twin's favour, by a test or by the whole file. */
+/** Whether the tests catch the seeded policies, or why not: the leak run fails the same way as the open-reads twin where the owner-only twin passes, by a test or by the whole file. */
 export function catchVerdict({
   mutated,
   ownerOnly,
@@ -542,12 +636,15 @@ export function catchVerdict({
       ],
     };
   }
-  const test = twinFlip(ownerOnly, openReads);
-  if (test !== undefined) return { caught: true, test };
-  if (ownerOnly.passed && !openReads.passed) {
-    return { caught: true, passedOutright: true };
-  }
-  return { caught: false, reason: 'same-under-twins' };
+  const flip = leakFlip(mutated, ownerOnly, openReads);
+  if ('caught' in flip) return flip.caught;
+  return flip.changed === undefined
+    ? { caught: false, reason: 'same-under-twins' }
+    : {
+        caught: false,
+        reason: 'leak-failed-elsewhere',
+        changed: flip.changed,
+      };
 }
 
 export const isCatch = (run: CatchRun) => catchVerdict(run).caught;
@@ -563,24 +660,52 @@ export const describeTwins = (twins: readonly Twin[] = []) =>
 
 const UNDER_IDENTICAL_POLICIES = 'under identical policies';
 
-/** `test 2 "b cannot see a's notes" passed when only owners could read notes and failed once every signed-in user could, under identical policies`. */
+const SEEDED_AND_OPEN =
+  'with the seeded policies put back and once every signed-in user could read notes';
+
+/** `test 2 "b cannot see a's notes" failed with the seeded policies put back and once every signed-in user could read notes, and passed when only owners could, under identical policies`. */
 export const describeFlippedTest = ({
   number,
   description,
   ranUnderOpenReads,
   openReadsOnly,
-}: FlippedTest) =>
-  openReadsOnly
-    ? `test ${number} "${description}" failed only once every signed-in user could read notes (it did not run when only owners could), ${UNDER_IDENTICAL_POLICIES}`
-    : `test ${number} "${description}" passed when only owners could read notes and ${ranUnderOpenReads ? 'failed' : 'did not run'} once every signed-in user could, ${UNDER_IDENTICAL_POLICIES}`;
+  stoppedAt,
+}: FlippedTest) => {
+  const test = `test ${number} "${description}"`;
+  if (openReadsOnly) {
+    return `${test} failed ${SEEDED_AND_OPEN}, and did not run when only owners could, ${UNDER_IDENTICAL_POLICIES}`;
+  }
+  if (ranUnderOpenReads) {
+    return `${test} failed ${SEEDED_AND_OPEN}, and passed when only owners could, ${UNDER_IDENTICAL_POLICIES}`;
+  }
+  const stopped =
+    stoppedAt === undefined
+      ? 'both ended early'
+      : `both stopped at ${stoppedAt}`;
+  return `${test} did not run with the seeded policies put back or once every signed-in user could read notes (${stopped}), and passed when only owners could, ${UNDER_IDENTICAL_POLICIES}`;
+};
 
 /** What made a catch count: the test that flipped between the twins, or the file passing outright only when owners alone could read notes. */
 export const describeCatchBasis = (
   verdict: Extract<CatchVerdict, { caught: true }>
-) =>
-  'test' in verdict
-    ? describeFlippedTest(verdict.test)
-    : `it passed outright when only owners could read notes and failed once every signed-in user could, ${UNDER_IDENTICAL_POLICIES}`;
+) => {
+  if ('test' in verdict) return describeFlippedTest(verdict.test);
+  const how = [
+    ...(verdict.failedPlan ? ['failed its plan'] : []),
+    ...(verdict.exited === undefined
+      ? []
+      : [
+          verdict.exited.stoppedAt === undefined
+            ? 'exited non-zero'
+            : `stopped at ${verdict.exited.stoppedAt}`,
+        ]),
+  ].join(' and ');
+  return `it ${how} ${SEEDED_AND_OPEN}, and passed outright when only owners could, ${UNDER_IDENTICAL_POLICIES}`;
+};
+
+/** What the note says about a file whose twins differ but whose leak run failed on another assertion. */
+export const describeLeakFailedElsewhere = (changed: TwinDifference) =>
+  `${'wholeFile' in changed ? "the file's overall result" : `test ${changed.number} "${changed.description}"`} changed between the identical-policy runs, but it did not fail the same way with the seeded policies put back (it passed, was skipped, or the run stopped somewhere else), so the file failed under the leak on a different assertion, such as one about how the policies are written`;
 
 const firstFailing = (run: TestFileRun) =>
   run.tap.results.find((entry) => !entry.ok && !entry.todo);
@@ -624,10 +749,9 @@ export function checkTestsPass(suite: SuiteProbe): CheckResult {
 
 function describeNotCaught(
   { file, mutated, ownerOnly, openReads, restoreFailure }: CatchRun,
-  reason: NotCaughtReason,
-  twins: readonly Twin[] = []
+  verdict: Extract<CatchVerdict, { caught: false }>
 ): string {
-  switch (reason) {
+  switch (verdict.reason) {
     case 'unrestored':
       return `${file}: ${restoreFailure}, so the run is not counted`;
     case 'leak-not-applied':
@@ -635,6 +759,7 @@ function describeNotCaught(
     case 'leak-passed':
       return `${file}: the tests still passed with the seeded policies put back`;
     case 'twins-not-applied': {
+      const twins = verdict.twins ?? [];
       const details = twins.map(
         (twin) =>
           (twin === 'owner-only' ? ownerOnly : openReads)?.detail ?? 'not run'
@@ -643,6 +768,8 @@ function describeNotCaught(
     }
     case 'same-under-twins':
       return `${file}: failed with the seeded policies put back, but its results did not change when every signed-in user could read notes ${UNDER_IDENTICAL_POLICIES}, so it checks how the policies are written, not who can see which notes`;
+    case 'leak-failed-elsewhere':
+      return `${file}: ${describeLeakFailedElsewhere(verdict.changed)}`;
   }
 }
 
@@ -651,7 +778,7 @@ const describeUnmutated = (files: readonly string[] | undefined) =>
     ? ''
     : `; not run under the seeded policies because they could not be restored: ${files.join(', ')}`;
 
-/** Passes when at least one pgTAP file passes clean, fails once the seeded policies are put back, and has results that change between the twins in the owner-only twin's favour. */
+/** Passes when at least one pgTAP file passes clean, fails once the seeded policies are put back, and fails the same way as the open-reads twin where the owner-only twin passes. */
 export function checkTestsCatchSeededPolicies(suite: SuiteProbe): CheckResult {
   const name = TESTS_CATCH_CHECK_NAME;
   if (!suite.ok) return { name, passed: false, notes: suite.notes };
@@ -679,7 +806,7 @@ export function checkTestsCatchSeededPolicies(suite: SuiteProbe): CheckResult {
         : '';
       caught.push(`${attempt.file}: ${describeCatchBasis(verdict)}${restored}`);
     } else {
-      missed.push(describeNotCaught(attempt, verdict.reason, verdict.twins));
+      missed.push(describeNotCaught(attempt, verdict));
     }
   }
   return caught.length > 0

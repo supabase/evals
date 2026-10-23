@@ -13,6 +13,7 @@ import {
 import {
   catchVerdict,
   describeCatchBasis,
+  describeLeakFailedElsewhere,
   describeTapCounts,
   describeTwins,
   type SuiteProbe,
@@ -148,6 +149,8 @@ function describeCatch(
       return `the identical-policy runs (${describeTwins(verdict.twins)}) could not be applied, so the run is not counted`;
     case 'same-under-twins':
       return 'did not catch the seeded policies (its results did not change when every signed-in user could read notes under identical policies, so it checks how the policies are written, not who can see which notes)';
+    case 'leak-failed-elsewhere':
+      return `did not catch the seeded policies (${describeLeakFailedElsewhere(verdict.changed)})`;
   }
 }
 
@@ -168,9 +171,12 @@ function describeTestFiles(suite: SuiteProbe): string[] {
 
 function describeTestDbRuns(runs: readonly TestDbRun[]): string {
   if (runs.length === 0) return 'none';
-  const results = runs.map(({ summary }) =>
-    summary === null ? 'no pg_prove summary' : describeTestDbSummary(summary)
-  );
+  const results = runs.map(({ summary, withPgProve }) => {
+    if (summary !== null) return describeTestDbSummary(summary);
+    return withPgProve
+      ? "also ran pg_prove by hand in the same call, so the summary can't be credited to supabase test db"
+      : 'no pg_prove summary';
+  });
   return `${runs.length}: ${results.join(', ')}`;
 }
 
