@@ -12,6 +12,7 @@ import {
 import { commandSegments, leadingWord } from '../lib/detours.js';
 import { readCliVersions, safely } from '../lib/metrics.js';
 import { urlPort, type StackProbe } from '../lib/stack.js';
+import { targetsLocalDatabase } from './commands.js';
 import type { ProbeResult } from './probe.js';
 import { diffSeededMigrations, type WorkspaceSql } from './workspace.js';
 
@@ -42,15 +43,17 @@ export async function readCliFacts(
   };
 }
 
-const countRuns = (
+const countLocalRuns = (
   invocations: readonly SupabaseInvocation[],
   verb: string,
-  subcommand: string
+  subcommand: string,
+  stackDbUrl: string | undefined
 ) =>
   invocations.filter(
     (invocation) =>
       invocationVerb(invocation) === verb &&
-      invocationSubcommand(invocation) === subcommand
+      invocationSubcommand(invocation) === subcommand &&
+      targetsLocalDatabase(invocation, stackDbUrl)
   ).length;
 
 const countPsqlCommands = (commands: readonly string[]) =>
@@ -91,7 +94,7 @@ export async function checkMetrics(
   facts: {
     commands: readonly string[];
     invocations: readonly SupabaseInvocation[];
-    counts: { lint: number; advisors: number };
+    counts: { lint: number; advisors: number; remote: number };
     stack: StackProbe;
     cli: CliFacts;
     migrations: WorkspaceSql;
@@ -102,6 +105,7 @@ export async function checkMetrics(
     facts;
   const { versions, cliOverride } = cli;
   const files = await safely(() => migrationFileCounts(migrations));
+  const stackDbUrl = stack.ok ? stack.dbUrl : undefined;
 
   const metrics = {
     cliVersion: versions?.cliVersion ?? null,
@@ -113,11 +117,16 @@ export async function checkMetrics(
     ...stackMetrics(stack),
     lintRuns: counts.lint,
     advisorsRuns: counts.advisors,
-    resetRuns: await safely(() => countRuns(invocations, 'db', 'reset')),
-    migrationUpRuns: await safely(() =>
-      countRuns(invocations, 'migration', 'up')
+    remoteCheckRuns: counts.remote,
+    resetRuns: await safely(() =>
+      countLocalRuns(invocations, 'db', 'reset', stackDbUrl)
     ),
-    dbQueryRuns: await safely(() => countRuns(invocations, 'db', 'query')),
+    migrationUpRuns: await safely(() =>
+      countLocalRuns(invocations, 'migration', 'up', stackDbUrl)
+    ),
+    dbQueryRuns: await safely(() =>
+      countLocalRuns(invocations, 'db', 'query', stackDbUrl)
+    ),
     psqlCommands: await safely(() => countPsqlCommands(commands)),
     newMigrationFiles: files?.newMigrationFiles ?? null,
     seededMigrationsModified: files?.seededMigrationsModified ?? null,

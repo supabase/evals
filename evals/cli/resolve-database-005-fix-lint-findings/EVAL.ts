@@ -56,7 +56,10 @@ const scorer: LocalStackScorer = async (ctx) => {
     );
     const migrations = await readWorkspaceSql(ctx);
     const probe = await probeDatabase(ctx, stack, migrations);
-    const counts = countDatabaseCheckRuns(invocations);
+    const counts = countDatabaseCheckRuns(
+      invocations,
+      stack.ok ? stack.dbUrl : undefined
+    );
     const cli = await readCliFacts(ctx, marker, invocations);
     const history = checkHistory(migrations, probe);
 

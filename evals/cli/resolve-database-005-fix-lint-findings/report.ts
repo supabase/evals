@@ -156,15 +156,20 @@ export function describeGroundTruth(facts: {
   probe: ProbeResult;
   migrations: WorkspaceSql;
   history: CheckResult;
-  counts: { lint: number; advisors: number };
+  counts: { lint: number; advisors: number; remote: number };
   cli: CliFacts;
 }): string[] {
   const { stack, probe, migrations, history, counts, cli } = facts;
   return [
     ...describeCli(cli),
     `- local stack: ${describeStack(stack)}`,
-    `- db lint runs by the agent: ${counts.lint}`,
-    `- db advisors runs by the agent: ${counts.advisors}`,
+    `- db lint runs by the agent against the local database: ${counts.lint}`,
+    `- db advisors runs by the agent against the local database: ${counts.advisors}`,
+    ...(counts.remote > 0
+      ? [
+          `- db lint or db advisors runs against a remote database (not counted above): ${counts.remote}`,
+        ]
+      : []),
     ...describeProbe(probe),
     `- recorded in the local migration history: ${history.passed ? 'yes' : 'no'} (${history.notes})`,
     ...describeMigrationFiles(migrations),

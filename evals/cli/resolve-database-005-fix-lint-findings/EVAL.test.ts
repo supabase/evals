@@ -255,6 +255,9 @@ const PROBED = [LINT, ADVISORS, BEHAVIOUR, HISTORY, REPLAY];
 
 const SCORER_FAILED = 'scorer evaluated resolve-database-005-fix-lint-findings';
 
+const REMOTE_DB_URL =
+  'postgresql://postgres:pw@db.abcdefghijklmnopqrst.supabase.co:5432/postgres';
+
 const SETUP = [
   call('supabase db advisors --local'),
   call('supabase db lint --local'),
@@ -307,6 +310,52 @@ describe('fix-lint-findings scorer', () => {
       expect(await checkNamed(ctx, RAN)).toMatchObject({ passed: true, notes });
     }
   );
+
+  it.each([
+    [
+      'supabase db lint --linked',
+      'db lint ×0, db advisors ×0 (1 remote run not counted)',
+    ],
+    [
+      'supabase db advisors --project-ref abcdefghijklmnopqrst',
+      'db lint ×0, db advisors ×0 (1 remote run not counted)',
+    ],
+    [
+      `supabase db lint --db-url ${REMOTE_DB_URL}`,
+      'db lint ×0, db advisors ×0 (1 remote run not counted)',
+    ],
+    [
+      'supabase db advisors --db-url postgresql://postgres:postgres@127.0.0.1:5432/postgres',
+      'db lint ×0, db advisors ×0 (1 remote run not counted)',
+    ],
+    ['supabase db lint help', 'db lint ×0, db advisors ×0'],
+    ['supabase db advisors help', 'db lint ×0, db advisors ×0'],
+  ])(
+    'fails the run when the only database check was %s',
+    async (command, notes) => {
+      const { ctx } = fakeCtx([call(command), call('supabase migration up')]);
+      expect(await checkNamed(ctx, RAN)).toEqual({
+        name: RAN,
+        passed: false,
+        notes,
+      });
+      expect(await failedNames(ctx)).toEqual([RAN]);
+      expect((await scorer(ctx)).passed).toBe(false);
+    }
+  );
+
+  it('counts a check against the stack database URL and names the remote runs it did not count', async () => {
+    const { ctx } = fakeCtx([
+      call(`supabase db lint --db-url ${DB_URL}`),
+      call('supabase db advisors --local'),
+      call('supabase db lint --linked'),
+    ]);
+    expect(await checkNamed(ctx, RAN)).toEqual({
+      name: RAN,
+      passed: true,
+      notes: 'db lint ×1, db advisors ×1 (1 remote run not counted)',
+    });
+  });
 
   it('fails only the stack check when the database answers the probe but not select 1', async () => {
     const { ctx } = fakeCtx(SETUP, { ready: false });
@@ -564,8 +613,13 @@ describe('report judge', () => {
     const input = reportCall(judge)?.input ?? '';
     expect(input.startsWith('Ground truth observed by the harness')).toBe(true);
     expect(input).toContain('- local stack: resolved: managed/native');
-    expect(input).toContain('- db lint runs by the agent: 1');
-    expect(input).toContain('- db advisors runs by the agent: 1');
+    expect(input).toContain(
+      '- db lint runs by the agent against the local database: 1'
+    );
+    expect(input).toContain(
+      '- db advisors runs by the agent against the local database: 1'
+    );
+    expect(input).not.toContain('against a remote database');
     expect(input).toContain(
       '- live database lint issues: order_total(bigint): error column oi.price does not exist'
     );
@@ -574,6 +628,22 @@ describe('report judge', () => {
       '- recorded in the local migration history: yes (4 files recorded)'
     );
     expect(input).toContain(`- new migration files: ${FIX_FILE}`);
+  });
+
+  it('is told how many database checks ran against a remote database and were not counted', async () => {
+    const { ctx, judge } = fakeCtx([
+      ...SETUP,
+      call('supabase db lint --linked'),
+      call('supabase db advisors --project-ref abcdefghijklmnopqrst'),
+    ]);
+    await scorer(ctx);
+    const input = reportCall(judge)?.input ?? '';
+    expect(input).toContain(
+      '- db lint runs by the agent against the local database: 1'
+    );
+    expect(input).toContain(
+      '- db lint or db advisors runs against a remote database (not counted above): 2'
+    );
   });
 
   it('receives the transcript with tool outputs after the ground truth', async () => {
@@ -634,6 +704,24 @@ describe('metrics check and robustness', () => {
       advisorsRuns: 1,
       liveLintIssues: 0,
       newMigrationFiles: 1,
+    });
+  });
+
+  it('carries the remote check runs apart from the local run counts', async () => {
+    const { ctx } = fakeCtx([
+      call('supabase db lint'),
+      call('supabase db lint --linked'),
+      call('supabase db advisors --project-ref abcdefghijklmnopqrst'),
+      call('supabase db reset --linked'),
+      call('supabase db query --remote "select 1"'),
+    ]);
+    const metrics = await checkNamed(ctx, METRICS);
+    expect(JSON.parse(metrics?.notes ?? '{}')).toMatchObject({
+      lintRuns: 1,
+      advisorsRuns: 0,
+      remoteCheckRuns: 2,
+      resetRuns: 0,
+      dbQueryRuns: 0,
     });
   });
 

@@ -119,7 +119,7 @@ const FACTS: Facts = {
   probe: { ok: true, report: REPORT },
   migrations: { ok: true, migrations: seededFiles() },
   history: { name: HISTORY_CHECK, passed: true, notes: '4 files recorded' },
-  counts: { lint: 7, advisors: 9 },
+  counts: { lint: 7, advisors: 9, remote: 0 },
   cli: { versions: { cliVersion: '2.117.0' }, cliOverride: [] },
 };
 
@@ -187,12 +187,60 @@ describe('describeGroundTruth', () => {
     });
 
     it.each([
-      ['db lint', { lint: 0, advisors: 3 }],
-      ['db advisors', { lint: 3, advisors: 0 }],
+      ['db lint', { lint: 0, advisors: 3, remote: 0 }],
+      ['db advisors', { lint: 3, advisors: 0, remote: 0 }],
     ])('says %s ran zero times when its count is zero', (check, counts) => {
       expect(
         lineMatching(lines({ counts }), new RegExp(`${check}[^\\n]*\\b0\\b`))
       ).not.toBe('');
+    });
+
+    it('states the run counts as runs against the local database', () => {
+      const all = lines();
+      expect(all).toContain(
+        '- db lint runs by the agent against the local database: 7'
+      );
+      expect(all).toContain(
+        '- db advisors runs by the agent against the local database: 9'
+      );
+    });
+
+    it('states a zero run count as a run count against the local database', () => {
+      const all = lines({ counts: { lint: 0, advisors: 0, remote: 5 } });
+      expect(all).toContain(
+        '- db lint runs by the agent against the local database: 0'
+      );
+      expect(all).toContain(
+        '- db advisors runs by the agent against the local database: 0'
+      );
+    });
+
+    it('does not mention a remote database when no check ran against one', () => {
+      expect(text()).not.toMatch(/remote database/i);
+    });
+
+    it('states how many db lint or db advisors runs targeted a remote database and were not counted', () => {
+      const remoteLine =
+        '- db lint or db advisors runs against a remote database (not counted above): 3';
+      const all = lines({ counts: { lint: 7, advisors: 9, remote: 3 } });
+      expect(all).toContain(remoteLine);
+      expect(all).toContain(
+        '- db lint runs by the agent against the local database: 7'
+      );
+      expect(all).toContain(
+        '- db advisors runs by the agent against the local database: 9'
+      );
+      expect(all.indexOf(remoteLine)).toBeGreaterThan(
+        all.indexOf(
+          '- db advisors runs by the agent against the local database: 9'
+        )
+      );
+    });
+
+    it('states a remote run count of one', () => {
+      expect(lines({ counts: { lint: 0, advisors: 0, remote: 1 } })).toContain(
+        '- db lint or db advisors runs against a remote database (not counted above): 1'
+      );
     });
   });
 
@@ -540,6 +588,9 @@ describe('describeGroundTruth', () => {
     it('still states the run counts and the fixed facts', () => {
       const all = lines({ probe });
       expect(lineMatching(all, /db lint[^\n]*\b7\b/)).not.toBe('');
+      expect(all).toContain(
+        '- db lint runs by the agent against the local database: 7'
+      );
       expect(text({ probe })).toContain('graphql_public');
     });
   });

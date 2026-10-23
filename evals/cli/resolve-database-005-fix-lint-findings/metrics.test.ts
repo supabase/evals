@@ -11,6 +11,8 @@ import type { ProbeReport } from './probe.js';
 type Facts = Parameters<typeof checkMetrics>[1];
 
 const DB_URL = 'postgresql://postgres:hunter2@127.0.0.1:54322/postgres';
+const REMOTE_URL =
+  'postgresql://postgres:pw@db.abcdefghijklmnopqrst.supabase.co:5432/postgres';
 
 const MARKER: LocalStackEnvironmentMarker = {
   runtime: 'local-stack',
@@ -70,7 +72,7 @@ const PROBE_REPORT: ProbeReport = {
 const facts = (overrides: Partial<Facts> = {}): Facts => ({
   commands: [],
   invocations: [],
-  counts: { lint: 0, advisors: 0 },
+  counts: { lint: 0, advisors: 0, remote: 0 },
   stack: STACK,
   cli: { versions: { cliVersion: '2.0.0' }, cliOverride: [] },
   migrations: { ok: true, migrations: seededFiles() },
@@ -83,7 +85,7 @@ const ran = (...commands: string[]): Partial<Facts> => {
   return {
     commands,
     invocations,
-    counts: countDatabaseCheckRuns(invocations),
+    counts: countDatabaseCheckRuns(invocations, DB_URL),
   };
 };
 
@@ -161,13 +163,103 @@ describe('checkMetrics', () => {
         migrationUpRuns: 2,
         dbQueryRuns: 1,
         psqlCommands: 3,
+        remoteCheckRuns: 0,
       });
     });
 
     it('reports the database check counts it is given instead of recounting the invocations', async () => {
       expect(
-        await metricsOf({ counts: { lint: 5, advisors: 6 } })
+        await metricsOf({ counts: { lint: 5, advisors: 6, remote: 0 } })
       ).toMatchObject({ lintRuns: 5, advisorsRuns: 6 });
+    });
+
+    it('reports the remote check count it is given instead of recounting the invocations', async () => {
+      expect(
+        await metricsOf({ counts: { lint: 1, advisors: 0, remote: 4 } })
+      ).toMatchObject({ lintRuns: 1, advisorsRuns: 0, remoteCheckRuns: 4 });
+    });
+
+    it('counts db lint and db advisors runs against a remote database only as remote check runs', async () => {
+      expect(
+        await metricsOf(
+          ran(
+            'supabase db lint --linked',
+            'supabase db advisors --linked --type all',
+            'supabase db advisors --project-ref abcdefghijklmnopqrst',
+            `supabase db lint --db-url ${REMOTE_URL}`,
+            'supabase db lint',
+            'supabase db advisors --local'
+          )
+        )
+      ).toMatchObject({ lintRuns: 1, advisorsRuns: 1, remoteCheckRuns: 4 });
+    });
+
+    it.each([
+      ['resetRuns', 'supabase db reset --linked'],
+      ['resetRuns', `supabase db reset --db-url ${REMOTE_URL}`],
+      ['migrationUpRuns', 'supabase migration up --linked'],
+      ['migrationUpRuns', `supabase migration up --db-url ${REMOTE_URL}`],
+      ['dbQueryRuns', 'supabase db query --linked "select 1"'],
+      ['dbQueryRuns', 'supabase db query --remote "select 1"'],
+      ['dbQueryRuns', `supabase db query --db-url ${REMOTE_URL} "select 1"`],
+    ])('does not count %s for %j', async (metric, command) => {
+      expect((await metricsOf(ran(command)))[metric]).toBe(0);
+    });
+
+    it.each([
+      ['resetRuns', 'supabase db reset'],
+      ['resetRuns', 'supabase db reset --local'],
+      ['migrationUpRuns', 'supabase migration up'],
+      ['migrationUpRuns', 'supabase migration up --local'],
+      ['dbQueryRuns', 'supabase db query "select 1"'],
+      ['dbQueryRuns', 'supabase db query --local "select 1"'],
+      ['dbQueryRuns', `supabase db query --db-url ${DB_URL} "select 1"`],
+    ])('counts %s for %j', async (metric, command) => {
+      expect((await metricsOf(ran(command)))[metric]).toBe(1);
+    });
+
+    it('counts only the local runs among local and remote resets, migration ups and db queries', async () => {
+      expect(
+        await metricsOf(
+          ran(
+            'supabase db reset',
+            'supabase db reset --linked',
+            'supabase db reset --local',
+            'supabase migration up',
+            `supabase migration up --db-url ${REMOTE_URL}`,
+            'supabase db query "select 1"',
+            'supabase db query --linked "select 1"',
+            'supabase db query --remote "select 2"'
+          )
+        )
+      ).toMatchObject({ resetRuns: 2, migrationUpRuns: 1, dbQueryRuns: 1 });
+    });
+
+    it('does not count a run against another local Postgres on a port other than the stack database', async () => {
+      const other = 'postgresql://postgres:postgres@127.0.0.1:5432/postgres';
+      expect(
+        await metricsOf(
+          ran(
+            `supabase migration up --db-url ${other}`,
+            `supabase db reset --db-url ${other}`,
+            `supabase db query --db-url ${other} "select 1"`
+          )
+        )
+      ).toMatchObject({ resetRuns: 0, migrationUpRuns: 0, dbQueryRuns: 0 });
+    });
+
+    it('counts a run against a loopback URL on any port when no stack was resolved', async () => {
+      const other = 'postgresql://postgres:postgres@127.0.0.1:5432/postgres';
+      expect(
+        await metricsOf({
+          ...ran(
+            `supabase migration up --db-url ${other}`,
+            `supabase db reset --db-url ${other}`,
+            `supabase db query --db-url ${other} "select 1"`
+          ),
+          stack: { ok: false, notes: 'managed: exit 1: no stack running' },
+        })
+      ).toMatchObject({ resetRuns: 1, migrationUpRuns: 1, dbQueryRuns: 1 });
     });
 
     it('reports zero for each count when the agent ran nothing', async () => {
@@ -178,6 +270,7 @@ describe('checkMetrics', () => {
         migrationUpRuns: 0,
         dbQueryRuns: 0,
         psqlCommands: 0,
+        remoteCheckRuns: 0,
       });
     });
   });
