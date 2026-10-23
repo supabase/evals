@@ -24,9 +24,9 @@ order-history lookup filters `orders` by `customer_email`, which has no index,
 so each call scans all 300,000 rows. No stack is running when the agent starts,
 so it has to start one, find the lookup with `supabase inspect`, add an index on
 `orders.customer_email` in a new migration, and apply that migration to the
-local database. The scorer checks the end state, so any route that ends with
-the index live, in a new migration file and in the migration history is scored
-the same way.
+local database. Apart from the inspect check, the scorer checks the end state,
+so any route that ends with the index live, in a new migration file and in the
+migration history scores the same.
 
 Motivation: CLI-2712
 (https://linear.app/supabase/issue/CLI-2712/eval-diagnose-a-slow-query-bloat-or-locks-with-inspect-db),
@@ -44,6 +44,25 @@ CI (agent share by command group, Sep 14 to Oct 13 2026, `02-context.md`), and
 it appears in 0.5% of agent sessions or fewer in the 1% device sample, Sep 15 to
 Oct 14 2026 (`07-posthog-workflows.md`). Agents drive almost all of its use, but
 it is a thin area.
+
+## Requiring `inspect` is intentional
+
+The prompt asks only for "the Supabase CLI", but `an inspect db report showed
+the orders table` passes only when a `supabase inspect` report showed `orders`.
+That is the point of CLI-2712: the eval measures whether an agent finds
+`inspect` on its own when the user doesn't name it. An agent that finds the
+lookup another way, such as `supabase db query` against `pg_stat_statements`
+plus `EXPLAIN`, or `psql`, and ships a correct fix fails that check and no
+other. The rest of the checks score the fix the same however it was found.
+
+The first refresh on this eval's PR
+([supabase/evals#425](https://github.com/supabase/evals/pull/425), October 22
+2026) showed this is the gap. 8 of the 12 Docker runs failed the inspect check,
+and every one of them found the right cause: 7 never ran a `supabase inspect`
+report and used `db query` plus `EXPLAIN` instead, and one ran only `inspect db
+help`. The bundled `supabase` skill points agents at `supabase db query` and
+never mentions `supabase inspect`. Don't relax the check to accept other
+diagnosis paths: a run that skips `inspect` is the signal this eval records.
 
 ## Area and journey phase
 
