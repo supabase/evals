@@ -1,6 +1,7 @@
 ---
 stage: resolve
 interface: cli
+sdk: js
 product:
   - data-api
   - auth

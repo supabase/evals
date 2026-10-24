@@ -1,6 +1,7 @@
 import type {
   EvalMetadata,
   EvalProduct,
+  EvalSdk,
   EvalStage,
   EvalSuite,
 } from '@supabase-evals/core/eval-metadata';
@@ -33,6 +34,7 @@ export type {
   EvalInterface,
   EvalMetadata,
   EvalProduct,
+  EvalSdk,
   EvalStage,
   EvalSuite,
   ExperimentSuite,
@@ -49,6 +51,8 @@ export interface EvalManifest {
   product: EvalProduct[];
   suite: EvalSuite;
   topic: string[];
+  /** Client SDK the scenario targets; absent when it is not about an SDK. */
+  sdk?: EvalSdk;
   dir: string;
   /**
    * `local/` — the agent's starting files (the developer's working

@@ -1,4 +1,8 @@
-import { UNASSIGNED_PRODUCT, type ExperimentDisplay } from "@/lib/eval-results"
+import {
+  NO_SDK,
+  UNASSIGNED_PRODUCT,
+  type ExperimentDisplay,
+} from "@/lib/eval-results"
 
 /** Turning ids from the exported results into the labels the site shows. */
 
@@ -20,6 +24,20 @@ const PRODUCT_LABELS: Record<string, string> = {
   realtime: "Realtime",
   storage: "Storage",
   vectors: "Vectors",
+}
+
+const SDK_LABELS: Record<string, string> = {
+  js: "JavaScript",
+  py: "Python",
+  swift: "Swift",
+  flutter: "Flutter",
+  kotlin: "Kotlin",
+  csharp: "C#",
+  [NO_SDK]: "None",
+}
+
+export function formatSdkLabel(value: string) {
+  return SDK_LABELS[value] ?? formatTagLabel(value)
 }
 
 function capitalize(value: string) {

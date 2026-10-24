@@ -159,6 +159,25 @@ export function getProductResults(
   )
 }
 
+/** Key a run with no declared SDK sits under. */
+export const NO_SDK = "none"
+
+export function getSdkKey(result: ParsedResult) {
+  return result.sdk ?? NO_SDK
+}
+
+export function getSdkKeys(sourceResults: ParsedResult[]) {
+  return Array.from(new Set(sourceResults.map(getSdkKey))).sort((a, b) => {
+    if (a === NO_SDK) return 1
+    if (b === NO_SDK) return -1
+    return a.localeCompare(b)
+  })
+}
+
+export function getSdkResults(sdk: string, sourceResults: ParsedResult[]) {
+  return sourceResults.filter((result) => getSdkKey(result) === sdk)
+}
+
 export function getStageResults(
   category: JourneyStage,
   sourceResults: ParsedResult[]

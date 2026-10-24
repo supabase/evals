@@ -111,6 +111,30 @@ export type ExperimentDisplayMetadata = z.infer<
 export const evalInterfaceSchema = z.enum(['mcp', 'cli']);
 export const EVAL_INTERFACES = evalInterfaceSchema.options;
 export type EvalInterface = z.infer<typeof evalInterfaceSchema>;
+
+/**
+ * Client SDK the scenario targets (`js` = supabase-js, `py` = supabase-py,
+ * and so on) — a benchmark dimension, so results can be compared across SDKs.
+ * Omit for scenarios that are not about an SDK. A port of an existing
+ * scenario to another SDK lives in a sibling folder with a `-<sdk>` suffix
+ * (e.g. `build-dataapi-001-relational-report-py`) and sets this to that SDK.
+ */
+export const evalSdkSchema = z.enum([
+  'js',
+  'py',
+  'swift',
+  'flutter',
+  'kotlin',
+  'csharp',
+]);
+export const EVAL_SDKS = evalSdkSchema.options;
+export type EvalSdk = z.infer<typeof evalSdkSchema>;
+// Language names authors are likely to write for an SDK token.
+const SDK_ALIASES: Record<string, EvalSdk> = {
+  javascript: 'js',
+  python: 'py',
+  dart: 'flutter',
+};
 // Matches VERSION_RE in packages/sandbox/src/cli-channel.ts, so a resolved
 // beta version (e.g. "2.118.0-beta.60") round-trips through this schema too.
 const cliVersionSchema = z.string().regex(/^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$/);
@@ -120,6 +144,8 @@ export type EvalMetadata = {
   product: EvalProduct[];
   topic: EvalTopic[];
   interface: EvalInterface;
+  /** Client SDK the scenario targets; absent when the scenario is not about an SDK. */
+  sdk?: EvalSdk;
   /** Supabase CLI version this scenario requires (sandbox evals only). */
   cliVersion?: string;
   /**
@@ -178,6 +204,7 @@ export const evalMetadataSchema = z.object({
   product: z.array(evalProductSchema).min(1),
   topic: z.array(evalTopicSchema).min(1),
   interface: evalInterfaceSchema,
+  sdk: evalSdkSchema.optional(),
   cliVersion: cliVersionSchema.optional(),
   services: z.array(z.string().min(1)).optional(),
   // Real YAML booleans or quoted string forms ("true"/"false", yes/no/on/off);
@@ -209,6 +236,12 @@ const toToken = (value: unknown): unknown =>
   typeof value === 'boolean'
     ? normalizeToken(String(value))
     : value;
+
+// An SDK token, with language-name aliases folded to the canonical value.
+const toSdkToken = (value: unknown): unknown => {
+  const token = toToken(value);
+  return typeof token === 'string' ? (SDK_ALIASES[token] ?? token) : token;
+};
 
 // A scalar or a list of scalars becomes a list of tokens with blanks dropped.
 // Absent stays absent so the schema can enforce "required, min 1".
@@ -251,6 +284,7 @@ export const evalFrontmatterSchema = z.preprocess((raw) => {
     product: toTokenList(data.product ?? data.products),
     topic: toTokenList(data.topic ?? data.topics),
     interface: toToken(data.interface),
+    sdk: toSdkToken(data.sdk),
     cliVersion: data.cliVersion,
     // `services: []` means database only; an omitted key means the full stack.
     // Only an explicit list is honored — any other value is treated as absent.
@@ -430,6 +464,7 @@ const evalResultShape = {
   topic: z.array(evalTopicSchema).optional(),
   suite: evalSuiteSchema.optional(),
   interface: evalInterfaceSchema,
+  sdk: evalSdkSchema.optional(),
   cliVersion: cliVersionSchema.optional(),
   passed: z.boolean().optional(),
   checks: z.array(checkResultSchema).optional(),
