@@ -46,6 +46,18 @@ Add a `*.experiment.ts` file under `experiments/<owner>/` for the agent, model, 
 
 Select the experiment's `suite:` depending on your use case. If this experiment should be part of our published benchmark, assign `suite: ["benchmark"]` and include a corresponding `*-no-skills` variant to compare results with and without skills. You can also assign custom experiment suites for grouping related experiments for other head-to-head comparisons as desired.
 
+## Adding a CLI harness
+
+A CLI harness (Claude Code, Codex, Grok Build, Muse Code, OpenCode) lives in `packages/core/src/agents/<id>/`: a runner that installs and runs the CLI, and a parser that turns its transcript into canonical events. Before its experiments join the benchmark:
+
+- Pin the CLI to an exact version, and to a checksum if it isn't installed from npm, so a new release can't change behavior without a diff.
+- Keep the CLI's config and session state outside the workspace, set from the shell command rather than the sandbox `env` (see the Grok runner for why).
+- Build the parser from real transcripts and commit trimmed copies as test fixtures. Documented formats have not matched what CLIs actually emit.
+- Make harness failures (no session, rejected key, rate limit, an event the parser doesn't know) throw, so the run is recorded as errored and rerun instead of scored as a model failure.
+- Declare the harness's native skills directory in `packages/sandbox/src/skills.ts`.
+- Add the provider key to `BROKERED_KEYS` in `apps/framework/scripts/run-vercel-evals.ts`, the refresh workflow, and `.env.example`.
+- Add paired `<name>` (`benchmark`) and `<name>-no-skills` (`no-skills`) experiments, run one tools eval and one local-stack eval in CI, and inspect the transcripts before refreshing the full benchmark.
+
 ## Submitting evals for review
 
 Before submitting an eval for review, try running it locally to sanity check that it can complete without errors. It's okay if agents fail the eval, we just don't want them to be scored unfairly for framework limitations.
