@@ -13,7 +13,7 @@ import {
   sandboxUsageSchema,
   type SandboxUsage,
 } from '@supabase-evals/core/eval-metadata';
-import { resolveCliVersion, type CliChannel } from '@supabase-evals/sandbox';
+import { resolveCliVersionSpec } from '@supabase-evals/sandbox';
 import { execFileSync } from 'node:child_process';
 import { readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
@@ -61,19 +61,10 @@ export const BROKERED_KEYS: {
 ];
 export const BROKERED_KEY_PLACEHOLDER = 'injected-by-sandbox-firewall';
 /**
- * Pins the CLI channel version resolved for this run across sandbox jobs.
+ * Pins the CLI versions resolved for this run across sandbox jobs.
  * Provider keys belong in `BROKERED_KEYS` so the sandbox never sees them.
  */
-export const FORWARDED_ENV_NAMES = [
-  'SUPABASE_CLI_STABLE_VERSION',
-  'SUPABASE_CLI_BETA_VERSION',
-  'SUPABASE_CLI_NEXT_VERSION',
-];
-const CLI_CHANNEL_ENV: Record<CliChannel, string> = {
-  stable: 'SUPABASE_CLI_STABLE_VERSION',
-  beta: 'SUPABASE_CLI_BETA_VERSION',
-  next: 'SUPABASE_CLI_NEXT_VERSION',
-};
+export const FORWARDED_ENV_NAMES = ['SUPABASE_CLI_VERSION_PINS'];
 /**
  * Slack for the non-agent work inside `pnpm eval` (supabase start, resets,
  * scoring, export). Cold image pulls alone can take ~10 min.
@@ -124,47 +115,66 @@ interface PairOptions extends RunnerOptions {
   pins: Record<string, string>;
 }
 
-/**
- * Resolves each requested CLI channel's pin once, so every sandbox job in a
- * fan-out runs against the same concrete version rather than each resolving
- * independently and risking a mid-run release landing between them. An
- * already-set env var is used verbatim, matching the workflow/manual
- * override path in resolveCliVersion. An empty set does no network work.
- */
-export async function resolveChannelPins(
-  channels: ReadonlySet<CliChannel>
-): Promise<Record<string, string>> {
-  const resolved = await Promise.all(
-    [...channels].map(async (channel) => {
-      const envVar = CLI_CHANNEL_ENV[channel];
-      // A workflow that exports a blank input still sets the env var, so
-      // blank/whitespace must be treated as unset rather than as a pin of ''.
-      const override = process.env[envVar]?.trim();
-      return [envVar, override || (await resolveCliVersion(channel))] as const;
-    })
-  );
-  return Object.fromEntries(resolved);
+export interface CliVersionResolution {
+  /** Spec to exact version, for the specs that resolved. */
+  pins: Record<string, string>;
+  /** Resolution failure per spec that did not. */
+  errors: Map<string, unknown>;
 }
 
-export interface RequiredCliChannelsDeps {
+/**
+ * Resolves each requested CLI version spec once, so every sandbox job in a
+ * fan-out runs against the same concrete version rather than each resolving
+ * independently and risking a mid-run release landing between them. A spec
+ * already pinned in SUPABASE_CLI_VERSION_PINS is used verbatim by
+ * resolveCliVersionSpec. A spec that fails to resolve is reported without
+ * affecting the others. An empty set does no network work.
+ */
+export async function resolveCliVersionPins(
+  specs: ReadonlySet<string>
+): Promise<CliVersionResolution> {
+  const requested = [...specs];
+  const settled = await Promise.allSettled(
+    requested.map((spec) => resolveCliVersionSpec(spec))
+  );
+  const pins: [string, string][] = [];
+  const errors = new Map<string, unknown>();
+  settled.forEach((result, index) => {
+    const spec = requested[index];
+    if (result.status === 'fulfilled') pins.push([spec, result.value]);
+    else errors.set(spec, result.reason);
+  });
+  return { pins: Object.fromEntries(pins), errors };
+}
+
+/** The `.env` pin forwarded to every sandbox job, or none when no spec was resolved. */
+export function cliVersionPinsEnv(
+  pins: Readonly<Record<string, string>>
+): Record<string, string> {
+  return Object.keys(pins).length > 0
+    ? { SUPABASE_CLI_VERSION_PINS: JSON.stringify(pins) }
+    : {};
+}
+
+export interface RequiredCliVersionSpecsDeps {
   loadEvalMetadata: (pair: EvalPair) => Pick<EvalMetadata, 'cliVersion'>;
   loadExperimentConfig: (
     experiment: string
-  ) => Promise<{ localStack?: { cliChannel?: CliChannel } }>;
+  ) => Promise<{ localStack?: { cliVersionSpec?: string } }>;
 }
 
 /**
- * Maps a pair set to the CLI channels at least one pair needs, so
- * resolveChannelPins only resolves those. An eval's own `cliVersion`
- * frontmatter is an exact pin that wins over its experiment's channel and
- * needs no resolution; a pair whose experiment has no `localStack.cliChannel`
+ * Maps each pair that needs a CLI version resolved to its spec, so
+ * resolveCliVersionPins only resolves those. An eval's own `cliVersion`
+ * frontmatter is an exact pin that wins over its experiment's spec and needs
+ * no resolution; a pair whose experiment has no `localStack.cliVersionSpec`
  * needs none either.
  */
-export async function requiredCliChannels(
+export async function requiredCliVersionSpecs(
   pairs: readonly EvalPair[],
-  { loadEvalMetadata, loadExperimentConfig }: RequiredCliChannelsDeps
-): Promise<Set<CliChannel>> {
-  const channels = new Set<CliChannel>();
+  { loadEvalMetadata, loadExperimentConfig }: RequiredCliVersionSpecsDeps
+): Promise<Map<EvalPair, string>> {
+  const specs = new Map<EvalPair, string>();
   const configs = new Map<string, ReturnType<typeof loadExperimentConfig>>();
 
   for (const pair of pairs) {
@@ -175,11 +185,11 @@ export async function requiredCliChannels(
       config = loadExperimentConfig(pair.experiment);
       configs.set(pair.experiment, config);
     }
-    const channel = (await config).localStack?.cliChannel;
-    if (channel) channels.add(channel);
+    const spec = (await config).localStack?.cliVersionSpec;
+    if (spec) specs.set(pair, spec);
   }
 
-  return channels;
+  return specs;
 }
 
 /** Mirrors run-eval.ts's evals/<suite>/<id>/PROMPT.md convention. */
@@ -207,8 +217,8 @@ function experimentPathsByName(): Promise<Map<string, string>> {
 }
 
 /**
- * Throws rather than treating a config it can't find as needing no channel,
- * which would silently resolve every channel per-sandbox again.
+ * Throws rather than treating a config it can't find as needing no spec,
+ * which would silently resolve every spec per-sandbox again.
  */
 async function loadExperimentConfig(
   experiment: string
@@ -250,8 +260,18 @@ export async function runBounded<T, R>(
   return Promise.allSettled(items.map((item) => limit(run, item)));
 }
 
+export interface RunPairsDeps extends RequiredCliVersionSpecsDeps {
+  runPairOnce: (
+    options: PairOptions,
+    credentials: VercelCredentials
+  ) => Promise<void>;
+}
+
 /** Runs all pairs and reports failures only after independent work finishes. */
-async function runPairs(options: RunnerOptions): Promise<void> {
+export async function runPairs(
+  options: RunnerOptions,
+  deps: RunPairsDeps = { loadEvalMetadata, loadExperimentConfig, runPairOnce }
+): Promise<void> {
   const credentials = vercelCredentialsFromEnv();
   const jobs = expandJobs(options.pairs, options.runs);
   console.log(
@@ -259,29 +279,35 @@ async function runPairs(options: RunnerOptions): Promise<void> {
       `max ${options.concurrency} at a time`
   );
 
-  // Resolved once, for only the channels this run's pairs actually need, so
+  // Resolved once, for only the specs this run's pairs actually need, so
   // every job below writes the same pin rather than each sandbox resolving
-  // its own channel version independently.
-  const channels = await requiredCliChannels(options.pairs, {
-    loadEvalMetadata,
-    loadExperimentConfig,
-  });
-  const pins = await resolveChannelPins(channels);
+  // its own version independently.
+  const specsByPair = await requiredCliVersionSpecs(options.pairs, deps);
+  const { pins, errors: specErrors } = await resolveCliVersionPins(
+    new Set(specsByPair.values())
+  );
+  const forwardedPins = cliVersionPinsEnv(pins);
 
   const results = await runBounded(
     jobs,
     options.concurrency,
     async ({ pair, run }) => {
       try {
+        const spec = specsByPair.get(pair);
+        if (spec !== undefined && specErrors.has(spec)) {
+          throw new Error(
+            `could not resolve Supabase CLI version "${spec}": ${errorMessage(specErrors.get(spec))}`
+          );
+        }
         await pRetry(
           (attempt) =>
-            runPairOnce(
+            deps.runPairOnce(
               {
                 ...options,
                 pair,
                 run,
                 attempt,
-                pins,
+                pins: forwardedPins,
               },
               credentials
             ),
@@ -825,7 +851,7 @@ export function brokeredNetworkPolicy(): NetworkPolicy {
   return { allow };
 }
 
-/** Builds the sandbox `.env` from key placeholders and CLI channel pins. An explicit pin wins over process.env. */
+/** Builds the sandbox `.env` from key placeholders and CLI version pins. An explicit pin wins over process.env. */
 export function agentEnvironment(pins: Record<string, string> = {}): string {
   const lines: string[] = [];
   for (const { name } of BROKERED_KEYS) {

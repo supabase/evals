@@ -9,6 +9,6 @@ export default defineExperiment({
   suite: ['cli'],
   // Currently equal to the pin (npm `latest` == SUPABASE_CLI_VERSION); kept
   // as drift insurance between pin bumps.
-  localStack: localStackRuntime({ cliVersion: 'stable', env: EVAL_ENV }),
+  localStack: localStackRuntime({ cliVersion: 'latest', env: EVAL_ENV }),
   skipEval: skipUnlessCli,
 });
