@@ -1,4 +1,5 @@
 import type { CheckResult, LocalStackEvalContext } from '@supabase-evals/core';
+import { queryDatabase } from './psql.js';
 import {
   describeFailure,
   errorMessage,
@@ -11,6 +12,8 @@ import type { StackProbe } from './stack.js';
 // run; tolerant on width, but still sorts correctly (lexical sort on a
 // numeric-only prefix == chronological, same as the seeded 14-digit case).
 const MIGRATION_FILENAME_RE = /^(\d+)_(.+)\.sql$/;
+
+const HISTORY_ROW_RE = /^(\d+)\|((?:[0-9a-f]{2})*)$/i;
 
 const DOLLAR_TAG_RE = /^\$([A-Za-z_][A-Za-z0-9_]*)?\$/;
 
@@ -248,4 +251,111 @@ export async function checkMigrationApplied(
   } catch (error) {
     return { name, passed: false, notes: errorMessage(error) };
   }
+}
+
+export type MigrationHistory =
+  | { ok: true; history: Map<string, string> }
+  | { ok: false; notes: string };
+
+export type SortedMigrations<M extends { version: string }> =
+  | { ok: true; recorded: M[]; missing: M[]; mismatched: M[] }
+  | { ok: false; notes: string };
+
+function parseHistory(stdout: string): MigrationHistory {
+  const history = new Map<string, string>();
+  for (const line of stdout.split('\n')) {
+    const row = line.trim();
+    if (row === '') continue;
+    const match = HISTORY_ROW_RE.exec(row);
+    if (match === null) {
+      return {
+        ok: false,
+        notes: `unrecognised migration history row: ${row.slice(0, 120)}`,
+      };
+    }
+    history.set(match[1], Buffer.from(match[2], 'hex').toString('utf8'));
+  }
+  return { ok: true, history };
+}
+
+/** Reads the statements the stack's migration history recorded for each of `versions`, keyed by version. */
+export function readMigrationHistory(
+  ctx: Pick<LocalStackEvalContext, 'exec'>,
+  stack: StackProbe,
+  versions: readonly string[]
+): Promise<MigrationHistory> {
+  const inList = versions.map((version) => `'${version}'`).join(', ');
+  return queryDatabase(
+    ctx,
+    stack,
+    `select version || '|' || encode(convert_to(coalesce(array_to_string(statements, ';' || chr(10)), ''), 'UTF8'), 'hex') from supabase_migrations.schema_migrations where version in (${inList})`,
+    parseHistory
+  );
+}
+
+/** Sorts `migrations` into those the history records with statements `matches` accepts, those it lacks and those it records with other statements; a `matches` that throws fails the sort with its message. */
+export async function sortMigrationsByHistory<M extends { version: string }>(
+  migrations: readonly M[],
+  history: ReadonlyMap<string, string>,
+  matches: (statements: string, migration: M) => boolean | Promise<boolean>
+): Promise<SortedMigrations<M>> {
+  const recorded: M[] = [];
+  const missing: M[] = [];
+  const mismatched: M[] = [];
+  try {
+    for (const migration of migrations) {
+      const statements = history.get(migration.version);
+      if (statements === undefined) {
+        missing.push(migration);
+      } else {
+        const matched = await matches(statements, migration);
+        (matched ? recorded : mismatched).push(migration);
+      }
+    }
+  } catch (error) {
+    return { ok: false, notes: errorMessage(error) };
+  }
+  return { ok: true, recorded, missing, mismatched };
+}
+
+export const describeMissingVersions = (
+  missing: readonly { version: string }[]
+) =>
+  `version(s) ${missing.map(({ version }) => version).join(', ')} not in supabase_migrations.schema_migrations`;
+
+/** Passes when `probe` sorted every migration as recorded, otherwise names the missing and mismatched versions. */
+export function checkMigrationsRecorded<M extends { version: string }>(
+  name: string,
+  probe: SortedMigrations<M>,
+  {
+    describeRecorded,
+    describeMismatched,
+    passedSuffix,
+  }: {
+    describeRecorded: (migrations: readonly M[]) => string;
+    describeMismatched: (migrations: readonly M[]) => string;
+    passedSuffix?: string;
+  }
+): CheckResult {
+  if (!probe.ok) return { name, passed: false, notes: probe.notes };
+  const problems = [
+    ...(probe.missing.length > 0
+      ? [describeMissingVersions(probe.missing)]
+      : []),
+    ...(probe.mismatched.length > 0
+      ? [describeMismatched(probe.mismatched)]
+      : []),
+  ];
+  if (problems.length > 0 || probe.recorded.length === 0) {
+    return {
+      name,
+      passed: false,
+      notes: problems.join('; ') || 'no migration is recorded',
+    };
+  }
+  return {
+    name,
+    passed: true,
+    notes: `${describeRecorded(probe.recorded)} ${probe.recorded.length === 1 ? 'is' : 'are'} in supabase_migrations.schema_migrations${passedSuffix === undefined ? '' : ` ${passedSuffix}`}`,
+  };
 }

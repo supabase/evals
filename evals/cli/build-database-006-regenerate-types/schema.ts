@@ -6,6 +6,7 @@ import type {
 import {
   invocationFlag,
   invocationVerb,
+  type StackLifecycle,
   type SupabaseInvocation,
 } from '../lib/cli-invocations.js';
 import { commandToolCalls } from '../lib/detours.js';
@@ -16,7 +17,6 @@ import {
   isGenTypes,
   OUTPUT_FAILURE,
   subcommand,
-  type StackLifecycle,
 } from './metrics.js';
 
 export const NEW_MIGRATION_VERSION = '20260315000000';

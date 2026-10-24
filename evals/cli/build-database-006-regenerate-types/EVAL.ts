@@ -6,7 +6,11 @@ import {
   type LocalStackScorer,
 } from '@supabase-evals/core';
 import { stripIndent } from 'common-tags';
-import { findSupabaseInvocations } from '../lib/cli-invocations.js';
+import {
+  findSupabaseInvocations,
+  readStackLifecycle,
+  type StackLifecycle,
+} from '../lib/cli-invocations.js';
 import {
   DETOUR_CHECK_NAME,
   detourJudgeRubric,
@@ -30,10 +34,8 @@ import {
   countGenTypesRuns,
   listSilentFailures,
   readCliFacts,
-  readStackLifecycle,
   type CliFacts,
   type GenTypesRuns,
-  type StackLifecycle,
 } from './metrics.js';
 import { describeGroundTruth } from './report.js';
 import {
