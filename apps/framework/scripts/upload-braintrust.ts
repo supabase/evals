@@ -19,6 +19,7 @@ import {
 } from '@supabase-evals/core/eval-metadata';
 import {
   normalizeExperimentName,
+  positiveInteger,
   readFlag,
   readRepeatedFlag,
   readSuiteFilters,
@@ -42,6 +43,10 @@ const SUITE_FILTERS = readSuiteFilters(rawArgs);
 const DRY = rawArgs.includes('--dry');
 // `eval:upload` passes this cutoff to select files written by its run.
 const SINCE = Number(readFlag(rawArgs, 'since') ?? 0);
+// Opt-in. Without it `expected_runs` is omitted.
+const runsFlag = readFlag(rawArgs, 'runs');
+const EXPECTED_RUNS =
+  runsFlag === undefined ? undefined : positiveInteger(runsFlag, 'runs');
 
 const requestUsageSchema = modelUsageSchema.omit({ model: true });
 const transcriptPartSchema = z.discriminatedUnion('type', [
@@ -364,7 +369,7 @@ async function collectRows(
         : undefined,
       metadata: {
         eval: result.eval,
-        run: result.run ?? 1,
+        run: result.run,
         // Decomposed so each is independently filterable in the UI.
         agent: display?.agent,
         model_provider: display?.modelProvider,
@@ -379,6 +384,7 @@ async function collectRows(
         product: promptData?.product ?? result.product ?? [],
         topic: promptData?.topic ?? result.topic ?? [],
         source_path: sourcePath,
+        cli_version: result.cliVersion ?? promptData?.cliVersion,
       },
       // Braintrust sums tokens across a trace's spans, so only LLM spans carry
       // them. `aiSdkAgent` records no per-request usage, so its rows show none.
@@ -770,6 +776,10 @@ async function main() {
         model_id: meta?.display.modelId,
         reasoning_effort: meta?.display.reasoningEffort,
         experiment_suites: meta?.suites,
+        experiment,
+        ...(EXPECTED_RUNS === undefined
+          ? {}
+          : { expected_runs: EXPECTED_RUNS }),
         run_id: runId,
         // Duplicated from repo_info because grouping only reads metadata.
         ...(info?.branch ? { branch: info.branch } : {}),

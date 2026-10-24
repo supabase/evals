@@ -1,8 +1,8 @@
 import { defineExperiment } from '@supabase-evals/core';
-import { codexGpt6Sol } from '../presets.js';
+import { codexGpt61Sol } from '../presets.js';
 
 export default defineExperiment({
-  ...codexGpt6Sol,
+  ...codexGpt61Sol,
   suite: ['no-skills'],
   skills: [],
 });

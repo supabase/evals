@@ -52,9 +52,9 @@ export const codexGpt6Luna = {
   skills,
 } satisfies ExperimentPreset;
 
-export const codexGpt6Sol = {
+export const codexGpt61Sol = {
   agent: codexAgent({
-    model: 'gpt-6-sol',
+    model: 'gpt-6.1-sol',
     reasoningEffort: 'medium',
   }),
   runtime: defaultRuntime(),
