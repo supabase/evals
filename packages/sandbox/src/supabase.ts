@@ -2,10 +2,11 @@
  * Supabase CLI sandbox setup, adapted from supabase/agent-eval.
  *
  * Static setup (system packages, the pinned CLI) is described declaratively in
- * a Dockerfile and baked into a cached image — one build per CLI version,
- * instant sandbox creation afterwards. Only steps that depend on runtime
- * state run inside the container: the docker socket's gid varies by host, and
- * service restriction / workspace seeding vary per eval.
+ * a Dockerfile and baked into a cached image — one build per (skills CLI
+ * version, Dockerfile contents) pair, instant sandbox creation afterwards.
+ * Only steps that depend on runtime state run inside the container: the
+ * docker socket's gid varies by host, and service restriction / workspace
+ * seeding vary per eval.
  *
  * Networking: the sandbox runs with host networking (see local-stack-runtime)
  * and the host Docker socket mounted, so `supabase start` spawns sibling
@@ -14,6 +15,7 @@
  * needed.
  */
 
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
@@ -103,14 +105,20 @@ export const SANDBOX_DOCKERFILE_PATH = fileURLToPath(
  * the layer cache makes repeat calls effectively free.
  */
 export async function ensureSupabaseSandboxImage(): Promise<string> {
-  // The base image carries only common tooling; its sole version input is the
-  // skills CLI. The Supabase CLI is installed per local-stack session
-  // (installSupabaseCli), so the image is shared across modes and CLI versions.
-  const tag = `${SANDBOX_IMAGE_REPOSITORY}:base-skills-${SKILLS_CLI_VERSION}`;
+  // The base image carries only common tooling; its version inputs are the
+  // skills CLI and the Dockerfile itself (hashed into the tag, so toolchain
+  // changes such as the Python/uv layer invalidate cached images). The Supabase
+  // CLI is installed per local-stack session (installSupabaseCli), so the image
+  // is shared across modes and CLI versions.
+  const dockerfile = readFileSync(SANDBOX_DOCKERFILE_PATH, 'utf8');
+  const dockerfileHash = createHash('sha256')
+    .update(dockerfile)
+    .digest('hex')
+    .slice(0, 12);
+  const tag = `${SANDBOX_IMAGE_REPOSITORY}:base-skills-${SKILLS_CLI_VERSION}-${dockerfileHash}`;
   const existing = await dockerCli(['image', 'inspect', tag]);
   if (existing.ok) return tag;
 
-  const dockerfile = readFileSync(SANDBOX_DOCKERFILE_PATH, 'utf8');
   await withTransientRetries(
     `build ${tag}`,
     () =>
