@@ -68,6 +68,8 @@ export interface RunnerExecArgs<M extends string = string> {
    * Undefined = leave the CLI's own default.
    */
   reasoningEffort?: string;
+  /** Tool names the CLI must not use. Only honored by runners that support it. */
+  disallowedTools?: readonly string[];
   timeoutSec: number;
 }
 

@@ -56,6 +56,7 @@ export const experimentSuiteSchema = z.enum([
   'regression',
   'docs',
   'cli',
+  'corpus',
 ]);
 export const EXPERIMENT_SUITES = experimentSuiteSchema.options;
 export type ExperimentSuite = z.infer<typeof experimentSuiteSchema>;
