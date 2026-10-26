@@ -95,6 +95,8 @@ const LOOPBACK_HOSTS = new Set([
   'host.docker.internal',
 ]);
 const LOOPBACK_IPV4_RE = /^127(?:\.\d{1,3}){3}$/;
+const VARIABLE_REFERENCE = /^\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?$/;
+const LOADS_STATUS_RE = /\bsupabase\b[^;&|\n]*\bstatus\b/;
 
 function wholeIdentifier(names: readonly string[]): RegExp {
   return new RegExp(
@@ -154,17 +156,38 @@ function remoteValue(argv: readonly string[]): string | undefined {
   return values[values.length - 1]?.slice('--remote='.length);
 }
 
-function isExplicitlyLocal(inv: SupabaseInvocation): boolean {
+function assignedValue(command: string, name: string): string | undefined {
+  const assignment = new RegExp(
+    `(?:^|[\\s;&|(])(?:export\\s+)?${name}=(?:"([^"]*)"|'([^']*)'|([^\\s;&|)]*))`,
+    'g'
+  );
+  let value: string | undefined;
+  for (const match of command.matchAll(assignment)) {
+    value = match[1] ?? match[2] ?? match[3];
+  }
+  return value;
+}
+
+/** Argv keeps `$VAR` unexpanded: it takes its last literal assignment in the same command, and with none it's the remote unless the command loads `supabase status`, whose env output holds the local stack's URLs. */
+function isLocalUrl(url: string, command: string): boolean {
+  const name = VARIABLE_REFERENCE.exec(url)?.[1];
+  if (name === undefined) return isLoopback(url);
+  const assigned = assignedValue(command, name);
+  if (assigned !== undefined) return isLoopback(assigned);
+  return LOADS_STATUS_RE.test(command);
+}
+
+function isExplicitlyLocal(inv: SupabaseInvocation, command: string): boolean {
   if (booleanFlag(inv.argv, '--local')) return true;
   const remote = remoteValue(inv.argv);
   return [
     invocationFlag(inv, '--db-url'),
     remote?.includes('://') ? remote : undefined,
-  ].some((url) => url !== undefined && isLoopback(url));
+  ].some((url) => url !== undefined && isLocalUrl(url, command));
 }
 
-function queryTarget(inv: SupabaseInvocation): QueryTarget {
-  if (isExplicitlyLocal(inv)) return 'local';
+function queryTarget(inv: SupabaseInvocation, command: string): QueryTarget {
+  if (isExplicitlyLocal(inv, command)) return 'local';
   const remote =
     invocationFlag(inv, '--db-url') !== undefined ||
     invocationFlag(inv, '--project-ref') !== undefined ||
@@ -247,7 +270,7 @@ function readQuery(
 ): DbQuery {
   const base = {
     order,
-    target: queryTarget(inv),
+    target: queryTarget(inv, command ?? ''),
     failed: callFailed(call),
   };
   const withFile = (file: string): DbQuery => {
@@ -295,12 +318,13 @@ export function readDbActivity(
     switch (invocationSubcommand(inv)) {
       case 'push': {
         const call = calls[inv.commandIndex];
+        const command = entries[inv.commandIndex]?.command ?? '';
         const failed = callFailed(call);
         const failure = failed ? failureLine(call) : undefined;
         activity.pushes.push({
           order,
           dryRun: booleanFlag(inv.argv, '--dry-run'),
-          explicitlyLocal: isExplicitlyLocal(inv),
+          explicitlyLocal: isExplicitlyLocal(inv, command),
           yes: booleanFlag(inv.argv, '--yes'),
           failed,
           upToDate: pushedNothing(call),

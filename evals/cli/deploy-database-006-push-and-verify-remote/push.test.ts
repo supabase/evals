@@ -499,6 +499,102 @@ describe('readDbActivity: query targets', () => {
   });
 });
 
+describe('readDbActivity: a --db-url from a shell variable', () => {
+  const pushOf = (command: string) => activityOf(command).pushes[0];
+  const queryTargetOf = (command: string) =>
+    activityOf(command).queries[0]?.target;
+
+  it.each([
+    ['$VAR', 'supabase db push --db-url "$SUPABASE_DB_URL"'],
+    ['${VAR}', 'supabase db push --db-url "${SUPABASE_DB_URL}"'],
+    ['--db-url=$VAR', 'supabase db push --db-url=$DATABASE_URL'],
+    [
+      'a variable loaded from a file',
+      'set -a; . ./.env; set +a; supabase db push --db-url "$SUPABASE_DB_URL"',
+    ],
+    [
+      'a variable assigned a hosted URL',
+      `DB_URL="${POOLER_URL}"; supabase db push --db-url "$DB_URL"`,
+    ],
+  ])('reads a push with %s as not local', (_, command) => {
+    expect(pushOf(command)?.explicitlyLocal).toBe(false);
+  });
+
+  it.each([
+    [
+      'a variable assigned a loopback URL',
+      `DB_URL="${LOCAL_URL}"; supabase db push --db-url "$DB_URL"`,
+    ],
+    [
+      'an exported loopback URL',
+      `export DB_URL=${LOCAL_URL} && supabase db push --db-url "$DB_URL"`,
+    ],
+    [
+      'the last assignment, when it is a loopback URL',
+      `DB_URL="${POOLER_URL}"; DB_URL="${LOCAL_URL}"; supabase db push --db-url "$DB_URL"`,
+    ],
+    [
+      'a variable loaded from supabase status',
+      'eval "$(supabase status -o env)" && supabase db push --db-url "$DB_URL"',
+    ],
+    [
+      'a variable assigned from a command substitution',
+      'DB_URL="$(cat .db-url)"; supabase db push --db-url "$DB_URL"',
+    ],
+  ])('reads a push with %s as local', (_, command) => {
+    expect(pushOf(command)?.explicitlyLocal).toBe(true);
+  });
+
+  it('keeps a --db-url command substitution local', () => {
+    expect(
+      pushOf('supabase db push --db-url "$(cat .db-url)"')?.explicitlyLocal
+    ).toBe(true);
+  });
+
+  it.each([
+    [
+      'an unassigned variable',
+      'supabase db query --db-url "$SUPABASE_DB_URL" "select 1"',
+      'remote',
+    ],
+    [
+      'a variable assigned a hosted URL',
+      `DB_URL="${DIRECT_URL}"; supabase db query --db-url "$DB_URL" "select 1"`,
+      'remote',
+    ],
+    [
+      'a variable assigned a loopback URL',
+      `DB_URL="${LOCAL_URL}"; supabase db query --db-url "$DB_URL" "select 1"`,
+      'local',
+    ],
+    [
+      'a variable loaded from supabase status',
+      'eval "$(supabase status -o env)"; supabase db query --db-url "$DB_URL" "select 1"',
+      'local',
+    ],
+  ])('targets a query with %s', (_, command, target) => {
+    expect(queryTargetOf(command)).toBe(target);
+  });
+
+  it('credits a hosted push and verify that read the URL from a variable', async () => {
+    const calls = [
+      'supabase db push --db-url "$SUPABASE_DB_URL"',
+      'supabase db query --db-url "$SUPABASE_DB_URL" "select plan_id, count(*) from profiles group by 1"',
+    ];
+    expect(checkPushed(activityOf(...calls)).passed).toBe(true);
+    expect((await verdictOf(calls)).passed).toBe(true);
+  });
+
+  it('credits neither when the variable holds the local stack URL from supabase status', async () => {
+    const calls = [
+      'eval "$(supabase status -o env)" && supabase db push --db-url "$DB_URL"',
+      'eval "$(supabase status -o env)" && supabase db query --db-url "$DB_URL" "select * from profiles"',
+    ];
+    expect(checkPushed(activityOf(...calls)).passed).toBe(false);
+    expect((await verdictOf(calls)).passed).toBe(false);
+  });
+});
+
 describe('readDbActivity: query SQL', () => {
   const sqlOf = (command: string) => activityOf(command).queries[0]?.sql;
 
@@ -2262,8 +2358,11 @@ describe('checkVerifiedAfterPush', () => {
       'only local supabase db push ran',
     ],
     [
-      'only a --db-url "$VAR" push, which reads as local, and a query',
-      ['supabase db push --db-url "$SUPABASE_DB_URL"', PROFILES_BY_PLAN],
+      'only a --db-url "$VAR" push loaded from supabase status, and a query',
+      [
+        'eval "$(supabase status -o env)" && supabase db push --db-url "$DB_URL"',
+        PROFILES_BY_PLAN,
+      ],
       'only local supabase db push ran',
     ],
     [

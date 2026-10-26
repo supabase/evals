@@ -194,7 +194,10 @@ hosted project.
   stays remote. Loopback hosts are `localhost`, `*.localhost`, `127.0.0.0/8`,
   `::1`, `0.0.0.0`, `host.docker.internal` and any host without a dot, such as a
   docker container name (`supabase_db_plans-app`); a URL that doesn't parse
-  counts as loopback.
+  counts as loopback. A `--db-url` of `$VAR` or `${VAR}` takes the variable's
+  last literal assignment in the same command (`VAR=...` or `export VAR=...`);
+  with none it's remote, unless the command loads `supabase status`, whose env
+  output holds the local stack's URLs.
 - **Where the SQL comes from.** The positional argument, unless it starts with a
   shell expansion (`$(`, `$VAR`, `${VAR}` or a backtick), which holds no SQL the
   scorer can see. Else the `-f`/`--file` contents; else, for `-f -`,
@@ -438,10 +441,11 @@ hosted project.
   output is discarded (`> /dev/null`, `| head -1`) is never up to date. After a
   hand-applied migration and `migration repair`, such a push is credited even
   though it found nothing to apply.
-- A `--db-url` that can't be parsed, such as a shell variable the scorer sees
-  unexpanded, counts as local, so `db push --db-url "$SUPABASE_DB_URL"` reads as
-  an explicitly local push: neither the push check nor the verify check credits
-  it, and both say only local pushes ran.
+- A `--db-url "$VAR"` whose value the command doesn't show, such as one loaded
+  with `source .env`, counts as remote, so a variable holding a local URL from
+  outside the command is credited by the push and verify checks. The hosted
+  checks still fail such a push. Any other `--db-url` that can't be parsed, such
+  as `"$(cat .db-url)"`, counts as local.
 - In hosted runs the harness's wire endpoint can be `host.docker.internal`, which
   the loopback rule treats as local, so a query pointed at that URL by hand isn't
   credited.
