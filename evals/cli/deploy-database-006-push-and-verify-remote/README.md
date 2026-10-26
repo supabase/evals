@@ -271,6 +271,13 @@ project on every channel (next accepts `--db-url` with a deprecation warning).
 `db query --linked` or `--remote` goes through the API route, and on next still
 needs `--yes` or `--read-only`.
 
+The wrapper doesn't yet handle an explicit target: it appends `--db-url` to
+`db push --linked` or `--remote` too, and every channel rejects the pair ("if any
+flags in the group [db-url linked local] are set none of the others can be" on
+2.x, `TargetSelectorConflictError` on next). Until the wrapper swaps the target
+flag for `--db-url` instead of adding one, only a bare `db push` would reach the
+hosted project.
+
 ## Known limitations
 
 - The history, schema and data checks read only the final state. A reused
