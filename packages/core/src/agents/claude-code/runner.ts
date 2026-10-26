@@ -56,6 +56,7 @@ export const claudeCodeRunner: AgentRunner<AnthropicModel> = {
     userPromptPath,
     mcpServers,
     reasoningEffort,
+    disallowedTools,
     timeoutSec,
   }) {
     const claude = npmGlobalBin('claude');
@@ -80,6 +81,9 @@ export const claudeCodeRunner: AgentRunner<AnthropicModel> = {
       `--model ${shellQuote(model)}`,
       // Reasoning effort for the session; omitted leaves Claude Code's default.
       ...(reasoningEffort ? [`--effort ${shellQuote(reasoningEffort)}`] : []),
+      ...(disallowedTools && disallowedTools.length > 0
+        ? [`--disallowedTools ${shellQuote(disallowedTools.join(','))}`]
+        : []),
       ...mcpFlags,
       // The sandbox is the isolation boundary, so skip permission prompts and
       // give the agent its full native toolset (same in both modes).

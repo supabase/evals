@@ -655,7 +655,12 @@ export type ExperimentConfig = {
    * `[]` — running those would just duplicate what this experiment's own
    * empty skill list already covers.
    */
-  skipEval?: (ev: { id: string; metadata: EvalMetadata }) => boolean;
+  skipEval?: (ev: {
+    id: string;
+    /** The `evals/<suite>/` folder the eval lives in. */
+    suite?: EvalSuite;
+    metadata: EvalMetadata;
+  }) => boolean;
 };
 
 export function getExperimentDisplayMetadata(
