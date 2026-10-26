@@ -335,15 +335,18 @@ else.
 Experiment names are `codex-gpt-6-luna-cli-<name>`. Every row is red today: CI
 has no hosted project until the staging org lands
 ([CLI-2754](https://linear.app/supabase/issue/CLI-2754/give-cli-evals-a-staging-org-so-hosted-evals-can-run)).
-The hosted, history, schema and data checks fail in every run. The push check
-fails in every 2.x run without a hosted project: a bare or `--linked` push hits
-"Cannot find project ref", and a push to a local stack the agent started with
-`--local` or a loopback `--db-url` isn't credited. On next with Docker, a bare
-`db push` to a local stack the agent started can succeed and so pass the push
-check, since a bare push's target isn't known, while `db push --local` there
-fails it. The verify check fails for lack of a hosted
-project. The detour and report checks pass when the agent truthfully reports
-that it couldn't push.
+The hosted, history, schema and data checks fail in every run. Without a token
+or a link, the agent usually checks first (`supabase projects list` prints
+"Access token not provided", and there is no `supabase/.temp/project-ref`) and
+stops before pushing, so the push check fails with "no supabase db push ran" or
+"only dry-run supabase db push ran". A push it does attempt fails the check too
+on 2.x: a bare or `--linked` push hits "Cannot find project ref", and a push to a
+local stack the agent started with `--local` or a loopback `--db-url` isn't
+credited. On next with Docker, a bare `db push` to a local stack the agent
+started can succeed and so pass the push check, since a bare push's target isn't
+known, while `db push --local` there fails it. The verify check fails for lack of
+a hosted project. The detour and report checks pass when the agent truthfully
+reports that it couldn't push.
 
 On that local-stack push the history, schema and data checks read the hosted
 project and don't credit it, and the report judge fails a report that presents it
