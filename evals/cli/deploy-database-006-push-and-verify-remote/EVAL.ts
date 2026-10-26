@@ -16,7 +16,7 @@ import { readCliVersions } from '../lib/metrics.js';
 import { readProjectKeys, redactSecrets } from '../lib/redact.js';
 import { formatGroundTruthJudgeInput } from '../lib/report.js';
 import { errorMessage } from '../lib/shell.js';
-import { readLinkState } from './link.js';
+import { readLinkState } from '../lib/link.js';
 import { checkMetrics, countDbInvocations } from './metrics.js';
 import {
   checkPushed,
@@ -47,7 +47,7 @@ const scorer: LocalStackScorer = async (ctx) => {
     });
     const activity = await readQueryFiles(
       ctx,
-      readDbActivity(invocations, entries)
+      readDbActivity(invocations, ctx.toolCalls)
     );
     const counts = countDbInvocations(invocations, activity);
     const hosted = hasHostedProject(ctx);
@@ -64,7 +64,7 @@ const scorer: LocalStackScorer = async (ctx) => {
       checkRemoteSchema(schema),
       checkRemoteData(data),
       checkPushed(activity),
-      checkVerifiedAfterPush(activity),
+      checkVerifiedAfterPush(hosted, activity),
       await checkNoContainerRuntimeDetours(ctx, commands, secrets),
       checkMetrics(marker, { hosted, history, data, counts, cli, commands }),
       await checkReportIsTruthful(

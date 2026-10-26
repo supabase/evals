@@ -22,6 +22,7 @@ import {
   readQueryFiles,
   VERIFY_CHECK_NAME,
 } from './push.js';
+import { NO_HOSTED_PROJECT } from './remote.js';
 
 type Call = string | ToolCallRecord;
 
@@ -29,9 +30,9 @@ const toCalls = (calls: readonly Call[]) =>
   calls.map((call) => (typeof call === 'string' ? shellCall(call) : call));
 
 const run = (...calls: Call[]) => {
-  const entries = extractCommandEntries(toCalls(calls));
-  const invocations = findSupabaseInvocations(entries);
-  return { invocations, activity: readDbActivity(invocations, entries) };
+  const toolCalls = toCalls(calls);
+  const invocations = findSupabaseInvocations(extractCommandEntries(toolCalls));
+  return { invocations, activity: readDbActivity(invocations, toolCalls) };
 };
 
 const activityOf = (...calls: Call[]) => run(...calls).activity;
@@ -40,6 +41,10 @@ const LOCAL_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
 const POOLER_URL =
   'postgresql://postgres.abcdefghijklmnopqrst:pw@aws-0-us-east-1.pooler.supabase.com:6543/postgres';
 const DIRECT_URL = `postgresql://postgres:pw@db.${HOSTED_REF}.supabase.co:5432/postgres`;
+const CONTAINER_URL =
+  'postgresql://postgres:postgres@supabase_db_plans-app:5432/postgres';
+const LOCALHOST_SUBDOMAIN_URL =
+  'postgresql://postgres:postgres@db.localhost:5432/postgres';
 
 const VERIFY_SQL = 'select plan_id, count(*) from public.profiles group by 1;';
 const PROFILES_BY_PLAN =
@@ -52,10 +57,14 @@ const filesRoute = (file: RegExp, sql: string): Route => [
   commandResult(sql),
 ];
 
-async function verdictOf(calls: readonly Call[], files: readonly Route[] = []) {
+async function verdictOf(
+  calls: readonly Call[],
+  files: readonly Route[] = [],
+  hosted = true
+) {
   const { activity } = run(...calls);
   const { ctx } = fakeExec(files);
-  return checkVerifiedAfterPush(await readQueryFiles(ctx, activity));
+  return checkVerifiedAfterPush(hosted, await readQueryFiles(ctx, activity));
 }
 
 describe('readDbActivity: pushes', () => {
@@ -118,8 +127,14 @@ describe('readDbActivity: pushes', () => {
     ['--local', '--local', true],
     ['--db-url on 127.0.0.1', `--db-url "${LOCAL_URL}"`, true],
     ['--db-url= on 127.0.0.1', `--db-url="${LOCAL_URL}"`, true],
+    ['--db-url on a container name', `--db-url "${CONTAINER_URL}"`, true],
+    ['--db-url on *.localhost', `--db-url "${LOCALHOST_SUBDOMAIN_URL}"`, true],
+    ['--remote=<url> on 127.0.0.1', `--remote="${LOCAL_URL}"`, true],
+    ['--remote=<url> on a container name', `--remote="${CONTAINER_URL}"`, true],
     ['--db-url on a pooler host', `--db-url "${POOLER_URL}"`, false],
     ['--db-url= on a direct host', `--db-url="${DIRECT_URL}"`, false],
+    ['--remote=<url> on a direct host', `--remote="${DIRECT_URL}"`, false],
+    ['--remote=<ref>', `--remote=${HOSTED_REF}`, false],
     ['--linked', '--linked', false],
     ['--remote', '--remote', false],
     ['--project-ref', `--project-ref ${HOSTED_REF}`, false],
@@ -168,6 +183,8 @@ describe('readDbActivity: query targets', () => {
     ['--project-ref=<ref>', `--project-ref=${HOSTED_REF}`, 'remote'],
     ['--remote', '--remote', 'remote'],
     ['--remote=<ref>', `--remote=${HOSTED_REF}`, 'remote'],
+    ['--remote=<url> with a direct host', `--remote="${DIRECT_URL}"`, 'remote'],
+    ['--remote=<url> with 127.0.0.1', `--remote="${LOCAL_URL}"`, 'local'],
     ['--db-url with a pooler host', `--db-url "${POOLER_URL}"`, 'remote'],
     ['--db-url= with a direct host', `--db-url="${DIRECT_URL}"`, 'remote'],
     ['--db-url with 127.0.0.1', `--db-url "${LOCAL_URL}"`, 'local'],
@@ -199,9 +216,20 @@ describe('readDbActivity: query targets', () => {
       'host.docker.internal',
       'postgresql://postgres:pw@host.docker.internal:54322/postgres',
     ],
+    ['a docker container name', CONTAINER_URL],
+    ['a *.localhost host', LOCALHOST_SUBDOMAIN_URL],
     ['a URL that does not parse', 'not a url'],
   ])('treats a --db-url on %s as local', (_, url) => {
     expect(targetOf(`--db-url "${url}"`)).toBe('local');
+  });
+
+  it.each([
+    ['127.0.0.1', LOCAL_URL],
+    ['[::1]', 'postgresql://postgres:pw@[::1]:54322/postgres'],
+    ['a docker container name', CONTAINER_URL],
+    ['a *.localhost host', LOCALHOST_SUBDOMAIN_URL],
+  ])('treats a --remote=<url> on %s as local', (_, url) => {
+    expect(targetOf(`--remote="${url}"`)).toBe('local');
   });
 
   it.each([
@@ -227,8 +255,25 @@ describe('readDbActivity: query targets', () => {
       'a password containing 127.0.0.1',
       'postgresql://postgres:127.0.0.1@db.example.com:5432/postgres',
     ],
+    [
+      'a host that merely ends like localhost',
+      'postgresql://postgres:pw@db.notlocalhost.com:5432/postgres',
+    ],
   ])('treats a --db-url on %s as remote', (_, url) => {
     expect(targetOf(`--db-url "${url}"`)).toBe('remote');
+  });
+
+  it.each([
+    ['a pooler host', POOLER_URL],
+    ['a direct host', DIRECT_URL],
+  ])('treats a --remote=<url> on %s as remote', (_, url) => {
+    expect(targetOf(`--remote="${url}"`)).toBe('remote');
+  });
+
+  it('keeps a bare --remote as remote and does not read the next token as its value', () => {
+    expect(
+      activityOf(`supabase db query --remote "${LOCAL_URL}"`).queries[0]?.target
+    ).toBe('remote');
   });
 });
 
@@ -299,13 +344,35 @@ describe('readDbActivity: query SQL', () => {
     ],
     ['a here-string', 'supabase db query --linked <<< "select * from plans"'],
     ['a pipe', 'echo "select * from plans" | supabase db query --linked'],
-    ['a redirect', 'supabase db query --linked < verify.sql'],
+    [
+      'a piped file that names several operands',
+      'cat a.sql b.sql | supabase db query --linked',
+    ],
+    [
+      'a heredoc behind -f /dev/stdin',
+      "supabase db query --linked -f /dev/stdin <<'SQL'\nselect * from plans\nSQL",
+    ],
+    [
+      'a heredoc behind -f -',
+      "supabase db query --linked -f - <<'SQL'\nselect * from plans\nSQL",
+    ],
   ])(
     'reads the whole command text as the SQL when it comes from stdin through %s',
     (_, command) => {
       expect(sqlOf(command)).toBe(command);
     }
   );
+
+  it('strips SQL comments from the positional SQL and keeps string literals', () => {
+    expect(sqlOf('supabase db query --linked "select 1 -- check plans"')).toBe(
+      'select 1 '
+    );
+    expect(
+      sqlOf(
+        `supabase db query --linked "select * from information_schema.tables where table_name = 'plans'"`
+      )
+    ).toContain(`'plans'`);
+  });
 
   it('reads no SQL yet for a query that names a file', () => {
     expect(
@@ -348,6 +415,119 @@ describe('readDbActivity: query SQL', () => {
     ).toMatchObject({ file: 'verify.sql', dir: '/ws/sub' });
   });
 
+  describe('SQL fed from a file other than through -f', () => {
+    const fileOf = (...calls: Call[]) => activityOf(...calls).queries[0];
+
+    it.each([
+      ['a redirect', 'supabase db query --linked < verify.sql', 'verify.sql'],
+      [
+        'a redirect without a space',
+        'supabase db query --linked <verify.sql',
+        'verify.sql',
+      ],
+      [
+        'a quoted redirect',
+        'supabase db query --linked < "my verify.sql"',
+        'my verify.sql',
+      ],
+      [
+        'a redirect with a piped tail',
+        'supabase db query --linked < verify.sql 2>&1 | head -50',
+        'verify.sql',
+      ],
+      [
+        'a redirect behind -f -',
+        'supabase db query --linked -f - < verify.sql',
+        'verify.sql',
+      ],
+      [
+        'a redirect behind -f /dev/stdin',
+        'supabase db query --linked -f /dev/stdin < verify.sql',
+        'verify.sql',
+      ],
+      [
+        'a cat pipe',
+        'cat verify.sql | supabase db query --linked',
+        'verify.sql',
+      ],
+      [
+        'a quoted cat pipe',
+        'cat "my verify.sql" | supabase db query --linked',
+        'my verify.sql',
+      ],
+      [
+        'a cat pipe through npx',
+        'cat verify.sql | npx supabase db query --linked',
+        'verify.sql',
+      ],
+      [
+        'a cat pipe behind -f -',
+        'cat verify.sql | supabase db query --linked -f -',
+        'verify.sql',
+      ],
+      [
+        'a cat substitution',
+        'supabase db query --linked "$(cat verify.sql)"',
+        'verify.sql',
+      ],
+      [
+        'a cat substitution written first',
+        'supabase db query "$(cat verify.sql)" --linked',
+        'verify.sql',
+      ],
+    ])('reads the file of %s', (_, command, file) => {
+      expect(fileOf(command)).toMatchObject({ sql: null, file });
+    });
+
+    it('puts the directory the query ran in next to its file', () => {
+      expect(
+        fileOf('cd /ws/app && supabase db query --linked < verify.sql')
+      ).toMatchObject({ file: 'verify.sql', dir: '/ws/app' });
+      expect(
+        fileOf('cd /ws/app && cat verify.sql | supabase db query --linked')
+      ).toMatchObject({ file: 'verify.sql', dir: '/ws/app' });
+    });
+
+    it('gives each query in one command its own file', () => {
+      const { queries } = activityOf(
+        'supabase db query --linked < a.sql && cat b.sql | supabase db query --linked'
+      );
+      expect(queries.map(({ file }) => file)).toEqual(['a.sql', 'b.sql']);
+    });
+
+    it('takes the file of the query, not of another command in the call', () => {
+      const piped = fileOf(
+        'cat supabase/migrations/20261020120000_add_plans.sql | head -5 && echo "select 1" | supabase db query --linked'
+      );
+      expect(piped?.file).toBeUndefined();
+      expect(piped?.sql).toContain('select 1');
+      expect(
+        fileOf(
+          'psql "$DB_URL" < supabase/migrations/20261020120000_add_plans.sql; supabase db query --linked "select 1"'
+        )
+      ).toMatchObject({ sql: 'select 1' });
+    });
+
+    it('prefers the -f file over a redirect', () => {
+      expect(
+        fileOf('supabase db query --linked -f one.sql < two.sql')
+      ).toMatchObject({ file: 'one.sql' });
+    });
+
+    it.each([
+      ['a here-string', 'supabase db query --linked <<< "select * from plans"'],
+      [
+        'an echo pipe',
+        'echo "select * from plans" | supabase db query --linked',
+      ],
+      ['-f -', 'supabase db query --linked -f -'],
+      ['-f /dev/stdin', 'supabase db query --linked -f /dev/stdin'],
+    ])('reads no file for %s', (_, command) => {
+      expect(fileOf(command)).toMatchObject({ sql: command });
+      expect(fileOf(command)?.file).toBeUndefined();
+    });
+  });
+
   it('numbers queries and pushes in one sequence', () => {
     const { pushes, queries } = activityOf(
       'supabase migration list --linked',
@@ -368,6 +548,52 @@ describe('readDbActivity: query SQL', () => {
       shellCall(PLANS_QUERY)
     );
     expect(queries.map(({ failed }) => failed)).toEqual([true, false]);
+  });
+
+  it.each([
+    ['a JSON error', '{"_tag":"Error","error":{"code":1,"message":"boom"}}'],
+    ['a JSON error with spacing', '{ "_tag" : "Error" }'],
+    [
+      'an unlinked repo',
+      'Cannot find project ref. Have you run supabase link?',
+    ],
+    ['a missing token', 'Access token not provided. Supply an access token.'],
+    [
+      'a stopped confirmation',
+      'Confirmation required: run a query on remote. Nothing was changed.',
+    ],
+    ['a refused connection', 'failed to connect to postgres'],
+    ['an unknown flag', 'unknown flag: --remote'],
+    ['a missing binary', 'zsh: command not found: supabase'],
+    ['a different case', 'CANNOT FIND PROJECT REF'],
+  ])(
+    'marks a query failed when its output shows %s, with no tool error',
+    (_, result) => {
+      const { queries } = activityOf(shellCall(PLANS_QUERY, { result }));
+      expect(queries[0]?.failed).toBe(true);
+    }
+  );
+
+  it.each([
+    [
+      'JSON rows',
+      '[{"plan_id":"pro","count":6},{"plan_id":"free","count":18}]',
+    ],
+    ['an empty output', ''],
+    ['a warning', 'WARNING: --linked is deprecated, use --remote'],
+  ])('does not mark a query failed on %s', (_, result) => {
+    const { queries } = activityOf(shellCall(PLANS_QUERY, { result }));
+    expect(queries[0]?.failed).toBe(false);
+  });
+
+  it('reads the output of the tool call the query ran in, not of another call', () => {
+    const { queries } = activityOf(
+      shellCall('supabase migration list --linked', {
+        result: 'Cannot find project ref.',
+      }),
+      shellCall(PLANS_QUERY, { result: '[]' })
+    );
+    expect(queries.map(({ failed }) => failed)).toEqual([false]);
   });
 
   it.each([
@@ -447,6 +673,47 @@ describe('readQueryFiles', () => {
       )
     );
     expect(queries[0]?.sql).toBe(VERIFY_SQL);
+  });
+
+  it.each([
+    ['a redirect', 'supabase db query --linked < verify.sql'],
+    ['a cat pipe', 'cat verify.sql | supabase db query --linked'],
+    ['a cat substitution', 'supabase db query --linked "$(cat verify.sql)"'],
+    ['-f - with a redirect', 'supabase db query --linked -f - < verify.sql'],
+  ])(
+    'reads the file of %s relative to the directory the query ran in',
+    async (_, command) => {
+      const { ctx, calls } = fakeExec([
+        filesRoute(/\/ws\/app.*verify\.sql/, VERIFY_SQL),
+      ]);
+      const { queries } = await readQueryFiles(
+        ctx,
+        activityOf(shellCall(command, { cwd: '/ws/app' }))
+      );
+      expect(queries[0]?.sql).toBe(VERIFY_SQL);
+      expect(calls.join('\n')).toContain('/ws/app');
+    }
+  );
+
+  it('leaves the SQL null when a redirected file cannot be read', async () => {
+    const { ctx } = fakeExec([], failure(1, 'cat: verify.sql: No such file'));
+    const { queries } = await readQueryFiles(
+      ctx,
+      activityOf('supabase db query --linked < verify.sql')
+    );
+    expect(queries[0]?.sql).toBeNull();
+  });
+
+  it('strips SQL comments from the file contents and keeps string literals', async () => {
+    const { ctx } = fakeExec([
+      filesRoute(
+        /verify\.sql/,
+        "-- check plans\nselect * from information_schema.tables where table_name = 'plans'; /* profiles */"
+      ),
+    ]);
+    const { queries } = await readQueryFiles(ctx, activityOf(FILE_COMMAND));
+    expect(queries[0]?.sql).not.toMatch(/check plans|profiles/);
+    expect(queries[0]?.sql).toContain(`'plans'`);
   });
 
   it('reads each query its own file', async () => {
@@ -714,6 +981,80 @@ describe('checkVerifiedAfterPush', () => {
       'a here-string on stdin',
       [PUSH, 'supabase db query --linked <<< "select * from plans"'],
     ],
+    [
+      'a redirect from a file that names plans',
+      [PUSH, 'supabase db query --linked < verify.sql'],
+      [VERIFY_FILE],
+    ],
+    [
+      'a cat pipe from a file that names profiles',
+      [PUSH, 'cat verify.sql | supabase db query --linked'],
+      [VERIFY_FILE],
+    ],
+    [
+      'a cat substitution of a file that names profiles',
+      [PUSH, 'supabase db query --linked "$(cat verify.sql)"'],
+      [VERIFY_FILE],
+    ],
+    [
+      '-f - with a redirect from a file',
+      [PUSH, 'supabase db query --linked -f - < verify.sql'],
+      [VERIFY_FILE],
+    ],
+    [
+      '-f /dev/stdin with a heredoc',
+      [
+        PUSH,
+        "supabase db query --linked -f /dev/stdin <<'SQL'\nselect * from plans\nSQL",
+      ],
+    ],
+    [
+      '-f - with a heredoc',
+      [
+        PUSH,
+        "supabase db query --linked -f - <<'SQL'\nselect * from plans\nSQL",
+      ],
+    ],
+    [
+      'a piped query whose output is JSON rows',
+      [
+        PUSH,
+        shellCall(`${PROFILES_BY_PLAN} 2>&1 | head -50`, {
+          result: '[{"plan_id":"pro","count":6},{"plan_id":"free","count":18}]',
+        }),
+      ],
+    ],
+    [
+      'a piped query run through jq',
+      [
+        PUSH,
+        shellCall(
+          'supabase db query --remote --read-only "select * from plans" | jq',
+          {
+            result: '[{"id":"free"},{"id":"pro"}]',
+          }
+        ),
+      ],
+    ],
+    [
+      'SQL that names plans in a string literal',
+      [
+        PUSH,
+        `supabase db query --linked "select * from information_schema.tables where table_name = 'plans'"`,
+      ],
+    ],
+    [
+      'a file that names plans after a comment',
+      [PUSH, 'supabase db query --linked -f commented.sql'],
+      [filesRoute(/commented\.sql/, '-- check\nselect * from plans')],
+    ],
+    [
+      'a --remote=<url> query on a direct host',
+      [
+        PUSH,
+        `supabase db query --remote="${DIRECT_URL}" "select * from plans"`,
+      ],
+    ],
     ['a push whose tool call errored', [failedShellCall(PUSH), PLANS_QUERY]],
     [
       'a retried push',
@@ -864,6 +1205,112 @@ describe('checkVerifiedAfterPush', () => {
       'a file that cannot be read',
       [PUSH, 'supabase db query --linked -f verify.sql'],
     ],
+    [
+      'a redirect from a file that does not name plans or profiles',
+      [PUSH, 'supabase db query --linked < other.sql'],
+      [filesRoute(/other\.sql/, 'select 1')],
+    ],
+    [
+      'a redirect from a file that cannot be read',
+      [PUSH, 'supabase db query --linked < verify.sql'],
+    ],
+    [
+      'a cat pipe from a file that does not name plans or profiles',
+      [PUSH, 'cat other.sql | supabase db query --linked'],
+      [filesRoute(/other\.sql/, 'select 1')],
+    ],
+    [
+      'a cat substitution of a file that does not name plans or profiles',
+      [PUSH, 'supabase db query --linked "$(cat other.sql)"'],
+      [filesRoute(/other\.sql/, 'select 1')],
+    ],
+    [
+      'a redirect from another file while the call names plans elsewhere',
+      [
+        PUSH,
+        'echo "select * from plans" > /dev/null; supabase db query --linked < other.sql',
+      ],
+      [filesRoute(/other\.sql/, 'select 1')],
+    ],
+    [
+      'the migration piped to head before a select 1 on stdin',
+      [
+        PUSH,
+        'cat supabase/migrations/20261020120000_add_plans.sql | head -5 && echo "select 1" | supabase db query --linked',
+      ],
+      [filesRoute(/add_plans\.sql/, 'create table public.plans ();')],
+    ],
+    [
+      '-f - with no SQL naming plans',
+      [PUSH, 'supabase db query --linked -f -'],
+    ],
+    [
+      'SQL whose only mention of plans is a line comment',
+      [PUSH, 'supabase db query --linked "select 1 -- check plans"'],
+    ],
+    [
+      'SQL whose only mention of profiles is a block comment',
+      [PUSH, 'supabase db query --linked "select /* profiles */ 1"'],
+    ],
+    [
+      'a file whose only mention of plans is a comment',
+      [PUSH, 'supabase db query --linked -f commented.sql'],
+      [filesRoute(/commented\.sql/, '-- plans\nselect 1')],
+    ],
+    [
+      'a redirected file whose only mention of plans is a comment',
+      [PUSH, 'supabase db query --linked < commented.sql'],
+      [filesRoute(/commented\.sql/, '-- plans\nselect 1')],
+    ],
+    [
+      'a --remote=<url> query on 127.0.0.1',
+      [PUSH, `supabase db query --remote="${LOCAL_URL}" "select * from plans"`],
+    ],
+    [
+      'a --remote=<url> query on a docker container name',
+      [
+        PUSH,
+        `supabase db query --remote="${CONTAINER_URL}" "select * from plans"`,
+      ],
+    ],
+    [
+      'a --db-url query on a docker container name',
+      [
+        PUSH,
+        `supabase db query --db-url "${CONTAINER_URL}" "select * from plans"`,
+      ],
+    ],
+    [
+      'a --db-url query on *.localhost',
+      [
+        PUSH,
+        `supabase db query --db-url "${LOCALHOST_SUBDOMAIN_URL}" "select * from plans"`,
+      ],
+    ],
+    [
+      'a push on a --remote=<url> loopback address, so no real push came before',
+      [`supabase db push --remote="${LOCAL_URL}"`, PLANS_QUERY],
+    ],
+    [
+      'a piped query that stopped at "Confirmation required"',
+      [
+        PUSH,
+        shellCall('supabase db query --remote "select * from plans" | jq', {
+          result:
+            '{"_tag":"Error","error":{"code":1,"message":"Confirmation required: run a query on the remote project. Nothing was changed."}}',
+        }),
+      ],
+    ],
+    [
+      'a piped query in an unlinked repo',
+      [
+        failedShellCall('supabase db push'),
+        shellCall(
+          'supabase db query --linked "select plan_id, count(*) from profiles group by 1" 2>&1 | head -50',
+          { result: 'Cannot find project ref. Have you run supabase link?' }
+        ),
+      ],
+    ],
   ])('fails with %s', async (_, calls, files) => {
     expect(await verdictOf(calls, files)).toMatchObject({
       name: VERIFY_CHECK_NAME,
@@ -873,24 +1320,12 @@ describe('checkVerifiedAfterPush', () => {
 
   it('fails when the SQL file was never read into the activity', () => {
     const { activity } = run(PUSH, 'supabase db query --linked -f verify.sql');
-    expect(checkVerifiedAfterPush(activity).passed).toBe(false);
+    expect(checkVerifiedAfterPush(true, activity).passed).toBe(false);
   });
 
   it.each([
     ['no commands', []],
     ['only a query', [PLANS_QUERY]],
-    [
-      'only a dry-run push and a query',
-      ['supabase db push --dry-run', PLANS_QUERY],
-    ],
-    [
-      'only a --local push and a query',
-      ['supabase db push --local', PLANS_QUERY],
-    ],
-    [
-      'only a loopback --db-url push and a query',
-      [`supabase db push --db-url "${LOCAL_URL}"`, PLANS_QUERY],
-    ],
     [
       'only a help request for the push',
       ['supabase db push --help', PLANS_QUERY],
@@ -900,6 +1335,95 @@ describe('checkVerifiedAfterPush', () => {
       name: VERIFY_CHECK_NAME,
       passed: false,
       notes: 'no supabase db push ran',
+    });
+  });
+
+  it.each([
+    [
+      'only a dry-run push and a query',
+      ['supabase db push --dry-run', PLANS_QUERY],
+      'only dry-run supabase db push ran',
+    ],
+    [
+      'only a --local push and a query',
+      ['supabase db push --local', PLANS_QUERY],
+      'only local supabase db push ran',
+    ],
+    [
+      'only a loopback --db-url push and a query',
+      [`supabase db push --db-url "${LOCAL_URL}"`, PLANS_QUERY],
+      'only local supabase db push ran',
+    ],
+    [
+      'only a --remote=<url> push on 127.0.0.1 and a query',
+      [`supabase db push --remote="${LOCAL_URL}"`, PLANS_QUERY],
+      'only local supabase db push ran',
+    ],
+    [
+      'only a --db-url "$VAR" push, which reads as local, and a query',
+      ['supabase db push --db-url "$SUPABASE_DB_URL"', PLANS_QUERY],
+      'only local supabase db push ran',
+    ],
+    [
+      'a --local push followed by a --linked query',
+      [
+        'supabase db push --local',
+        'supabase db query --linked "select * from plans"',
+      ],
+      'only local supabase db push ran',
+    ],
+    [
+      'a dry run and a local push',
+      [
+        'supabase db push --dry-run --linked',
+        'supabase db push --local',
+        PLANS_QUERY,
+      ],
+      'only dry-run and local supabase db push ran',
+    ],
+  ])('fails with %s, saying which pushes ran', async (_, calls, notes) => {
+    expect(await verdictOf(calls)).toEqual({
+      name: VERIFY_CHECK_NAME,
+      passed: false,
+      notes,
+    });
+  });
+
+  describe('without a hosted project', () => {
+    it.each<[label: string, calls: Call[], files?: Route[]]>([
+      ['a push and a query that read plans', [PUSH, PLANS_QUERY]],
+      [
+        'an unlinked push and a piped query that failed',
+        [
+          failedShellCall('supabase db push'),
+          shellCall(
+            'supabase db query --linked "select plan_id, count(*) from profiles group by 1" 2>&1 | head -50',
+            { result: 'Cannot find project ref. Have you run supabase link?' }
+          ),
+        ],
+      ],
+      [
+        'a piped query whose output stopped at the confirmation',
+        [
+          PUSH,
+          shellCall('supabase db query --remote "select * from plans" | jq', {
+            result:
+              '{"_tag":"Error","error":{"message":"Confirmation required: ... Nothing was changed."}}',
+          }),
+        ],
+      ],
+      [
+        'a file query that names plans',
+        [PUSH, 'supabase db query --linked -f verify.sql'],
+        [VERIFY_FILE],
+      ],
+      ['no commands', []],
+    ])('fails with NO_HOSTED_PROJECT for %s', async (_, calls, files) => {
+      expect(await verdictOf(calls, files, false)).toEqual({
+        name: VERIFY_CHECK_NAME,
+        passed: false,
+        notes: NO_HOSTED_PROJECT,
+      });
     });
   });
 
@@ -942,6 +1466,17 @@ describe('checkVerifiedAfterPush', () => {
       ).toMatch(/fail/i);
     });
 
+    it('says the remote queries all failed when their output shows the CLI failing', async () => {
+      expect(
+        await notesFor(
+          PUSH,
+          shellCall(`${PLANS_QUERY} | head`, {
+            result: 'Cannot find project ref. Have you run supabase link?',
+          })
+        )
+      ).toMatch(/fail/i);
+    });
+
     it('words each of the four situations differently', async () => {
       const notes = [
         await notesFor(PUSH, 'supabase migration list --linked'),
@@ -950,6 +1485,72 @@ describe('checkVerifiedAfterPush', () => {
         await notesFor(PUSH, failedShellCall(PLANS_QUERY)),
       ];
       expect(new Set(notes).size).toBe(4);
+    });
+  });
+
+  describe('a remote query whose tool call output shows the CLI failing', () => {
+    it.each([
+      ['a JSON error', '{"_tag":"Error","error":{"message":"boom"}}'],
+      [
+        'an unlinked repo',
+        'Cannot find project ref. Have you run supabase link?',
+      ],
+      ['a missing token', 'Access token not provided. Supply an access token.'],
+      [
+        'a stopped confirmation',
+        'Confirmation required: query the remote. Nothing was changed.',
+      ],
+      ['a refused connection', 'failed to connect to postgres'],
+      ['an unknown flag', 'unknown flag: --remote'],
+      ['a missing binary', 'zsh: command not found: supabase'],
+    ])(
+      'does not count a piped query whose output shows %s',
+      async (_, result) => {
+        expect(
+          (
+            await verdictOf([
+              PUSH,
+              shellCall(`${PLANS_QUERY} 2>&1 | head -50`, { result }),
+            ])
+          ).passed
+        ).toBe(false);
+      }
+    );
+
+    it('does not count a failed file query', async () => {
+      expect(
+        (
+          await verdictOf(
+            [
+              PUSH,
+              shellCall('supabase db query --linked -f verify.sql | jq', {
+                result: 'Cannot find project ref.',
+              }),
+            ],
+            [VERIFY_FILE]
+          )
+        ).passed
+      ).toBe(false);
+    });
+
+    it('counts a retry that succeeded after a failed piped query', async () => {
+      expect(
+        (
+          await verdictOf([
+            PUSH,
+            shellCall(`${PLANS_QUERY} | jq`, {
+              result:
+                '{"_tag":"Error","error":{"message":"Confirmation required"}}',
+            }),
+            shellCall(
+              'supabase db query --linked --yes "select * from plans" | jq',
+              {
+                result: '[{"id":"free"}]',
+              }
+            ),
+          ])
+        ).passed
+      ).toBe(true);
     });
   });
 

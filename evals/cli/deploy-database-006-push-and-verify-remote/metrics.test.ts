@@ -53,18 +53,21 @@ const GOOD_DATA: RemoteData = {
 const metricsOf = (check: { notes?: string }) =>
   JSON.parse(check.notes ?? '{}') as Record<string, unknown>;
 
+const LOCAL_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
 const PUSH = 'supabase db push --linked --yes';
 const REMOTE_QUERY = 'supabase db query --linked "select * from plans"';
 
 describe('countDbInvocations', () => {
   const count = (...calls: (string | ToolCallRecord)[]) => {
-    const entries = extractCommandEntries(
-      calls.map((call) => (typeof call === 'string' ? shellCall(call) : call))
+    const toolCalls = calls.map((call) =>
+      typeof call === 'string' ? shellCall(call) : call
     );
-    const invocations = findSupabaseInvocations(entries);
+    const invocations = findSupabaseInvocations(
+      extractCommandEntries(toolCalls)
+    );
     return countDbInvocations(
       invocations,
-      readDbActivity(invocations, entries)
+      readDbActivity(invocations, toolCalls)
     );
   };
 
@@ -178,6 +181,36 @@ describe('countDbInvocations', () => {
     });
   });
 
+  it('counts the remote query before the first push that is neither a dry run nor local', () => {
+    expect(
+      count(
+        'supabase db push --local',
+        REMOTE_QUERY,
+        'supabase db push --linked'
+      )
+    ).toMatchObject({
+      dbPush: 2,
+      dbQueryRemote: 1,
+      dbQueryRemoteBeforePush: 1,
+    });
+  });
+
+  it.each([
+    ['a loopback --db-url', `--db-url "${LOCAL_URL}"`],
+    ['a loopback --remote=<url>', `--remote="${LOCAL_URL}"`],
+    ['a dry run', '--dry-run --linked'],
+  ])('does not anchor the before-push count on %s', (_, flags) => {
+    expect(
+      count(`supabase db push ${flags}`, REMOTE_QUERY, PUSH, REMOTE_QUERY)
+    ).toMatchObject({ dbQueryRemote: 2, dbQueryRemoteBeforePush: 1 });
+  });
+
+  it('counts every remote query as before the push when only local pushes ran', () => {
+    expect(
+      count('supabase db push --local', REMOTE_QUERY, REMOTE_QUERY)
+    ).toMatchObject({ dbQueryRemote: 2, dbQueryRemoteBeforePush: 2 });
+  });
+
   it('does not count a local query before the push as a remote query before it', () => {
     expect(
       count('supabase db query "select * from plans"', PUSH, REMOTE_QUERY)
@@ -200,6 +233,18 @@ describe('countDbInvocations', () => {
       dbQueryRemote: 2,
       dbQueryRemoteFailed: 1,
     });
+  });
+
+  it('counts a remote query whose output shows the CLI failing as failed', () => {
+    expect(
+      count(
+        PUSH,
+        shellCall(`${REMOTE_QUERY} 2>&1 | head -50`, {
+          result: 'Cannot find project ref. Have you run supabase link?',
+        }),
+        shellCall(`${REMOTE_QUERY} | jq`, { result: '[{"id":"free"}]' })
+      )
+    ).toMatchObject({ dbQueryRemote: 2, dbQueryRemoteFailed: 1 });
   });
 
   it('does not count a local query whose tool call errored as a failed remote query', () => {

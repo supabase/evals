@@ -153,7 +153,7 @@ hosted project.
 | `the hosted schema has the plans change` | the migration's DDL ran on the remote, so a history repair alone can't pass | `public.plans` has the columns `id`, `name` and `monthly_price_cents`, and `public.profiles.plan_id` exists, is not null and has a foreign key to `public.plans` (read from `information_schema` and `pg_constraint`). Extra columns are fine. The notes name each missing piece, such as `public.plans is missing`, `public.profiles.plan_id is missing`, `is nullable, expected not null` or `has no foreign key to plans`. No hosted project or a query error fails it |
 | `the hosted data looks right after the push` | the backfill ran against the real remote rows and nothing was lost | `public.plans` holds the ids `free` and `pro` and no others, `public.profiles` has 24 rows and all 24 are the seeded `user_1` to `user_24`, 6 users are paid, and no user's `plan_id` differs from `pro` for paid and `free` for the rest (a null `plan_id` counts as wrong). A missing table or column makes the affected count unknown, which fails. The notes give the counts, such as `24 profiles, 6 paid, 6 on pro, 18 on free`. No hosted project or a query error fails it |
 | `the agent pushed with supabase db push` | the agent used the CLI's push path | at least one executed `supabase db push` invocation without `--dry-run`, wrappers like `npx supabase` and any target flags included (`checkPushed` in `push.ts`). A push that errored still counts here, and so does a bare push on next that went to the local stack; the history check is what proves a push landed. It fails when only `--dry-run` ran or no push ran, and the notes say which |
-| `the agent checked the hosted project with supabase db query after pushing` | the agent did the verify step of the journey: it read the hosted database with the CLI after the push | the last push is the latest executed `db push` that isn't a dry run and isn't explicitly local (`--local`, or `--db-url` with a loopback host); with none it fails. A later executed `supabase db query` must target the hosted project (`--linked`, `--project-ref <ref>`, `--remote`, `--remote=<value>`, or `--db-url` with a non-loopback host), read `plans` or `profiles`, and not have failed. `--local` wins over every other target flag, a loopback `--db-url` is local, and a bare `db query` is the default target, which reads the local database, so neither counts. Loopback hosts are `localhost`, `127.0.0.0/8`, `::1`, `0.0.0.0` and `host.docker.internal`, and a `--db-url` that doesn't parse counts as loopback. The SQL is the positional argument; else the `-f`/`--file` contents, read from the sandbox at score time relative to the invocation's directory (its working directory or `--workdir`, else the workspace root), where an unreadable file reads nothing; else, when there is neither, the whole tool-call command, which covers SQL on stdin from a heredoc, a here-string or a pipe. The match is `plans` or `profiles` as a whole identifier, case-insensitive, so `"plans"`, `public.plans` and `'plans'` count while `plan_id`, `plans_archive` and `user_plans` don't. A query failed when the tool call that ran it reported an error, so a failed attempt followed by a successful retry passes. The notes say which step is missing: no push, no query after the push, only local or default-target queries, remote queries that never read `plans` or `profiles`, or every such query failed |
+| `the agent checked the hosted project with supabase db query after pushing` | the agent did the verify step of the journey: it read the hosted database with the CLI after the push | with no hosted project it fails first, with the same note as the hosted check (`hasHostedProject`), so a query that had nothing to reach never passes. The last push is the latest executed `db push` that isn't a dry run and isn't explicitly local (`--local`, or `--db-url` or `--remote=<url>` with a loopback host); with none it fails, and the notes say whether no push ran or only dry-run or local pushes did. A later executed `supabase db query` must target the hosted project (`--linked`, `--project-ref <ref>`, `--remote`, `--remote=<ref>`, `--remote=<url>`, or `--db-url` with a non-loopback host), read `plans` or `profiles`, and not have failed. `--local` wins over every other target flag, a loopback `--db-url` or `--remote=<url>` is local, and a bare `db query` is the default target, which reads the local database, so none of them count. A `--remote=<value>` without `://` is a project ref or branch and stays remote. Loopback hosts are `localhost`, `*.localhost`, `127.0.0.0/8`, `::1`, `0.0.0.0`, `host.docker.internal` and any host without a dot, such as a docker container name (`supabase_db_plans-app`); a URL that doesn't parse counts as loopback. The SQL is the positional argument; else the `-f`/`--file` contents; else, for `-f -`, `-f /dev/stdin` or no file, the file the query's own command reads (`< file`, or `cat file |` just before it); else the whole tool-call command, which covers SQL on stdin from a heredoc, a here-string or an `echo` pipe. A quoted `"$(cat file)"` positional counts as that file. Files are read from the sandbox at score time relative to the invocation's directory (its working directory or `--workdir`, else the workspace root), and an unreadable file reads nothing. SQL comments (`-- ...`, `/* ... */`) are stripped from the positional and file SQL before matching, string literals are not. The match is `plans` or `profiles` as a whole identifier, case-insensitive, so `"plans"`, `public.plans` and `'plans'` count while `plan_id`, `plans_archive` and `user_plans` don't. A query failed when the tool call that ran it reported an error, or the call's output shows a CLI failure (`"_tag":"Error"`, `Cannot find project ref`, `Access token not provided`, `Confirmation required`, `failed to connect`, `unknown flag` or `command not found`, any case), so a query piped through `head` or `jq` that printed the CLI's error doesn't pass, and a failed attempt followed by a successful retry does. The notes say which step is missing: no hosted project, no push (or only dry-run or local ones), no query after the push, only local or default-target queries, remote queries that never read `plans` or `profiles`, or every such query failed |
 | `no container-runtime detours` | no Docker or runtime workarounds for a task that needs none | the shared detour judge from `../lib/detours.ts` over executed commands only. Supabase CLI commands (`db push`, `db query`, `migration list`, `link`, `login`, `projects list`, `start`), `psql` and other database clients, reading environment variables, reading or editing files under `supabase/`, and calling the Management API with `curl` are not detours. With no commands it passes without a judge call |
 | `metrics` | diagnostics only | always passes; the fields are listed below |
 | `final report is truthful about the push and what the live database shows` | the report matches the harness's own view of the hosted project and the repo link | an LLM judge given the ground truth and the transcript, including tool outputs |
@@ -175,9 +175,11 @@ not `SUPABASE_YES` or a piped "y"), `dbQuery`, `dbQueryRemote`,
 `dbQueryRemoteBeforePush`, `dbQueryRemoteFailed`, `migrationList`, `link` and
 `login`, `cliVersion`, `cliVersionAfterRun` (only when the PATH version moved),
 `runtime`, `docker` and `commandCount`. `dbQueryRemoteBeforePush` counts remote
-queries ahead of the first push that isn't a dry run, or all remote queries when
-no push ran: the `db query` → `db push` → `db query` shape in the telemetry.
-`dbQueryRemoteFailed` counts remote queries whose tool call reported an error.
+queries ahead of the first push that is neither a dry run nor explicitly local, or
+all remote queries when no such push ran: the `db query` → `db push` → `db query`
+shape in the telemetry. `dbQueryRemoteFailed` counts remote queries whose tool
+call reported an error or whose output shows a CLI failure, by the same rule as
+the verify check.
 
 The report judge's ground truth is six lines:
 
@@ -240,7 +242,7 @@ has no hosted project until the staging org lands
 The hosted, history, schema and data checks fail in every run. The push check
 passes in runs that ran `db push`: on 2.x the push hits "Cannot find project
 ref", and on next a bare push goes to the local stack. The verify check fails
-because no remote query can succeed. The detour and report checks pass when the
+because there is no hosted project. The detour and report checks pass when the
 agent truthfully reports that it couldn't push.
 
 On next with Docker there is a footgun: a bare `db push` can succeed against a
@@ -285,17 +287,22 @@ hosted project.
   fresh project seeded from `remote/project.sql`. The push check narrows this,
   since full credit needs a `db push`, but a reused migrated project plus a push
   that errored would still pass.
-- Stdin SQL is taken from the whole tool-call command, not the stream. A command
-  that mentions `plans` or `profiles` outside the query, such as an `echo` or a
-  heredoc that writes a file, could credit a query that never read them. A query
-  fed from a file by a redirect isn't credited when the command doesn't name
-  them.
-- A query's success is the tool call's exit status, not the query's own. `db
-  query ... | jq` or `... || true` can mask a failure, and when one tool call
-  holds several commands, an error from any of them marks every query in it as
-  failed.
+- Stdin SQL that doesn't come from a file the scorer can find is taken from the
+  whole tool-call command, not the stream. A command that mentions `plans` or
+  `profiles` outside the query, such as an `echo` or a heredoc that writes a file,
+  could credit a query that never read them, and comments in that text aren't
+  stripped. Only `< file`, `cat file |` and a quoted `"$(cat file)"` are followed
+  to a file. Any other way of feeding one reads nothing or falls back to the
+  command text: `cat a b |`, an unquoted `$(cat file)`, a path in a variable.
+- A query's failure is read from the tool call, not from the query: its error
+  status, or one of the CLI failure texts listed above in its output. A failure
+  the CLI words differently, behind `|| true` or a pipe, still counts as a query
+  that ran. When one tool call holds several commands, an error or failure text
+  from any of them marks every query in it as failed.
 - A `--db-url` that can't be parsed, such as a shell variable the scorer sees
-  unexpanded, counts as local.
+  unexpanded, counts as local, so `db push --db-url "$SUPABASE_DB_URL"` reads as
+  an explicitly local push: it passes the push check, but the verify check skips
+  it and says only local pushes ran.
 - The verify check credits only `supabase db query`. `psql` or `curl` against
   the hosted project don't pass it, and the detour judge doesn't count them as
   detours: the journey under test is `db query`.

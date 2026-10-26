@@ -4,8 +4,8 @@ Helpers used by more than one eval under `evals/cli/`. This directory has no
 `PROMPT.md`, so eval discovery skips it — never add one, or a `local/` dir.
 
 What belongs here: pure and probe helpers (`shell.ts`, `stack.ts`,
-`projects.ts`, `markers.ts`, `metrics.ts`, `migrations.ts`), shared judge
-policy text and input formatters (`detours.ts`, `report.ts`).
+`projects.ts`, `markers.ts`, `metrics.ts`, `migrations.ts`, `link.ts`), shared
+judge policy text and input formatters (`detours.ts`, `report.ts`).
 
 What stays in each eval's `EVAL.ts`: check composition, every `ctx.judge()`
 call, its scenario-specific rubric text, and `export default`. Scenario-only

@@ -72,13 +72,13 @@ export const versionRoute = (respond: Respond): Route => [
 
 export function shellCall(
   command: string,
-  options: { error?: string; cwd?: string } = {}
+  options: { error?: string; cwd?: string; result?: string } = {}
 ): ToolCallRecord {
   return {
     tool: { kind: 'other', toolName: 'shell' },
     body: { command },
     command,
-    result: '',
+    result: options.result ?? '',
     ts: 0,
     ...(options.error === undefined ? {} : { error: options.error }),
     ...(options.cwd === undefined ? {} : { cwd: options.cwd }),

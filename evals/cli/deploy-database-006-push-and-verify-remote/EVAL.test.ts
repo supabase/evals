@@ -181,7 +181,7 @@ const resetRemote = remoteWith({
 });
 
 describe('scorer without a hosted project', () => {
-  it('reports the checks in order, failing the four hosted ones with NO_HOSTED_PROJECT, and fails overall', async () => {
+  it('reports the checks in order, failing the four hosted ones and the verify check with NO_HOSTED_PROJECT, and fails overall', async () => {
     const { ctx, judge } = fakeCtx({ remote: false });
 
     const result = await scorer(ctx);
@@ -192,12 +192,14 @@ describe('scorer without a hosted project', () => {
       HISTORY_CHECK_NAME,
       SCHEMA_CHECK_NAME,
       DATA_CHECK_NAME,
+      VERIFY_CHECK_NAME,
     ]);
     for (const name of [
       HOSTED_CHECK_NAME,
       HISTORY_CHECK_NAME,
       SCHEMA_CHECK_NAME,
       DATA_CHECK_NAME,
+      VERIFY_CHECK_NAME,
     ]) {
       expect(notesOf(result, name)).toContain(NO_HOSTED_PROJECT);
     }
@@ -221,6 +223,45 @@ describe('scorer without a hosted project', () => {
       VERIFY_CHECK_NAME,
     ]);
   });
+
+  it.each([
+    [
+      'a push that errored and a piped query that reports an unlinked repo',
+      [
+        failedShellCall('supabase db push'),
+        shellCall(
+          'supabase db query --linked "select plan_id, count(*) from profiles group by 1" 2>&1 | head -50',
+          { result: 'Cannot find project ref. Have you run supabase link?' }
+        ),
+      ],
+    ],
+    [
+      'a push and a piped query that stopped at the confirmation',
+      [
+        shellCall(PUSH),
+        shellCall('supabase db query --remote "select * from plans" | jq', {
+          result:
+            '{"_tag":"Error","error":{"message":"Confirmation required: ... Nothing was changed."}}',
+        }),
+      ],
+    ],
+    [
+      'a push and a query that read plans',
+      [shellCall(PUSH), shellCall(PLANS_QUERY)],
+    ],
+  ])(
+    'fails the verify check with NO_HOSTED_PROJECT for %s',
+    async (_, toolCalls) => {
+      const { ctx } = fakeCtx({ remote: false, toolCalls });
+
+      const result = await scorer(ctx);
+
+      expect(failedNames(result)).toContain(VERIFY_CHECK_NAME);
+      expect(checkNamed(result, VERIFY_CHECK_NAME)?.notes).toBe(
+        NO_HOSTED_PROJECT
+      );
+    }
+  );
 
   it('never passes the hosted checks vacuously when the agent ran no commands', async () => {
     const { ctx } = fakeCtx({ remote: false, toolCalls: [] });
@@ -259,6 +300,7 @@ describe('scorer without a hosted project', () => {
       HISTORY_CHECK_NAME,
       SCHEMA_CHECK_NAME,
       DATA_CHECK_NAME,
+      VERIFY_CHECK_NAME,
     ]);
     expect(notesOf(result, HOSTED_CHECK_NAME)).toBe(NO_HOSTED_PROJECT);
     const input = inputOf(judge, 'report');
@@ -461,6 +503,57 @@ describe('scorer with a hosted project', () => {
           "supabase db query --linked <<'SQL'\nselect plan_id, count(*) from public.profiles group by 1;\nSQL"
         ),
       ],
+    });
+
+    expect(failedNames(await scorer(ctx))).toEqual([]);
+  });
+
+  it('passes a piped check whose output is the query rows', async () => {
+    const { ctx } = fakeCtx({
+      toolCalls: [
+        shellCall(PUSH),
+        shellCall(`${PROFILES_BY_PLAN} 2>&1 | head -50`, {
+          result: '[{"plan_id":"pro","count":6},{"plan_id":"free","count":18}]',
+        }),
+      ],
+    });
+
+    expect(failedNames(await scorer(ctx))).toEqual([]);
+  });
+
+  it.each([
+    [
+      'an unlinked repo',
+      `${PROFILES_BY_PLAN} 2>&1 | head -50`,
+      'Cannot find project ref. Have you run supabase link?',
+    ],
+    [
+      'a stopped confirmation',
+      'supabase db query --remote "select * from plans" | jq',
+      '{"_tag":"Error","error":{"message":"Confirmation required: ... Nothing was changed."}}',
+    ],
+  ])(
+    'fails the verify check for a piped check that reports %s',
+    async (_, command, result) => {
+      const { ctx } = fakeCtx({
+        toolCalls: [shellCall(PUSH), shellCall(command, { result })],
+      });
+
+      const scored = await scorer(ctx);
+
+      expect(failedNames(scored)).toEqual([VERIFY_CHECK_NAME]);
+      expect(notesOf(scored, VERIFY_CHECK_NAME)).toMatch(/failed/);
+      expect(metricsOf(scored)).toMatchObject({ dbQueryRemoteFailed: 1 });
+    }
+  );
+
+  it('passes a check run from a file the shell redirects into the query', async () => {
+    const { ctx } = fakeCtx({
+      toolCalls: [
+        shellCall(PUSH),
+        shellCall('supabase db query --linked < verify.sql'),
+      ],
+      routes: [VERIFY_FILE_ROUTE],
     });
 
     expect(failedNames(await scorer(ctx))).toEqual([]);

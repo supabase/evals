@@ -1,4 +1,4 @@
-import { LINK_PATH, type LinkState } from './link.js';
+import { LINK_PATH, type LinkState } from '../lib/link.js';
 import {
   NO_HOSTED_PROJECT,
   type Probe,

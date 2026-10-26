@@ -8,7 +8,7 @@ import {
   type SupabaseInvocation,
 } from '../lib/cli-invocations.js';
 import type { readCliVersions } from '../lib/metrics.js';
-import type { DbActivity } from './push.js';
+import { type DbActivity, isRealPush } from './push.js';
 import type { Probe, RemoteData } from './remote.js';
 import { PLANS_MIGRATION_VERSION } from './seed.js';
 
@@ -31,9 +31,9 @@ export function countDbInvocations(
 ): DbCounts {
   const { pushes, queries } = activity;
   const remote = queries.filter((query) => query.target === 'remote');
-  // Infinity when no push ran, so every remote query counts as before it.
+  // Infinity when there is no such push, so every remote query counts as before it.
   const firstPush = Math.min(
-    ...pushes.filter((push) => !push.dryRun).map((push) => push.order)
+    ...pushes.filter(isRealPush).map((push) => push.order)
   );
 
   const counts: DbCounts = {
