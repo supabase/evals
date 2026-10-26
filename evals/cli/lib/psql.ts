@@ -1,6 +1,6 @@
 import type { LocalStackEvalContext } from '@supabase-evals/core';
-import { describeFailure, errorMessage, shellQuote } from '../lib/shell.js';
-import type { StackProbe } from '../lib/stack.js';
+import { describeFailure, errorMessage, shellQuote } from './shell.js';
+import type { StackProbe } from './stack.js';
 
 type ExecContext = Pick<LocalStackEvalContext, 'exec'>;
 export type Failed = { ok: false; notes: string };

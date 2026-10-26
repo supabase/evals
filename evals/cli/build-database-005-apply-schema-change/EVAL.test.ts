@@ -107,7 +107,7 @@ function fakeCtx(toolCalls: ToolCallRecord[], world: World = {}) {
       return result('', false, 'no stack running');
     }
 
-    const psql = command.match(/^psql '([^']+)' -tAc ([\s\S]+)$/);
+    const psql = command.match(/^psql '([^']+)' -X?tAc ([\s\S]+)$/);
     if (psql) {
       const sql = psql[2];
       if (psql[1] !== DB_URL || stack !== 'up') {

@@ -1,12 +1,13 @@
 import type { TranscriptPart } from '@supabase-evals/core';
+import type { StackLifecycle } from '../lib/cli-invocations.js';
+import { describeMissingVersions } from '../lib/migrations.js';
 import { formatGroundTruthJudgeInput } from '../lib/report.js';
 import { describeStack, type StackProbe } from '../lib/stack.js';
 import type { AccessProbe, ReadOutcome, WriteOutcome } from './access.js';
 import { TESTS_DIR } from './fixtures.js';
-import type { CliFacts, StackLifecycle } from './metrics.js';
+import type { CliFacts } from './metrics.js';
 import {
   describeMigrations,
-  describeMissingVersions,
   type PolicyMigrationsProbe,
   type RecordedPolicyMigrationsProbe,
 } from './migrations.js';

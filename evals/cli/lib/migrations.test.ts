@@ -3,14 +3,19 @@ import type {
   CommandResult,
   LocalStackEvalContext,
 } from '@supabase-evals/core';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   checkMigrationApplied,
   checkMigrationCreatesTable,
+  checkMigrationsRecorded,
+  describeMissingVersions,
   findTableMigration,
   maskSqlLiteralsAndComments,
   migrationCreatesTable,
+  readMigrationHistory,
+  sortMigrationsByHistory,
   stripSqlComments,
+  type SortedMigrations,
 } from './migrations.js';
 import type { StackProbe } from './stack.js';
 
@@ -265,5 +270,352 @@ describe('checkMigrationApplied', () => {
     expect(
       await checkMigrationApplied(ctx, 'n', STACK, { ok: false, notes: 'none' })
     ).toEqual({ name: 'n', passed: false, notes: 'none' });
+  });
+});
+
+describe('readMigrationHistory', () => {
+  const hex = (text: string) => Buffer.from(text, 'utf8').toString('hex');
+  const execReturning = (result: CommandResult) =>
+    vi.fn(async (_command: string) => result);
+
+  it('decodes each row into its version and recorded statements, skipping blank lines', async () => {
+    const exec = execReturning(
+      commandResult(
+        `20260101000000|${hex('create table a (id int);\ncreate index on a (id)')}\n\n20260102000000|${hex('alter table a add column "échéance" date')}\n20260103000000|\n`
+      )
+    );
+    expect(
+      await readMigrationHistory({ exec }, STACK, [
+        '20260101000000',
+        '20260102000000',
+        '20260103000000',
+      ])
+    ).toEqual({
+      ok: true,
+      history: new Map([
+        ['20260101000000', 'create table a (id int);\ncreate index on a (id)'],
+        ['20260102000000', 'alter table a add column "échéance" date'],
+        ['20260103000000', ''],
+      ]),
+    });
+  });
+
+  it('asks psql for the statements of only the given versions', async () => {
+    const exec = execReturning(commandResult(''));
+    await readMigrationHistory({ exec }, STACK, [
+      '20260101000000',
+      '20260102000000',
+    ]);
+    expect(exec).toHaveBeenCalledTimes(1);
+    const [command] = exec.mock.calls[0];
+    expect(command).toContain('array_to_string(statements');
+    expect(command).toContain('from supabase_migrations.schema_migrations');
+    expect(command).toContain(
+      "where version in ('\\''20260101000000'\\'', '\\''20260102000000'\\'')"
+    );
+  });
+
+  it('reads an empty history as no rows', async () => {
+    expect(
+      await readMigrationHistory(
+        { exec: execReturning(commandResult('')) },
+        STACK,
+        ['20260101000000']
+      )
+    ).toEqual({ ok: true, history: new Map() });
+  });
+
+  it.each([
+    ['text without a separator', 'ERROR: something went wrong'],
+    ['a payload that is not hex', '20260101000000|not-hex'],
+    ['a payload of odd length', '20260101000000|abc'],
+    ['a version that is not numeric', 'abc|00'],
+    ['a row without a payload', '20260101000000'],
+  ])('fails on %s', async (_label, row) => {
+    expect(
+      await readMigrationHistory(
+        { exec: execReturning(commandResult(`${row}\n`)) },
+        STACK,
+        ['20260101000000']
+      )
+    ).toEqual({
+      ok: false,
+      notes: `unrecognised migration history row: ${row}`,
+    });
+  });
+
+  it('fails even when a recognised row precedes the unrecognised one', async () => {
+    const stdout = `20260101000000|${hex('select 1')}\nwarning: noisy\n`;
+    expect(
+      await readMigrationHistory(
+        { exec: execReturning(commandResult(stdout)) },
+        STACK,
+        ['20260101000000']
+      )
+    ).toEqual({
+      ok: false,
+      notes: 'unrecognised migration history row: warning: noisy',
+    });
+  });
+
+  it('truncates a long unrecognised row to 120 characters', async () => {
+    const row = `junk${'x'.repeat(200)}`;
+    expect(
+      await readMigrationHistory(
+        { exec: execReturning(commandResult(row)) },
+        STACK,
+        ['20260101000000']
+      )
+    ).toEqual({
+      ok: false,
+      notes: `unrecognised migration history row: ${row.slice(0, 120)}`,
+    });
+  });
+
+  it('fails with the psql failure when the query exits non-zero', async () => {
+    expect(
+      await readMigrationHistory(
+        {
+          exec: execReturning({
+            ...commandResult('', false),
+            stderr: 'ERROR: no table',
+          }),
+        },
+        STACK,
+        ['20260101000000']
+      )
+    ).toEqual({ ok: false, notes: 'exit 1: ERROR: no table' });
+  });
+
+  it('fails with the error message when the query throws', async () => {
+    const exec = vi.fn(async (_command: string): Promise<CommandResult> => {
+      throw new Error('sandbox gone');
+    });
+    expect(
+      await readMigrationHistory({ exec }, STACK, ['20260101000000'])
+    ).toEqual({ ok: false, notes: 'sandbox gone' });
+  });
+
+  it('fails with the stack notes, without querying, when the stack is not ok', async () => {
+    const exec = execReturning(commandResult(''));
+    expect(
+      await readMigrationHistory(
+        { exec },
+        { ok: false, notes: 'managed: exit 1: no stack running' },
+        ['20260101000000']
+      )
+    ).toEqual({ ok: false, notes: 'managed: exit 1: no stack running' });
+    expect(exec).not.toHaveBeenCalled();
+  });
+});
+
+describe('sortMigrationsByHistory', () => {
+  type Migration = { version: string; file: string };
+  const A: Migration = { version: '20260101000000', file: 'a.sql' };
+  const B: Migration = { version: '20260102000000', file: 'b.sql' };
+  const C: Migration = { version: '20260103000000', file: 'c.sql' };
+  const D: Migration = { version: '20260104000000', file: 'd.sql' };
+
+  it('sorts migrations into recorded, missing and mismatched in the given order', async () => {
+    const history = new Map([
+      [A.version, 'good'],
+      [B.version, 'bad'],
+      [D.version, 'good'],
+    ]);
+    expect(
+      await sortMigrationsByHistory(
+        [A, B, C, D],
+        history,
+        (statements) => statements === 'good'
+      )
+    ).toEqual({
+      ok: true,
+      recorded: [A, D],
+      missing: [C],
+      mismatched: [B],
+    });
+  });
+
+  it('records nothing when the history is empty', async () => {
+    expect(
+      await sortMigrationsByHistory([A, B], new Map(), () => true)
+    ).toEqual({ ok: true, recorded: [], missing: [A, B], mismatched: [] });
+  });
+
+  it('hands the match the recorded statements and the migration, and skips missing ones', async () => {
+    const matches = vi.fn(() => true);
+    await sortMigrationsByHistory(
+      [A, B],
+      new Map([[B.version, 'recorded b']]),
+      matches
+    );
+    expect(matches.mock.calls).toEqual([['recorded b', B]]);
+  });
+
+  it('awaits an async match', async () => {
+    const history = new Map([
+      [A.version, 'x'],
+      [B.version, 'y'],
+    ]);
+    expect(
+      await sortMigrationsByHistory([A, B], history, async (statements) => {
+        await Promise.resolve();
+        return statements === 'x';
+      })
+    ).toEqual({ ok: true, recorded: [A], missing: [], mismatched: [B] });
+  });
+
+  it('fails with the error message when an async match throws', async () => {
+    const matched: string[] = [];
+    const history = new Map([
+      [A.version, 'x'],
+      [B.version, 'y'],
+      [C.version, 'z'],
+    ]);
+    expect(
+      await sortMigrationsByHistory(
+        [A, B, C],
+        history,
+        async (_s, { file }) => {
+          matched.push(file);
+          if (file === 'b.sql')
+            throw new Error('exit 1: cat: b.sql: no such file');
+          return true;
+        }
+      )
+    ).toEqual({ ok: false, notes: 'exit 1: cat: b.sql: no such file' });
+    expect(matched).toEqual(['a.sql', 'b.sql']);
+  });
+
+  it('fails with the error message when a sync match throws', async () => {
+    expect(
+      await sortMigrationsByHistory([A], new Map([[A.version, 'x']]), () => {
+        throw new Error('boom');
+      })
+    ).toEqual({ ok: false, notes: 'boom' });
+  });
+});
+
+describe('describeMissingVersions', () => {
+  it('lists the missing versions', () => {
+    expect(
+      describeMissingVersions([
+        { version: '20260101000000' },
+        { version: '20260102000000' },
+      ])
+    ).toBe(
+      'version(s) 20260101000000, 20260102000000 not in supabase_migrations.schema_migrations'
+    );
+  });
+});
+
+describe('checkMigrationsRecorded', () => {
+  type Migration = { version: string };
+  const A: Migration = { version: '20260101000000' };
+  const B: Migration = { version: '20260102000000' };
+  const describers = {
+    describeRecorded: (migrations: readonly Migration[]) =>
+      migrations.map(({ version }) => `v${version}`).join(', '),
+    describeMismatched: (migrations: readonly Migration[]) =>
+      `version(s) ${migrations.map(({ version }) => version).join(', ')} differ`,
+  };
+  const sorted = (
+    parts: Partial<Extract<SortedMigrations<Migration>, { ok: true }>>
+  ): SortedMigrations<Migration> => ({
+    ok: true,
+    recorded: [],
+    missing: [],
+    mismatched: [],
+    ...parts,
+  });
+
+  it('passes naming one recorded migration, with the suffix', () => {
+    expect(
+      checkMigrationsRecorded('recorded', sorted({ recorded: [A] }), {
+        ...describers,
+        passedSuffix: 'with the statement',
+      })
+    ).toEqual({
+      name: 'recorded',
+      passed: true,
+      notes:
+        'v20260101000000 is in supabase_migrations.schema_migrations with the statement',
+    });
+  });
+
+  it('passes naming several recorded migrations, without a suffix', () => {
+    expect(
+      checkMigrationsRecorded(
+        'recorded',
+        sorted({ recorded: [A, B] }),
+        describers
+      )
+    ).toEqual({
+      name: 'recorded',
+      passed: true,
+      notes:
+        'v20260101000000, v20260102000000 are in supabase_migrations.schema_migrations',
+    });
+  });
+
+  it('fails naming the missing versions', () => {
+    expect(
+      checkMigrationsRecorded(
+        'recorded',
+        sorted({ recorded: [A], missing: [B] }),
+        describers
+      )
+    ).toEqual({
+      name: 'recorded',
+      passed: false,
+      notes:
+        'version(s) 20260102000000 not in supabase_migrations.schema_migrations',
+    });
+  });
+
+  it('fails naming the mismatched versions with the eval describer', () => {
+    expect(
+      checkMigrationsRecorded(
+        'recorded',
+        sorted({ recorded: [A], mismatched: [B] }),
+        describers
+      )
+    ).toEqual({
+      name: 'recorded',
+      passed: false,
+      notes: 'version(s) 20260102000000 differ',
+    });
+  });
+
+  it('names missing and mismatched versions together, missing first', () => {
+    expect(
+      checkMigrationsRecorded(
+        'recorded',
+        sorted({ missing: [A], mismatched: [B] }),
+        describers
+      ).notes
+    ).toBe(
+      'version(s) 20260101000000 not in supabase_migrations.schema_migrations; version(s) 20260102000000 differ'
+    );
+  });
+
+  it('fails when no migration is recorded and there is no other problem', () => {
+    expect(checkMigrationsRecorded('recorded', sorted({}), describers)).toEqual(
+      {
+        name: 'recorded',
+        passed: false,
+        notes: 'no migration is recorded',
+      }
+    );
+  });
+
+  it('passes the probe failure through', () => {
+    expect(
+      checkMigrationsRecorded(
+        'recorded',
+        { ok: false, notes: 'stack down' },
+        describers
+      )
+    ).toEqual({ name: 'recorded', passed: false, notes: 'stack down' });
   });
 });
