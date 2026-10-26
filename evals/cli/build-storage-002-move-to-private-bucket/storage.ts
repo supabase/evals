@@ -2,6 +2,7 @@ import type { CheckResult, LocalStackEvalContext } from '@supabase-evals/core';
 import { describeFailure, errorMessage, shellQuote } from '../lib/shell.js';
 import type { StackProbe } from '../lib/stack.js';
 import type { StackKeys } from '../lib/stack-keys.js';
+import type { StackLifecycle } from '../lib/stack-lifecycle.js';
 import { AVATARS, INVOICES, MEDIA_BUCKET, invoiceFor } from './fixtures.js';
 
 type ExecContext = Pick<LocalStackEvalContext, 'exec'>;
@@ -311,10 +312,18 @@ export async function probeStorage(
   };
 }
 
-const unavailable = (name: string, notes: string): CheckResult => ({
+const unavailable = (
+  name: string,
+  notes: string,
+  lifecycle?: StackLifecycle
+): CheckResult => ({
   name,
   passed: false,
-  notes: `storage probe unavailable: ${notes}`,
+  notes: `${
+    lifecycle?.stoppedByAgent
+      ? `the agent stopped the stack (last stack command: \`${lifecycle.lastCommand}\`); `
+      : ''
+  }storage probe unavailable: ${notes}`,
 });
 
 const fileName = (key: string) => key.slice(key.lastIndexOf('/') + 1);
@@ -324,9 +333,12 @@ const describeControl = (control: Fetched): string =>
     control.notes === undefined ? '' : ` (${control.notes})`
   }`;
 
-export function checkInvoicesPrivate(probe: StorageProbe): CheckResult {
+export function checkInvoicesPrivate(
+  probe: StorageProbe,
+  lifecycle?: StackLifecycle
+): CheckResult {
   const name = 'invoices are in a private bucket on the local stack';
-  if (!probe.ok) return unavailable(name, probe.notes);
+  if (!probe.ok) return unavailable(name, probe.notes, lifecycle);
   const missing = INVOICES.filter(
     ({ sha256 }) =>
       !probe.objects.some(
@@ -343,9 +355,12 @@ export function checkInvoicesPrivate(probe: StorageProbe): CheckResult {
   };
 }
 
-export function checkNoInvoicePublic(probe: StorageProbe): CheckResult {
+export function checkNoInvoicePublic(
+  probe: StorageProbe,
+  lifecycle?: StackLifecycle
+): CheckResult {
   const name = 'no invoice is publicly readable on the local stack';
-  if (!probe.ok) return unavailable(name, probe.notes);
+  if (!probe.ok) return unavailable(name, probe.notes, lifecycle);
   const problems: string[] = [];
   if (probe.control.status !== 200) {
     problems.push(
@@ -387,9 +402,12 @@ export function checkNoInvoicePublic(probe: StorageProbe): CheckResult {
   return { name, passed: false, notes: problems.join('; ') };
 }
 
-export function checkAvatarsPublic(probe: StorageProbe): CheckResult {
+export function checkAvatarsPublic(
+  probe: StorageProbe,
+  lifecycle?: StackLifecycle
+): CheckResult {
   const name = 'avatars are still public where the app loads them';
-  if (!probe.ok) return unavailable(name, probe.notes);
+  if (!probe.ok) return unavailable(name, probe.notes, lifecycle);
   const broken = AVATARS.filter(({ key, sha256 }) => {
     const read = probe.avatars[key];
     return !isSuccess(read?.status) || read?.sha256 !== sha256;

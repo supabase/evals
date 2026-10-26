@@ -12,4 +12,4 @@ area: storage
 journeyPhase: design
 ---
 
-Customer invoices are ending up in our public storage bucket when I run Supabase locally. Can you move them into a private bucket, and make sure a fresh local setup doesn't put them back in the public one?
+Customer invoices are ending up in our public storage bucket when I run Supabase locally. Can you move them into a private bucket, and make sure a fresh local setup doesn't put them back in the public one? Leave it running when you're done, I want to check it myself.

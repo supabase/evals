@@ -562,45 +562,119 @@ describe('checkFreshSetup', () => {
       ),
     ],
     [
-      'a declared private bucket with an empty folder',
+      'a single-file objects_path next to a folder',
       seedProbe(
         bucketSeeding(MEDIA_BUCKET, true, AVATARS),
-        bucketSeeding('invoices', false, [])
+        bucketSeeding(
+          'first',
+          false,
+          [{ key: basename(INVOICES[0].key), sha256: INVOICES[0].sha256 }],
+          `./storage/${INVOICES[0].key}`
+        ),
+        bucketSeeding('rest', false, [INVOICES[1], INVOICES[2]])
       ),
     ],
   ])('passes with %s', (_name, probe) => {
     expect(checkFreshSetup(probe).passed).toBe(true);
   });
 
-  it('passes when the invoice seed files were deleted and says invoices are no longer seeded', () => {
+  it('fails when the invoice seed files were deleted, naming each invoice', () => {
     const check = checkFreshSetup(
       seedProbe(bucketSeeding(MEDIA_BUCKET, true, AVATARS))
     );
 
-    expect(check.passed).toBe(true);
-    expect(check.notes).toMatch(/invoice/i);
+    expect(check).toMatchObject({ name: FRESH, passed: false });
+    expect(check.notes).toBe(
+      `a fresh local setup would not seed ${INVOICES.map(({ key }) => basename(key)).join(', ')} into a private bucket`
+    );
+  });
+
+  it('fails when the private bucket seeds an empty folder', () => {
+    const check = checkFreshSetup(
+      seedProbe(
+        bucketSeeding(MEDIA_BUCKET, true, AVATARS),
+        bucketSeeding('invoices', false, [])
+      )
+    );
+
+    expect(check.passed).toBe(false);
+    expect(check.notes).toContain('into a private bucket');
+  });
+
+  it('fails when the private bucket points at a folder that does not exist, naming each invoice', () => {
+    const check = checkFreshSetup(
+      seedProbe(bucketSeeding(MEDIA_BUCKET, true, AVATARS), {
+        ...bucketSeeding('invoices', false, [], './storage/invoicez'),
+        notes: './storage/invoicez does not exist, so it seeds nothing',
+      })
+    );
+
+    expect(check.passed).toBe(false);
+    for (const { key } of INVOICES)
+      expect(check.notes).toContain(basename(key));
+  });
+
+  it('names only the invoices no private bucket would seed', () => {
+    const check = checkFreshSetup(
+      seedProbe(
+        bucketSeeding(MEDIA_BUCKET, true, AVATARS),
+        bucketSeeding('invoices', false, [INVOICES[0], INVOICES[2]])
+      )
+    );
+
+    expect(check.passed).toBe(false);
+    expect(check.notes).toBe(
+      `a fresh local setup would not seed ${basename(INVOICES[1].key)} into a private bucket`
+    );
+  });
+
+  it('fails when an invoice is seeded only into a public bucket other than media', () => {
+    const check = checkFreshSetup(
+      seedProbe(
+        bucketSeeding(MEDIA_BUCKET, true, AVATARS),
+        bucketSeeding('invoices', false, [INVOICES[0], INVOICES[1]]),
+        bucketSeeding('public-docs', true, [INVOICES[2]])
+      )
+    );
+
+    expect(check.passed).toBe(false);
+    expect(check.notes).toContain(basename(INVOICES[2].key));
+  });
+
+  it('does not add the private-bucket note when storage is disabled', () => {
+    const check = checkFreshSetup({
+      ...seedProbe(bucketSeeding(MEDIA_BUCKET, true, AVATARS)),
+      storageEnabled: false,
+    });
+
+    expect(check.notes).toBe('storage is disabled in the config');
   });
 
   it('passes when a public bucket besides media has a missing folder', () => {
     expect(
       checkFreshSetup(
-        seedProbe(bucketSeeding(MEDIA_BUCKET, true, AVATARS), {
-          ...bucketSeeding('extras', true, [], './storage/extras'),
-          notes: './storage/extras does not exist, so it seeds nothing',
-        })
+        seedProbe(
+          bucketSeeding(MEDIA_BUCKET, true, AVATARS),
+          bucketSeeding('invoices', false, INVOICES),
+          {
+            ...bucketSeeding('extras', true, [], './storage/extras'),
+            notes: './storage/extras does not exist, so it seeds nothing',
+          }
+        )
       ).passed
     ).toBe(true);
   });
 
-  it('passes when a private bucket could not be listed, since it cannot seed an invoice publicly', () => {
-    expect(
-      checkFreshSetup(
-        seedProbe(bucketSeeding(MEDIA_BUCKET, true, AVATARS), {
-          ...bucketSeeding('invoices', false, [], './storage/invoices'),
-          error: 'exit 1: Permission denied',
-        })
-      ).passed
-    ).toBe(true);
+  it('fails when the private bucket could not be listed, since no invoice is shown to be seeded', () => {
+    const check = checkFreshSetup(
+      seedProbe(bucketSeeding(MEDIA_BUCKET, true, AVATARS), {
+        ...bucketSeeding('invoices', false, [], './storage/invoices'),
+        error: 'exit 1: Permission denied',
+      })
+    );
+
+    expect(check.passed).toBe(false);
+    expect(check.notes).toContain('into a private bucket');
   });
 
   it('fails when a public bucket could not be listed, naming the bucket and the error', () => {
@@ -908,7 +982,7 @@ describe('the fresh-setup check on a project read from the sandbox', () => {
     }
   );
 
-  it('passes when the invoice seed files were deleted and the folder is gone', async () => {
+  it('fails when the invoice seed files were deleted and the folder is gone', async () => {
     expect(
       await verdict(
         project(
@@ -923,7 +997,28 @@ describe('the fresh-setup check on a project read from the sandbox', () => {
           seedFiles('storage/media', AVATARS)
         )
       )
-    ).toBe(true);
+    ).toBe(false);
+  });
+
+  it('fails when the private bucket objects_path has a typo', async () => {
+    expect(
+      await verdict(
+        project(
+          [
+            { name: 'media', public: true, objectsPath: './storage/media' },
+            {
+              name: 'invoices',
+              public: false,
+              objectsPath: './storage/invoicez',
+            },
+          ],
+          {
+            ...seedFiles('storage/media', AVATARS),
+            ...seedFiles('storage/invoices', INVOICES, (f) => basename(f.key)),
+          }
+        )
+      )
+    ).toBe(false);
   });
 
   it('passes for a private bucket under a quoted name', async () => {

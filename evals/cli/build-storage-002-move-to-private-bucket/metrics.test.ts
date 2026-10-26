@@ -6,6 +6,10 @@ import type {
 import { describe, expect, it } from 'vitest';
 import { findSupabaseInvocations } from '../lib/cli-invocations.js';
 import {
+  readStackLifecycle,
+  type StackLifecycle,
+} from '../lib/stack-lifecycle.js';
+import {
   basename,
   bucketSeeding,
   fetched,
@@ -55,6 +59,11 @@ const ZERO_COUNTS = {
   dbReset: 0,
   experimentalFlag: 0,
   localFlag: 0,
+};
+
+const NO_LIFECYCLE: StackLifecycle = {
+  lastCommand: null,
+  stoppedByAgent: false,
 };
 
 const countOf = (...commands: string[]) =>
@@ -287,6 +296,7 @@ describe('checkMetrics', () => {
     keys: KEYS,
     storage: storageProbe(),
     seed: passingSeed(),
+    lifecycle: NO_LIFECYCLE,
     cli: await readCliFacts(ctx, undefined, []),
   });
 
@@ -307,6 +317,7 @@ describe('checkMetrics', () => {
       keys: KEYS,
       storage: storageProbe(),
       seed: passingSeed(),
+      lifecycle: readStackLifecycle(invocations),
       cli: await readCliFacts(ctx, MARKER, invocations),
     });
 
@@ -347,7 +358,36 @@ describe('checkMetrics', () => {
         localFlag: 2,
       },
       freshSetupInvoiceBuckets: ['invoices'],
+      stackStoppedByAgent: false,
+      lastStackCommand: 'supabase start',
       cliDetours: 1,
+    });
+  });
+
+  it('reports stackStoppedByAgent and lastStackCommand from the lifecycle', async () => {
+    const run = async (lifecycle: StackLifecycle) =>
+      metricsOf(
+        await checkMetrics(undefined, { ...(await baseFacts()), lifecycle })
+      );
+
+    expect(
+      await run({
+        lastCommand: 'supabase stop --no-backup',
+        stoppedByAgent: true,
+      })
+    ).toMatchObject({
+      stackStoppedByAgent: true,
+      lastStackCommand: 'supabase stop --no-backup',
+    });
+    expect(
+      await run({ lastCommand: 'supabase start', stoppedByAgent: false })
+    ).toMatchObject({
+      stackStoppedByAgent: false,
+      lastStackCommand: 'supabase start',
+    });
+    expect(await run(NO_LIFECYCLE)).toMatchObject({
+      stackStoppedByAgent: false,
+      lastStackCommand: null,
     });
   });
 
@@ -657,6 +697,17 @@ describe('checkMetrics', () => {
     expect(metricsOf(hostileSeed)).toMatchObject({
       freshSetupInvoiceBuckets: null,
       invoiceLocations: INVOICES.map(({ key }) => `invoices/${basename(key)}`),
+    });
+
+    const hostileLifecycle = await checkMetrics(undefined, {
+      ...facts,
+      lifecycle: throwing({ ...NO_LIFECYCLE }),
+    });
+    expect(hostileLifecycle.passed).toBe(true);
+    expect(metricsOf(hostileLifecycle)).toMatchObject({
+      stackStoppedByAgent: null,
+      lastStackCommand: null,
+      buckets: expect.any(Array),
     });
 
     const hostileKeys = await checkMetrics(undefined, {

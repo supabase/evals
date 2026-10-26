@@ -13,6 +13,7 @@ import { findCliDetourCommands } from '../lib/detours.js';
 import { readCliVersions, safely } from '../lib/metrics.js';
 import type { StackProbe } from '../lib/stack.js';
 import type { StackKeys } from '../lib/stack-keys.js';
+import type { StackLifecycle } from '../lib/stack-lifecycle.js';
 import { invoiceFor } from './fixtures.js';
 import type { SeedConfigProbe } from './seed-config.js';
 import { present, type StorageProbe } from './storage.js';
@@ -112,10 +113,12 @@ export async function checkMetrics(
     keys: StackKeys;
     storage: StorageProbe;
     seed: SeedConfigProbe;
+    lifecycle: StackLifecycle;
     cli: CliFacts;
   }
 ): Promise<CheckResult> {
-  const { commands, invocations, stack, keys, storage, seed, cli } = facts;
+  const { commands, invocations, stack, keys, storage, seed, lifecycle, cli } =
+    facts;
   const { versions, cliOverride } = cli;
 
   const metrics = {
@@ -174,6 +177,8 @@ export async function checkMetrics(
             .map((bucket) => bucket.name)
         : null
     ),
+    stackStoppedByAgent: await safely(() => lifecycle.stoppedByAgent),
+    lastStackCommand: await safely(() => lifecycle.lastCommand),
     // Regex diagnostic, never asserted against.
     cliDetours: await safely(() => findCliDetourCommands(commands).length),
   };

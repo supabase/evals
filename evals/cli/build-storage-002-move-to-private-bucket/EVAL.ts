@@ -17,6 +17,7 @@ import { formatGroundTruthJudgeInput } from '../lib/report.js';
 import { errorMessage } from '../lib/shell.js';
 import { resolveStackWithAgentHomes } from '../lib/stack.js';
 import { readStackKeys } from '../lib/stack-keys.js';
+import { readStackLifecycle } from '../lib/stack-lifecycle.js';
 import { checkMetrics, isStorageCommand, readCliFacts } from './metrics.js';
 import { describeGroundTruth } from './report.js';
 import { checkFreshSetup, readSeedConfig } from './seed-config.js';
@@ -35,6 +36,7 @@ const scorer: LocalStackScorer = async (ctx) => {
     const invocations = findSupabaseInvocations(
       extractCommandEntries(ctx.toolCalls)
     );
+    const lifecycle = readStackLifecycle(invocations);
     const stack = await resolveStackWithAgentHomes(
       ctx,
       { kind: 'root' },
@@ -52,9 +54,9 @@ const scorer: LocalStackScorer = async (ctx) => {
       .map(({ argv }) => argv.join(' '));
 
     const checks: CheckResult[] = [
-      checkInvoicesPrivate(storage),
-      checkNoInvoicePublic(storage),
-      checkAvatarsPublic(storage),
+      checkInvoicesPrivate(storage, lifecycle),
+      checkNoInvoicePublic(storage, lifecycle),
+      checkAvatarsPublic(storage, lifecycle),
       checkFreshSetup(seed),
       await checkNoContainerRuntimeDetours(ctx, commands, knownSecrets),
       await checkMetrics(marker, {
@@ -64,11 +66,12 @@ const scorer: LocalStackScorer = async (ctx) => {
         keys,
         storage,
         seed,
+        lifecycle,
         cli,
       }),
       await checkReportIsTruthful(
         ctx,
-        { stack, storage, seed, storageCommands },
+        { stack, storage, seed, lifecycle, storageCommands },
         knownSecrets
       ),
     ];

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { StackProbe } from '../lib/stack.js';
 import type { StackKeys } from '../lib/stack-keys.js';
+import type { StackLifecycle } from '../lib/stack-lifecycle.js';
 import {
   ANON,
   API_URL,
@@ -59,6 +60,21 @@ const SERVICE_HEADERS = {
 const ANON_HEADERS = { apikey: ANON, Authorization: `Bearer ${ANON}` };
 
 const OTHER_SHA = 'f'.repeat(64);
+
+const STOPPED: StackLifecycle = {
+  lastCommand: 'supabase stop --no-backup',
+  stoppedByAgent: true,
+};
+const STARTED: StackLifecycle = {
+  lastCommand: 'supabase start',
+  stoppedByAgent: false,
+};
+const UNAVAILABLE: Extract<StorageProbe, { ok: false }> = {
+  ok: false,
+  notes: 'no local stack: The local stack is not running',
+};
+const STOP_PREFIX =
+  'the agent stopped the stack (last stack command: `supabase stop --no-backup`); storage probe unavailable: ';
 
 function okProbe(probe: StorageProbe) {
   if (!probe.ok) throw new Error(`storage probe unavailable: ${probe.notes}`);
@@ -1266,6 +1282,27 @@ describe('checkInvoicesPrivate', () => {
     expect(check).toMatchObject({ name: PRIVATE, passed: false });
     expect(check.notes).toContain('The local stack is not running');
   });
+
+  it('prefixes the unavailable notes with the stop when the agent stopped the stack', () => {
+    const check = checkInvoicesPrivate(UNAVAILABLE, STOPPED);
+
+    expect(check.passed).toBe(false);
+    expect(check.notes).toBe(`${STOP_PREFIX}${UNAVAILABLE.notes}`);
+  });
+
+  it('leaves the unavailable notes unprefixed when the agent left the stack started or ran no stack command', () => {
+    for (const lifecycle of [STARTED, undefined]) {
+      expect(checkInvoicesPrivate(UNAVAILABLE, lifecycle).notes).toBe(
+        `storage probe unavailable: ${UNAVAILABLE.notes}`
+      );
+    }
+  });
+
+  it('ignores the stop when the storage probe is available', () => {
+    expect(checkInvoicesPrivate(storageProbe(), STOPPED)).toEqual(
+      checkInvoicesPrivate(storageProbe())
+    );
+  });
 });
 
 describe('checkNoInvoicePublic', () => {
@@ -1504,6 +1541,27 @@ describe('checkNoInvoicePublic', () => {
     expect(check).toMatchObject({ name: NOT_PUBLIC, passed: false });
     expect(check.notes).toContain('The local stack is not running');
   });
+
+  it('prefixes the unavailable notes with the stop when the agent stopped the stack', () => {
+    const check = checkNoInvoicePublic(UNAVAILABLE, STOPPED);
+
+    expect(check.passed).toBe(false);
+    expect(check.notes).toBe(`${STOP_PREFIX}${UNAVAILABLE.notes}`);
+  });
+
+  it('leaves the unavailable notes unprefixed when the agent left the stack started or ran no stack command', () => {
+    for (const lifecycle of [STARTED, undefined]) {
+      expect(checkNoInvoicePublic(UNAVAILABLE, lifecycle).notes).toBe(
+        `storage probe unavailable: ${UNAVAILABLE.notes}`
+      );
+    }
+  });
+
+  it('ignores the stop when the storage probe is available', () => {
+    expect(checkNoInvoicePublic(storageProbe(), STOPPED)).toEqual(
+      checkNoInvoicePublic(storageProbe())
+    );
+  });
 });
 
 describe('checkAvatarsPublic', () => {
@@ -1623,6 +1681,27 @@ describe('checkAvatarsPublic', () => {
 
     expect(check).toMatchObject({ name: AVATARS_PUBLIC, passed: false });
     expect(check.notes).toContain('The local stack is not running');
+  });
+
+  it('prefixes the unavailable notes with the stop when the agent stopped the stack', () => {
+    const check = checkAvatarsPublic(UNAVAILABLE, STOPPED);
+
+    expect(check.passed).toBe(false);
+    expect(check.notes).toBe(`${STOP_PREFIX}${UNAVAILABLE.notes}`);
+  });
+
+  it('leaves the unavailable notes unprefixed when the agent left the stack started or ran no stack command', () => {
+    for (const lifecycle of [STARTED, undefined]) {
+      expect(checkAvatarsPublic(UNAVAILABLE, lifecycle).notes).toBe(
+        `storage probe unavailable: ${UNAVAILABLE.notes}`
+      );
+    }
+  });
+
+  it('ignores the stop when the storage probe is available', () => {
+    expect(checkAvatarsPublic(storageProbe(), STOPPED)).toEqual(
+      checkAvatarsPublic(storageProbe())
+    );
   });
 });
 

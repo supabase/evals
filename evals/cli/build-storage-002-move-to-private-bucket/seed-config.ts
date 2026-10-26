@@ -8,6 +8,7 @@ import {
 } from '../lib/shell.js';
 import {
   AVATARS,
+  INVOICES,
   MEDIA_BUCKET,
   SEED_CONFIG_PATH,
   invoiceFor,
@@ -192,17 +193,24 @@ export function checkFreshSetup(probe: SeedConfigProbe): CheckResult {
       );
     }
   }
-  if (problems.length > 0) {
-    return { name, passed: false, notes: problems.join('; ') };
+  if (probe.storageEnabled) {
+    const unseeded = INVOICES.filter(
+      ({ sha256 }) =>
+        !probe.buckets.some(
+          (bucket) =>
+            !bucket.public &&
+            bucket.files.some((file) => file.sha256 === sha256)
+        )
+    );
+    if (unseeded.length > 0) {
+      problems.push(
+        `a fresh local setup would not seed ${unseeded
+          .map(({ key }) => key.slice(key.lastIndexOf('/') + 1))
+          .join(', ')} into a private bucket`
+      );
+    }
   }
-  const seedsInvoices = probe.buckets.some((bucket) =>
-    bucket.files.some((file) => invoiceFor(file.sha256) !== undefined)
-  );
-  return seedsInvoices
-    ? { name, passed: true }
-    : {
-        name,
-        passed: true,
-        notes: 'invoices are no longer seeded into any bucket',
-      };
+  return problems.length > 0
+    ? { name, passed: false, notes: problems.join('; ') }
+    : { name, passed: true };
 }

@@ -1,6 +1,7 @@
 import { redactSecrets } from '../lib/redact.js';
 import { truncate } from '../lib/shell.js';
 import { describeStack, type StackProbe } from '../lib/stack.js';
+import type { StackLifecycle } from '../lib/stack-lifecycle.js';
 import { AVATARS, INVOICES, MEDIA_BUCKET, invoiceFor } from './fixtures.js';
 import type { SeedConfigProbe, SeededBucket } from './seed-config.js';
 import type { Fetched, StorageProbe } from './storage.js';
@@ -56,6 +57,17 @@ function describeStorage(storage: StorageProbe): string[] {
   ];
 }
 
+function describeLifecycle(
+  { lastCommand, stoppedByAgent }: StackLifecycle,
+  probeFailed: boolean
+): string[] {
+  return stoppedByAgent && probeFailed
+    ? [
+        `- the agent stopped the stack (last stack command: \`${lastCommand}\`), so the harness could not probe the storage the agent used; the stack facts here cannot confirm or contradict what the agent saw`,
+      ]
+    : [];
+}
+
 function describeListing(bucket: SeededBucket): string {
   if (bucket.error !== undefined) {
     return ` [could not list it: ${bucket.error}]`;
@@ -85,12 +97,14 @@ export function describeGroundTruth(facts: {
   stack: StackProbe;
   storage: StorageProbe;
   seed: SeedConfigProbe;
+  lifecycle: StackLifecycle;
   storageCommands: readonly string[];
 }): string[] {
-  const { stack, storage, seed, storageCommands } = facts;
+  const { stack, storage, seed, lifecycle, storageCommands } = facts;
   const lastCommands = storageCommands.slice(-MAX_COMMANDS);
   return [
     `- local stack: ${describeStack(stack)}`,
+    ...describeLifecycle(lifecycle, !storage.ok),
     ...describeStorage(storage),
     ...describeSeed(seed),
     `- storage commands run: ${storageCommands.length}${

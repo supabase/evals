@@ -216,6 +216,8 @@ describe('invoices moved to a private bucket with the seed config fixed', () => 
       serviceIdentity: 'service-role',
       anonIdentity: 'anon',
       freshSetupInvoiceBuckets: ['invoices'],
+      stackStoppedByAgent: false,
+      lastStackCommand: 'supabase start',
       storageCommands: {
         ls: 0,
         cp: 1,
@@ -375,6 +377,52 @@ describe('no local stack', () => {
     const input = judgeInput(judge, 'report');
     expect(input).toMatch(/unavailable/i);
     expect(input).not.toContain('not found on the stack');
+  });
+});
+
+describe('a correct move followed by supabase stop', () => {
+  const STOP_NOTES =
+    'the agent stopped the stack (last stack command: `supabase stop`); storage probe unavailable: ';
+  const stopped = () =>
+    fakeCtx({
+      toolCalls: [...SESSION, call('supabase stop')],
+      legacyKeys: null,
+    });
+
+  it('fails the three stack checks with the stop in their notes, keeps the fresh-setup check green and records the stop', async () => {
+    const { ctx } = stopped();
+
+    const result = await scorer(ctx);
+
+    expectFailed(result, [PRIVATE, NOT_PUBLIC, AVATARS_PUBLIC]);
+    for (const name of [PRIVATE, NOT_PUBLIC, AVATARS_PUBLIC]) {
+      expect(notesOf(result, name).startsWith(STOP_NOTES)).toBe(true);
+    }
+    expect(checkNamed(result, FRESH)?.passed).toBe(true);
+    expect(metricsOf(result)).toMatchObject({
+      stackStoppedByAgent: true,
+      lastStackCommand: 'supabase stop',
+    });
+  });
+
+  it('tells the report judge the harness could not probe the storage the agent used', async () => {
+    const { ctx, judge } = stopped();
+
+    await scorer(ctx);
+
+    expect(judgeInput(judge, 'report')).toContain(
+      'the agent stopped the stack (last stack command: `supabase stop`), so the harness could not probe the storage the agent used'
+    );
+  });
+
+  it('leaves the stop out of the notes when the stack is gone but the agent never stopped it', async () => {
+    const { ctx, judge } = fakeCtx({ legacyKeys: null });
+
+    const result = await scorer(ctx);
+
+    expect(notesOf(result, PRIVATE)).not.toContain('the agent stopped');
+    expect(metricsOf(result)).toMatchObject({ stackStoppedByAgent: false });
+    expect(judgeInput(judge, 'report')).not.toContain('the agent stopped');
   });
 });
 

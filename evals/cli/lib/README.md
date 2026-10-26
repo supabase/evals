@@ -58,6 +58,8 @@ tracked.
 agent started the stack with, matched by `relocatedHome`) and parses them even
 when the command exits non-zero.
 
+`stack-lifecycle.ts` reads the last stack start or stop command in the agent's invocations (flags included) and whether it left the stack stopped, so a scorer can name a stop as the reason its stack probe failed.
+
 `migrations.ts` finds the migration file that creates a table (comments,
 string literals and dollar-quoted bodies masked, `create [unlogged] table`
 accepted) in a project directory, and checks its version is in the stack's

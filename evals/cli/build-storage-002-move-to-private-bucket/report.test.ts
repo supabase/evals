@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { mentionsNumber } from '../lib/report.js';
+import type { StackLifecycle } from '../lib/stack-lifecycle.js';
 import {
   bucketSeeding,
   fetched,
@@ -25,7 +26,13 @@ const FACTS: Facts = {
   stack: STACK,
   storage: storageProbe(),
   seed: passingSeed(),
+  lifecycle: { lastCommand: null, stoppedByAgent: false },
   storageCommands: [],
+};
+
+const STOPPED: StackLifecycle = {
+  lastCommand: 'supabase stop --no-backup',
+  stoppedByAgent: true,
 };
 
 const groundTruth = (overrides: Partial<Facts> = {}) =>
@@ -125,6 +132,39 @@ describe('describeGroundTruth', () => {
           },
         }).join('\n')
       ).not.toContain('hunter2');
+    });
+  });
+
+  describe('stack lifecycle', () => {
+    const UNAVAILABLE: Facts['storage'] = {
+      ok: false,
+      notes: 'no local stack: The local stack is not running.',
+    };
+
+    it('says the agent stopped the stack and that the stack facts cannot confirm or contradict the agent when the probe is unavailable', () => {
+      const text = groundTruth({
+        lifecycle: STOPPED,
+        storage: UNAVAILABLE,
+      }).join('\n');
+
+      expect(text).toContain(
+        '- the agent stopped the stack (last stack command: `supabase stop --no-backup`), so the harness could not probe the storage the agent used; the stack facts here cannot confirm or contradict what the agent saw'
+      );
+    });
+
+    it('says nothing about a stop when the probe worked', () => {
+      expect(groundTruth({ lifecycle: STOPPED }).join('\n')).not.toMatch(
+        /agent stopped the stack/
+      );
+    });
+
+    it('says nothing about a stop when the agent left the stack started', () => {
+      expect(
+        groundTruth({
+          lifecycle: { lastCommand: 'supabase start', stoppedByAgent: false },
+          storage: UNAVAILABLE,
+        }).join('\n')
+      ).not.toMatch(/agent stopped the stack/);
     });
   });
 
