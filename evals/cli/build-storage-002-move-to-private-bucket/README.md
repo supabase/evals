@@ -1,7 +1,7 @@
 # What this eval measures
 
 The agent is the subject under test. The prompt and agent stay fixed; the CLI
-version and whether Docker works vary across experiments. The questions:
+version varies across experiments. The questions:
 
 - Can an agent move customer invoices out of a public local storage bucket into
   a private one, with their bytes intact?
@@ -14,12 +14,13 @@ version and whether Docker works vary across experiments. The questions:
 - Whatever happened, does the agent report it truthfully, naming the real
   blocker rather than working around the environment?
 
-The scenario is the one in the prompt: "customer invoices are ending up in our
-public storage bucket when I run Supabase locally". The footgun is that
-invoices and avatars share one public bucket and one seed folder, so a move
-that only touches the running stack is undone by the next `db reset`, making
-the bucket private breaks the avatars, and the CLI cannot move an object
-between buckets.
+The scenario is the one in the prompt: "customer invoices end up in our public
+storage bucket when I run Supabase locally, and they're in there right now".
+The footgun is that invoices and avatars share one public bucket and one seed
+folder, so a move that only touches the running stack is undone by the next
+fresh setup, a fix that only changes the config leaves the invoices public on
+the running stack, making the bucket private breaks the avatars, and the CLI
+cannot move an object between buckets.
 
 Motivation: CLI-2713, plus FDBKIN-5816 (no CLI flag or command to make a
 bucket public), FDBKIN-5351 (docs for declarative bucket and file seeding) and
@@ -39,16 +40,19 @@ variable, Docker, a path, a bucket name, a config key such as
 `objects_path`, or a file name, and is identical under every experiment. It
 keeps "storage bucket", "public", "private", "locally" and "fresh local
 setup", because those are the user's words for what they want. Finding out
-which bucket holds the invoices, how to start the stack, how to move files
-between buckets, and where the project declares what a fresh setup seeds is
-part of what's measured. Don't reintroduce command, flag or path wording when
-editing it. The frontmatter has no `services:` key and sets `projectRunning:
-false`, so the harness starts no stack.
+which bucket holds the invoices, whether the stack is already running, how to
+move files between buckets, and where the project declares what a fresh setup
+seeds is part of what's measured. Don't reintroduce command, flag or path
+wording when editing it. The frontmatter has no `services:`, `projectRunning`
+or `needsDocker` key, so the harness starts the full stack before the agent
+runs.
 
-The prompt's last sentence asks the agent to leave the stack running, because
-checks 1 to 3 probe the live local stack. Without it, agents tidy up with
-`supabase stop` once they're done and fail three checks for work they did. The
-sentence names no command.
+The prompt has no sentence asking the agent to leave the stack running. The
+stack is already running when the agent starts, and nothing in the task needs
+it stopped, so an agent that stops the user's running stack fails checks 1 to 3
+by its own action: the notes, `metrics.stackStoppedByAgent` and the report
+judge's ground truth all name the stop. "They're in there right now" is the
+user's words for the live state; it names no command.
 
 ## The seeded project
 
@@ -69,8 +73,9 @@ Ledgerly, an invoicing app:
 Every one of the six files has a distinct sha256, recorded in `fixtures.ts`
 (`fixtures.test.ts` checks them against the files). The checks identify an
 invoice by its bytes, not its bucket or key, so a renamed or relocated invoice
-is still found. A fresh local setup seeds all six files into the public
-`media` bucket.
+is still found. The harness's `supabase start` seeds all six files into the
+public `media` bucket before the agent starts, and a fresh local setup does the
+same.
 
 ## CLI facts that shape the scenario
 
@@ -97,8 +102,11 @@ Verified on `supabase@2.117.0`, `2.122.0`, `2.123.0-beta.1` and
 
 So the plausible failures are an agent that makes `media` private (avatars
 break), copies the invoices without deleting the originals, moves rows with
-SQL so the bytes stay behind, or moves the running stack's files and leaves the
-config to seed them publicly again on the next start.
+SQL so the bytes stay behind, fixes only the config so the running stack still
+serves the invoices publicly, runs `seed buckets` after a config fix without
+removing the originals from `media`, runs `supabase stop` (keeping volumes)
+then `start`, which keeps the old objects, or moves the running stack's files
+and leaves the config to seed them publicly again on the next start.
 
 ## The checks
 
@@ -127,7 +135,9 @@ Checks 1 to 3 share one probe of the stack, taken after the agent finished:
   (`start`, `stack start`, `stack restart` and `db start` start the stack;
   `stop`, `stack stop` and `stack destroy` stop it). When the last one was a
   stop, `metrics.stackStoppedByAgent` is true and `metrics.lastStackCommand`
-  holds that command with its flags.
+  holds that command with its flags. When the agent ran no stack command,
+  `lastStackCommand` is null, which is the usual case now the harness starts the
+  stack.
 
 When no stack resolves, the stack reports no API URL, or the storage rows
 can't be read, checks 1 to 3 fail with `storage probe unavailable` and the
@@ -168,9 +178,12 @@ move`, with the error message as its notes.
   original `media/invoices/*` key still answers its public URL with a 2xx.
 - Passes: invoices only in a private bucket with `media` holding avatars; the
   invoices removed from `media` by `storage rm`, by `db reset` after a config
-  fix, or never seeded because the config was fixed before the first start.
+  fix, or wiped with `supabase stop --no-backup` and re-seeded from the fixed
+  config by the next start.
 - Fails: copy without delete; an invoice also uploaded to another public
-  bucket; a private bucket with an anon `select` policy.
+  bucket; a private bucket with an anon `select` policy; a config fix applied
+  with `seed buckets` alone, or with `stop` and `start`, which leaves the
+  originals in `media`.
 
 ### `avatars are still public where the app loads them`
 
@@ -289,16 +302,12 @@ disagree with the detour judge).
 | `codex-gpt-6-luna-cli-stable` | npm `latest` tag | Docker available | as pinned |
 | `codex-gpt-6-luna-cli-beta` | npm `beta` tag | Docker available | as pinned |
 | `codex-gpt-6-luna-cli-next` | npm `next` tag (3.0.0-next) | Docker available | as pinned, except storage commands are local by default, so no `--local` |
-| `codex-gpt-6-luna-cli-nodaemon` | beta | Docker client present, daemon unreachable | red by environment ([CLI-2534](https://linear.app/supabase/issue/CLI-2534/bc-make-the-new-local-stack-the-default-backend-for-all-projects-opt)): legacy `supabase start` can't run, and a pass needs `SUPABASE_EXPERIMENTAL_STACK=1 supabase stack start`, which agents rarely find. The stack checks fail with the probe's reason; the fresh-setup check and the report judge can still pass |
-| `codex-gpt-6-luna-cli-absent` | beta | no Docker at all | as nodaemon |
 
-In nodaemon and absent, the native runtime runs storage, so a pass there is
-possible and is not a false pass.
-
-The frontmatter sets `needsDocker: false` and `projectRunning: false`, so all
-six experiments pick the eval up. The scorer never reads which experiment it
-runs under; the channel, the Docker state and the stack's backend and runtime
-are reported through `metrics`.
+The eval needs Docker and a pre-started stack, so `skipUnlessDockerless`
+(`experiments/cli/lib/skip.ts`) drops it from the nodaemon and absent
+experiments, and the four Docker experiments run it. The scorer never reads
+which experiment it runs under; the channel, the Docker state and the stack's
+backend and runtime are reported through `metrics`.
 
 ## Known limitations
 

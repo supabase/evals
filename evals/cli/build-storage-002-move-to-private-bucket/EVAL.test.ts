@@ -413,6 +413,102 @@ describe('a project and stack the agent never changed', () => {
   });
 });
 
+describe('a move on the pre-started stack with no stack command', () => {
+  const STORAGE_ONLY = [
+    call(
+      'supabase storage cp --experimental --local ss:///media/invoices ./tmp -r'
+    ),
+    call(
+      'supabase storage cp --experimental --local ./tmp/invoices ss:///invoices -r'
+    ),
+    call(
+      'supabase storage rm --experimental --local ss:///media/invoices/INV-2026-0141.pdf ss:///media/invoices/INV-2026-0142.pdf ss:///media/invoices/INV-2026-0143.pdf'
+    ),
+  ];
+
+  it('passes all seven checks when both judges pass', async () => {
+    const { ctx, judge } = fakeCtx({
+      toolCalls: STORAGE_ONLY,
+      world: passingWorld(),
+      project: passingProject(),
+    });
+
+    const result = await scorer(ctx);
+
+    expect(result.checks?.map(({ name }) => name)).toEqual(CHECK_NAMES);
+    expectFailed(result, []);
+    expect(judgeKinds(judge)).toEqual(['detours', 'report']);
+  });
+
+  it('records the storage commands and no stack command in the metrics', async () => {
+    const { ctx } = fakeCtx({ toolCalls: STORAGE_ONLY });
+
+    const result = await scorer(ctx);
+
+    expect(metricsOf(result)).toMatchObject({
+      stackStoppedByAgent: false,
+      lastStackCommand: null,
+      storageCommands: { cp: 2, rm: 1, experimentalFlag: 3, localFlag: 3 },
+    });
+  });
+
+  it('sends only the storage commands to the detour judge', async () => {
+    const { ctx, judge } = fakeCtx({ toolCalls: STORAGE_ONLY });
+
+    await scorer(ctx);
+
+    const input = judgeInput(judge, 'detours');
+    expect(input).toBe(
+      STORAGE_ONLY.map((record, i) => `${i + 1}. ${record.command}`).join('\n')
+    );
+    expect(input).not.toMatch(/supabase (start|stop)/);
+  });
+});
+
+describe('a config-only fix that leaves the running stack untouched', () => {
+  const scoreConfigOnlyFix = () =>
+    scorer(
+      fakeCtx({
+        world: untouchedWorld(),
+        project: passingProject(),
+        toolCalls: [call('supabase --experimental storage ls ss:///media')],
+      }).ctx
+    );
+
+  it('fails the private and public-readability checks while the avatars and fresh-setup checks pass', async () => {
+    const result = await scoreConfigOnlyFix();
+
+    expectFailed(result, [PRIVATE, NOT_PUBLIC]);
+    expect(checkNamed(result, AVATARS_PUBLIC)?.passed).toBe(true);
+    expect(checkNamed(result, FRESH)?.passed).toBe(true);
+  });
+
+  it('names the invoice still in the public bucket in the public-readability notes', async () => {
+    const result = await scoreConfigOnlyFix();
+
+    expect(notesOf(result, NOT_PUBLIC)).toContain(
+      'media/invoices/INV-2026-0141.pdf'
+    );
+  });
+});
+
+describe('the judge rubrics for a stack the harness started', () => {
+  const KINDS = ['detours', 'report'] as const;
+
+  it.each(KINDS)(
+    'tells the %s judge the stack was already running when the agent started',
+    async (kind) => {
+      const { ctx, judge } = fakeCtx();
+
+      await scorer(ctx);
+
+      const rubric = judgeArgs(judge, kind)?.rubric ?? '';
+      expect(rubric).toContain('already running when the agent started');
+      expect(rubric).not.toContain('asked to leave the local stack running');
+    }
+  );
+});
+
 describe('no local stack', () => {
   it('fails the three stack checks, keeps the fresh-setup check from the project files and sends no storage request', async () => {
     const { ctx, events } = fakeCtx({ legacyKeys: null });
