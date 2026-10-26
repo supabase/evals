@@ -130,7 +130,9 @@ describe('opencode runner extractUsage', () => {
 
   it('returns undefined without usage', () => {
     expect(extract(undefined, 'anthropic/claude-sonnet-5-5')).toBeUndefined();
-    expect(extract('not json\n', 'anthropic/claude-sonnet-5-5')).toBeUndefined();
+    expect(
+      extract('not json\n', 'anthropic/claude-sonnet-5-5')
+    ).toBeUndefined();
     expect(
       extract(
         JSON.stringify({
