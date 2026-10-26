@@ -46,6 +46,7 @@ import type {
   EvalMetadata,
   EvalSuite,
   ExperimentDisplayMetadata,
+  ExperimentRationale,
   ExperimentSuite,
   JudgeCall,
   ModelProvider,
@@ -93,6 +94,7 @@ export {
   evalSuiteSchema,
   experimentSuiteSchema,
   experimentDisplayMetadataSchema,
+  experimentRationaleSchema,
   modelProviderSchema,
   rawEvalResultSchema,
   reasoningEffortSchema,
@@ -144,6 +146,7 @@ export type {
   EvalSuite,
   EvalStage,
   ExperimentDisplayMetadata,
+  ExperimentRationale,
   ExperimentSuite,
   ModelProvider,
   ParsedEvalMarkdown,
@@ -645,6 +648,8 @@ export type ExperimentConfig = {
   /** Named experiment suites this experiment belongs to. */
   suite?: ExperimentSuite[];
   agent: AgentHarness;
+  /** Why this model and effort, shown next to the experiment on the results page. */
+  rationale?: ExperimentRationale;
   runtime: EvalRuntime;
   /** Local-stack environment (e.g. localStackRuntime() from @supabase-evals/sandbox). */
   localStack?: LocalStackRuntime;

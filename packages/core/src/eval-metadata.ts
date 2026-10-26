@@ -96,6 +96,13 @@ export type ExperimentDisplayMetadata = z.infer<
   typeof experimentDisplayMetadataSchema
 >;
 
+/** Why an experiment uses its model and effort, with links to check it. */
+export const experimentRationaleSchema = z.object({
+  summary: z.string(),
+  sources: z.array(z.object({ label: z.string(), url: z.string().url() })),
+});
+export type ExperimentRationale = z.infer<typeof experimentRationaleSchema>;
+
 /**
  * Interface(s) the agent uses to act on Supabase — a benchmark dimension
  * (cross-team KPI), not the runtime switch. `mcp` = the platform-lite MCP/tool
@@ -424,6 +431,7 @@ const evalResultShape = {
   experimentSuite: experimentSuiteSchema.optional(),
   profile: experimentSuiteSchema.optional(),
   experimentDisplay: experimentDisplayMetadataSchema.optional(),
+  experimentRationale: experimentRationaleSchema.optional(),
   eval: z.string(),
   stage: evalStageSchema.optional(),
   product: z.array(evalProductSchema).optional(),

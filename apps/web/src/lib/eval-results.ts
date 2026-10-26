@@ -123,6 +123,11 @@ export function getExperimentDisplay(experiment: string) {
     ?.experimentDisplay
 }
 
+export function getExperimentRationale(experiment: string) {
+  return sortedResults.find((result) => result.experiment === experiment)
+    ?.experimentRationale
+}
+
 export function getExperimentResults(
   experiment: string,
   sourceResults = sortedResults
