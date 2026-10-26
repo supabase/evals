@@ -399,6 +399,60 @@ const replaceOnce = (text: string, from: string, to: string) => {
   return text.replace(from, () => to);
 };
 
+const BETA_R1_FILE = `begin;
+select plan(6);
+
+select has_column('public', 'invoice_lines', 'discount_percent', 'invoice lines have a discount column');
+
+insert into public.invoices (id, customer_name) values
+  (900101, 'Discount Test Ltd'),
+  (900102, 'Mixed Lines Ltd'),
+  (900103, 'Free Sample Ltd'),
+  (900104, 'Fractional Cent Ltd');
+
+insert into public.invoice_lines (invoice_id, description, quantity, unit_price_cents, discount_percent) values
+  (900101, 'Consulting hours', 2, 1500, 10),
+  (900102, 'Annual licence', 1, 4000, 25),
+  (900102, 'Support plan', 1, 1000, 0),
+  (900103, 'Sample pack', 3, 700, 100),
+  (900104, 'Small item', 1, 3, 50);
+
+select is(
+  public.invoice_total_cents(900101),
+  2700::bigint,
+  'a 10% discount takes 10% off the line'
+);
+
+select is(
+  public.invoice_total_cents(900102),
+  4000::bigint,
+  'discounted and full-price lines add up'
+);
+
+select is(
+  public.invoice_total_cents(900103),
+  0::bigint,
+  'a 100% discount makes the line free'
+);
+
+select is(
+  public.invoice_total_cents(900104),
+  2::bigint,
+  'a fractional cent is rounded to the nearest cent'
+);
+
+select throws_ok(
+  $$insert into public.invoice_lines (invoice_id, description, quantity, unit_price_cents, discount_percent)
+    values (900101, 'Too generous', 1, 100, 101)$$,
+  '23514',
+  null,
+  'a discount cannot be more than 100%'
+);
+
+select * from finish();
+rollback;
+`;
+
 describe('checkSeededTestsUnchanged', () => {
   it('names the check as the results dashboard knows it', () => {
     expect(TESTS_UNCHANGED_CHECK).toBe(
@@ -1030,6 +1084,230 @@ select is(public.invoice_total_cents(900104), 500::bigint, 'a line without a dis
           rejection('\\set QUIET on')
         );
       });
+    });
+  });
+
+  describe('with rows appended to a seeded insert', () => {
+    const FILE = SEEDED_TEST_FILES[1];
+    const LAST_INVOICE = "(900103, 'Free Sample Ltd')";
+    const LAST_LINE = "(900103, 'Sample pack', 3, 700, 100)";
+
+    const appendRows = (last: string, rows: string) => (sql: string) =>
+      replaceOnce(sql, `${last};`, `${last},\n  ${rows};`);
+    const withPlan = (sql: string) =>
+      replaceOnce(sql, 'select plan(5)', 'select plan(6)');
+    const edited = (...edits: Array<(sql: string) => string>) =>
+      probeOf(
+        withEdit(1, (sql) => edits.reduce((text, edit) => edit(text), sql))
+      );
+    const rejected = {
+      name: TESTS_UNCHANGED_CHECK,
+      passed: false,
+      notes: `modified: ${FILE}`,
+    };
+
+    it('passes the file an agent left after extending both seeded inserts for a new invoice', () => {
+      expect(
+        checkSeededTestsUnchanged(probeOf(withEdit(1, () => BETA_R1_FILE)))
+      ).toEqual({
+        name: TESTS_UNCHANGED_CHECK,
+        passed: true,
+        notes: `2 seeded test files unchanged; added to ${FILE}: 1 statement, 2 rows appended to seeded inserts`,
+      });
+    });
+
+    it('passes a row appended to the invoices insert with the lines inserted separately', () => {
+      const probe = edited(
+        withPlan,
+        appendRows(LAST_INVOICE, "(900104, 'Fractional Cent Ltd')"),
+        (sql) =>
+          replaceOnce(
+            sql,
+            'select * from finish();',
+            "insert into public.invoice_lines (invoice_id, description, quantity, unit_price_cents, discount_percent) values (900104, 'Small item', 1, 3, 50);\nselect is(public.invoice_total_cents(900104), 2::bigint, 'a fractional cent is rounded');\nselect * from finish();"
+          )
+      );
+      expect(checkSeededTestsUnchanged(probe)).toEqual({
+        name: TESTS_UNCHANGED_CHECK,
+        passed: true,
+        notes: `2 seeded test files unchanged; added to ${FILE}: 2 statements, 1 row appended to seeded inserts`,
+      });
+    });
+
+    it('counts every appended row and leaves the statement count out when none was added', () => {
+      const probe = edited(
+        appendRows(
+          LAST_LINE,
+          "(900104, 'Small item', 1, 3, 50),\n  (900104, 'Other item', 1, 5, 0)"
+        )
+      );
+      expect(checkSeededTestsUnchanged(probe)).toEqual({
+        name: TESTS_UNCHANGED_CHECK,
+        passed: true,
+        notes: `2 seeded test files unchanged; added to ${FILE}: 2 rows appended to seeded inserts`,
+      });
+    });
+
+    it('passes appended rows spread over lines, comments and extra spaces', () => {
+      const probe = edited(
+        appendRows(
+          LAST_LINE,
+          "-- a fractional cent\n  (900104,'Small item',1,3,50)\n  /* and another */ ,\n  (  900104 , 'Other item' , 1 , 5 , 0 )"
+        )
+      );
+      expect(checkSeededTestsUnchanged(probe).passed).toBe(true);
+    });
+
+    it('passes appended rows when the seeded insert was reflowed onto one line', () => {
+      const probe = edited((sql) =>
+        replaceOnce(
+          sql,
+          "values\n  (900101, 'Discount Test Ltd'),\n  (900102, 'Mixed Lines Ltd'),\n  (900103, 'Free Sample Ltd');",
+          "values (900101, 'Discount Test Ltd'), (900102, 'Mixed Lines Ltd'), (900103, 'Free Sample Ltd'), (900104, 'Fractional Cent Ltd');"
+        )
+      );
+      expect(checkSeededTestsUnchanged(probe).passed).toBe(true);
+    });
+
+    it.each([
+      [
+        'a row for a seeded invoice',
+        appendRows(LAST_LINE, "(900101, 'Adjustment', 1, 2400, 100)"),
+      ],
+      [
+        'a new invoice row next to one for a seeded invoice',
+        appendRows(
+          LAST_LINE,
+          "(900104, 'Small item', 1, 3, 50),\n  (900102, 'Adjustment', 1, 3000, 100)"
+        ),
+      ],
+      [
+        'a seeded invoice id in a description',
+        appendRows(LAST_LINE, "(900104, 'Copy of 900101', 1, 3, 50)"),
+      ],
+      [
+        'a row for a seeded invoice on the invoices insert',
+        appendRows(LAST_INVOICE, "(900101, 'Again')"),
+      ],
+      [
+        'a row inserted before the last seeded row',
+        (sql: string) =>
+          replaceOnce(
+            sql,
+            `  ${LAST_LINE}`,
+            `  (900104, 'Small item', 1, 3, 50),\n  ${LAST_LINE}`
+          ),
+      ],
+      [
+        'a row inserted before the first seeded row',
+        (sql: string) =>
+          replaceOnce(
+            sql,
+            "values\n  (900101, 'Discount Test Ltd')",
+            "values\n  (900104, 'Fractional Cent Ltd'),\n  (900101, 'Discount Test Ltd')"
+          ),
+      ],
+      [
+        'a changed seeded row next to an appended one',
+        (sql: string) =>
+          appendRows(
+            "(900103, 'Sample pack', 3, 700, 0)",
+            "(900104, 'Small item', 1, 3, 50)"
+          )(replaceOnce(sql, LAST_LINE, "(900103, 'Sample pack', 3, 700, 0)")),
+      ],
+      [
+        'a removed seeded row next to an appended one',
+        (sql: string) =>
+          appendRows(
+            LAST_LINE,
+            "(900104, 'Small item', 1, 3, 50)"
+          )(replaceOnce(sql, "  (900102, 'Support plan', 1, 1000, 0),\n", '')),
+      ],
+      [
+        'a removed last seeded row next to an appended one',
+        (sql: string) =>
+          replaceOnce(
+            sql,
+            `  (900102, 'Support plan', 1, 1000, 0),\n  ${LAST_LINE};`,
+            "  (900102, 'Support plan', 1, 1000, 0),\n  (900104, 'Small item', 1, 3, 50);"
+          ),
+      ],
+      [
+        'a tail that skips conflicts',
+        appendRows(
+          LAST_LINE,
+          "(900104, 'Small item', 1, 3, 50) on conflict do nothing"
+        ),
+      ],
+      [
+        'a tail that returns rows',
+        appendRows(
+          LAST_INVOICE,
+          "(900104, 'Fractional Cent Ltd') returning id"
+        ),
+      ],
+      [
+        'a tuple that calls todo',
+        appendRows(LAST_INVOICE, "(900104, (select todo('x', 1)))"),
+      ],
+      [
+        'a tuple with a sub-select',
+        appendRows(LAST_INVOICE, "(900104, (select 'Fractional Cent Ltd'))"),
+      ],
+      [
+        'a tuple that holds a state-changing keyword',
+        appendRows(LAST_INVOICE, "(900104, 'drop table')"),
+      ],
+      [
+        'a tuple that names a quoted todo call',
+        appendRows(LAST_INVOICE, `(900104, "todo"('x', 1))`),
+      ],
+      [
+        'tuples with no comma between them',
+        appendRows(
+          LAST_LINE,
+          "(900104, 'Small item', 1, 3, 50)\n  (900104, 'Other item', 1, 5, 0)"
+        ),
+      ],
+      [
+        'a tuple that is never closed',
+        appendRows(LAST_LINE, "(900104, 'Small item', 1, 3, 50"),
+      ],
+      [
+        'a trailing comma with no tuple after it',
+        (sql: string) => replaceOnce(sql, `${LAST_LINE};`, `${LAST_LINE},;`),
+      ],
+      ['a value that is not a tuple', appendRows(LAST_LINE, '900104')],
+      [
+        'text appended to a seeded assertion',
+        (sql: string) =>
+          replaceOnce(
+            sql,
+            "'a 10% discount takes 10% off the line'\n);",
+            "'a 10% discount takes 10% off the line'\n), (900104, 'x');"
+          ),
+      ],
+      [
+        'a row appended to a seeded dollar-quoted insert',
+        (sql: string) =>
+          replaceOnce(
+            sql,
+            "values (900101, 'Too generous', 1, 100, 101)$$",
+            "values (900101, 'Too generous', 1, 100, 101), (900104, 'x', 1, 1, 1)$$"
+          ),
+      ],
+    ])('fails %s', (_label, edit) => {
+      expect(checkSeededTestsUnchanged(edited(withPlan, edit))).toEqual(
+        rejected
+      );
+    });
+
+    it('fails when the plan was lowered below the seeded count with rows appended', () => {
+      const probe = edited(
+        (sql) => replaceOnce(sql, 'select plan(5)', 'select plan(4)'),
+        appendRows(LAST_LINE, "(900104, 'Small item', 1, 3, 50)")
+      );
+      expect(checkSeededTestsUnchanged(probe)).toEqual(rejected);
     });
   });
 

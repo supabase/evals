@@ -36,6 +36,8 @@ const ASSERTION_CALL_RE =
   /^select\s+(?:\*\s+from\s+)?(?:extensions\s*\.\s*)?([a-z_][a-z0-9_]*)\s*\(/i;
 const INSERT_RE = /^insert\s+into\s/i;
 const ON_CONFLICT_UPDATE_RE = /\bon\s+conflict\b[\s\S]*\bdo\s+update\b/i;
+const ON_CONFLICT_RE = /\bon\s+conflict\b/i;
+const VALUES_RE = /\bvalues\b/i;
 const RETURNING_OR_SELECT_RE = /\b(?:returning|select)\b/i;
 const QUOTED_IDENTIFIER_RE = /"(?:[^"]|"")*"/g;
 const IDENTIFIER = String.raw`"(?:[^"]|"")*"|[^\s".(,;]+`;
@@ -138,10 +140,14 @@ const STATE_CHANGING_RE = new RegExp(
   `(?<![\\p{L}\\p{N}_])(?:${STATE_CHANGING_KEYWORDS.map((keyword) => keyword.replace(/ /g, '\\s+')).join('|')})(?![\\p{L}\\p{N}_])`,
   'iu'
 );
+const FINGERPRINT_DROPPED_RE = /[\s;]/;
 const TEST_FILE_RE = /\.(?:sql|pg)$/;
 const TESTS_PREFIX = `${TESTS_DIR}/`;
 
 const compareText = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+
+const countOf = (count: number, noun: string) =>
+  `${count} ${count === 1 ? noun : `${noun}s`}`;
 
 async function readMigrations(ctx: ExecContext): Promise<MigrationsProbe> {
   const listing = await ctx.exec(`ls -1 ${MIGRATIONS_DIR}`);
@@ -250,6 +256,11 @@ function insertsIntoPgtapTable(statement: string): boolean {
   );
 }
 
+const maskStatement = (statement: string) =>
+  maskSqlLiteralsAndComments(statement)
+    .replace(QUOTED_IDENTIFIER_RE, '""')
+    .trim();
+
 /** Whether the parenthesis opening at `open` closes at the last character of `text`. */
 function callSpans(text: string, open: number): boolean {
   let depth = 0;
@@ -264,9 +275,7 @@ function callSpans(text: string, open: number): boolean {
 function isAllowedAddition(statement: string): boolean {
   if (STATE_CHANGING_RE.test(statement)) return false;
   if (UNSAFE_CALL_RE.test(statement.replaceAll('"', ''))) return false;
-  const masked = maskSqlLiteralsAndComments(statement)
-    .replace(QUOTED_IDENTIFIER_RE, '""')
-    .trim();
+  const masked = maskStatement(statement);
   const touchesSeededInvoice = SEEDED_INVOICE_IDS_RE.test(statement);
   if (INSERT_RE.test(masked)) {
     return (
@@ -291,11 +300,88 @@ function isAllowedAddition(statement: string): boolean {
   );
 }
 
+/** The text of `statement` after the leading part whose fingerprint is `prefix`, or undefined when the statement doesn't start with it. */
+function textAfterFingerprint(
+  statement: string,
+  prefix: string
+): string | undefined {
+  if (!sqlFingerprint(statement).startsWith(prefix)) return undefined;
+  let left = prefix.length;
+  for (let i = 0; i < statement.length; i++) {
+    if (!FINGERPRINT_DROPPED_RE.test(statement[i]) && --left === 0) {
+      return statement.slice(i + 1);
+    }
+  }
+  return undefined;
+}
+
+/** How many `, (...)` tuples make up all of the masked `tail`, or 0 when it holds anything else. */
+function countRowTuples(tail: string): number {
+  let rows = 0;
+  let depth = 0;
+  let expected = ',';
+  for (const char of tail) {
+    if (depth > 0) {
+      if (char === '(') depth++;
+      else if (char === ')' && --depth === 0) expected = ',';
+      continue;
+    }
+    if (/\s/.test(char)) continue;
+    if (char !== expected) return 0;
+    if (char === ',') {
+      expected = '(';
+    } else {
+      depth = 1;
+      rows++;
+    }
+  }
+  return depth === 0 && expected === ',' ? rows : 0;
+}
+
+/** Whether a seeded statement is an `insert ... values (...), ...` that new rows can be appended to. */
+function isExtendableInsert(seeded: string): boolean {
+  const masked = maskStatement(seeded);
+  return (
+    INSERT_RE.test(masked) &&
+    VALUES_RE.test(masked) &&
+    masked.endsWith(')') &&
+    !ON_CONFLICT_RE.test(masked) &&
+    !RETURNING_OR_SELECT_RE.test(masked)
+  );
+}
+
+/** How many rows `statement` appends to the seeded insert whose fingerprint is `prefix`, or 0 when it isn't that insert followed only by safe new `, (...)` rows. */
+function appendedRowCount(statement: string, prefix: string): number {
+  const tail = textAfterFingerprint(statement, prefix);
+  if (tail === undefined) return 0;
+  const masked = maskStatement(tail);
+  const unsafe =
+    RETURNING_OR_SELECT_RE.test(masked) ||
+    SEEDED_INVOICE_IDS_RE.test(tail) ||
+    STATE_CHANGING_RE.test(tail) ||
+    UNSAFE_CALL_RE.test(tail.replaceAll('"', ''));
+  return unsafe ? 0 : countRowTuples(masked);
+}
+
+function findExtension(
+  seeded: string,
+  current: readonly string[],
+  from: number
+): { index: number; rows: number } | undefined {
+  if (!isExtendableInsert(seeded)) return undefined;
+  const prefix = sqlFingerprint(seeded);
+  for (let index = from; index < current.length; index++) {
+    const rows = appendedRowCount(current[index], prefix);
+    if (rows > 0) return { index, rows };
+  }
+  return undefined;
+}
+
 type SeededFile =
-  | { kept: true; added: number }
+  | { kept: true; added: number; appendedRows: number }
   | { kept: false; disallowed?: string };
 
-/** Whether `workspace` holds every statement of `pristine` in order, one plan no lower, and no added statement beyond assertions and test-data inserts. */
+/** Whether `workspace` holds every statement of `pristine` in order, one plan no lower, and no added statement beyond assertions, test-data inserts and new rows appended to a seeded insert. */
 function inspectSeededFile(pristine: string, workspace: string): SeededFile {
   const seeded = splitSqlStatements(pristine);
   const current = splitSqlStatements(workspace);
@@ -307,10 +393,16 @@ function inspectSeededFile(pristine: string, workspace: string): SeededFile {
   const fingerprints = current.map(sqlFingerprint);
   const matched = new Set<number>();
   let next = 0;
+  let appendedRows = 0;
   for (const statement of seeded) {
     if (PLAN_STATEMENT_RE.test(statement)) continue;
-    const found = fingerprints.indexOf(sqlFingerprint(statement), next);
-    if (found === -1) return { kept: false };
+    let found = fingerprints.indexOf(sqlFingerprint(statement), next);
+    if (found === -1) {
+      const extension = findExtension(statement, current, next);
+      if (extension === undefined) return { kept: false };
+      found = extension.index;
+      appendedRows += extension.rows;
+    }
     matched.add(found);
     next = found + 1;
   }
@@ -320,7 +412,7 @@ function inspectSeededFile(pristine: string, workspace: string): SeededFile {
   );
   const disallowed = added.find((statement) => !isAllowedAddition(statement));
   return disallowed === undefined
-    ? { kept: true, added: added.length }
+    ? { kept: true, added: added.length, appendedRows }
     : { kept: false, disallowed };
 }
 
@@ -331,7 +423,7 @@ function describeAddition(statement: string): string {
     : flat;
 }
 
-/** Passes when every seeded test file is still there with all its statements in order and a plan no lower, ignoring comments and whitespace; the only statements it may gain are pgTAP assertions and test-data inserts. */
+/** Passes when every seeded test file is still there with all its statements in order and a plan no lower, ignoring comments and whitespace; it may gain pgTAP assertions, test-data inserts and new rows appended to a seeded insert. */
 export function checkSeededTestsUnchanged(probe: WorkspaceProbe): CheckResult {
   const name = TESTS_UNCHANGED_CHECK;
   if (!probe.ok) return { name, passed: false, notes: probe.notes };
@@ -352,10 +444,16 @@ export function checkSeededTestsUnchanged(probe: WorkspaceProbe): CheckResult {
           ? seeded.file
           : `${seeded.file} (added a statement the check doesn't allow: ${describeAddition(inspected.disallowed)})`
       );
-    } else if (inspected.added > 0) {
-      extended.push(
-        `added to ${seeded.file}: ${inspected.added} ${inspected.added === 1 ? 'statement' : 'statements'}`
-      );
+    } else if (inspected.added > 0 || inspected.appendedRows > 0) {
+      const parts = [
+        ...(inspected.added > 0 ? [countOf(inspected.added, 'statement')] : []),
+        ...(inspected.appendedRows > 0
+          ? [
+              `${countOf(inspected.appendedRows, 'row')} appended to seeded inserts`,
+            ]
+          : []),
+      ];
+      extended.push(`added to ${seeded.file}: ${parts.join(', ')}`);
     }
   }
   if (modified.length === 0 && missing.length === 0) {
