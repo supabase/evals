@@ -22,6 +22,7 @@ const EXPERIMENTS_DIR = join(ROOT, 'experiments');
 
 export interface ExperimentMetadata {
   display: ExperimentDisplayMetadata;
+  skills: string[];
 }
 
 export async function loadExperimentMetadata(): Promise<
@@ -33,6 +34,7 @@ export async function loadExperimentMetadata(): Promise<
     const config: ExperimentConfig = mod.default;
     map.set(experiment.name, {
       display: getExperimentDisplayMetadata(config),
+      skills: config.skills ?? [],
     });
   }
   return map;

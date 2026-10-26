@@ -14,6 +14,7 @@ import {
   judgeCallSchema,
   modelUsageSchema,
   type AgentUsage,
+  type EvalSuite,
   type JudgeCall,
   type SandboxUsage,
 } from '@supabase-evals/core/eval-metadata';
@@ -75,6 +76,12 @@ const transcriptPartSchema = z.discriminatedUnion('type', [
 export const transcriptSchema = z.array(transcriptPartSchema).catch([]);
 const judgeCallsSchema = z.array(judgeCallSchema).catch([]);
 type TranscriptPart = z.infer<typeof transcriptPartSchema>;
+
+interface ExperimentGroup {
+  experiment: string;
+  suite: EvalSuite;
+  rows: PendingRow[];
+}
 
 interface PendingRow {
   evalId: string;
@@ -147,11 +154,12 @@ function repoInfo() {
  */
 export function experimentName(
   experiment: string,
+  suite: string,
   commit: string | undefined,
   stamp: string
 ) {
   const sha = commit ? `@${commit.slice(0, 7)}` : '';
-  return `${experiment}${sha}-${stamp}`;
+  return `${suite}-${experiment}${sha}-${stamp}`;
 }
 
 // 20260923T1339Z. UTC so runs from different zones sort against each other.
@@ -311,7 +319,7 @@ export function ciRunUrl() {
 
 async function collectRows(
   experimentMetadata: Map<string, ExperimentMetadata>
-): Promise<Map<string, PendingRow[]>> {
+): Promise<Map<string, ExperimentGroup>> {
   const files = await collectResultFiles({
     includeExperiment: (experiment) =>
       EXPERIMENT_FILTERS.length === 0 ||
@@ -323,7 +331,8 @@ async function collectRows(
   });
 
   const promptCache = new Map<string, PromptData>();
-  const byExperiment = new Map<string, PendingRow[]>();
+  // One Braintrust experiment per experiment file and suite.
+  const byExperiment = new Map<string, ExperimentGroup>();
 
   for (const { result, sourcePath, absolutePath } of files) {
     if (!promptCache.has(result.eval)) {
@@ -331,7 +340,11 @@ async function collectRows(
     }
     const promptData = promptCache.get(result.eval);
     const suite = promptData?.suite ?? result.suite;
-    if (SUITE_FILTERS.length && (!suite || !SUITE_FILTERS.includes(suite))) {
+    if (!suite) {
+      console.warn(`⚠️  skipping ${sourcePath}: eval has no suite`);
+      continue;
+    }
+    if (SUITE_FILTERS.length && !SUITE_FILTERS.includes(suite)) {
       continue;
     }
 
@@ -378,7 +391,7 @@ async function collectRows(
         eval_suite: suite,
         stage: promptData?.stage ?? result.stage,
         interface: promptData?.interface ?? result.interface,
-        skills: result.skills,
+        skills: result.skills ?? { available: [], loaded: [] },
         docs: result.docs,
         product: promptData?.product ?? result.product ?? [],
         topic: promptData?.topic ?? result.topic ?? [],
@@ -414,9 +427,14 @@ async function collectRows(
       ),
     };
 
-    const rows = byExperiment.get(result.experiment) ?? [];
-    rows.push(row);
-    byExperiment.set(result.experiment, rows);
+    const key = `${suite}/${result.experiment}`;
+    const group = byExperiment.get(key) ?? {
+      experiment: result.experiment,
+      suite,
+      rows: [],
+    };
+    group.rows.push(row);
+    byExperiment.set(key, group);
   }
   return byExperiment;
 }
@@ -753,9 +771,11 @@ async function main() {
   const stamp = utcStamp(new Date());
 
   if (DRY) {
-    for (const [experiment, rows] of byExperiment) {
+    for (const { experiment, suite, rows } of byExperiment.values()) {
       const evals = new Set(rows.map((row) => row.evalId)).size;
-      console.log(`${experiment}: ${rows.length} row(s), ${evals} eval(s)`);
+      console.log(
+        `${suite}/${experiment}: ${rows.length} row(s), ${evals} eval(s)`
+      );
     }
     return;
   }
@@ -763,11 +783,11 @@ async function main() {
   const { Attachment, init, flush } = await import('braintrust');
   const uploaded: { name: string; url: string }[] = [];
 
-  for (const [experiment, rows] of byExperiment) {
+  for (const { experiment, suite, rows } of byExperiment.values()) {
     const meta = experimentMetadata.get(experiment);
     const bt = init({
       projectId,
-      experiment: experimentName(experiment, info?.commit, stamp),
+      experiment: experimentName(experiment, suite, info?.commit, stamp),
       repoInfo: info,
       metadata: {
         agent: meta?.display.agent,
@@ -775,6 +795,8 @@ async function main() {
         model_id: meta?.display.modelId,
         reasoning_effort: meta?.display.reasoningEffort,
         experiment,
+        suite,
+        skills: meta?.skills,
         ...(EXPECTED_RUNS === undefined
           ? {}
           : { expected_runs: EXPECTED_RUNS }),
