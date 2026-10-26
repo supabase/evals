@@ -19,7 +19,9 @@ import {
 
 const MCP_CONFIG_PATH = '"$HOME/.eval/mcp.json"';
 
-export const claudeCodeRunner: AgentRunner<AnthropicModel> = {
+export const claudeCodeRunner: AgentRunner<AnthropicModel> & {
+  tools?: string[];
+} = {
   id: 'claude-code',
   displayName: 'Claude Code',
   apiKeyEnvVar: 'ANTHROPIC_API_KEY',
@@ -81,8 +83,9 @@ export const claudeCodeRunner: AgentRunner<AnthropicModel> = {
       // Reasoning effort for the session; omitted leaves Claude Code's default.
       ...(reasoningEffort ? [`--effort ${shellQuote(reasoningEffort)}`] : []),
       ...mcpFlags,
+      ...(this.tools ? [`--tools ${shellQuote(this.tools.join(','))}`] : []),
       // The sandbox is the isolation boundary, so skip permission prompts and
-      // give the agent its full native toolset (same in both modes).
+      // give the agent its native toolset, or the subset in `tools`.
       '--dangerously-skip-permissions',
     ].join(' ');
 
