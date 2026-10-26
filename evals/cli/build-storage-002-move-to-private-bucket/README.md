@@ -199,8 +199,9 @@ move`, with the error message as its notes.
   seed every avatar under its original key with its original bytes, and, with
   storage enabled, unless each invoice's sha256 appears in the listing of some
   bucket with `public = false`. The note then reads `a fresh local setup would
-  not seed <file names> into a private bucket`. An unreadable or unparseable
-  config fails.
+  not seed <file names> into a private bucket`, followed by the listing reason
+  of each private bucket with an `objects_path` that does not exist or could
+  not be listed. An unreadable or unparseable config fails.
 - Passes: a new private bucket with any name and path, for example
   `[storage.buckets.invoices]` with `objects_path = "./storage/invoices"`, and
   the invoice files moved there; the invoices split across two private buckets,
@@ -210,9 +211,10 @@ move`, with the error message as its notes.
   `objects_path`, so the invoices are still seeded into `media`; `media` set to
   `public = false`; `media`'s `objects_path` pointed at the avatars subfolder,
   which drops `avatars/` from the keys; `media`'s seed folder emptied of
-  avatars; the invoice seed files deleted, or a private bucket whose
-  `objects_path` has a typo or can't be listed, so the invoices are seeded into
-  no bucket at all.
+  avatars; the invoice seed files deleted; a private bucket whose
+  `objects_path` has a typo, so the invoices are seeded into no bucket at all;
+  or a private bucket whose `objects_path` can't be listed, so the check can't
+  show it seeds the invoices (the note carries the listing reason).
 
 ### `no container-runtime detours`
 
@@ -241,7 +243,9 @@ and `--local`), `freshSetupInvoiceBuckets` (the declared buckets whose
 printed a service-role, secret, anon and publishable key, as booleans, never the
 values), `stackStoppedByAgent` (whether the agent's last stack start or stop
 command was a stop), `lastStackCommand` (that command with its flags, else
-null), `serviceIdentity` (`service-role` or `secret`, whichever got a 200 on
+null; both read the last start or stop by command name, not by which stack it
+targeted, so stopping a different named stack also reads as stopped),
+`serviceIdentity` (`service-role` or `secret`, whichever got a 200 on
 its control request, else null), `anonIdentity` (`anon` or `publishable`, the
 same for the anon control request) and `cliDetours` (a regex count that can
 disagree with the detour judge).

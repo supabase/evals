@@ -612,6 +612,9 @@ describe('checkFreshSetup', () => {
     expect(check.passed).toBe(false);
     for (const { key } of INVOICES)
       expect(check.notes).toContain(basename(key));
+    expect(check.notes).toContain(
+      'private bucket invoices: ./storage/invoicez does not exist, so it seeds nothing'
+    );
   });
 
   it('names only the invoices no private bucket would seed', () => {
@@ -675,6 +678,9 @@ describe('checkFreshSetup', () => {
 
     expect(check.passed).toBe(false);
     expect(check.notes).toContain('into a private bucket');
+    expect(check.notes).toContain(
+      "could not list private bucket invoices's objects_path: exit 1: Permission denied"
+    );
   });
 
   it('fails when a public bucket could not be listed, naming the bucket and the error', () => {
@@ -1000,25 +1006,29 @@ describe('the fresh-setup check on a project read from the sandbox', () => {
     ).toBe(false);
   });
 
-  it('fails when the private bucket objects_path has a typo', async () => {
-    expect(
-      await verdict(
-        project(
-          [
-            { name: 'media', public: true, objectsPath: './storage/media' },
-            {
-              name: 'invoices',
-              public: false,
-              objectsPath: './storage/invoicez',
-            },
-          ],
+  it('fails when the private bucket objects_path has a typo, saying the path does not exist', async () => {
+    const { result } = await seed(
+      project(
+        [
+          { name: 'media', public: true, objectsPath: './storage/media' },
           {
-            ...seedFiles('storage/media', AVATARS),
-            ...seedFiles('storage/invoices', INVOICES, (f) => basename(f.key)),
-          }
-        )
+            name: 'invoices',
+            public: false,
+            objectsPath: './storage/invoicez',
+          },
+        ],
+        {
+          ...seedFiles('storage/media', AVATARS),
+          ...seedFiles('storage/invoices', INVOICES, (f) => basename(f.key)),
+        }
       )
-    ).toBe(false);
+    );
+    const check = checkFreshSetup(result);
+
+    expect(check.passed).toBe(false);
+    expect(check.notes).toContain(
+      'private bucket invoices: ./storage/invoicez does not exist, so it seeds nothing'
+    );
   });
 
   it('passes for a private bucket under a quoted name', async () => {

@@ -203,10 +203,24 @@ export function checkFreshSetup(probe: SeedConfigProbe): CheckResult {
         )
     );
     if (unseeded.length > 0) {
+      const reasons = probe.buckets
+        .filter((bucket) => !bucket.public && bucket.objectsPath !== undefined)
+        .flatMap((bucket) => [
+          ...(bucket.error === undefined
+            ? []
+            : [
+                `could not list private bucket ${bucket.name}'s objects_path: ${bucket.error}`,
+              ]),
+          ...(bucket.notes === undefined
+            ? []
+            : [`private bucket ${bucket.name}: ${bucket.notes}`]),
+        ]);
       problems.push(
         `a fresh local setup would not seed ${unseeded
           .map(({ key }) => key.slice(key.lastIndexOf('/') + 1))
-          .join(', ')} into a private bucket`
+          .join(', ')} into a private bucket${reasons
+          .map((reason) => `; ${reason}`)
+          .join('')}`
       );
     }
   }
