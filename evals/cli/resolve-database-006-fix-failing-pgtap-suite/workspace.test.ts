@@ -742,6 +742,38 @@ select is(public.invoice_total_cents(900104), 500::bigint, 'a line without a dis
           'an assertion that expects an insert to fail on a seeded invoice',
           "select throws_ok($$insert into public.invoice_lines (invoice_id, description, quantity, unit_price_cents, discount_percent) values (900102, 'x', 1, 100, 101)$$, '23514', null, 'the check holds on every invoice');",
         ],
+        [
+          'an assertion whose description mentions delete',
+          "select ok(true, 'cannot delete a paid invoice');",
+        ],
+        [
+          'an assertion whose description mentions a keyword mid-sentence',
+          "select ok(true, 'users can delete a line');",
+        ],
+        [
+          'an is whose description mentions update',
+          "select is(public.invoice_total_cents(900201), 0::bigint, 'a new invoice with no lines does not update its total');",
+        ],
+        [
+          'an assertion whose description holds an escaped quote and a keyword',
+          "select ok(true, 'it''s not possible to drop a line');",
+        ],
+        [
+          'an assertion whose escape-string description mentions a keyword',
+          "select ok(true, E'it\\'s fine to delete a draft');",
+        ],
+        [
+          'an assertion whose dollar-quoted description mentions a keyword',
+          'select ok(true, $d$cannot delete a paid invoice$d$);',
+        ],
+        [
+          'an assertion that runs a select and describes it with a keyword',
+          "select lives_ok($$select public.invoice_total_cents(900101)$$, 'it does not delete anything');",
+        ],
+        [
+          'an assertion whose description starts with a command word that is not a keyword',
+          "select ok(true, 'selecting a line does not delete it');",
+        ],
       ])('passes %s', (_label, statement) => {
         expect(checkSeededTestsUnchanged(addedAfterPlan(statement))).toEqual({
           name: TESTS_UNCHANGED_CHECK,
@@ -791,8 +823,56 @@ select is(public.invoice_total_cents(900104), 500::bigint, 'a line without a dis
           "select lives_ok('update public.invoice_lines set discount_percent = 0');",
         ],
         [
-          'an assertion whose description holds a keyword',
-          "select ok(true, 'users can delete a line');",
+          'an assertion whose description starts with a command word and holds a keyword',
+          "select ok(true, 'delete is refused for paid invoices');",
+        ],
+        [
+          'an assertion that alters a table from a dollar-quoted body, with a description',
+          "select lives_ok($$alter table public.invoice_lines alter column discount_percent set default 0$$, 'x');",
+        ],
+        [
+          'an assertion that deletes rows from a plain string, with a description',
+          "select lives_ok('delete from public.invoice_lines', 'x');",
+        ],
+        [
+          'an assertion that deletes rows from an escape string',
+          "select lives_ok(E'delete from public.invoice_lines', 'x');",
+        ],
+        [
+          'an assertion that deletes rows from a body with a tag',
+          "select lives_ok($q$delete from public.invoice_lines$q$, 'x');",
+        ],
+        [
+          'an assertion that deletes rows from a body that follows an escaped quote',
+          "select lives_ok(E'select \\'x\\', 1; delete from public.invoice_lines', 'x');",
+        ],
+        [
+          'an assertion that deletes rows from a body that opens with a comment and a parenthesis',
+          "select lives_ok($$ /* note */ (update public.invoice_lines set discount_percent = 0)$$, 'x');",
+        ],
+        [
+          'an assertion that deletes rows from a body that opens with a nested comment',
+          "select lives_ok($$ /* a /* b */ c */ delete from public.invoice_lines$$, 'x');",
+        ],
+        [
+          'an assertion that deletes rows from a body that opens with a line comment',
+          "select lives_ok($$-- note\ndelete from public.invoice_lines$$, 'x');",
+        ],
+        [
+          'an assertion that deletes rows from a body after another statement',
+          "select lives_ok($$select 1; delete from public.invoice_lines$$, 'x');",
+        ],
+        [
+          'an assertion that deletes rows from a body that opens with a semicolon',
+          "select lives_ok($$;delete from public.invoice_lines$$, 'x');",
+        ],
+        [
+          'an assertion that deletes rows from a body nested in a string',
+          "select lives_ok($$select lives_ok('delete from public.invoice_lines')$$, 'x');",
+        ],
+        [
+          'an assertion that compares the rows of a with query that deletes',
+          "select results_eq($$with d as (delete from public.invoice_lines returning 1) select count(*)::int from d$$, $$select 0$$, 'x');",
         ],
         [
           'an assertion that runs a keyword in capitals',
@@ -1010,9 +1090,38 @@ select is(public.invoice_total_cents(900104), 500::bigint, 'a line without a dis
         'copy',
         'security definer',
       ])('fails an added assertion whose SQL string holds %s', (keyword) => {
-        const probe = addedAfterPlan(`select lives_ok($$${keyword} x$$);`);
+        const probe = addedAfterPlan(
+          `select lives_ok($$select ${keyword} x$$);`
+        );
         expect(checkSeededTestsUnchanged(probe).passed).toBe(false);
       });
+
+      it.each([
+        'create',
+        'alter',
+        'drop',
+        'update',
+        'delete',
+        'truncate',
+        'grant',
+        'revoke',
+        'comment on',
+        'set role',
+        'set search_path',
+        'set session',
+        'set local',
+        'reset',
+        'do',
+        'call',
+        'copy',
+        'security definer',
+      ])(
+        'fails an added assertion whose SQL string starts with %s',
+        (keyword) => {
+          const probe = addedAfterPlan(`select lives_ok($$${keyword} x$$);`);
+          expect(checkSeededTestsUnchanged(probe).passed).toBe(false);
+        }
+      );
 
       it('names the first disallowed statement and drops the semicolon and comments', () => {
         const probe = addedAfterPlan(
@@ -1148,6 +1257,18 @@ select is(public.invoice_total_cents(900104), 500::bigint, 'a line without a dis
       });
     });
 
+    it('passes an appended row whose description mentions a keyword mid-sentence', () => {
+      const probe = edited(
+        withPlan,
+        appendRows(LAST_INVOICE, "(900104, 'cannot delete')")
+      );
+      expect(checkSeededTestsUnchanged(probe)).toEqual({
+        name: TESTS_UNCHANGED_CHECK,
+        passed: true,
+        notes: `2 seeded test files unchanged; added to ${FILE}: 1 row appended to seeded inserts`,
+      });
+    });
+
     it('passes appended rows spread over lines, comments and extra spaces', () => {
       const probe = edited(
         appendRows(
@@ -1257,6 +1378,10 @@ select is(public.invoice_total_cents(900104), 500::bigint, 'a line without a dis
       [
         'a tuple that holds a state-changing keyword',
         appendRows(LAST_INVOICE, "(900104, 'drop table')"),
+      ],
+      [
+        'a tuple whose description starts with a command word and holds a keyword',
+        appendRows(LAST_INVOICE, "(900104, 'delete is refused')"),
       ],
       [
         'a tuple that names a quoted todo call',

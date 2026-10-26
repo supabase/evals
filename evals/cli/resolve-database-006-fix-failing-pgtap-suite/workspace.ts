@@ -1,5 +1,8 @@
 import type { CheckResult, LocalStackEvalContext } from '@supabase-evals/core';
-import { maskSqlLiteralsAndComments } from '../lib/migrations.js';
+import {
+  maskSqlLiteralsAndComments,
+  stripSqlComments,
+} from '../lib/migrations.js';
 import { describeFailure, errorMessage, shellQuote } from '../lib/shell.js';
 import {
   MIGRATIONS_DIR,
@@ -111,10 +114,10 @@ const ASSERTION_PREFIXES: readonly string[] = [
   'tables_are',
   'columns_are',
 ];
-// Searched for in the raw text with double quotes removed, so `"todo"(...)` and calls inside strings and `$$` bodies count.
+// Searched for in `executableText` with double quotes removed, so `"todo"(...)` and calls inside SQL-reading strings and `$$` bodies count.
 const UNSAFE_CALL_RE =
   /\b(?:todo|todo_start|todo_end|in_todo|skip|plan|no_plan|finish|set_config)\s*\(/i;
-// An allowed assertion can run SQL from a string or `$$` body, so these are searched for in the raw text, literals included.
+// An allowed assertion can run SQL from a string or `$$` body, so these are searched for in `executableText`.
 const STATE_CHANGING_KEYWORDS: readonly string[] = [
   'create',
   'alter',
@@ -140,6 +143,65 @@ const STATE_CHANGING_RE = new RegExp(
   `(?<![\\p{L}\\p{N}_])(?:${STATE_CHANGING_KEYWORDS.map((keyword) => keyword.replace(/ /g, '\\s+')).join('|')})(?![\\p{L}\\p{N}_])`,
   'iu'
 );
+const SQL_COMMANDS: readonly string[] = [
+  'abort',
+  'alter',
+  'analyze',
+  'begin',
+  'call',
+  'checkpoint',
+  'close',
+  'cluster',
+  'comment',
+  'commit',
+  'copy',
+  'create',
+  'deallocate',
+  'declare',
+  'delete',
+  'discard',
+  'do',
+  'drop',
+  'end',
+  'execute',
+  'explain',
+  'fetch',
+  'grant',
+  'import',
+  'insert',
+  'listen',
+  'load',
+  'lock',
+  'merge',
+  'move',
+  'notify',
+  'prepare',
+  'reassign',
+  'refresh',
+  'reindex',
+  'release',
+  'reset',
+  'revoke',
+  'rollback',
+  'savepoint',
+  'security',
+  'select',
+  'set',
+  'show',
+  'start',
+  'table',
+  'truncate',
+  'unlisten',
+  'update',
+  'vacuum',
+  'values',
+  'with',
+];
+const SQL_COMMAND_START_RE = new RegExp(
+  `^[\\s(;]*(?:${SQL_COMMANDS.join('|')})(?![\\p{L}\\p{N}_])`,
+  'iu'
+);
+const DOLLAR_TAG_RE = /^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/;
 const FINGERPRINT_DROPPED_RE = /[\s;]/;
 const TEST_FILE_RE = /\.(?:sql|pg)$/;
 const TESTS_PREFIX = `${TESTS_DIR}/`;
@@ -261,6 +323,68 @@ const maskStatement = (statement: string) =>
     .replace(QUOTED_IDENTIFIER_RE, '""')
     .trim();
 
+/** Whether the `'` at `quote` opens an `E'...'` escape string, where a backslash escapes the next character. */
+const isEscapeString = (sql: string, quote: number) =>
+  /[Ee]/.test(sql[quote - 1] ?? '') && !/[\w$]/.test(sql[quote - 2] ?? '');
+
+/** The index of the quote that closes the literal opened at `open`, or the length of `sql` when it never closes. */
+function closingQuote(
+  sql: string,
+  open: number,
+  backslashEscapes: boolean
+): number {
+  const quote = sql[open];
+  let i = open + 1;
+  while (i < sql.length) {
+    if (backslashEscapes && sql[i] === '\\') i += 2;
+    else if (sql[i] !== quote) i++;
+    else if (sql[i + 1] === quote) i += 2;
+    else return i;
+  }
+  return sql.length;
+}
+
+/** The raw text between the quotes of each string and dollar-quoted literal in `sql`; literals nested in a body stay in it. */
+function literalBodies(sql: string): string[] {
+  const bodies: string[] = [];
+  let i = 0;
+  while (i < sql.length) {
+    const char = sql[i];
+    if (char === "'" || char === '"') {
+      const close = closingQuote(
+        sql,
+        i,
+        char === "'" && isEscapeString(sql, i)
+      );
+      if (char === "'") bodies.push(sql.slice(i + 1, close));
+      i = close + 1;
+      continue;
+    }
+    const tag =
+      char === '$' ? DOLLAR_TAG_RE.exec(sql.slice(i))?.[0] : undefined;
+    if (tag === undefined) {
+      i++;
+      continue;
+    }
+    const close = sql.indexOf(tag, i + tag.length);
+    const end = close === -1 ? sql.length : close;
+    bodies.push(sql.slice(i + tag.length, end));
+    i = end + tag.length;
+  }
+  return bodies;
+}
+
+const readsAsSql = (body: string) =>
+  SQL_COMMAND_START_RE.test(stripSqlComments(body));
+
+/** The statement with literals and comments masked, then the raw body of each literal that reads as SQL, since pgTAP runs those. */
+function executableText(statement: string): string {
+  return [
+    maskSqlLiteralsAndComments(statement),
+    ...literalBodies(stripSqlComments(statement)).filter(readsAsSql),
+  ].join(';');
+}
+
 /** Whether the parenthesis opening at `open` closes at the last character of `text`. */
 function callSpans(text: string, open: number): boolean {
   let depth = 0;
@@ -273,8 +397,9 @@ function callSpans(text: string, open: number): boolean {
 
 /** Whether a statement added to a seeded test file is a pgTAP assertion call or a test-data insert, the only additions that can't change what the seeded assertions run against. */
 function isAllowedAddition(statement: string): boolean {
-  if (STATE_CHANGING_RE.test(statement)) return false;
-  if (UNSAFE_CALL_RE.test(statement.replaceAll('"', ''))) return false;
+  const executable = executableText(statement);
+  if (STATE_CHANGING_RE.test(executable)) return false;
+  if (UNSAFE_CALL_RE.test(executable.replaceAll('"', ''))) return false;
   const masked = maskStatement(statement);
   const touchesSeededInvoice = SEEDED_INVOICE_IDS_RE.test(statement);
   if (INSERT_RE.test(masked)) {
@@ -355,11 +480,12 @@ function appendedRowCount(statement: string, prefix: string): number {
   const tail = textAfterFingerprint(statement, prefix);
   if (tail === undefined) return 0;
   const masked = maskStatement(tail);
+  const executable = executableText(tail);
   const unsafe =
     RETURNING_OR_SELECT_RE.test(masked) ||
     SEEDED_INVOICE_IDS_RE.test(tail) ||
-    STATE_CHANGING_RE.test(tail) ||
-    UNSAFE_CALL_RE.test(tail.replaceAll('"', ''));
+    STATE_CHANGING_RE.test(executable) ||
+    UNSAFE_CALL_RE.test(executable.replaceAll('"', ''));
   return unsafe ? 0 : countRowTuples(masked);
 }
 
