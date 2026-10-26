@@ -2,7 +2,7 @@ import { redactSecrets } from '../lib/redact.js';
 import { truncate } from '../lib/shell.js';
 import { describeStack, type StackProbe } from '../lib/stack.js';
 import { AVATARS, INVOICES, MEDIA_BUCKET, invoiceFor } from './fixtures.js';
-import type { SeedConfigProbe } from './seed-config.js';
+import type { SeedConfigProbe, SeededBucket } from './seed-config.js';
 import type { Fetched, StorageProbe } from './storage.js';
 
 const MAX_COMMANDS = 8;
@@ -40,6 +40,7 @@ function describeStorage(storage: StorageProbe): string[] {
   });
   return [
     `- storage API control request with the service key: status ${describeRead(storage.control)}`,
+    `- storage API control request with the anon key: status ${describeRead(storage.anonControl)}`,
     ...storage.buckets.map(
       (bucket) => `- bucket ${bucket.id} (${visibility(bucket.public)})`
     ),
@@ -55,6 +56,13 @@ function describeStorage(storage: StorageProbe): string[] {
   ];
 }
 
+function describeListing(bucket: SeededBucket): string {
+  if (bucket.error !== undefined) {
+    return ` [could not list it: ${bucket.error}]`;
+  }
+  return bucket.notes === undefined ? '' : ` [${bucket.notes}]`;
+}
+
 function describeSeed(seed: SeedConfigProbe): string[] {
   if (!seed.ok) return [`- fresh setup: config unreadable (${seed.notes})`];
   return [
@@ -66,7 +74,7 @@ function describeSeed(seed: SeedConfigProbe): string[] {
       const invoices = bucket.files.filter(
         (file) => invoiceFor(file.sha256) !== undefined
       ).length;
-      const note = bucket.notes === undefined ? '' : ` [${bucket.notes}]`;
+      const note = describeListing(bucket);
       return `  ${bucket.name} (${visibility(bucket.public)}), objects_path ${bucket.objectsPath ?? 'none'}: ${avatars} avatar files, ${invoices} invoice files${note}`;
     }),
   ];

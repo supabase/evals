@@ -1,6 +1,11 @@
 import type { CheckResult, LocalStackEvalContext } from '@supabase-evals/core';
 import { parse } from 'smol-toml';
-import { describeFailure, errorMessage, shellQuote } from '../lib/shell.js';
+import {
+  describeFailure,
+  errorMessage,
+  shellQuote,
+  truncate,
+} from '../lib/shell.js';
 import {
   AVATARS,
   MEDIA_BUCKET,
@@ -51,38 +56,71 @@ export function parseBucketDecls(
   }
 }
 
-export type SeededBucket = BucketDecl & { files: SeedFile[]; notes?: string };
+export type SeededBucket = BucketDecl & {
+  files: SeedFile[];
+  /** Set when the bucket's objects_path does not exist, so it seeds nothing. */
+  notes?: string;
+  /** Set when listing the objects_path failed, so what it would seed is unknown. */
+  error?: string;
+};
 
 export type SeedConfigProbe =
   | { ok: true; storageEnabled: boolean; buckets: SeededBucket[] }
   | { ok: false; notes: string };
 
-const LISTED_FILE = /^([0-9a-f]{64}) [ *]\.\/(.+)$/;
+export const MISSING_PATH_MARKER = 'objects_path does not exist';
 
-async function listSeedFiles(
+const LISTED_FILE = /^\\?([0-9a-f]{64}) [ *]\.\/(.+)$/;
+
+const SKIPPED_FILES = ['.DS_Store', 'Thumbs.db', 'desktop.ini'];
+
+const HASH_REGULAR_FILES =
+  'for f do if [ -f "$f" ]; then sha256sum -- "$f" || exit 1; fi; done';
+
+/** Portable to GNU and BSD find: `[ -f ]` follows a symlink to a file and rejects one to a directory, as the CLI's seeding does. */
+function listCommand(workspace: string, objectsPath: string): string {
+  const skipped = SKIPPED_FILES.map((name) => `! -name ${name}`).join(' ');
+  return [
+    `cd ${shellQuote(`${workspace}/supabase`)} || exit 1`,
+    `p=${shellQuote(objectsPath)}`,
+    'if [ -f "$p" ]',
+    'then d=$(dirname -- "$p") && f=$(basename -- "$p") && cd -- "$d" && sha256sum -- "./$f"',
+    'elif [ -d "$p" ]',
+    `then cd -- "$p" && find . ${skipped} \\( -type f -o -type l \\) -exec sh -c ${shellQuote(HASH_REGULAR_FILES)} sh {} +`,
+    `else echo ${shellQuote(MISSING_PATH_MARKER)}`,
+    'fi',
+  ].join('; ');
+}
+
+/** The files `objectsPath` would seed with their sha256, keyed by path from the folder (the file's own name for a single-file path). */
+export async function listSeedFiles(
   ctx: Pick<LocalStackEvalContext, 'exec' | 'workspace'>,
   objectsPath: string
-): Promise<Pick<SeededBucket, 'files' | 'notes'>> {
+): Promise<Pick<SeededBucket, 'files' | 'notes' | 'error'>> {
   try {
-    const result = await ctx.exec(
-      `cd ${shellQuote(`${ctx.workspace}/supabase`)} && cd -- ${shellQuote(objectsPath)} && find -L . -type f ! -name .DS_Store -exec sha256sum {} +`
-    );
-    if (!result.ok) {
+    const result = await ctx.exec(listCommand(ctx.workspace, objectsPath));
+    if (!result.ok) return { files: [], error: describeFailure(result) };
+    if (result.stdout.trim() === MISSING_PATH_MARKER) {
       return {
         files: [],
-        notes: `could not list ${objectsPath}: ${describeFailure(result)}`,
+        notes: `${objectsPath} does not exist, so it seeds nothing`,
       };
     }
-    const files = result.stdout.split('\n').flatMap((line) => {
+    const files: SeedFile[] = [];
+    for (const line of result.stdout.split('\n')) {
+      if (line.trim() === '') continue;
       const match = LISTED_FILE.exec(line);
-      return match === null ? [] : [{ key: match[2], sha256: match[1] }];
-    });
+      if (match === null) {
+        return {
+          files: [],
+          error: `unparseable output: ${truncate(line, 100)}`,
+        };
+      }
+      files.push({ key: match[2], sha256: match[1] });
+    }
     return { files };
   } catch (error) {
-    return {
-      files: [],
-      notes: `could not list ${objectsPath}: ${errorMessage(error)}`,
-    };
+    return { files: [], error: errorMessage(error) };
   }
 }
 
@@ -130,6 +168,11 @@ export function checkFreshSetup(probe: SeedConfigProbe): CheckResult {
     if (bucket.public && invoices.length > 0) {
       problems.push(
         `public bucket ${bucket.name} would seed ${invoices.length} invoice file(s)`
+      );
+    }
+    if (bucket.public && bucket.error !== undefined) {
+      problems.push(
+        `could not list public bucket ${bucket.name}'s objects_path: ${bucket.error}`
       );
     }
   }

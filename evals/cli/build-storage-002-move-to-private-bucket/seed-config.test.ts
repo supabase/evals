@@ -5,6 +5,9 @@ import {
   bucketSeeding,
   createSandbox,
   type BucketConfig,
+  failed,
+  type Intercept,
+  ok,
   passingProject,
   passingSeed,
   type Project,
@@ -23,6 +26,7 @@ import {
 } from './fixtures.js';
 import {
   checkFreshSetup,
+  listSeedFiles,
   parseBucketDecls,
   readSeedConfig,
   type SeedConfigProbe,
@@ -47,8 +51,8 @@ function seededBucket(probe: SeedConfigProbe, name: string) {
   return bucket;
 }
 
-async function seed(current: Project) {
-  const sandbox = createSandbox({ project: current });
+async function seed(current: Project, intercept?: Intercept) {
+  const sandbox = createSandbox({ project: current, intercept });
   const result = await readSeedConfig(sandbox.ctx);
   return { ...sandbox, result };
 }
@@ -298,7 +302,7 @@ describe('readSeedConfig', () => {
     const { commands, events } = await seed(passingProject());
 
     expect(events.filter((event) => event === 'find')).toHaveLength(2);
-    const finds = commands.filter((command) => command.includes('find -L'));
+    const finds = commands.filter((command) => command.includes('find .'));
     expect(finds).toHaveLength(2);
     for (const command of finds) expect(command).toContain('sha256sum');
     expect(finds.some((c) => c.includes(shellQuote('./storage/media')))).toBe(
@@ -353,18 +357,32 @@ describe('readSeedConfig', () => {
     ]);
   });
 
-  it('does not count a .DS_Store file as a seed file', async () => {
-    const { result } = await seed(
-      project(
-        [{ name: 'media', public: true, objectsPath: './storage/media' }],
-        {
-          ...seedFiles('storage/media', AVATARS),
-          'storage/media/.DS_Store': OTHER_SHA,
-        }
-      )
-    );
+  it.each(['.DS_Store', 'Thumbs.db', 'desktop.ini'])(
+    'does not count a %s file as a seed file',
+    async (junk) => {
+      const { result } = await seed(
+        project(
+          [{ name: 'media', public: true, objectsPath: './storage/media' }],
+          {
+            ...seedFiles('storage/media', AVATARS),
+            [`storage/media/${junk}`]: OTHER_SHA,
+          }
+        )
+      );
 
-    expect(byKey(seededBucket(result, 'media').files)).toEqual(byKey(AVATARS));
+      expect(byKey(seededBucket(result, 'media').files)).toEqual(
+        byKey(AVATARS)
+      );
+    }
+  );
+
+  it('lists without following symlinked directories, which the CLI skips', async () => {
+    const { commands } = await seed(passingProject());
+
+    const [command] = commands.filter((entry) => entry.includes('find .'));
+    expect(command).not.toContain('find -L');
+    expect(command).not.toContain('-xtype');
+    expect(command).toContain('-type f -o -type l');
   });
 
   it('lists no files and no note for an existing empty folder', async () => {
@@ -387,7 +405,7 @@ describe('readSeedConfig', () => {
     expect(bucket.notes).toBeUndefined();
   });
 
-  it('lists no files and says why for an objects_path whose folder is missing, keeping the other buckets', async () => {
+  it('lists no files and notes that the folder does not exist, without an error, keeping the other buckets', async () => {
     const { result } = await seed(
       project(
         [
@@ -401,8 +419,68 @@ describe('readSeedConfig', () => {
     expect(result.ok).toBe(true);
     const ghost = seededBucket(result, 'ghost');
     expect(ghost.files).toEqual([]);
-    expect(ghost.notes).toMatch(/\S/);
+    expect(ghost.notes).toMatch(/does not exist/);
+    expect(ghost.error).toBeUndefined();
     expect(byKey(seededBucket(result, 'media').files)).toEqual(byKey(AVATARS));
+  });
+
+  it('records a listing that exits non-zero as an error on its bucket, keeping the other buckets', async () => {
+    const { result } = await seed(passingProject(), (kind, _call, command) =>
+      kind === 'find' && command.includes(shellQuote('./storage/invoices'))
+        ? failed('find: ./storage/invoices/locked: Permission denied')
+        : undefined
+    );
+
+    expect(result.ok).toBe(true);
+    const invoices = seededBucket(result, 'invoices');
+    expect(invoices.files).toEqual([]);
+    expect(invoices.error).toContain('Permission denied');
+    expect(invoices.notes).toBeUndefined();
+    expect(byKey(seededBucket(result, 'media').files)).toEqual(byKey(AVATARS));
+  });
+
+  it('records a listing the sandbox throws on as an error on its bucket', async () => {
+    const { result } = await seed(passingProject(), (kind) =>
+      kind === 'find' ? 'throw' : undefined
+    );
+
+    expect(seededBucket(result, 'media')).toMatchObject({
+      files: [],
+      error: expect.stringContaining('sandbox gone'),
+    });
+  });
+
+  it('records listing output that is not hash lines as an error', async () => {
+    const { result } = await seed(passingProject(), (kind) =>
+      kind === 'find' ? ok('Welcome to the sandbox\n') : undefined
+    );
+
+    expect(seededBucket(result, 'media')).toMatchObject({
+      files: [],
+      error: expect.stringContaining('Welcome to the sandbox'),
+    });
+  });
+
+  it('reads the hash of a line GNU sha256sum prefixes with a backslash for an escaped name', async () => {
+    const { files, error } = await listSeedFiles(
+      {
+        workspace: '/workspace',
+        exec: async () =>
+          ok(
+            [
+              `\\${INVOICES[0].sha256}  ./a\\\\b.pdf`,
+              `${AVATARS[0].sha256}  ./${AVATARS[0].key}`,
+            ].join('\n')
+          ),
+      },
+      './storage/media'
+    );
+
+    expect(error).toBeUndefined();
+    expect(files).toEqual([
+      { key: 'a\\\\b.pdf', sha256: INVOICES[0].sha256 },
+      AVATARS[0],
+    ]);
   });
 
   it('reports storage disabled in the config', async () => {
@@ -508,10 +586,59 @@ describe('checkFreshSetup', () => {
       checkFreshSetup(
         seedProbe(bucketSeeding(MEDIA_BUCKET, true, AVATARS), {
           ...bucketSeeding('extras', true, [], './storage/extras'),
-          notes: 'cd: no such file or directory',
+          notes: './storage/extras does not exist, so it seeds nothing',
         })
       ).passed
     ).toBe(true);
+  });
+
+  it('passes when a private bucket could not be listed, since it cannot seed an invoice publicly', () => {
+    expect(
+      checkFreshSetup(
+        seedProbe(bucketSeeding(MEDIA_BUCKET, true, AVATARS), {
+          ...bucketSeeding('invoices', false, [], './storage/invoices'),
+          error: 'exit 1: Permission denied',
+        })
+      ).passed
+    ).toBe(true);
+  });
+
+  it('fails when a public bucket could not be listed, naming the bucket and the error', () => {
+    const check = checkFreshSetup(
+      seedProbe(bucketSeeding(MEDIA_BUCKET, true, AVATARS), {
+        ...bucketSeeding('extras', true, [], './storage/extras'),
+        error: 'exit 1: Permission denied',
+      })
+    );
+
+    expect(check).toMatchObject({ name: FRESH, passed: false });
+    expect(check.notes).toContain(
+      "could not list public bucket extras's objects_path: exit 1: Permission denied"
+    );
+  });
+
+  it('fails when the media bucket could not be listed', () => {
+    const check = checkFreshSetup(
+      seedProbe({
+        ...bucketSeeding(MEDIA_BUCKET, true, [], './storage/media'),
+        error: 'exit 1: Permission denied',
+      })
+    );
+
+    expect(check.passed).toBe(false);
+    expect(check.notes).toContain("could not list public bucket media's");
+  });
+
+  it('fails when a missing media folder cannot seed the avatars, and says it does not exist', () => {
+    const check = checkFreshSetup(
+      seedProbe({
+        ...bucketSeeding(MEDIA_BUCKET, true, [], './storage/media'),
+        notes: './storage/media does not exist, so it seeds nothing',
+      })
+    );
+
+    expect(check.passed).toBe(false);
+    expect(check.notes).toContain('does not exist');
   });
 
   it('fails when the config still seeds the invoices into the public bucket', () => {

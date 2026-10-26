@@ -13,24 +13,52 @@ const jwtHeaders = (jwt: string): AuthHeaders => ({
   Authorization: `Bearer ${jwt}`,
 });
 
-const present = (key: string | undefined): key is string =>
+export const present = (key: string | undefined): key is string =>
   key !== undefined && key.trim() !== '';
 
+export type ServiceIdentity = 'service-role' | 'secret';
+export type AnonIdentity = 'anon' | 'publishable';
+
+type Candidate<Identity extends string> = {
+  identity: Identity;
+  headers: AuthHeaders;
+};
+
+const serviceCandidates = (keys: StackKeys): Candidate<ServiceIdentity>[] => [
+  ...(present(keys.serviceRole)
+    ? [
+        {
+          identity: 'service-role' as const,
+          headers: jwtHeaders(keys.serviceRole),
+        },
+      ]
+    : []),
+  ...(present(keys.secret)
+    ? [{ identity: 'secret' as const, headers: { apikey: keys.secret } }]
+    : []),
+];
+
+const anonCandidates = (keys: StackKeys): Candidate<AnonIdentity>[] => [
+  ...(present(keys.anon)
+    ? [{ identity: 'anon' as const, headers: jwtHeaders(keys.anon) }]
+    : []),
+  ...(present(keys.publishable)
+    ? [
+        {
+          identity: 'publishable' as const,
+          headers: { apikey: keys.publishable },
+        },
+      ]
+    : []),
+];
+
 /** The credentials that read as the service role, the JWT before the secret key. */
-export function serviceHeaderSets(keys: StackKeys): AuthHeaders[] {
-  return [
-    ...(present(keys.serviceRole) ? [jwtHeaders(keys.serviceRole)] : []),
-    ...(present(keys.secret) ? [{ apikey: keys.secret }] : []),
-  ];
-}
+export const serviceHeaderSets = (keys: StackKeys): AuthHeaders[] =>
+  serviceCandidates(keys).map(({ headers }) => headers);
 
 /** The credentials that read as the anon role, the JWT before the publishable key. */
-export function anonHeaderSets(keys: StackKeys): AuthHeaders[] {
-  return [
-    ...(present(keys.anon) ? [jwtHeaders(keys.anon)] : []),
-    ...(present(keys.publishable) ? [{ apikey: keys.publishable }] : []),
-  ];
-}
+export const anonHeaderSets = (keys: StackKeys): AuthHeaders[] =>
+  anonCandidates(keys).map(({ headers }) => headers);
 
 export function objectUrl(
   apiUrl: string,
@@ -95,6 +123,9 @@ export async function fetchObject(
 
 type Bucket = { id: string; public: boolean };
 
+const NO_SERVICE_KEY = 'no service key could be read from the stack status';
+const NO_ANON_KEY = 'no anon key could be read from the stack status';
+
 export type StoredObject = {
   bucket: string;
   key: string;
@@ -111,6 +142,9 @@ export type StorageProbe =
       buckets: Bucket[];
       objects: StoredObject[];
       control: Fetched;
+      serviceIdentity: ServiceIdentity | null;
+      anonControl: Fetched;
+      anonIdentity: AnonIdentity | null;
       originalInvoices: Record<string, Fetched>;
       avatars: Record<string, Fetched>;
     }
@@ -126,11 +160,20 @@ const ROWS_SQL = [
 const isRow = (row: unknown): row is Record<string, unknown> =>
   typeof row === 'object' && row !== null;
 
-const isBucketRow = (row: unknown): row is Bucket =>
-  isRow(row) && typeof row.id === 'string' && typeof row.public === 'boolean';
+const isStringOrNull = (value: unknown): value is string | null =>
+  typeof value === 'string' || value === null;
 
-const isObjectRow = (row: unknown): row is { bucket: string; name: string } =>
-  isRow(row) && typeof row.bucket === 'string' && typeof row.name === 'string';
+const isBucketRow = (
+  row: unknown
+): row is { id: string; public: boolean | null } =>
+  isRow(row) &&
+  typeof row.id === 'string' &&
+  (typeof row.public === 'boolean' || row.public === null);
+
+const isObjectRow = (
+  row: unknown
+): row is { bucket: string | null; name: string | null } =>
+  isRow(row) && isStringOrNull(row.bucket) && isStringOrNull(row.name);
 
 /** The bucket and object rows of the stack's storage schema, failing closed on any other shape. */
 export async function readStorageRows(
@@ -160,42 +203,35 @@ export async function readStorageRows(
       ok: true,
       buckets: buckets.map(({ id, public: isPublic }) => ({
         id,
-        public: isPublic,
+        public: isPublic === true,
       })),
-      objects: objects.map(({ bucket, name }) => ({ bucket, key: name })),
+      objects: objects.flatMap(({ bucket, name }) =>
+        bucket === null || name === null ? [] : [{ bucket, key: name }]
+      ),
     };
   } catch (error) {
     return { ok: false, notes: `storage rows: ${errorMessage(error)}` };
   }
 }
 
-async function chooseServiceHeaders(
+type ChosenIdentity<Identity extends string> = {
+  identity: Identity | null;
+  headers: AuthHeaders | undefined;
+  control: Fetched;
+};
+
+async function chooseIdentity<Identity extends string>(
   ctx: ExecContext,
   apiUrl: string,
-  keys: StackKeys
-): Promise<{ headers: AuthHeaders; control: Fetched }> {
-  const candidates = serviceHeaderSets(keys);
-  const sets: AuthHeaders[] = candidates.length > 0 ? candidates : [{}];
-  let control: Fetched = { status: null, sha256: null };
-  for (const headers of sets) {
+  candidates: readonly Candidate<Identity>[],
+  noKeyNote: string
+): Promise<ChosenIdentity<Identity>> {
+  let control: Fetched = { status: null, sha256: null, notes: noKeyNote };
+  for (const { identity, headers } of candidates) {
     control = await fetchObject(ctx, `${apiUrl}/storage/v1/bucket`, headers);
-    if (control.status === 200) return { headers, control };
+    if (control.status === 200) return { identity, headers, control };
   }
-  return { headers: sets[0], control };
-}
-
-async function readAsAnon(
-  ctx: ExecContext,
-  url: string,
-  keys: StackKeys
-): Promise<Fetched | undefined> {
-  const reads: Fetched[] = [];
-  for (const headers of anonHeaderSets(keys)) {
-    const read = await fetchObject(ctx, url, headers);
-    if (isSuccess(read.status)) return read;
-    reads.push(read);
-  }
-  return reads[0];
+  return { identity: null, headers: candidates[0]?.headers, control };
 }
 
 async function readPublic(
@@ -225,7 +261,18 @@ export async function probeStorage(
   const rows = await readStorageRows(ctx, stack.dbUrl);
   if (!rows.ok) return rows;
 
-  const { headers, control } = await chooseServiceHeaders(ctx, apiUrl, keys);
+  const service = await chooseIdentity(
+    ctx,
+    apiUrl,
+    serviceCandidates(keys),
+    NO_SERVICE_KEY
+  );
+  const anon = await chooseIdentity(
+    ctx,
+    apiUrl,
+    anonCandidates(keys),
+    NO_ANON_KEY
+  );
   const publicBuckets = new Set(
     rows.buckets.filter((bucket) => bucket.public).map((bucket) => bucket.id)
   );
@@ -237,15 +284,15 @@ export async function probeStorage(
       bucket,
       key,
       bucketPublic,
-      service: await fetchObject(ctx, url, headers),
+      service: await fetchObject(ctx, url, service.headers ?? {}),
     };
     const holdsInvoice = invoiceFor(object.service.sha256) !== undefined;
     if (bucketPublic || holdsInvoice) {
       const publicUrl = objectUrl(apiUrl, 'public', bucket, key);
       object.public = await fetchObject(ctx, publicUrl, {});
     }
-    if (holdsInvoice) {
-      object.anon = await readAsAnon(ctx, url, keys);
+    if (holdsInvoice && anon.headers !== undefined) {
+      object.anon = await fetchObject(ctx, url, anon.headers);
     }
     objects.push(object);
   }
@@ -255,7 +302,10 @@ export async function probeStorage(
     apiUrl,
     buckets: rows.buckets,
     objects,
-    control,
+    control: service.control,
+    serviceIdentity: service.identity,
+    anonControl: anon.control,
+    anonIdentity: anon.identity,
     originalInvoices: await readPublic(ctx, apiUrl, INVOICES),
     avatars: await readPublic(ctx, apiUrl, AVATARS),
   };
@@ -268,6 +318,11 @@ const unavailable = (name: string, notes: string): CheckResult => ({
 });
 
 const fileName = (key: string) => key.slice(key.lastIndexOf('/') + 1);
+
+const describeControl = (control: Fetched): string =>
+  `returned ${control.status ?? 'no status'}${
+    control.notes === undefined ? '' : ` (${control.notes})`
+  }`;
 
 export function checkInvoicesPrivate(probe: StorageProbe): CheckResult {
   const name = 'invoices are in a private bucket on the local stack';
@@ -294,7 +349,15 @@ export function checkNoInvoicePublic(probe: StorageProbe): CheckResult {
   const problems: string[] = [];
   if (probe.control.status !== 200) {
     problems.push(
-      `the storage API control request returned ${probe.control.status ?? 'no status'}`
+      `the storage API control request ${describeControl(probe.control)}`
+    );
+  }
+  const holdsAnyInvoice = probe.objects.some(
+    (object) => invoiceFor(object.service.sha256) !== undefined
+  );
+  if (holdsAnyInvoice && probe.anonControl.status !== 200) {
+    problems.push(
+      `the anon key was not accepted, so anon reads prove nothing (the anon control request ${describeControl(probe.anonControl)})`
     );
   }
   for (const object of probe.objects) {
@@ -309,7 +372,9 @@ export function checkNoInvoicePublic(probe: StorageProbe): CheckResult {
     } else if (holdsInvoice && isSuccess(object.public?.status)) {
       problems.push(`${where} is readable by its public URL`);
     }
-    if (holdsInvoice && isSuccess(object.anon?.status)) {
+    if (holdsInvoice && object.anon === undefined) {
+      problems.push(`${where} holds an invoice and has no anon read`);
+    } else if (holdsInvoice && isSuccess(object.anon?.status)) {
       problems.push(`${where} is readable with the anon key`);
     }
   }

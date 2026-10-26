@@ -1,6 +1,10 @@
 import type { LocalStackEvalContext } from '@supabase-evals/core';
+import type { SupabaseInvocation } from './cli-invocations.js';
 import { shellQuote } from './shell.js';
 import {
+  candidateHomes,
+  effectiveRoot,
+  homePrefix,
   parseJsonObject,
   type ResolvedStack,
   type StackProbe,
@@ -32,31 +36,45 @@ export function parseStackKeys(stdout: string): StackKeys {
 }
 
 /** The command that prints the stack's keys, or undefined for a named managed stack, which `ResolvedStack` does not name. */
-export function stackKeysCommand(stack: ResolvedStack): string | undefined {
+export function stackKeysCommand(
+  stack: ResolvedStack,
+  invocations: readonly SupabaseInvocation[]
+): string | undefined {
   if (stack.backend === 'legacy') {
     return 'SUPABASE_EXPERIMENTAL_STACK=0 supabase status -o json';
   }
   if (stack.backend === 'managed') {
-    const home =
-      stack.relocatedHome === undefined
-        ? ''
-        : `SUPABASE_HOME=${shellQuote(stack.relocatedHome)} `;
-    return `${home}SUPABASE_EXPERIMENTAL_STACK=1 supabase stack status --env --output-format json`;
+    return `${managedHomePrefix(stack, invocations)}SUPABASE_EXPERIMENTAL_STACK=1 supabase stack status --env --output-format json`;
   }
   return undefined;
 }
 
-/** The stack's keys, or none when no command can read them or it fails. */
+function managedHomePrefix(
+  stack: ResolvedStack,
+  invocations: readonly SupabaseInvocation[]
+): string {
+  const { relocatedHome } = stack;
+  if (relocatedHome === undefined) return '';
+  const home = candidateHomes(invocations, { kind: 'root' }).find(
+    (candidate) => effectiveRoot(candidate) === relocatedHome
+  );
+  return home === undefined
+    ? `SUPABASE_HOME=${shellQuote(relocatedHome)} `
+    : homePrefix(home);
+}
+
+/** The stack's keys, or none when no command can read them or its output holds none. */
 export async function readStackKeys(
   ctx: Pick<LocalStackEvalContext, 'exec'>,
-  stack: StackProbe
+  stack: StackProbe,
+  invocations: readonly SupabaseInvocation[]
 ): Promise<StackKeys> {
   if (!stack.ok) return {};
-  const command = stackKeysCommand(stack);
+  const command = stackKeysCommand(stack, invocations);
   if (command === undefined) return {};
   try {
     const result = await ctx.exec(command);
-    return result.ok ? parseStackKeys(result.stdout) : {};
+    return parseStackKeys(result.stdout);
   } catch {
     return {};
   }

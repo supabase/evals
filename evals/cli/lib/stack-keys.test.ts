@@ -3,6 +3,7 @@ import type {
   LocalStackEvalContext,
 } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
+import type { SupabaseInvocation } from './cli-invocations.js';
 import {
   parseStackKeys,
   readStackKeys,
@@ -36,6 +37,14 @@ const stackOf = (overrides: Partial<ResolvedStack> = {}): ResolvedStack => ({
   apiUrl: 'http://127.0.0.1:54321',
   runtime: 'docker',
   ...overrides,
+});
+
+const startedUnder = (
+  env: NonNullable<SupabaseInvocation['env']>
+): SupabaseInvocation => ({
+  commandIndex: 0,
+  argv: ['supabase', 'stack', 'start'],
+  env,
 });
 
 function result(stdout: string, ok = true): CommandResult {
@@ -132,36 +141,100 @@ describe('parseStackKeys', () => {
 
 describe('stackKeysCommand', () => {
   it('asks the legacy CLI for its status as JSON', () => {
-    expect(stackKeysCommand(stackOf({ backend: 'legacy' }))).toBe(
+    expect(stackKeysCommand(stackOf({ backend: 'legacy' }), [])).toBe(
       LEGACY_COMMAND
     );
   });
 
   it('asks the default managed stack for its environment', () => {
     expect(
-      stackKeysCommand(stackOf({ backend: 'managed', runtime: 'native' }))
+      stackKeysCommand(stackOf({ backend: 'managed', runtime: 'native' }), [])
     ).toBe(MANAGED_COMMAND);
   });
 
   it('runs a managed stack found under a relocated CLI home with that home set', () => {
+    const home = { SUPABASE_HOME: '/home/agent/.supabase' };
+
     expect(
       stackKeysCommand(
-        stackOf({ backend: 'managed', relocatedHome: '/home/agent/.supabase' })
+        stackOf({ backend: 'managed', relocatedHome: home.SUPABASE_HOME }),
+        [startedUnder(home)]
       )
     ).toBe(`SUPABASE_HOME='/home/agent/.supabase' ${MANAGED_COMMAND}`);
   });
 
-  it('quotes a relocated home that holds a quote or a space', () => {
+  it('sets every variable of the home the stack was started under, as the resolver does', () => {
+    const home = {
+      SUPABASE_HOME: '/s/.home',
+      HOME: '/s/.h',
+      TMPDIR: '/s/.tmp',
+    };
+
     expect(
       stackKeysCommand(
-        stackOf({ backend: 'managed', relocatedHome: "/home/o'brien/my home" })
+        stackOf({ backend: 'managed', relocatedHome: '/s/.home' }),
+        [startedUnder(home)]
+      )
+    ).toBe(
+      `SUPABASE_HOME='/s/.home' HOME='/s/.h' TMPDIR='/s/.tmp' ${MANAGED_COMMAND}`
+    );
+  });
+
+  it('sets HOME and TMPDIR for a stack whose registry root is HOME/.supabase', () => {
+    const home = { HOME: '/s/.h', TMPDIR: '/s/.tmp' };
+
+    expect(
+      stackKeysCommand(
+        stackOf({ backend: 'managed', relocatedHome: '/s/.h/.supabase' }),
+        [startedUnder(home)]
+      )
+    ).toBe(`HOME='/s/.h' TMPDIR='/s/.tmp' ${MANAGED_COMMAND}`);
+  });
+
+  it("picks the home whose registry root is the stack's among several the agent used", () => {
+    const other = { SUPABASE_HOME: '/s/other' };
+    const used = { SUPABASE_HOME: '/s/.home', TMPDIR: '/s/.tmp' };
+
+    expect(
+      stackKeysCommand(
+        stackOf({ backend: 'managed', relocatedHome: '/s/.home' }),
+        [startedUnder(used), startedUnder(other)]
+      )
+    ).toBe(`SUPABASE_HOME='/s/.home' TMPDIR='/s/.tmp' ${MANAGED_COMMAND}`);
+  });
+
+  it('quotes a relocated home that holds a quote or a space', () => {
+    const home = { SUPABASE_HOME: "/home/o'brien/my home" };
+
+    expect(
+      stackKeysCommand(
+        stackOf({ backend: 'managed', relocatedHome: home.SUPABASE_HOME }),
+        [startedUnder(home)]
       )
     ).toBe(`SUPABASE_HOME='/home/o'\\''brien/my home' ${MANAGED_COMMAND}`);
   });
 
+  it('falls back to SUPABASE_HOME when no invocation started the stack under that home', () => {
+    expect(
+      stackKeysCommand(
+        stackOf({ backend: 'managed', relocatedHome: '/home/agent/.supabase' }),
+        []
+      )
+    ).toBe(`SUPABASE_HOME='/home/agent/.supabase' ${MANAGED_COMMAND}`);
+  });
+
+  it('falls back to SUPABASE_HOME when only other homes started a stack', () => {
+    expect(
+      stackKeysCommand(
+        stackOf({ backend: 'managed', relocatedHome: '/s/.home' }),
+        [startedUnder({ SUPABASE_HOME: '/s/other' })]
+      )
+    ).toBe(`SUPABASE_HOME='/s/.home' ${MANAGED_COMMAND}`);
+  });
+
   it('has no command for a named managed stack because the resolved stack carries no name', () => {
     expect(
-      stackKeysCommand(stackOf({ backend: 'managed-named' }))
+      stackKeysCommand(stackOf({ backend: 'managed-named' }), [])
     ).toBeUndefined();
   });
 });
@@ -170,7 +243,7 @@ describe('readStackKeys', () => {
   it('runs the legacy command once and returns the keys it prints', async () => {
     const { ctx, commands } = fakeCtx(result(ALL_KEYS));
 
-    expect(await readStackKeys(ctx, stackOf())).toEqual({
+    expect(await readStackKeys(ctx, stackOf(), [])).toEqual({
       serviceRole: SERVICE_ROLE,
       secret: SECRET,
       anon: ANON,
@@ -186,7 +259,8 @@ describe('readStackKeys', () => {
 
     const keys = await readStackKeys(
       ctx,
-      stackOf({ backend: 'managed', runtime: 'native' })
+      stackOf({ backend: 'managed', runtime: 'native' }),
+      []
     );
 
     expect(commands).toEqual([MANAGED_COMMAND]);
@@ -194,24 +268,36 @@ describe('readStackKeys', () => {
     expect(keys.secret).toBe(SECRET);
   });
 
-  it('runs a relocated managed stack under its home', async () => {
+  it('runs a relocated managed stack under the home the agent started it with', async () => {
     const { ctx, commands } = fakeCtx(result(ALL_KEYS));
 
     await readStackKeys(
       ctx,
-      stackOf({ backend: 'managed', relocatedHome: '/home/agent/.supabase' })
+      stackOf({ backend: 'managed', relocatedHome: '/s/.h/.supabase' }),
+      [startedUnder({ HOME: '/s/.h', TMPDIR: '/s/.tmp' })]
     );
 
     expect(commands).toEqual([
-      `SUPABASE_HOME='/home/agent/.supabase' ${MANAGED_COMMAND}`,
+      `HOME='/s/.h' TMPDIR='/s/.tmp' ${MANAGED_COMMAND}`,
     ]);
+  });
+
+  it('reads the keys a command prints even when it exits non-zero', async () => {
+    const { ctx } = fakeCtx(result(ALL_KEYS, false));
+
+    expect(await readStackKeys(ctx, stackOf(), [])).toEqual({
+      serviceRole: SERVICE_ROLE,
+      secret: SECRET,
+      anon: ANON,
+      publishable: PUBLISHABLE,
+    });
   });
 
   it('returns no keys and runs nothing when no stack resolved', async () => {
     const { ctx, commands } = fakeCtx(result(ALL_KEYS));
     const stack: StackProbe = { ok: false, notes: 'not running' };
 
-    expect(await readStackKeys(ctx, stack)).toEqual({});
+    expect(await readStackKeys(ctx, stack, [])).toEqual({});
     expect(commands).toEqual([]);
   });
 
@@ -219,7 +305,7 @@ describe('readStackKeys', () => {
     const { ctx, commands } = fakeCtx(result(ALL_KEYS));
 
     expect(
-      await readStackKeys(ctx, stackOf({ backend: 'managed-named' }))
+      await readStackKeys(ctx, stackOf({ backend: 'managed-named' }), [])
     ).toEqual({});
     expect(commands).toEqual([]);
   });
@@ -227,18 +313,18 @@ describe('readStackKeys', () => {
   it('returns no keys when the sandbox throws', async () => {
     const { ctx } = fakeCtx(new Error('sandbox gone'));
 
-    expect(await readStackKeys(ctx, stackOf())).toEqual({});
+    expect(await readStackKeys(ctx, stackOf(), [])).toEqual({});
   });
 
   it('returns no keys when the command fails without output', async () => {
     const { ctx } = fakeCtx(result('', false));
 
-    expect(await readStackKeys(ctx, stackOf())).toEqual({});
+    expect(await readStackKeys(ctx, stackOf(), [])).toEqual({});
   });
 
   it('returns no keys when the output is not JSON', async () => {
     const { ctx } = fakeCtx(result('supabase local development setup'));
 
-    expect(await readStackKeys(ctx, stackOf())).toEqual({});
+    expect(await readStackKeys(ctx, stackOf(), [])).toEqual({});
   });
 });

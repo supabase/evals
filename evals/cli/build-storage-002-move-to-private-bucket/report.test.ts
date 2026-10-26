@@ -139,8 +139,8 @@ describe('describeGroundTruth', () => {
       expect(text).not.toContain('not found on the stack');
     });
 
-    it('gives the status of the storage API control request', () => {
-      const line = blockFor(groundTruth(), /control/i);
+    it('gives the status of the storage API control request with the service key', () => {
+      const line = blockFor(groundTruth(), /control request with the service/i);
 
       expect(mentionsNumber(line, 200)).toBe(true);
     });
@@ -148,11 +148,50 @@ describe('describeGroundTruth', () => {
     it('gives a failing control status instead of 200', () => {
       const line = blockFor(
         groundTruth({ storage: storageProbe({ control: fetched(401) }) }),
-        /control/i
+        /control request with the service/i
       );
 
       expect(mentionsNumber(line, 401)).toBe(true);
       expect(mentionsNumber(line, 200)).toBe(false);
+    });
+
+    it('gives the status of the storage API control request with the anon key', () => {
+      const line = blockFor(groundTruth(), /control request with the anon/i);
+
+      expect(mentionsNumber(line, 200)).toBe(true);
+    });
+
+    it('gives a rejected anon key as its control status and the service key as unaffected', () => {
+      const lines = groundTruth({
+        storage: storageProbe({ anonControl: fetched(401) }),
+      });
+
+      const anon = blockFor(lines, /control request with the anon/i);
+      expect(mentionsNumber(anon, 401)).toBe(true);
+      expect(mentionsNumber(anon, 200)).toBe(false);
+      expect(
+        mentionsNumber(
+          blockFor(lines, /control request with the service/i),
+          200
+        )
+      ).toBe(true);
+    });
+
+    it('says why no anon control request was made when the stack printed no anon key', () => {
+      const line = blockFor(
+        groundTruth({
+          storage: storageProbe({
+            anonControl: {
+              status: null,
+              sha256: null,
+              notes: 'no anon key could be read from the stack status',
+            },
+          }),
+        }),
+        /control request with the anon/i
+      );
+
+      expect(line).toContain('no anon key could be read');
     });
 
     it('lists each bucket with whether it is public or private', () => {
@@ -368,6 +407,28 @@ describe('describeGroundTruth', () => {
       }).join('\n');
 
       expect(text).toContain('archive (private)');
+    });
+
+    it('says a missing folder seeds nothing and that a listing failure was not read', () => {
+      const text = groundTruth({
+        seed: seedProbe(
+          {
+            ...bucketSeeding('gone', false, [], './storage/gone'),
+            notes: './storage/gone does not exist, so it seeds nothing',
+          },
+          {
+            ...bucketSeeding('locked', true, [], './storage/locked'),
+            error: 'exit 1: Permission denied',
+          }
+        ),
+      }).join('\n');
+
+      expect(text).toContain(
+        'gone (private), objects_path ./storage/gone: 0 avatar files, 0 invoice files [./storage/gone does not exist, so it seeds nothing]'
+      );
+      expect(text).toContain(
+        'locked (public), objects_path ./storage/locked: 0 avatar files, 0 invoice files [could not list it: exit 1: Permission denied]'
+      );
     });
 
     it('carries the reason when the config could not be read', () => {

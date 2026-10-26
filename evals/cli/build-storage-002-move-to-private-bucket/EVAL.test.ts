@@ -207,6 +207,14 @@ describe('invoices moved to a private bucket with the seed config fixed', () => 
       channel: 'beta',
       docker: 'available',
       stack: { backend: 'legacy', runtime: 'docker' },
+      keysFound: {
+        serviceRole: true,
+        secret: true,
+        anon: true,
+        publishable: true,
+      },
+      serviceIdentity: 'service-role',
+      anonIdentity: 'anon',
       freshSetupInvoiceBuckets: ['invoices'],
       storageCommands: {
         ls: 0,
@@ -346,6 +354,14 @@ describe('no local stack', () => {
     expect(checkNamed(result, METRICS)?.passed).toBe(true);
     expect(metricsOf(result)).toMatchObject({
       buckets: null,
+      keysFound: {
+        serviceRole: false,
+        secret: false,
+        anon: false,
+        publishable: false,
+      },
+      serviceIdentity: null,
+      anonIdentity: null,
       invoiceLocations: null,
       freshSetupInvoiceBuckets: ['invoices'],
     });

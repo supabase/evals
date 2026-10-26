@@ -8,6 +8,8 @@ import { findSupabaseInvocations } from '../lib/cli-invocations.js';
 import {
   basename,
   bucketSeeding,
+  fetched,
+  KEYS,
   mediaAvatars,
   mediaInvoiceHeld,
   movedInvoices,
@@ -282,6 +284,7 @@ describe('checkMetrics', () => {
     commands: [] as string[],
     invocations: findSupabaseInvocations([]),
     stack: STACK,
+    keys: KEYS,
     storage: storageProbe(),
     seed: passingSeed(),
     cli: await readCliFacts(ctx, undefined, []),
@@ -301,6 +304,7 @@ describe('checkMetrics', () => {
       commands,
       invocations,
       stack: { ...STACK, relocatedHome: '/home/agent/.supabase' },
+      keys: KEYS,
       storage: storageProbe(),
       seed: passingSeed(),
       cli: await readCliFacts(ctx, MARKER, invocations),
@@ -317,6 +321,14 @@ describe('checkMetrics', () => {
         runtime: 'docker',
         relocatedHome: '/home/agent/.supabase',
       },
+      keysFound: {
+        serviceRole: true,
+        secret: true,
+        anon: true,
+        publishable: true,
+      },
+      serviceIdentity: 'service-role',
+      anonIdentity: 'anon',
       buckets: [
         { id: 'media', public: true, objects: 3 },
         { id: 'invoices', public: false, objects: 3 },
@@ -350,6 +362,73 @@ describe('checkMetrics', () => {
       stack: { backend: 'legacy', runtime: 'docker', relocatedHome: null },
       storageCommands: ZERO_COUNTS,
       cliDetours: 0,
+    });
+  });
+
+  it('reports which keys the stack printed, with no key value', async () => {
+    const check = await checkMetrics(undefined, {
+      ...(await baseFacts()),
+      keys: {
+        serviceRole: KEYS.serviceRole,
+        publishable: KEYS.publishable,
+        anon: '  ',
+      },
+    });
+
+    expect(metricsOf(check).keysFound).toEqual({
+      serviceRole: true,
+      secret: false,
+      anon: false,
+      publishable: true,
+    });
+    for (const key of Object.values(KEYS)) {
+      expect(check.notes).not.toContain(key);
+    }
+  });
+
+  it('reports no key found when the stack printed none', async () => {
+    const check = await checkMetrics(undefined, {
+      ...(await baseFacts()),
+      keys: {},
+    });
+
+    expect(metricsOf(check).keysFound).toEqual({
+      serviceRole: false,
+      secret: false,
+      anon: false,
+      publishable: false,
+    });
+  });
+
+  it('reports the identities whose control request passed', async () => {
+    const check = await checkMetrics(undefined, {
+      ...(await baseFacts()),
+      storage: storageProbe({
+        serviceIdentity: 'secret',
+        anonIdentity: 'publishable',
+      }),
+    });
+
+    expect(metricsOf(check)).toMatchObject({
+      serviceIdentity: 'secret',
+      anonIdentity: 'publishable',
+    });
+  });
+
+  it('reports a null identity when no key passed its control request', async () => {
+    const check = await checkMetrics(undefined, {
+      ...(await baseFacts()),
+      storage: storageProbe({
+        control: fetched(401),
+        serviceIdentity: null,
+        anonControl: fetched(401),
+        anonIdentity: null,
+      }),
+    });
+
+    expect(metricsOf(check)).toMatchObject({
+      serviceIdentity: null,
+      anonIdentity: null,
     });
   });
 
@@ -497,6 +576,8 @@ describe('checkMetrics', () => {
     expect(metricsOf(check)).toMatchObject({
       stack: { backend: 'none', runtime: 'none', relocatedHome: null },
       buckets: null,
+      serviceIdentity: null,
+      anonIdentity: null,
       invoiceLocations: null,
       freshSetupInvoiceBuckets: null,
       storageCommands: ZERO_COUNTS,
@@ -560,6 +641,9 @@ describe('checkMetrics', () => {
     expect(hostileStorage.passed).toBe(true);
     expect(metricsOf(hostileStorage)).toMatchObject({
       buckets: null,
+      serviceIdentity: null,
+      anonIdentity: null,
+      keysFound: expect.any(Object),
       invoiceLocations: null,
       freshSetupInvoiceBuckets: ['invoices'],
       stack: { backend: 'legacy' },
@@ -573,6 +657,17 @@ describe('checkMetrics', () => {
     expect(metricsOf(hostileSeed)).toMatchObject({
       freshSetupInvoiceBuckets: null,
       invoiceLocations: INVOICES.map(({ key }) => `invoices/${basename(key)}`),
+    });
+
+    const hostileKeys = await checkMetrics(undefined, {
+      ...facts,
+      keys: throwing({ ...KEYS }),
+    });
+    expect(hostileKeys.passed).toBe(true);
+    expect(metricsOf(hostileKeys)).toMatchObject({
+      keysFound: null,
+      serviceIdentity: 'service-role',
+      buckets: expect.any(Array),
     });
 
     const hostileStack = await checkMetrics(undefined, {

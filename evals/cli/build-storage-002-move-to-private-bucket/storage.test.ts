@@ -435,6 +435,53 @@ describe('readStorageRows', () => {
     });
   });
 
+  it('treats a bucket whose public flag is null as private', async () => {
+    const { ctx } = createSandbox({
+      intercept: () =>
+        ok(
+          JSON.stringify({
+            buckets: [
+              { id: 'legacy', public: null },
+              { id: 'media', public: true },
+            ],
+            objects: [],
+          })
+        ),
+    });
+
+    expect(await readStorageRows(ctx, DB_URL)).toEqual({
+      ok: true,
+      buckets: [
+        { id: 'legacy', public: false },
+        { id: 'media', public: true },
+      ],
+      objects: [],
+    });
+  });
+
+  it('drops object rows with a null name or bucket and keeps the rest', async () => {
+    const { ctx } = createSandbox({
+      intercept: () =>
+        ok(
+          JSON.stringify({
+            buckets: [{ id: 'media', public: true }],
+            objects: [
+              { bucket: 'media', name: null },
+              { bucket: null, name: 'orphan.pdf' },
+              { bucket: null, name: null },
+              { bucket: 'media', name: 'avatars/ava.svg' },
+            ],
+          })
+        ),
+    });
+
+    expect(await readStorageRows(ctx, DB_URL)).toEqual({
+      ok: true,
+      buckets: [{ id: 'media', public: true }],
+      objects: [{ bucket: 'media', key: 'avatars/ava.svg' }],
+    });
+  });
+
   it('returns empty lists for a stack without buckets or objects', async () => {
     const { ctx } = createSandbox({
       intercept: () => ok('{"buckets":[],"objects":[]}\n'),
@@ -480,6 +527,18 @@ describe('readStorageRows', () => {
     ['an array', '[]'],
     ['no objects list', '{"buckets":[]}'],
     ['no buckets list', '{"objects":[]}'],
+    [
+      'a bucket with no id',
+      '{"buckets":[{"id":null,"public":true}],"objects":[]}',
+    ],
+    [
+      'a bucket whose public flag is a string',
+      '{"buckets":[{"id":"media","public":"yes"}],"objects":[]}',
+    ],
+    [
+      'an object whose name is a number',
+      '{"buckets":[],"objects":[{"bucket":"media","name":1}]}',
+    ],
   ])(
     'fails closed on %s instead of reporting an empty stack',
     async (_name, stdout) => {
@@ -617,7 +676,9 @@ describe('probeStorage', () => {
       expect(heldBy(probe, 'media', avatar.key)?.anon).toBeUndefined();
     }
     const anonReads = requests.filter(
-      ({ identity }) => identity === 'anon' || identity === 'publishable'
+      ({ kind, identity }) =>
+        kind === 'service' &&
+        (identity === 'anon' || identity === 'publishable')
     );
     expect(anonReads.length).toBeGreaterThan(0);
     expect(
@@ -824,6 +885,7 @@ describe('probeStorage', () => {
       const { result, requests } = await run(passingWorld());
 
       expect(okProbe(result).control).toMatchObject({ status: 200 });
+      expect(okProbe(result).serviceIdentity).toBe('service-role');
       expect(requests.some(({ identity }) => identity === 'secret')).toBe(
         false
       );
@@ -837,9 +899,14 @@ describe('probeStorage', () => {
 
       const probe = okProbe(result);
       expect(probe.control).toMatchObject({ status: 200 });
+      expect(probe.serviceIdentity).toBe('secret');
       expect(
         requests
-          .filter(({ kind }) => kind === 'control')
+          .filter(
+            ({ kind, identity }) =>
+              kind === 'control' &&
+              (identity === 'service' || identity === 'secret')
+          )
           .map(({ identity }) => identity)
       ).toEqual(['service', 'secret']);
       const downloads = requests.filter(
@@ -866,6 +933,7 @@ describe('probeStorage', () => {
 
       const probe = okProbe(result);
       expect(probe.control).toMatchObject({ status: 401 });
+      expect(probe.serviceIdentity).toBeNull();
       const downloads = requests.filter(
         ({ kind, identity }) =>
           kind === 'service' &&
@@ -887,6 +955,124 @@ describe('probeStorage', () => {
       expect(requests.every(({ identity }) => identity === 'none')).toBe(true);
       expect(checkInvoicesPrivate(result).passed).toBe(false);
       expect(checkNoInvoicePublic(result).passed).toBe(false);
+    });
+
+    it('says no service key could be read when the stack status holds none', async () => {
+      const { result } = await run(passingWorld(), {
+        keys: { anon: ANON, publishable: PUBLISHABLE },
+      });
+
+      const probe = okProbe(result);
+      expect(probe.serviceIdentity).toBeNull();
+      expect(probe.control.status).toBeNull();
+      expect(checkNoInvoicePublic(result).notes).toContain(
+        'no service key could be read from the stack status'
+      );
+    });
+  });
+
+  describe('choosing the anon identity', () => {
+    const controlsOf = (
+      requests: ReturnType<typeof createSandbox>['requests']
+    ) =>
+      requests
+        .filter(({ kind }) => kind === 'control')
+        .map(({ identity }) => identity);
+
+    it('sends the anon control request to the bucket list and keeps the anon JWT when it gets a 200', async () => {
+      const { result, requests, commands } = await run(passingWorld());
+
+      const probe = okProbe(result);
+      expect(probe.anonControl).toMatchObject({ status: 200 });
+      expect(probe.anonIdentity).toBe('anon');
+      expect(controlsOf(requests)).toEqual(['service', 'anon']);
+      expect(
+        commands.filter((command) => command.includes(CONTROL_URL))
+      ).toHaveLength(2);
+    });
+
+    it('falls back to the publishable key when the anon JWT fails the control request, and reads with it', async () => {
+      const { result, requests } = await run({
+        ...passingWorld(),
+        controlStatus: { anon: 401 },
+        anonReads: () => true,
+      });
+
+      const probe = okProbe(result);
+      expect(controlsOf(requests)).toEqual(['service', 'anon', 'publishable']);
+      expect(probe.anonControl).toMatchObject({ status: 200 });
+      expect(probe.anonIdentity).toBe('publishable');
+      const reads = requests.filter(
+        ({ kind, identity }) =>
+          kind === 'service' &&
+          (identity === 'anon' || identity === 'publishable')
+      );
+      expect(reads.length).toBe(INVOICES.length);
+      expect(reads.every(({ identity }) => identity === 'publishable')).toBe(
+        true
+      );
+      expect(heldBy(probe, 'invoices', 'INV-2026-0141.pdf')?.anon).toEqual({
+        status: 200,
+        sha256: INVOICES[0].sha256,
+      });
+    });
+
+    it('reads each invoice-holding object once, with the identity that passed', async () => {
+      const { requests } = await run(passingWorld());
+
+      const reads = requests.filter(
+        ({ kind, identity }) =>
+          kind === 'service' &&
+          (identity === 'anon' || identity === 'publishable')
+      );
+      expect(reads).toHaveLength(INVOICES.length);
+      expect(reads.every(({ identity }) => identity === 'anon')).toBe(true);
+    });
+
+    it('keeps the last anon control result and reads with the first anon key set when none passes', async () => {
+      const { result, requests } = await run({
+        ...passingWorld(),
+        rejectsAnon: true,
+        anonReads: () => true,
+      });
+
+      const probe = okProbe(result);
+      expect(probe.anonControl).toMatchObject({ status: 401 });
+      expect(probe.anonIdentity).toBeNull();
+      expect(controlsOf(requests)).toEqual(['service', 'anon', 'publishable']);
+      expect(heldBy(probe, 'invoices', 'INV-2026-0141.pdf')?.anon).toEqual({
+        status: 401,
+        sha256: null,
+      });
+    });
+
+    it('sends no anon request and says no anon key could be read when the stack status holds none', async () => {
+      const { result, requests } = await run(
+        { ...passingWorld(), anonReads: () => true },
+        { keys: { serviceRole: SERVICE_ROLE, secret: SECRET_KEY } }
+      );
+
+      const probe = okProbe(result);
+      expect(probe.anonIdentity).toBeNull();
+      expect(probe.anonControl).toMatchObject({
+        status: null,
+        notes: expect.stringContaining('no anon key could be read'),
+      });
+      expect(controlsOf(requests)).toEqual(['service']);
+      expect(
+        heldBy(probe, 'invoices', 'INV-2026-0141.pdf')?.anon
+      ).toBeUndefined();
+    });
+
+    it('never sends a service key on an anon control request', async () => {
+      const { requests } = await run(passingWorld());
+
+      for (const { command } of requests.filter(
+        ({ kind, identity }) => kind === 'control' && identity === 'anon'
+      )) {
+        expect(command).not.toContain(SERVICE_ROLE);
+        expect(command).not.toContain(SECRET_KEY);
+      }
     });
   });
 
@@ -1260,6 +1446,55 @@ describe('checkNoInvoicePublic', () => {
     }
   );
 
+  it.each([
+    ['answers 401', fetched(401), 'returned 401'],
+    [
+      'was never sent',
+      { status: null, sha256: null, notes: 'no anon key could be read' },
+      'no anon key could be read',
+    ],
+  ])(
+    'fails when an invoice exists and the anon control request %s, since anon reads prove nothing',
+    (_name, anonControl, detail) => {
+      const check = checkNoInvoicePublic(storageProbe({ anonControl }));
+
+      expect(check).toMatchObject({ name: NOT_PUBLIC, passed: false });
+      expect(check.notes).toContain(
+        'the anon key was not accepted, so anon reads prove nothing'
+      );
+      expect(check.notes).toContain(detail);
+    }
+  );
+
+  it('ignores a failed anon control request when no object holds an invoice', () => {
+    expect(
+      checkNoInvoicePublic(
+        storageProbe({
+          objects: mediaAvatars(),
+          anonControl: fetched(401),
+          anonIdentity: null,
+        })
+      ).passed
+    ).toBe(true);
+  });
+
+  it('fails when an invoice-holding object has no anon read, naming it', () => {
+    const [first, ...rest] = movedInvoices();
+    const unread = {
+      bucket: first.bucket,
+      key: first.key,
+      service: first.service,
+    };
+
+    const check = checkNoInvoicePublic(
+      storageProbe({ objects: [...mediaAvatars(), unread, ...rest] })
+    );
+
+    expect(check.passed).toBe(false);
+    expect(check.notes).toContain('invoices/INV-2026-0141.pdf');
+    expect(check.notes).toContain('no anon read');
+  });
+
   it('fails with the probe notes when the storage probe is unavailable', () => {
     const check = checkNoInvoicePublic({
       ok: false,
@@ -1419,13 +1654,46 @@ describe('the checks against a probed stack', () => {
     ).toEqual([true, false, true]);
   });
 
-  it('fails the first and last when the rows moved but the bytes did not', async () => {
+  it('fails only the private-bucket check when the rows moved but the bytes did not', async () => {
     const world = passingWorld();
     world.objects = world.objects.map((object) =>
       object.bucket === 'invoices' ? { ...object, bytes: false } : object
     );
 
     expect(await verdicts(world)).toEqual([false, true, true]);
+  });
+
+  it('fails the public-read check when the anon key is rejected outright, even where a policy would have allowed the read', async () => {
+    expect(
+      await verdicts({
+        ...passingWorld(),
+        rejectsAnon: true,
+        anonReads: () => true,
+      })
+    ).toEqual([true, false, true]);
+  });
+
+  it('fails the public-read check when the stack status holds no anon key', async () => {
+    const { result } = await run(passingWorld(), {
+      keys: { serviceRole: SERVICE_ROLE, secret: SECRET_KEY },
+    });
+
+    expect(checkNoInvoicePublic(result)).toMatchObject({
+      passed: false,
+      notes: expect.stringContaining('the anon key was not accepted'),
+    });
+  });
+
+  it('passes the public-read check without an anon key when no object holds an invoice', async () => {
+    const world: World = {
+      buckets: [MEDIA],
+      objects: avatarRows(),
+    };
+    const { result } = await run(world, {
+      keys: { serviceRole: SERVICE_ROLE, secret: SECRET_KEY },
+    });
+
+    expect(checkNoInvoicePublic(result).passed).toBe(true);
   });
 
   it('fails the last when the media bucket was made private', async () => {

@@ -13,8 +13,18 @@ import {
   SEED_CONFIG_PATH,
   type SeedFile,
 } from './fixtures.js';
-import type { SeedConfigProbe, SeededBucket } from './seed-config.js';
-import type { Fetched, StorageProbe, StoredObject } from './storage.js';
+import {
+  MISSING_PATH_MARKER,
+  type SeedConfigProbe,
+  type SeededBucket,
+} from './seed-config.js';
+import type {
+  AnonIdentity,
+  Fetched,
+  ServiceIdentity,
+  StorageProbe,
+  StoredObject,
+} from './storage.js';
 
 export const API_URL = 'http://127.0.0.1:54321';
 export const DB_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
@@ -101,6 +111,8 @@ export type World = {
   objects: WorldObject[];
   accepts?: readonly Identity[];
   controlStatus?: Partial<Record<Identity, number>>;
+  /** Makes the storage API turn the anon and publishable keys away outright, on the control request and on reads. */
+  rejectsAnon?: boolean;
   anonReads?: (bucket: string, key: string) => boolean;
 };
 
@@ -294,6 +306,9 @@ export type ProbeSpec = {
   buckets?: Bucket[];
   objects?: Held[];
   control?: Fetched;
+  serviceIdentity?: ServiceIdentity | null;
+  anonControl?: Fetched;
+  anonIdentity?: AnonIdentity | null;
   originalInvoices?: Record<string, Fetched>;
   avatars?: Record<string, Fetched>;
 };
@@ -320,6 +335,12 @@ export function storageProbe(
     buckets,
     objects,
     control: spec.control ?? served(EMPTY_SHA),
+    serviceIdentity:
+      spec.serviceIdentity === undefined
+        ? 'service-role'
+        : spec.serviceIdentity,
+    anonControl: spec.anonControl ?? served(EMPTY_SHA),
+    anonIdentity: spec.anonIdentity === undefined ? 'anon' : spec.anonIdentity,
     originalInvoices:
       spec.originalInvoices ??
       Object.fromEntries(INVOICES.map(({ key }) => [key, fetched(404)])),
@@ -377,6 +398,8 @@ export type SandboxOptions = {
   intercept?: Intercept;
 };
 
+const SKIPPED_FILES = ['.DS_Store', 'Thumbs.db', 'desktop.ini'];
+
 const STORAGE_PREFIX = `${API_URL}/storage/v1/`;
 
 function identityOf(command: string): Identity {
@@ -389,6 +412,9 @@ function identityOf(command: string): Identity {
 
 const isPrivileged = (identity: Identity) =>
   identity === 'service' || identity === 'secret';
+
+const isAnon = (identity: Identity) =>
+  identity === 'anon' || identity === 'publishable';
 
 function parseRequest(command: string): Seen | undefined {
   const start = command.indexOf(STORAGE_PREFIX);
@@ -418,11 +444,11 @@ function answer(world: World, seen: Seen): { status: number; sha256: string } {
   const accepts = world.accepts ?? ['service', 'secret'];
   const reply = (status: number, sha256 = EMPTY_SHA) => ({ status, sha256 });
   if (seen.kind === 'control') {
+    const accepted = isPrivileged(seen.identity)
+      ? accepts.includes(seen.identity)
+      : isAnon(seen.identity) && world.rejectsAnon !== true;
     return reply(
-      world.controlStatus?.[seen.identity] ??
-        (isPrivileged(seen.identity) && accepts.includes(seen.identity)
-          ? 200
-          : 401)
+      world.controlStatus?.[seen.identity] ?? (accepted ? 200 : 401)
     );
   }
   const found = world.objects.find(
@@ -443,6 +469,7 @@ function answer(world: World, seen: Seen): { status: number; sha256: string } {
     if (found === undefined) return reply(404);
     return readable ? reply(200, sha256) : reply(400, sha256);
   }
+  if (world.rejectsAnon) return reply(401, sha256);
   if (found === undefined) return reply(404);
   const allowed = world.anonReads?.(found.bucket, found.key) === true;
   return allowed && readable ? reply(200, sha256) : reply(400, sha256);
@@ -451,7 +478,7 @@ function answer(world: World, seen: Seen): { status: number; sha256: string } {
 function classify(command: string): Kind {
   if (command.includes('curl')) return 'curl';
   if (command.includes('psql')) return 'psql';
-  if (command.includes('find -L')) return 'find';
+  if (command.includes(MISSING_PATH_MARKER)) return 'find';
   if (command.includes('stack status') || command.includes('supabase status')) {
     return 'keys';
   }
@@ -525,14 +552,17 @@ export function createSandbox(options: SandboxOptions = {}) {
       .filter(([file]) => file.startsWith(prefix))
       .filter(
         ([file]) =>
-          !(command.includes('.DS_Store') && basename(file) === '.DS_Store')
+          !SKIPPED_FILES.some(
+            (name) =>
+              command.includes(`! -name ${name}`) && basename(file) === name
+          )
       );
     const exists =
       prefix === '' ||
       inside.length > 0 ||
       (current.dirs ?? []).includes(dir) ||
       Object.keys(current.files).some((file) => file.startsWith(prefix));
-    if (!exists) return failed(`cd: no such file or directory: ${objectsPath}`);
+    if (!exists) return ok(`${MISSING_PATH_MARKER}\n`);
     return ok(
       inside
         .map(([file, sha256]) => `${sha256}  ./${file.slice(prefix.length)}\n`)

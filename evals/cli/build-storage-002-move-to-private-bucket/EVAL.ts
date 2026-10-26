@@ -40,7 +40,7 @@ const scorer: LocalStackScorer = async (ctx) => {
       { kind: 'root' },
       invocations
     );
-    const keys = await readStackKeys(ctx, stack);
+    const keys = await readStackKeys(ctx, stack, invocations);
     const knownSecrets = Object.values(keys).filter(
       (key): key is string => key !== undefined && key !== ''
     );
@@ -61,6 +61,7 @@ const scorer: LocalStackScorer = async (ctx) => {
         commands,
         invocations,
         stack,
+        keys,
         storage,
         seed,
         cli,

@@ -12,9 +12,10 @@ import {
 import { findCliDetourCommands } from '../lib/detours.js';
 import { readCliVersions, safely } from '../lib/metrics.js';
 import type { StackProbe } from '../lib/stack.js';
+import type { StackKeys } from '../lib/stack-keys.js';
 import { invoiceFor } from './fixtures.js';
 import type { SeedConfigProbe } from './seed-config.js';
-import type { StorageProbe } from './storage.js';
+import { present, type StorageProbe } from './storage.js';
 
 export type CliFacts = {
   versions: Awaited<ReturnType<typeof readCliVersions>> | null;
@@ -108,12 +109,13 @@ export async function checkMetrics(
     commands: readonly string[];
     invocations: readonly SupabaseInvocation[];
     stack: StackProbe;
+    keys: StackKeys;
     storage: StorageProbe;
     seed: SeedConfigProbe;
     cli: CliFacts;
   }
 ): Promise<CheckResult> {
-  const { commands, invocations, stack, storage, seed, cli } = facts;
+  const { commands, invocations, stack, keys, storage, seed, cli } = facts;
   const { versions, cliOverride } = cli;
 
   const metrics = {
@@ -132,6 +134,18 @@ export async function checkMetrics(
             relocatedHome: stack.relocatedHome ?? null,
           }
         : { backend: 'none', runtime: 'none', relocatedHome: null }
+    ),
+    keysFound: await safely(() => ({
+      serviceRole: present(keys.serviceRole),
+      secret: present(keys.secret),
+      anon: present(keys.anon),
+      publishable: present(keys.publishable),
+    })),
+    serviceIdentity: await safely(() =>
+      storage.ok ? storage.serviceIdentity : null
+    ),
+    anonIdentity: await safely(() =>
+      storage.ok ? storage.anonIdentity : null
     ),
     buckets: await safely(() =>
       storage.ok
