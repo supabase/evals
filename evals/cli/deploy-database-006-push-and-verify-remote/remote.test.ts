@@ -25,10 +25,14 @@ import {
   checkRemoteSchema,
   DATA_CHECK_NAME,
   HISTORY_CHECK_NAME,
+  HISTORY_SQL,
+  HISTORY_TABLE,
   HOSTED_CHECK_NAME,
   hasHostedProject,
   NO_HOSTED_PROJECT,
+  PLAN_IDS_SQL,
   type Probe,
+  profileCountsSql,
   type RemoteData,
   type RemoteSchema,
   readData,
@@ -795,69 +799,49 @@ describe('checkRemoteData', () => {
 });
 
 describe('fake hosted database', () => {
-  const query = (remote: FakeRemote, sql: string, options?: FakeQueryOptions) =>
-    fakeHostedQuery(remote, options).hostedQuery(sql);
+  const query = (remote: FakeRemote, sql: string) =>
+    fakeHostedQuery(remote).hostedQuery(sql);
 
-  it('refuses statements that are not reads', async () => {
+  it('refuses a statement that no probe sends instead of guessing an answer', async () => {
     await expect(
-      query(MIGRATED_REMOTE, 'delete from public.profiles')
-    ).rejects.toThrow('only answers reads');
+      query(MIGRATED_REMOTE, 'select count(*) from public.profiles')
+    ).rejects.toThrow(
+      'the fake database cannot answer: select count(*) from public.profiles'
+    );
   });
 
-  it('refuses a query on a column the remote does not have', async () => {
+  it('refuses the profile counts when the remote lacks a column they use', async () => {
     await expect(
-      query(
-        UNMIGRATED_REMOTE,
-        "select count(*) filter (where plan_id = 'pro')::int as n from public.profiles"
-      )
+      query(UNMIGRATED_REMOTE, profileCountsSql(false, true))
     ).rejects.toThrow('column "plan_id" does not exist');
-  });
-
-  it('refuses a query on a relation the remote does not have', async () => {
-    await expect(
-      query(UNMIGRATED_REMOTE, 'select id from public.plans order by id')
-    ).rejects.toThrow('relation "public.plans" does not exist');
-  });
-
-  it('refuses a predicate it cannot place instead of guessing', async () => {
     await expect(
       query(
-        MIGRATED_REMOTE,
-        'select count(*) filter (where created_at > now()) from public.profiles'
+        remoteWith({
+          profiles: {
+            columns: PROFILE_COLUMNS_AFTER.filter((c) => c !== 'is_paid'),
+            rows: profilesOf(),
+          },
+        }),
+        profileCountsSql(true, false)
       )
-    ).rejects.toThrow('cannot evaluate');
+    ).rejects.toThrow('column "is_paid" does not exist');
   });
 
-  it('counts the rows it models', async () => {
-    const { rows } = await query(
-      MIGRATED_REMOTE,
-      "select count(*)::int as total, count(*) filter (where is_paid)::int as paid, count(*) filter (where plan_id = 'free')::int as free from public.profiles"
-    );
-    expect(rows).toEqual([{ total: 24, paid: 6, free: 18 }]);
-  });
-
-  it('hands uncast counts back the way the configured driver would', async () => {
-    const { rows } = await query(
-      MIGRATED_REMOTE,
-      'select count(*) as total from public.profiles',
-      { countsAs: 'string' }
-    );
-    expect(rows).toEqual([{ total: '24' }]);
-  });
-
-  it('lets a query that never names plans see a foreign key to any table', async () => {
-    const remote = remoteWith({
-      planId: { nullable: false, fkTarget: 'tiers' },
-    });
-    const anyForeignKey = await query(
-      remote,
-      "select count(*) as n from pg_constraint where contype = 'f'"
-    );
-    const plansForeignKey = await query(
-      remote,
-      "select count(*) as n from pg_constraint where contype = 'f' and confrelid = 'public.plans'::regclass"
-    );
-    expect(anyForeignKey.rows).toEqual([{ n: 1 }]);
-    expect(plansForeignKey.rows).toEqual([{ n: 0 }]);
-  });
+  it.each([
+    ['plan ids', PLAN_IDS_SQL, UNMIGRATED_REMOTE, 'public.plans'],
+    ['history', HISTORY_SQL, remoteWith({ history: null }), HISTORY_TABLE],
+    [
+      'profile counts',
+      profileCountsSql(false, false),
+      remoteWith({ profiles: null }),
+      'public.profiles',
+    ],
+  ])(
+    'refuses the %s query when the remote lacks the relation',
+    async (_, sql, remote, relation) => {
+      await expect(query(remote, sql)).rejects.toThrow(
+        `relation "${relation}" does not exist`
+      );
+    }
+  );
 });

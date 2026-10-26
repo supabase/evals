@@ -22,9 +22,17 @@ export const HISTORY_CHECK_NAME =
 export const SCHEMA_CHECK_NAME = 'the hosted schema has the plans change';
 export const DATA_CHECK_NAME = 'the hosted data looks right after the push';
 
-const HISTORY_TABLE = 'supabase_migrations.schema_migrations';
+export const HISTORY_TABLE = 'supabase_migrations.schema_migrations';
 
-const PLAN_ID_FOREIGN_KEY = `
+export const HISTORY_SQL = `select version::text as version from ${HISTORY_TABLE} order by version`;
+
+export const PLAN_IDS_SQL =
+  'select id::text as id from public.plans order by id';
+
+export const PLAN_ID_NULLABILITY_SQL =
+  "select is_nullable::text as is_nullable from information_schema.columns where table_schema = 'public' and table_name = 'profiles' and column_name = 'plan_id'";
+
+export const PLAN_ID_FOREIGN_KEY = `
   select count(*)::int as found
   from pg_constraint c
   join pg_attribute a on a.attrelid = c.conrelid and a.attnum = any (c.conkey)
@@ -33,6 +41,32 @@ const PLAN_ID_FOREIGN_KEY = `
     and c.confrelid = to_regclass('public.plans')
     and a.attname = 'plan_id'
 `;
+
+export const relationPresentSql = (relation: string) =>
+  `select (to_regclass('${relation}') is not null)::int as present`;
+
+export const columnsSql = (table: string) =>
+  `select column_name::text as column_name from information_schema.columns where table_schema = 'public' and table_name = '${table}' order by ordinal_position`;
+
+export function profileCountsSql(hasPaid: boolean, hasPlan: boolean): string {
+  const counts = [
+    'count(*)::int as total',
+    `count(*) filter (where username in (select 'user_' || n from generate_series(1, ${SEEDED_PROFILES}) as n))::int as seeded`,
+    ...(hasPaid ? ['count(*) filter (where is_paid)::int as paid'] : []),
+    ...(hasPlan
+      ? [
+          "count(*) filter (where plan_id = 'pro')::int as on_pro",
+          "count(*) filter (where plan_id = 'free')::int as on_free",
+        ]
+      : []),
+    ...(hasPaid && hasPlan
+      ? [
+          "count(*) filter (where plan_id is distinct from (case when is_paid then 'pro' else 'free' end))::int as misassigned",
+        ]
+      : []),
+  ];
+  return `select ${counts.join(', ')} from public.profiles`;
+}
 
 export function hasHostedProject(ctx: HostedContext): boolean {
   return Boolean(ctx.hostedQuery && ctx.hostedRef);
@@ -58,25 +92,19 @@ async function relationExists(
   query: Query,
   relation: string
 ): Promise<boolean> {
-  const [row] = await query(
-    `select (to_regclass('${relation}') is not null)::int as present`
-  );
+  const [row] = await query(relationPresentSql(relation));
   return Number(row?.present) === 1;
 }
 
 async function columnsOf(query: Query, table: string): Promise<string[]> {
-  const rows = await query(
-    `select column_name::text as column_name from information_schema.columns where table_schema = 'public' and table_name = '${table}' order by ordinal_position`
-  );
+  const rows = await query(columnsSql(table));
   return rows.map((row) => String(row.column_name));
 }
 
 export function readHistory(ctx: HostedContext): Promise<Probe<string[]>> {
   return probe(ctx, async (query) => {
     if (!(await relationExists(query, HISTORY_TABLE))) return [];
-    const rows = await query(
-      `select version::text as version from ${HISTORY_TABLE} order by version`
-    );
+    const rows = await query(HISTORY_SQL);
     return rows.map((row) => String(row.version));
   });
 }
@@ -89,9 +117,7 @@ export type RemoteSchema = {
 export function readSchema(ctx: HostedContext): Promise<Probe<RemoteSchema>> {
   return probe(ctx, async (query) => {
     const plansColumns = await columnsOf(query, 'plans');
-    const [column] = await query(
-      "select is_nullable::text as is_nullable from information_schema.columns where table_schema = 'public' and table_name = 'profiles' and column_name = 'plan_id'"
-    );
+    const [column] = await query(PLAN_ID_NULLABILITY_SQL);
     if (column === undefined) return { plansColumns, planId: null };
     const [foreignKey] = await query(PLAN_ID_FOREIGN_KEY);
     return {
@@ -120,9 +146,7 @@ export function readData(ctx: HostedContext): Promise<Probe<RemoteData>> {
     const plansTable = await relationExists(query, 'public.plans');
     const planIds =
       plansTable && (await columnsOf(query, 'plans')).includes('id')
-        ? (
-            await query('select id::text as id from public.plans order by id')
-          ).map((row) => String(row.id))
+        ? (await query(PLAN_IDS_SQL)).map((row) => String(row.id))
         : [];
 
     if (!(await relationExists(query, 'public.profiles'))) {
@@ -141,25 +165,7 @@ export function readData(ctx: HostedContext): Promise<Probe<RemoteData>> {
     const columns = await columnsOf(query, 'profiles');
     const hasPaid = columns.includes('is_paid');
     const hasPlan = columns.includes('plan_id');
-    const counts = [
-      'count(*)::int as total',
-      `count(*) filter (where username in (select 'user_' || n from generate_series(1, ${SEEDED_PROFILES}) as n))::int as seeded`,
-      ...(hasPaid ? ['count(*) filter (where is_paid)::int as paid'] : []),
-      ...(hasPlan
-        ? [
-            "count(*) filter (where plan_id = 'pro')::int as on_pro",
-            "count(*) filter (where plan_id = 'free')::int as on_free",
-          ]
-        : []),
-      ...(hasPaid && hasPlan
-        ? [
-            "count(*) filter (where plan_id is distinct from (case when is_paid then 'pro' else 'free' end))::int as misassigned",
-          ]
-        : []),
-    ];
-    const [row] = await query(
-      `select ${counts.join(', ')} from public.profiles`
-    );
+    const [row] = await query(profileCountsSql(hasPaid, hasPlan));
     return {
       plansTable,
       planIds,
