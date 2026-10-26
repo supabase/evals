@@ -10121,5 +10121,168 @@
     "promptSourcePath": "evals/regression/resolve-storage-001-upsert-missing-update-policy/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-6-luna-no-skills/resolve-storage-001-upsert-missing-update-policy/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6.1-sol",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6.1-sol",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-functions-006-dual-auth-with-server",
+    "stage": "build",
+    "product": [
+      "edge-functions",
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "sdk",
+      "rls",
+      "security"
+    ],
+    "suite": "regression",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "seed rows present",
+        "passed": true,
+        "notes": "found 2/2 seeded rows"
+      },
+      {
+        "name": "rejects request with no credentials",
+        "passed": true,
+        "notes": "status 401: {\"code\":\"MISSING_CREDENTIALS\",\"message\":\"[@supabase/server] No credentials found on the request. This endpoint accepts auth mode(s): \\\"user\\\", \\\"secret:*\\\".\"}"
+      },
+      {
+        "name": "user with JWT reads only their own rows",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"ae57760b-c15b-4c44-b045-71ddde0f945e\",\"metric\":\"steps_a_mvpqh9ls\",\"value\":111}]"
+      },
+      {
+        "name": "user cannot read another user's rows by passing user_id",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"ae57760b-c15b-4c44-b045-71ddde0f945e\",\"metric\":\"steps_a_mvpqh9ls\",\"value\":111}]"
+      },
+      {
+        "name": "service key bypasses RLS to read the target user's rows",
+        "passed": true,
+        "notes": "status 200: [{\"user_id\":\"3c06a289-7261-4207-93a4-15971fc681d8\",\"metric\":\"steps_b_mvpqh9ls\",\"value\":222}]"
+      },
+      {
+        "name": "non-service key is not granted service access",
+        "passed": true,
+        "notes": "status 401: {\"code\":\"INVALID_API_KEY\",\"message\":\"[@supabase/server] The apikey header matched no key configured for auth mode(s): \\\"user\\\", \\\"secret:*\\\".\"}"
+      },
+      {
+        "name": "rejects an unverified (forged) user token",
+        "passed": true,
+        "notes": "status 401: {\"code\":\"INVALID_JWT\",\"message\":\"[@supabase/server] The JWT in the Authorization header failed verification: its header is missing \\\"kid\\\".\"}"
+      },
+      {
+        "name": "a user token in the apikey slot is not treated as the service key",
+        "passed": true,
+        "notes": "status 401: {\"code\":\"INVALID_API_KEY\",\"message\":\"[@supabase/server] The apikey header matched no key configured for auth mode(s): \\\"user\\\", \\\"secret:*\\\".\"}"
+      },
+      {
+        "name": "implementation uses @supabase/server",
+        "passed": true,
+        "notes": "imports @supabase/server / withSupabase"
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "site.supabase.com \"@supabase/server\" withSupabase auth",
+          "pages": []
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"ls -la; find .. -name AGENTS.md -not -path '*/node_modules/*' -not -path '*/.git/*'; cat .agents/skills/supabase/SKILL.md; cat supabase/config.toml; cat supabase/migrations/0000_stats_schema.sql; command -v supabase deno docker node; git status --short; curl -fsSL https://supabase.com/changelog.md | head -65\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 22011
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"@supabase/server withSupabase auth secret user\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth",
+              "title": "Securing Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/choosing-a-server-package",
+              "title": "Which package to use"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/integrations/fireworks-ai",
+              "title": "Fireworks AI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/users",
+              "title": "Users"
+            }
+          ],
+          "resultChars": 52111
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/functions/auth",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/auth"
+            }
+          ]
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6.1-sol",
+        "inputTokens": 1007092,
+        "cacheReadInputTokens": 945473,
+        "cacheWriteInputTokens": 49029,
+        "outputTokens": 9671
+      }
+    ],
+    "stepCount": 27,
+    "toolCallCount": 22,
+    "agentRunDurationMs": 236908,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 302356,
+      "duration": 397831,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2109803442,
+        "egress": 12623326
+      }
+    },
+    "prompt": "Build and serve a Supabase Edge Function named `user-stats` for this project,\nreachable over HTTP at `/functions/v1/user-stats`.\n\nImplement it with the **`@supabase/server`** package, which is built for exactly\nthis kind of multi-auth Edge Function. Import it directly in your function:\n\n```ts\nimport { withSupabase } from \"npm:@supabase/server\";\n```\n\nOur product stores per-user metrics in a `user_stats` table that already exists\n(see `supabase/migrations/`), protected by row-level security so a user can read\nonly their own rows.\n\nTwo very different callers need to hit this one endpoint:\n\n1. **Our mobile app**, acting for a signed-in user. It sends that user's\n   Supabase access token. The endpoint should return the user's own stats.\n\n2. **Our internal billing service**, a trusted backend with no signed-in user.\n   It authenticates with the project's secret (service-role) key in the `apikey`\n   header, and names the target user with a `user_id` in the JSON request body.\n   It needs that user's stats.\n\nReturn the matching rows as JSON. The endpoint must be secure: only ever serve\nstats to a caller that is genuinely entitled to them, and turn away callers that\nare not.",
+    "promptSourcePath": "evals/regression/build-functions-006-dual-auth-with-server/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6.1-sol/build-functions-006-dual-auth-with-server/run-1/result.json"
   }
 ]
