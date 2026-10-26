@@ -1,5 +1,5 @@
 import type { LocalStackEvalContext } from '@supabase-evals/core';
-import { describeFailure, errorMessage } from '../lib/shell.js';
+import { describeFailure, errorMessage } from './shell.js';
 
 export const LINK_PATH = 'supabase/.temp/project-ref';
 

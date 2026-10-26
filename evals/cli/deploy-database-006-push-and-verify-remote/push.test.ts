@@ -1,4 +1,5 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/deploy-database-006-push-and-verify-remote
+import { readFileSync } from 'node:fs';
 import type { ToolCallRecord } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
 import { findSupabaseInvocations } from '../lib/cli-invocations.js';
@@ -23,6 +24,7 @@ import {
   VERIFY_CHECK_NAME,
 } from './push.js';
 import { NO_HOSTED_PROJECT } from './remote.js';
+import { PLANS_MIGRATION_FILE } from './seed.js';
 
 type Call = string | ToolCallRecord;
 
@@ -52,10 +54,49 @@ const PROFILES_BY_PLAN =
 const PUSH = 'supabase db push --linked --yes';
 const PLANS_QUERY = 'supabase db query --linked "select * from plans"';
 
+const CLI_FAILURES: [label: string, output: string][] = [
+  ['a JSON error', '{"_tag":"Error","error":{"code":1,"message":"boom"}}'],
+  ['a JSON error with spacing', '{ "_tag" : "Error" }'],
+  ['an unlinked repo', 'Cannot find project ref. Have you run supabase link?'],
+  ['a missing token', 'Access token not provided. Supply an access token.'],
+  [
+    'a stopped confirmation',
+    'Confirmation required: run a query on remote. Nothing was changed.',
+  ],
+  ['a refused connection', 'failed to connect to postgres'],
+  ['an unknown flag', 'unknown flag: --remote'],
+  ['a missing binary', 'zsh: command not found: supabase'],
+  ['a different case', 'CANNOT FIND PROJECT REF'],
+  [
+    'an HTTP status in text mode',
+    'unexpected status 401: {"message":"Unauthorized"}',
+  ],
+  ['a failed query', 'failed to execute query: relation "plans" is missing'],
+];
+
 const filesRoute = (file: RegExp, sql: string): Route => [
   file,
   commandResult(sql),
 ];
+
+const MIGRATION_SQL = readFileSync(
+  new URL(
+    `./local/supabase/migrations/${PLANS_MIGRATION_FILE}`,
+    import.meta.url
+  ),
+  'utf8'
+);
+const MIGRATION_PATH = `supabase/migrations/${PLANS_MIGRATION_FILE}`;
+const MIGRATION_ROUTE = filesRoute(/add_plans\.sql/, MIGRATION_SQL);
+const WRAPPER_CONFLICT =
+  'if any flags in the group [db-url linked local] are set none of the others can be; [db-url linked] were all set';
+const REPAIR = 'supabase migration repair --status applied 20261020120000';
+const DELETED_FILE: Route = [
+  /verify\.sql/,
+  failure(1, 'cat: /tmp/verify.sql: No such file or directory'),
+];
+const VERIFY_SCRIPT = (sql: string) =>
+  `cat > /tmp/verify.sql <<'SQL'\n${sql}\nSQL\nsupabase db query --linked -f /tmp/verify.sql; rm /tmp/verify.sql`;
 
 async function verdictOf(
   calls: readonly Call[],
@@ -70,7 +111,15 @@ async function verdictOf(
 describe('readDbActivity: pushes', () => {
   it('reads a push with --yes', () => {
     expect(activityOf('supabase db push --linked --yes')).toEqual({
-      pushes: [{ order: 0, dryRun: false, explicitlyLocal: false, yes: true }],
+      pushes: [
+        {
+          order: 0,
+          dryRun: false,
+          explicitlyLocal: false,
+          yes: true,
+          failed: false,
+        },
+      ],
       queries: [],
     });
   });
@@ -81,7 +130,13 @@ describe('readDbActivity: pushes', () => {
       'supabase db push'
     );
     expect(pushes).toEqual([
-      { order: 1, dryRun: false, explicitlyLocal: false, yes: false },
+      {
+        order: 1,
+        dryRun: false,
+        explicitlyLocal: false,
+        yes: false,
+        failed: false,
+      },
     ]);
   });
 
@@ -119,7 +174,13 @@ describe('readDbActivity: pushes', () => {
 
   it('does not read a piped answer as --yes', () => {
     expect(activityOf('echo y | npx supabase db push').pushes).toEqual([
-      { order: 0, dryRun: false, explicitlyLocal: false, yes: false },
+      {
+        order: 0,
+        dryRun: false,
+        explicitlyLocal: false,
+        yes: false,
+        failed: false,
+      },
     ]);
   });
 
@@ -154,6 +215,73 @@ describe('readDbActivity: pushes', () => {
     ['a subshell', '(supabase db push --linked)'],
   ])('reads a push through %s', (_, command) => {
     expect(activityOf(command).pushes).toHaveLength(1);
+  });
+
+  describe('failure', () => {
+    it('marks a push failed when its tool call reported an error', () => {
+      const { pushes } = activityOf(failedShellCall(PUSH), shellCall(PUSH));
+      expect(pushes.map(({ failed }) => failed)).toEqual([true, false]);
+    });
+
+    it.each(CLI_FAILURES)(
+      'marks a piped push failed when its output shows %s, with no tool error',
+      (_, result) => {
+        const { pushes } = activityOf(
+          shellCall('supabase db push 2>&1 | tail -20', { result })
+        );
+        expect(pushes[0]?.failed).toBe(true);
+      }
+    );
+
+    it.each([
+      ['a successful push', 'Finished supabase db push.'],
+      ['a push with nothing to do', 'Remote database is up to date.'],
+      ['an empty output', ''],
+    ])('does not mark a push failed on %s', (_, result) => {
+      const { pushes } = activityOf(shellCall(PUSH, { result }));
+      expect(pushes[0]?.failed).toBe(false);
+      expect(pushes[0]).not.toHaveProperty('failure');
+    });
+
+    it('keeps the first line of the output that shows the failure', () => {
+      const { pushes } = activityOf(
+        shellCall('supabase db push 2>&1 | tail -20', {
+          result:
+            'Connecting to remote database...\nCannot find project ref. Have you run supabase link?\nTry --help',
+        })
+      );
+      expect(pushes[0]).toMatchObject({
+        failed: true,
+        failure: 'Cannot find project ref. Have you run supabase link?',
+      });
+    });
+
+    it('keeps the first line of the error text when the output shows no failure', () => {
+      const { pushes } = activityOf(
+        shellCall(PUSH, { error: '\n  exit status 1\nsecond line' })
+      );
+      expect(pushes[0]).toMatchObject({
+        failed: true,
+        failure: 'exit status 1',
+      });
+    });
+
+    it('trims the failure line to 200 characters', () => {
+      const { pushes } = activityOf(
+        shellCall(PUSH, { error: `Cannot find project ref ${'x'.repeat(500)}` })
+      );
+      expect(pushes[0]?.failure).toHaveLength(200);
+    });
+
+    it('reads the output of the tool call the push ran in, not of another call', () => {
+      const { pushes } = activityOf(
+        shellCall('supabase migration list --linked', {
+          result: 'Cannot find project ref.',
+        }),
+        shellCall(PUSH, { result: 'Finished supabase db push.' })
+      );
+      expect(pushes.map(({ failed }) => failed)).toEqual([false]);
+    });
   });
 
   it.each([
@@ -357,9 +485,12 @@ describe('readDbActivity: query SQL', () => {
       "supabase db query --linked -f - <<'SQL'\nselect * from plans\nSQL",
     ],
   ])(
-    'reads the whole command text as the SQL when it comes from stdin through %s',
+    'keeps the whole command text instead of SQL when it comes from stdin through %s',
     (_, command) => {
-      expect(sqlOf(command)).toBe(command);
+      expect(activityOf(command).queries[0]).toMatchObject({
+        sql: null,
+        command,
+      });
     }
   );
 
@@ -384,8 +515,18 @@ describe('readDbActivity: query SQL', () => {
         sql: null,
         file: 'verify.sql',
         failed: false,
+        command: expect.stringMatching(/^supabase db query --linked -f\s*$/),
       },
     ]);
+  });
+
+  it('keeps the command text of a file query, without the file path', () => {
+    const [query] = activityOf(
+      VERIFY_SCRIPT('select count(*) from profiles')
+    ).queries;
+    expect(query).toMatchObject({ sql: null, file: '/tmp/verify.sql' });
+    expect(query?.command).toContain('select count(*) from profiles');
+    expect(query?.command).not.toContain('verify.sql');
   });
 
   it.each([
@@ -500,7 +641,8 @@ describe('readDbActivity: query SQL', () => {
         'cat supabase/migrations/20261020120000_add_plans.sql | head -5 && echo "select 1" | supabase db query --linked'
       );
       expect(piped?.file).toBeUndefined();
-      expect(piped?.sql).toContain('select 1');
+      expect(piped).toMatchObject({ sql: null });
+      expect(piped?.command).toContain('select 1');
       expect(
         fileOf(
           'psql "$DB_URL" < supabase/migrations/20261020120000_add_plans.sql; supabase db query --linked "select 1"'
@@ -523,7 +665,7 @@ describe('readDbActivity: query SQL', () => {
       ['-f -', 'supabase db query --linked -f -'],
       ['-f /dev/stdin', 'supabase db query --linked -f /dev/stdin'],
     ])('reads no file for %s', (_, command) => {
-      expect(fileOf(command)).toMatchObject({ sql: command });
+      expect(fileOf(command)).toMatchObject({ sql: null, command });
       expect(fileOf(command)?.file).toBeUndefined();
     });
   });
@@ -550,23 +692,7 @@ describe('readDbActivity: query SQL', () => {
     expect(queries.map(({ failed }) => failed)).toEqual([true, false]);
   });
 
-  it.each([
-    ['a JSON error', '{"_tag":"Error","error":{"code":1,"message":"boom"}}'],
-    ['a JSON error with spacing', '{ "_tag" : "Error" }'],
-    [
-      'an unlinked repo',
-      'Cannot find project ref. Have you run supabase link?',
-    ],
-    ['a missing token', 'Access token not provided. Supply an access token.'],
-    [
-      'a stopped confirmation',
-      'Confirmation required: run a query on remote. Nothing was changed.',
-    ],
-    ['a refused connection', 'failed to connect to postgres'],
-    ['an unknown flag', 'unknown flag: --remote'],
-    ['a missing binary', 'zsh: command not found: supabase'],
-    ['a different case', 'CANNOT FIND PROJECT REF'],
-  ])(
+  it.each(CLI_FAILURES)(
     'marks a query failed when its output shows %s, with no tool error',
     (_, result) => {
       const { queries } = activityOf(shellCall(PLANS_QUERY, { result }));
@@ -740,6 +866,16 @@ describe('readQueryFiles', () => {
     expect(queries[0]?.sql).toBeNull();
   });
 
+  it.each([
+    ['nothing', ''],
+    ['only whitespace', '  \n'],
+    ['only comments', '-- plans\n/* profiles */'],
+  ])('leaves the SQL null when the file holds %s', async (_, contents) => {
+    const { ctx } = fakeExec([filesRoute(/verify\.sql/, contents)]);
+    const { queries } = await readQueryFiles(ctx, activityOf(FILE_COMMAND));
+    expect(queries[0]?.sql).toBeNull();
+  });
+
   it('leaves the SQL null, without throwing, when reading the file throws', async () => {
     const { ctx } = fakeExec([[/.*/, crash()]]);
     const { queries } = await readQueryFiles(ctx, activityOf(FILE_COMMAND));
@@ -833,8 +969,125 @@ describe('checkPushed', () => {
     });
   });
 
-  it('passes for a push whose tool call errored', () => {
-    expect(checkPushed(activityOf(failedShellCall(PUSH))).passed).toBe(true);
+  it('passes for a push that printed its success', () => {
+    expect(
+      checkPushed(
+        activityOf(shellCall(PUSH, { result: 'Finished supabase db push.' }))
+      )
+    ).toEqual({ name: PUSH_CHECK_NAME, passed: true });
+  });
+
+  it('passes for a push with nothing to apply', () => {
+    expect(
+      checkPushed(
+        activityOf(
+          shellCall('supabase db push', {
+            result: 'Remote database is up to date.',
+          })
+        )
+      ).passed
+    ).toBe(true);
+  });
+
+  it('passes when a failed push is followed by a successful one', () => {
+    expect(
+      checkPushed(
+        activityOf(failedShellCall('supabase db push --linked'), PUSH)
+      ).passed
+    ).toBe(true);
+  });
+
+  it('passes when a successful push is followed by a failed one', () => {
+    expect(
+      checkPushed(
+        activityOf(PUSH, failedShellCall('supabase db push --linked'))
+      ).passed
+    ).toBe(true);
+  });
+
+  it('fails for a push whose tool call errored', () => {
+    expect(checkPushed(activityOf(failedShellCall(PUSH)))).toEqual({
+      name: PUSH_CHECK_NAME,
+      passed: false,
+      notes: expect.stringContaining('failed'),
+    });
+  });
+
+  it.each(CLI_FAILURES)(
+    'fails for a piped push whose output shows %s',
+    (_, result) => {
+      expect(
+        checkPushed(
+          activityOf(shellCall('supabase db push 2>&1 | tail -20', { result }))
+        ).passed
+      ).toBe(false);
+    }
+  );
+
+  it('fails when a dry run is followed by a push that failed', () => {
+    expect(
+      checkPushed(
+        activityOf('supabase db push --dry-run', failedShellCall(PUSH))
+      ).passed
+    ).toBe(false);
+  });
+
+  describe('failure notes', () => {
+    const notesFor = (...calls: Call[]) =>
+      checkPushed(activityOf(...calls)).notes ?? '';
+
+    it('words no push, only dry runs and every push failing differently', () => {
+      const notes = [
+        notesFor(),
+        notesFor('supabase db push --dry-run'),
+        notesFor(failedShellCall(PUSH)),
+      ];
+      expect(new Set(notes).size).toBe(3);
+      expect(notes[0]).toBe('no supabase db push ran');
+      expect(notes[1]).toBe('only supabase db push --dry-run ran');
+    });
+
+    it('quotes the first failure line of the first failed push', () => {
+      expect(
+        notesFor(
+          shellCall('supabase db push --linked', {
+            error: WRAPPER_CONFLICT,
+          }),
+          shellCall(PUSH, { result: 'Cannot find project ref.' })
+        )
+      ).toBe(
+        `every non-dry-run supabase db push failed; first failure: "${WRAPPER_CONFLICT}"`
+      );
+    });
+
+    it('quotes the line of the output that shows the failure', () => {
+      expect(
+        notesFor(
+          shellCall('supabase db push 2>&1 | tail -20', {
+            result: 'Connecting...\n{"_tag":"Error","error":{"code":1}}',
+          })
+        )
+      ).toContain('first failure: "{"_tag":"Error","error":{"code":1}}"');
+    });
+
+    it('trims the quoted line to 200 characters', () => {
+      const quoted = notesFor(
+        shellCall(PUSH, { error: `Cannot find project ref ${'x'.repeat(500)}` })
+      ).split('first failure: "')[1];
+      expect(quoted).toHaveLength(200 + 1);
+    });
+
+    it('quotes nothing when the failed push showed no line', () => {
+      expect(notesFor(shellCall(PUSH, { error: '' }))).toBe(
+        'every non-dry-run supabase db push failed'
+      );
+    });
+
+    it('ignores a dry run when it says every push failed', () => {
+      expect(
+        notesFor('supabase db push --dry-run', failedShellCall(PUSH))
+      ).toContain('every non-dry-run supabase db push failed');
+    });
   });
 
   it('passes when a dry run is followed by the real push', () => {
@@ -1096,6 +1349,112 @@ describe('checkVerifiedAfterPush', () => {
       'a local query next to the remote one',
       [PUSH, 'supabase db query "select 1"', PLANS_QUERY],
     ],
+    [
+      'a confirming re-push that printed "Remote database is up to date."',
+      [
+        shellCall('supabase db push', {
+          result: 'Applying migration 20261020120000_add_plans.sql...',
+        }),
+        shellCall(PROFILES_BY_PLAN, {
+          result: '[{"plan_id":"free","count":18},{"plan_id":"pro","count":6}]',
+        }),
+        shellCall('supabase db push', {
+          result: 'Remote database is up to date.',
+        }),
+      ],
+    ],
+    [
+      'a confirming re-push --linked that failed on the wrapper conflict',
+      [
+        PUSH,
+        PROFILES_BY_PLAN,
+        shellCall('supabase db push --linked', { error: WRAPPER_CONFLICT }),
+      ],
+    ],
+    [
+      'a second successful push after the verify query',
+      [PUSH, PLANS_QUERY, PUSH],
+    ],
+    [
+      'a dry run, a local push and a real push after the verify query',
+      [
+        PUSH,
+        PLANS_QUERY,
+        'supabase db push --dry-run',
+        'supabase db push --local',
+        'supabase db push --yes',
+      ],
+    ],
+    [
+      'the first push that did not fail, with a failed push before the query',
+      [failedShellCall('supabase db push --linked'), PUSH, PLANS_QUERY],
+    ],
+    [
+      'a read-only CTE',
+      [
+        PUSH,
+        'supabase db query --linked "with c as (select plan_id from profiles) select plan_id, count(*) from c group by 1"',
+      ],
+    ],
+    [
+      'a column lookup that names plans in a literal',
+      [
+        PUSH,
+        `supabase db query --linked "select column_name from information_schema.columns where table_name = 'plans'"`,
+      ],
+    ],
+    ['table plans', [PUSH, 'supabase db query --linked "table plans"']],
+    [
+      'explain select',
+      [PUSH, 'supabase db query --linked "explain select * from plans"'],
+    ],
+    [
+      'a read inside begin and rollback',
+      [
+        PUSH,
+        'supabase db query --linked "begin; select * from plans; rollback;"',
+      ],
+    ],
+    [
+      'a read after a session setting',
+      [
+        PUSH,
+        'supabase db query --linked "set statement_timeout = 0; select * from plans"',
+      ],
+    ],
+    [
+      'a read whose literal holds a write keyword and a semicolon',
+      [
+        PUSH,
+        `supabase db query --linked "select * from plans where name = 'update; drop'"`,
+      ],
+    ],
+    [
+      'a read whose only write keyword is in a comment',
+      [PUSH, 'supabase db query --linked "select * from plans -- update"'],
+    ],
+    [
+      'a read file next to a write file in another query',
+      [
+        PUSH,
+        'supabase db query --linked -f write.sql',
+        'supabase db query --linked -f read.sql',
+      ],
+      [
+        filesRoute(/write\.sql/, 'update profiles set plan_id = null'),
+        filesRoute(/read\.sql/, 'select * from profiles'),
+      ],
+    ],
+    [
+      'a read written to a temp file that is deleted in the same command',
+      [PUSH, VERIFY_SCRIPT('select count(*) from profiles')],
+      [DELETED_FILE],
+    ],
+    [
+      'a read written to a temp file that is empty when scored',
+      [PUSH, VERIFY_SCRIPT('select count(*) from profiles')],
+      [filesRoute(/verify\.sql/, '')],
+    ],
   ])('passes with %s', async (_, calls, files) => {
     expect(await verdictOf(calls, files)).toMatchObject({
       name: VERIFY_CHECK_NAME,
@@ -1311,6 +1670,105 @@ describe('checkVerifiedAfterPush', () => {
         ),
       ],
     ],
+    [
+      'a failed push, a query, then another failed push',
+      [
+        failedShellCall('supabase db push --linked'),
+        PLANS_QUERY,
+        failedShellCall('supabase db push --linked'),
+      ],
+    ],
+    [
+      'the migration applied through db query -f after a push that hit the wrapper conflict, then repaired',
+      [
+        shellCall('supabase db push --linked', { error: WRAPPER_CONFLICT }),
+        shellCall(`supabase db query --linked -f ${MIGRATION_PATH}`, {
+          result: '[]',
+        }),
+        REPAIR,
+      ],
+      [MIGRATION_ROUTE],
+    ],
+    [
+      'the migration applied through db query -f after a good push',
+      [PUSH, `supabase db query --linked -f ${MIGRATION_PATH}`],
+      [MIGRATION_ROUTE],
+    ],
+    [
+      'the migration redirected into db query --remote --yes after a push that stopped at the confirmation',
+      [
+        shellCall('supabase db push --remote', {
+          error:
+            'Confirmation required: push migrations on remote... Nothing was changed.',
+        }),
+        shellCall(`supabase db query --remote --yes < ${MIGRATION_PATH}`, {
+          result: '{"rows":[]}',
+        }),
+      ],
+      [MIGRATION_ROUTE],
+    ],
+    [
+      'the migration piped from cat into db query',
+      [PUSH, `cat ${MIGRATION_PATH} | supabase db query --linked`],
+      [MIGRATION_ROUTE],
+    ],
+    [
+      'the backfill update run after a good push',
+      [
+        PUSH,
+        `supabase db query --linked "update public.profiles set plan_id = case when is_paid then 'pro' else 'free' end"`,
+      ],
+    ],
+    [
+      'a writable CTE',
+      [
+        PUSH,
+        'supabase db query --linked "with x as (update profiles set plan_id = null returning *) select * from x"',
+      ],
+    ],
+    [
+      'a select into a new table',
+      [
+        PUSH,
+        'supabase db query --linked "select * into plans_copy from plans"',
+      ],
+    ],
+    [
+      'a heredoc that updates profiles',
+      [
+        PUSH,
+        "supabase db query --linked <<'SQL'\nupdate profiles set plan_id = 'free'\nSQL",
+      ],
+    ],
+    [
+      'a read followed by a write in one statement list',
+      [
+        PUSH,
+        'supabase db query --linked "select * from plans; delete from profiles"',
+      ],
+    ],
+    [
+      'a temp file written, run and deleted in the same command whose SQL only writes',
+      [PUSH, VERIFY_SCRIPT("update profiles set plan_id = 'free'")],
+      [DELETED_FILE],
+    ],
+    [
+      'a deleted temp file whose command text holds the migration',
+      [PUSH, VERIFY_SCRIPT(MIGRATION_SQL)],
+      [DELETED_FILE],
+    ],
+    [
+      'a file named plans.sql that cannot be read',
+      [PUSH, 'supabase db query --linked -f plans.sql'],
+    ],
+    [
+      'a redirect from profiles.sql that cannot be read',
+      [PUSH, 'supabase db query --linked < profiles.sql'],
+    ],
+    [
+      'a cat pipe from plans.sql that cannot be read',
+      [PUSH, 'cat plans.sql | supabase db query --linked'],
+    ],
   ])('fails with %s', async (_, calls, files) => {
     expect(await verdictOf(calls, files)).toMatchObject({
       name: VERIFY_CHECK_NAME,
@@ -1477,33 +1935,44 @@ describe('checkVerifiedAfterPush', () => {
       ).toMatch(/fail/i);
     });
 
-    it('words each of the four situations differently', async () => {
+    it('says the remote queries after the push wrote to plans or profiles but never read them', async () => {
+      expect(
+        await notesFor(
+          PUSH,
+          'supabase db query --linked "update profiles set plan_id = null"'
+        )
+      ).toBe(
+        'the remote db queries after the push wrote to plans or profiles but never read them'
+      );
+    });
+
+    it('says the remote queries only wrote when a query that names neither table sits next to the write', async () => {
+      expect(
+        await notesFor(
+          PUSH,
+          'supabase db query --linked "select 1"',
+          'supabase db query --linked "update profiles set plan_id = null"'
+        )
+      ).toMatch(/wrote/);
+    });
+
+    it('words each of the five situations differently', async () => {
       const notes = [
         await notesFor(PUSH, 'supabase migration list --linked'),
         await notesFor(PUSH, 'supabase db query "select * from plans"'),
         await notesFor(PUSH, 'supabase db query --linked "select 1"'),
         await notesFor(PUSH, failedShellCall(PLANS_QUERY)),
+        await notesFor(
+          PUSH,
+          'supabase db query --linked "update profiles set plan_id = null"'
+        ),
       ];
-      expect(new Set(notes).size).toBe(4);
+      expect(new Set(notes).size).toBe(5);
     });
   });
 
   describe('a remote query whose tool call output shows the CLI failing', () => {
-    it.each([
-      ['a JSON error', '{"_tag":"Error","error":{"message":"boom"}}'],
-      [
-        'an unlinked repo',
-        'Cannot find project ref. Have you run supabase link?',
-      ],
-      ['a missing token', 'Access token not provided. Supply an access token.'],
-      [
-        'a stopped confirmation',
-        'Confirmation required: query the remote. Nothing was changed.',
-      ],
-      ['a refused connection', 'failed to connect to postgres'],
-      ['an unknown flag', 'unknown flag: --remote'],
-      ['a missing binary', 'zsh: command not found: supabase'],
-    ])(
+    it.each(CLI_FAILURES)(
       'does not count a piped query whose output shows %s',
       async (_, result) => {
         expect(
@@ -1606,19 +2075,5 @@ describe('checkVerifiedAfterPush', () => {
           .passed
       ).toBe(false);
     });
-  });
-
-  it('fails when a real push follows the only verify query, whatever dry-run and local pushes come between', async () => {
-    expect(
-      (
-        await verdictOf([
-          PUSH,
-          PLANS_QUERY,
-          'supabase db push --dry-run',
-          'supabase db push --local',
-          'supabase db push --yes',
-        ])
-      ).passed
-    ).toBe(false);
   });
 });

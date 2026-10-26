@@ -1,4 +1,5 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/deploy-database-006-push-and-verify-remote
+import { readFileSync } from 'node:fs';
 import type {
   CommandResult,
   JudgeInput,
@@ -19,6 +20,7 @@ import {
   type FakeQueryOptions,
   type FakeRemote,
   failedShellCall,
+  failure,
   fakeExec,
   fakeHostedQuery,
   HOSTED_REF,
@@ -44,6 +46,7 @@ import {
   SCHEMA_CHECK_NAME,
 } from './remote.js';
 import { PUSH_CHECK_NAME, VERIFY_CHECK_NAME } from './push.js';
+import { PLANS_MIGRATION_FILE } from './seed.js';
 
 const METRICS = 'metrics';
 const REPORT =
@@ -167,6 +170,15 @@ const linkLines = (input: string) =>
   input.split('\n').filter((line) => line.startsWith(LINK_LINE));
 
 const VERIFY_FILE_ROUTE: Route = [/verify\.sql/, commandResult(VERIFY_SQL)];
+const MIGRATION_PATH = `supabase/migrations/${PLANS_MIGRATION_FILE}`;
+const MIGRATION_ROUTE: Route = [
+  /add_plans\.sql/,
+  commandResult(
+    readFileSync(new URL(`./local/${MIGRATION_PATH}`, import.meta.url), 'utf8')
+  ),
+];
+const WRAPPER_CONFLICT =
+  'if any flags in the group [db-url linked local] are set none of the others can be; [db-url linked] were all set';
 const VERIFY_FROM_FILE = 'supabase db query --linked -f verify.sql';
 
 const notPushedRemote: FakeRemote = {
@@ -210,7 +222,7 @@ describe('scorer without a hosted project', () => {
   it('still fails the verify check when the agent pushed but never checked', async () => {
     const { ctx } = fakeCtx({
       remote: false,
-      toolCalls: [failedShellCall(PUSH)],
+      toolCalls: [shellCall(PUSH)],
     });
 
     const result = await scorer(ctx);
@@ -360,6 +372,7 @@ describe('scorer with a hosted project', () => {
       remote: FakeRemote,
       calls: ToolCallRecord[],
       failed: string[],
+      routes?: Route[],
     ]
   >([
     [
@@ -403,8 +416,48 @@ describe('scorer with a hosted project', () => {
         HISTORY_CHECK_NAME,
         SCHEMA_CHECK_NAME,
         DATA_CHECK_NAME,
+        PUSH_CHECK_NAME,
         VERIFY_CHECK_NAME,
       ],
+    ],
+    [
+      'the migration run through db query -f and repaired after a push that hit the wrapper conflict',
+      MIGRATED_REMOTE,
+      [
+        shellCall('supabase db push --linked', { error: WRAPPER_CONFLICT }),
+        shellCall(`supabase db query --linked -f ${MIGRATION_PATH}`, {
+          result: '[]',
+        }),
+        shellCall('supabase migration repair --status applied 20261020120000'),
+      ],
+      [PUSH_CHECK_NAME, VERIFY_CHECK_NAME],
+      [MIGRATION_ROUTE],
+    ],
+    [
+      'the migration redirected into db query --remote --yes after a push that stopped at the confirmation',
+      MIGRATED_REMOTE,
+      [
+        shellCall('supabase db push --remote', {
+          error:
+            'Confirmation required: push migrations on remote... Nothing was changed.',
+        }),
+        shellCall(`supabase db query --remote --yes < ${MIGRATION_PATH}`, {
+          result: '{"rows":[]}',
+        }),
+      ],
+      [PUSH_CHECK_NAME, VERIFY_CHECK_NAME],
+      [MIGRATION_ROUTE],
+    ],
+    [
+      'a good push followed by the backfill run again and never read',
+      MIGRATED_REMOTE,
+      [
+        shellCall(PUSH),
+        shellCall(
+          `supabase db query --linked "update public.profiles set plan_id = case when is_paid then 'pro' else 'free' end"`
+        ),
+      ],
+      [VERIFY_CHECK_NAME],
     ],
     [
       'a push that was never followed by a check',
@@ -453,8 +506,8 @@ describe('scorer with a hosted project', () => {
     ],
   ])(
     'fails exactly the right checks for %s',
-    async (_, remote, toolCalls, failed) => {
-      const { ctx } = fakeCtx({ remote, toolCalls });
+    async (_, remote, toolCalls, failed, routes) => {
+      const { ctx } = fakeCtx({ remote, toolCalls, routes });
 
       const result = await scorer(ctx);
 
@@ -493,6 +546,52 @@ describe('scorer with a hosted project', () => {
     });
 
     expect(failedNames(await scorer(ctx))).toEqual([VERIFY_CHECK_NAME]);
+  });
+
+  it('passes a confirming re-push that printed "Remote database is up to date."', async () => {
+    const { ctx } = fakeCtx({
+      toolCalls: [
+        shellCall('supabase db push', {
+          result: 'Finished supabase db push.',
+        }),
+        shellCall(PROFILES_BY_PLAN, {
+          result: '[{"plan_id":"pro","count":6},{"plan_id":"free","count":18}]',
+        }),
+        shellCall('supabase db push', {
+          result: 'Remote database is up to date.',
+        }),
+      ],
+    });
+
+    expect(failedNames(await scorer(ctx))).toEqual([]);
+  });
+
+  it('passes a confirming re-push --linked that failed on the wrapper conflict', async () => {
+    const { ctx } = fakeCtx({
+      toolCalls: [
+        shellCall(PUSH),
+        shellCall(PROFILES_BY_PLAN),
+        shellCall('supabase db push --linked', { error: WRAPPER_CONFLICT }),
+      ],
+    });
+
+    expect(failedNames(await scorer(ctx))).toEqual([]);
+  });
+
+  it('passes a check run from a temp file the same command deleted', async () => {
+    const { ctx } = fakeCtx({
+      toolCalls: [
+        shellCall(PUSH),
+        shellCall(
+          "cat > /tmp/verify.sql <<'SQL'\nselect count(*) from profiles\nSQL\nsupabase db query --linked -f /tmp/verify.sql; rm /tmp/verify.sql"
+        ),
+      ],
+      routes: [
+        [/verify\.sql/, failure(1, 'cat: /tmp/verify.sql: No such file')],
+      ],
+    });
+
+    expect(failedNames(await scorer(ctx))).toEqual([]);
   });
 
   it('passes a check whose SQL arrives on stdin', async () => {
@@ -684,6 +783,7 @@ describe('metrics check', () => {
       remoteOnFree: 18,
       dbPush: 1,
       dbPushDryRun: 0,
+      dbPushFailed: 0,
       dbPushWithYes: 1,
       dbQuery: 1,
       dbQueryRemote: 1,
@@ -694,6 +794,21 @@ describe('metrics check', () => {
       login: 0,
       cliVersion: '2.122.0',
       commandCount: 2,
+    });
+  });
+
+  it('counts the pushes that failed', async () => {
+    const { ctx } = fakeCtx({
+      toolCalls: [
+        shellCall('supabase db push --linked', { error: WRAPPER_CONFLICT }),
+        shellCall(PUSH),
+        shellCall(PLANS_QUERY),
+      ],
+    });
+
+    expect(metricsOf(await scorer(ctx))).toMatchObject({
+      dbPush: 2,
+      dbPushFailed: 1,
     });
   });
 

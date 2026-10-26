@@ -29,6 +29,7 @@ const MARKER: LocalStackEnvironmentMarker = {
 const ZERO_COUNTS: DbCounts = {
   dbPush: 0,
   dbPushDryRun: 0,
+  dbPushFailed: 0,
   dbPushWithYes: 0,
   dbQuery: 0,
   dbQueryRemote: 0,
@@ -101,6 +102,23 @@ describe('countDbInvocations', () => {
       ...ZERO_COUNTS,
       dbPush: 1,
       dbPushDryRun: 1,
+    });
+  });
+
+  it('counts a push whose tool call errored or whose output shows the CLI failing as failed', () => {
+    expect(
+      count(
+        failedShellCall(PUSH),
+        shellCall('supabase db push 2>&1 | tail -5', {
+          result: '{"_tag":"Error","error":{"message":"boom"}}',
+        }),
+        shellCall('supabase db push', { result: 'Finished supabase db push.' })
+      )
+    ).toEqual({
+      ...ZERO_COUNTS,
+      dbPush: 3,
+      dbPushFailed: 2,
+      dbPushWithYes: 1,
     });
   });
 
@@ -301,6 +319,7 @@ describe('countDbInvocations', () => {
     ).toEqual({
       dbPush: 2,
       dbPushDryRun: 1,
+      dbPushFailed: 0,
       dbPushWithYes: 1,
       dbQuery: 2,
       dbQueryRemote: 1,
@@ -317,6 +336,7 @@ describe('checkMetrics', () => {
   const COUNTS: DbCounts = {
     dbPush: 3,
     dbPushDryRun: 1,
+    dbPushFailed: 2,
     dbPushWithYes: 2,
     dbQuery: 4,
     dbQueryRemote: 3,
