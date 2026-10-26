@@ -4,7 +4,7 @@ import { describeStack, type StackProbe } from '../lib/stack.js';
 import type { StackLifecycle } from '../lib/cli-invocations.js';
 import { AVATARS, INVOICES, MEDIA_BUCKET, invoiceFor } from './fixtures.js';
 import type { SeedConfigProbe, SeededBucket } from './seed-config.js';
-import type { Fetched, StorageProbe } from './storage.js';
+import type { Fetched, LegacyStackProbe, StorageProbe } from './storage.js';
 
 const MAX_COMMANDS = 8;
 const COMMAND_CHARS = 200;
@@ -57,6 +57,20 @@ function describeStorage(storage: StorageProbe): string[] {
   ];
 }
 
+function describeLegacy(legacy: LegacyStackProbe): string[] {
+  if (!legacy.probed) return [];
+  if (!legacy.running) {
+    return ['- the legacy stack the harness started is no longer running'];
+  }
+  return [
+    `- the legacy stack the harness started is still running at ${legacy.apiUrl}; original invoice public URL reads there:`,
+    ...INVOICES.map(
+      ({ key }) =>
+        `- original ${MEDIA_BUCKET}/${key} public URL read: ${describeRead(legacy.originalInvoices[key])}`
+    ),
+  ];
+}
+
 function describeLifecycle(
   { lastCommand, stoppedByAgent }: StackLifecycle,
   probeFailed: boolean
@@ -99,11 +113,13 @@ export function describeGroundTruth(facts: {
   seed: SeedConfigProbe;
   lifecycle: StackLifecycle;
   storageCommands: readonly string[];
+  legacy: LegacyStackProbe;
 }): string[] {
-  const { stack, storage, seed, lifecycle, storageCommands } = facts;
+  const { stack, storage, seed, lifecycle, storageCommands, legacy } = facts;
   const lastCommands = storageCommands.slice(-MAX_COMMANDS);
   return [
     `- local stack: ${describeStack(stack)}`,
+    ...describeLegacy(legacy),
     ...describeLifecycle(lifecycle, !storage.ok),
     ...describeStorage(storage),
     ...describeSeed(seed),

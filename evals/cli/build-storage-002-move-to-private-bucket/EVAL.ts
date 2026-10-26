@@ -27,6 +27,7 @@ import {
   checkAvatarsPublic,
   checkInvoicesPrivate,
   checkNoInvoicePublic,
+  probeLegacyStack,
   probeStorage,
 } from './storage.js';
 
@@ -49,6 +50,7 @@ const scorer: LocalStackScorer = async (ctx) => {
       (key): key is string => key !== undefined && key !== ''
     );
     const storage = await probeStorage(ctx, stack, keys);
+    const legacy = await probeLegacyStack(ctx, stack);
     const seed = await readSeedConfig(ctx);
     const cli = await readCliFacts(ctx, marker, invocations);
     const storageCommands = invocations
@@ -57,7 +59,7 @@ const scorer: LocalStackScorer = async (ctx) => {
 
     const checks: CheckResult[] = [
       checkInvoicesPrivate(storage, lifecycle),
-      checkNoInvoicePublic(storage, lifecycle),
+      checkNoInvoicePublic(storage, lifecycle, legacy),
       checkAvatarsPublic(storage, lifecycle),
       checkFreshSetup(seed),
       await checkNoContainerRuntimeDetours(ctx, commands, knownSecrets),
@@ -70,10 +72,11 @@ const scorer: LocalStackScorer = async (ctx) => {
         seed,
         lifecycle,
         cli,
+        legacy,
       }),
       await checkReportIsTruthful(
         ctx,
-        { stack, storage, seed, lifecycle, storageCommands },
+        { stack, storage, seed, lifecycle, storageCommands, legacy },
         knownSecrets
       ),
     ];

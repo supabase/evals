@@ -8,19 +8,29 @@ import type {
 } from '@supabase-evals/core';
 import { describe, expect, it, vi } from 'vitest';
 import { DETOUR_CHECK_NAME } from '../lib/detours.js';
+import { resolveStackWithAgentHomes } from '../lib/stack.js';
+import { readStackKeys } from '../lib/stack-keys.js';
 import scorer from './EVAL.js';
 import {
+  API_URL,
+  avatarRows,
   basename,
   copyLeftWorld,
+  createDualStackSandbox,
   createSandbox,
+  invoiceRows,
   KEY_VALUES,
+  MEDIA,
   passingProject,
   passingWorld,
   untouchedProject,
   untouchedWorld,
+  type DualStackOptions,
   type SandboxOptions,
+  type World,
 } from './fakes.js';
-import { INVOICES, SEED_CONFIG_PATH } from './fixtures.js';
+import { INVOICES, MEDIA_BUCKET, SEED_CONFIG_PATH } from './fixtures.js';
+import { LEGACY_STATUS_COMMAND } from './storage.js';
 
 const PRIVATE = 'invoices are in a private bucket on the local stack';
 const NOT_PUBLIC = 'no invoice is publicly readable on the local stack';
@@ -87,7 +97,13 @@ function judgeKind({ rubric, input }: JudgeInput): JudgeKind {
   throw new Error(`unrecognised judge call: ${rubric.slice(0, 80)}`);
 }
 
-function fakeCtx(options: FakeOptions = {}) {
+function contextFor(
+  sandbox: Pick<LocalStackEvalContext, 'exec' | 'readFile' | 'workspace'>,
+  options: Pick<
+    FakeOptions,
+    'toolCalls' | 'transcript' | 'verdicts' | 'environmentMarker'
+  >
+) {
   const verdicts = options.verdicts ?? {};
   const judge = vi.fn(async (args: JudgeInput): Promise<JudgeResult> => {
     const verdict = verdicts[judgeKind(args)] ?? {
@@ -97,23 +113,40 @@ function fakeCtx(options: FakeOptions = {}) {
     if (verdict instanceof Error) throw verdict;
     return verdict;
   });
+  const ctx = {
+    exec: sandbox.exec,
+    readFile: sandbox.readFile,
+    workspace: sandbox.workspace,
+    judge,
+    toolCalls: options.toolCalls ?? SESSION,
+    transcript: options.transcript ?? [],
+    environmentMarker: options.environmentMarker ?? (async () => MARKER),
+  } as unknown as LocalStackEvalContext;
+  return { ctx, judge };
+}
+
+function fakeCtx(options: FakeOptions = {}) {
   const sandbox = createSandbox({
     world: options.world ?? passingWorld(),
     project: options.project ?? passingProject(),
     legacyKeys: options.legacyKeys,
     intercept: options.intercept,
   });
-  const ctx = {
-    exec: sandbox.ctx.exec,
-    readFile: sandbox.ctx.readFile,
-    workspace: sandbox.ctx.workspace,
-    judge,
-    toolCalls: options.toolCalls ?? SESSION,
-    transcript: options.transcript ?? [],
-    environmentMarker: options.environmentMarker ?? (async () => MARKER),
-  } as unknown as LocalStackEvalContext;
+  const { ctx, judge } = contextFor(sandbox.ctx, options);
   const { commands, events, requests, reads } = sandbox;
   return { ctx, judge, commands, events, requests, reads };
+}
+
+function dualStackCtx(
+  options: Omit<DualStackOptions, 'project'> &
+    Pick<FakeOptions, 'toolCalls' | 'verdicts'>
+) {
+  const sandbox = createDualStackSandbox({
+    ...options,
+    project: passingProject(),
+  });
+  const { ctx, judge } = contextFor(sandbox.ctx, options);
+  return { ctx, judge, commands: sandbox.commands };
 }
 
 type Fake = ReturnType<typeof fakeCtx>;
@@ -690,5 +723,230 @@ describe('the stack keys never reach a judge or a check note', () => {
         expect(args.rubric).not.toContain(key);
       }
     }
+  });
+});
+
+describe('a managed stack the agent started while the harness legacy stack is still running', () => {
+  const LEGACY_STATUS = 'SUPABASE_EXPERIMENTAL_STACK=0 supabase status -o json';
+  const MANAGED_START = 'SUPABASE_EXPERIMENTAL_STACK=1 supabase stack start';
+  const CONFIG_FIX = [
+    call(
+      `cat >> supabase/config.toml <<'EOF'\n[storage.buckets.invoices]\npublic = false\nobjects_path = "./storage/invoices"\nEOF`
+    ),
+    call(MOVE),
+  ];
+  const AGENT = [...CONFIG_FIX, call(MANAGED_START)];
+  const readableOn = (key: string) =>
+    `media/${key} is still publicly readable on the legacy stack the harness started (${API_URL})`;
+  const legacyStatusRuns = (commands: readonly string[]) =>
+    commands.filter((command) => command === LEGACY_STATUS).length;
+
+  const oneInvoiceLeftInMedia = (): World => ({
+    buckets: [MEDIA],
+    objects: [
+      ...avatarRows(),
+      ...invoiceRows(MEDIA_BUCKET, (file) => file.key).slice(0, 1),
+    ],
+  });
+
+  it('fails only the public-readability check, naming each original key and the legacy stack, when the legacy stack still serves every invoice', async () => {
+    const { ctx, judge } = dualStackCtx({
+      legacyWorld: untouchedWorld(),
+      managedWorld: passingWorld(),
+      toolCalls: AGENT,
+    });
+
+    const result = await scorer(ctx);
+
+    expectFailed(result, [NOT_PUBLIC]);
+    expect(result.passed).toBe(false);
+    expect(notesOf(result, NOT_PUBLIC)).toBe(
+      INVOICES.map(({ key }) => readableOn(key)).join('; ')
+    );
+    expect(checkNamed(result, PRIVATE)?.passed).toBe(true);
+    expect(judgeKinds(judge)).toEqual(['detours', 'report']);
+  });
+
+  it('scores the managed stack and records the legacy stack the harness started in the metrics', async () => {
+    const { ctx } = dualStackCtx({
+      legacyWorld: untouchedWorld(),
+      managedWorld: passingWorld(),
+      toolCalls: AGENT,
+    });
+
+    const result = await scorer(ctx);
+
+    expect(metricsOf(result)).toMatchObject({
+      stack: { backend: 'managed' },
+      legacyStack: { running: true, publicInvoices: INVOICES.length },
+    });
+  });
+
+  it('tells the report judge the legacy stack is still running and what its original invoice URLs return', async () => {
+    const { ctx, judge } = dualStackCtx({
+      legacyWorld: untouchedWorld(),
+      managedWorld: passingWorld(),
+      toolCalls: AGENT,
+    });
+
+    await scorer(ctx);
+
+    const [groundTruth] = judgeInput(judge, 'report').split('\nTranscript:');
+    expect(groundTruth).toContain(
+      `- the legacy stack the harness started is still running at ${API_URL}; original invoice public URL reads there:`
+    );
+    for (const { key } of INVOICES) {
+      expect(groundTruth).toContain(
+        `original media/${key} public URL read: 200`
+      );
+    }
+  });
+
+  it('names only the original key the legacy stack still serves', async () => {
+    const { ctx } = dualStackCtx({
+      legacyWorld: oneInvoiceLeftInMedia(),
+      managedWorld: passingWorld(),
+      toolCalls: AGENT,
+    });
+
+    const result = await scorer(ctx);
+
+    expectFailed(result, [NOT_PUBLIC]);
+    expect(notesOf(result, NOT_PUBLIC)).toBe(readableOn(INVOICES[0].key));
+    expect(metricsOf(result)).toMatchObject({
+      legacyStack: { running: true, publicInvoices: 1 },
+    });
+  });
+
+  it('passes every check when the legacy stack is still running but serves no original invoice', async () => {
+    const { ctx } = dualStackCtx({
+      legacyWorld: passingWorld(),
+      managedWorld: passingWorld(),
+      toolCalls: AGENT,
+    });
+
+    const result = await scorer(ctx);
+
+    expectFailed(result, []);
+    expect(metricsOf(result)).toMatchObject({
+      stack: { backend: 'managed' },
+      legacyStack: { running: true, publicInvoices: 0 },
+    });
+  });
+
+  it.each([
+    ['its status exits non-zero', undefined],
+    [
+      'its status command throws',
+      (kind: string) => (kind === 'keys' ? ('throw' as const) : undefined),
+    ],
+  ])(
+    'passes every check after supabase stop --no-backup when %s',
+    async (_name, legacyIntercept) => {
+      const { ctx, judge, commands } = dualStackCtx({
+        legacyWorld: untouchedWorld(),
+        managedWorld: passingWorld(),
+        legacyKeys: null,
+        legacyIntercept,
+        toolCalls: [call('supabase stop --no-backup'), call(MANAGED_START)],
+      });
+
+      const result = await scorer(ctx);
+
+      expectFailed(result, []);
+      expect(result.passed).toBe(true);
+      expect(metricsOf(result)).toMatchObject({
+        stack: { backend: 'managed' },
+        legacyStack: { running: false },
+      });
+      expect(judgeInput(judge, 'report')).toContain(
+        '- the legacy stack the harness started is no longer running'
+      );
+      expect(legacyStatusRuns(commands)).toBe(1);
+    }
+  );
+
+  it('keeps the stack keys out of the result and both judges', async () => {
+    const { ctx, judge } = dualStackCtx({
+      legacyWorld: untouchedWorld(),
+      managedWorld: passingWorld(),
+      toolCalls: AGENT,
+    });
+
+    const result = await scorer(ctx);
+
+    expect(judge).toHaveBeenCalled();
+    for (const key of KEY_VALUES) {
+      expect(JSON.stringify(result)).not.toContain(key);
+      for (const [args] of judge.mock.calls) {
+        expect(args.input).not.toContain(key);
+        expect(args.rubric).not.toContain(key);
+      }
+    }
+  });
+});
+
+describe('a run with no tool calls on the untouched world and project', () => {
+  const noop = () =>
+    fakeCtx({
+      world: untouchedWorld(),
+      project: untouchedProject(),
+      toolCalls: [],
+    });
+
+  it('fails the private, public-readability and fresh-setup checks, keeps the avatars check green and passes the detour check with no commands', async () => {
+    const { ctx, judge } = noop();
+
+    const result = await scorer(ctx);
+
+    expectFailed(result, [PRIVATE, NOT_PUBLIC, FRESH]);
+    expect(checkNamed(result, AVATARS_PUBLIC)?.passed).toBe(true);
+    expect(checkNamed(result, DETOURS)).toEqual({
+      name: DETOURS,
+      passed: true,
+      notes: 'no commands executed',
+    });
+    expect(judgeKinds(judge)).toEqual(['report']);
+  });
+
+  it('does not probe, record or mention a legacy stack when the scored stack is the legacy one', async () => {
+    const { ctx, judge } = noop();
+
+    const result = await scorer(ctx);
+
+    expect(metricsOf(result)).toMatchObject({
+      stack: { backend: 'legacy' },
+      legacyStack: null,
+    });
+    expect(notesOf(result, NOT_PUBLIC)).not.toContain('legacy stack');
+    expect(judgeInput(judge, 'report')).not.toContain(
+      'legacy stack the harness started'
+    );
+  });
+});
+
+describe('a run scored against the legacy stack', () => {
+  it('runs the legacy status command no more often than resolving the stack and reading its keys does', async () => {
+    const baseline = createSandbox({
+      world: passingWorld(),
+      project: passingProject(),
+    });
+    const stack = await resolveStackWithAgentHomes(
+      baseline.ctx,
+      { kind: 'root' },
+      []
+    );
+    await readStackKeys(baseline.ctx, stack, []);
+    const expected = baseline.commands.filter(
+      (command) => command === LEGACY_STATUS_COMMAND
+    ).length;
+    expect(expected).toBeGreaterThan(0);
+
+    const { ctx, commands } = fakeCtx();
+    await scorer(ctx);
+
+    expect(
+      commands.filter((command) => command === LEGACY_STATUS_COMMAND)
+    ).toHaveLength(expected);
   });
 });

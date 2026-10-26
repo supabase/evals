@@ -21,6 +21,7 @@ import {
 import type {
   AnonIdentity,
   Fetched,
+  LegacyStackProbe,
   ServiceIdentity,
   StorageProbe,
   StoredObject,
@@ -618,5 +619,111 @@ export function createSandbox(options: SandboxOptions = {}) {
     events,
     requests,
     reads,
+  };
+}
+
+export const MANAGED_API = 'http://127.0.0.1:24321';
+export const MANAGED_DB =
+  'postgresql://postgres:postgres@127.0.0.1:24322/postgres';
+export const MANAGED_STATUS = STATUS_JSON.replace(API_URL, MANAGED_API).replace(
+  DB_URL,
+  MANAGED_DB
+);
+
+export const MANAGED_STACK: Extract<StackProbe, { ok: true }> = {
+  ok: true,
+  backend: 'managed',
+  dbUrl: MANAGED_DB,
+  apiUrl: MANAGED_API,
+  runtime: 'docker',
+};
+
+export const LEGACY_NOT_PROBED: LegacyStackProbe = { probed: false };
+
+export const LEGACY_NOT_RUNNING: LegacyStackProbe = {
+  probed: true,
+  running: false,
+  notes: 'exit 1: no such container',
+};
+
+export const originalReads = (
+  statuses: readonly (number | null)[]
+): Record<string, Fetched> =>
+  Object.fromEntries(
+    INVOICES.map(({ key, sha256 }, index) => {
+      const status = statuses[index] ?? null;
+      return [
+        key,
+        status !== null && status >= 200 && status < 300
+          ? fetched(status, sha256)
+          : fetched(status),
+      ];
+    })
+  );
+
+export const legacyRunning = (
+  statuses: readonly (number | null)[] = [404, 404, 404],
+  apiUrl = API_URL
+): LegacyStackProbe => ({
+  probed: true,
+  running: true,
+  apiUrl,
+  originalInvoices: originalReads(statuses),
+});
+
+export type DualStackOptions = {
+  legacyWorld: World;
+  managedWorld: World | null;
+  project: Project;
+  legacyKeys?: string | null;
+  legacyIntercept?: Intercept;
+};
+
+/** Two stacks on one host: the harness's legacy stack on the default ports and a managed stack on automatic ports. */
+export function createDualStackSandbox(options: DualStackOptions) {
+  const legacy = createSandbox({
+    world: options.legacyWorld,
+    project: options.project,
+    legacyKeys: options.legacyKeys,
+    intercept: options.legacyIntercept,
+  });
+  const managed =
+    options.managedWorld === null
+      ? undefined
+      : createSandbox({
+          world: options.managedWorld,
+          project: options.project,
+        });
+  const commands: string[] = [];
+
+  const exec = async (command: string): Promise<CommandResult> => {
+    commands.push(command);
+    if (command.includes('stack status')) {
+      if (managed === undefined) {
+        return failed('No managed stack exists for the selected project.');
+      }
+      return ok(
+        command.includes('--env') ? MANAGED_STATUS : '{"runtime":"docker"}'
+      );
+    }
+    if (
+      managed !== undefined &&
+      (command.includes(MANAGED_API) || command.includes(MANAGED_DB))
+    ) {
+      return managed.ctx.exec(
+        command.split(MANAGED_API).join(API_URL).split(MANAGED_DB).join(DB_URL)
+      );
+    }
+    return legacy.ctx.exec(command);
+  };
+
+  return {
+    ctx: { exec, readFile: legacy.ctx.readFile, workspace: WORKSPACE } as Pick<
+      LocalStackEvalContext,
+      'exec' | 'readFile' | 'workspace'
+    >,
+    commands,
+    legacy,
+    managed,
   };
 }

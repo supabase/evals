@@ -14,6 +14,9 @@ import {
   bucketSeeding,
   fetched,
   KEYS,
+  LEGACY_NOT_PROBED,
+  LEGACY_NOT_RUNNING,
+  legacyRunning,
   mediaAvatars,
   mediaInvoiceHeld,
   movedInvoices,
@@ -298,6 +301,7 @@ describe('checkMetrics', () => {
     seed: passingSeed(),
     lifecycle: NO_LIFECYCLE,
     cli: await readCliFacts(ctx, undefined, []),
+    legacy: LEGACY_NOT_PROBED,
   });
 
   it('reports every documented field and always passes', async () => {
@@ -319,6 +323,7 @@ describe('checkMetrics', () => {
       seed: passingSeed(),
       lifecycle: readStackLifecycle(invocations),
       cli: await readCliFacts(ctx, MARKER, invocations),
+      legacy: LEGACY_NOT_PROBED,
     });
 
     expect(check).toMatchObject({ name: 'metrics', passed: true });
@@ -360,7 +365,69 @@ describe('checkMetrics', () => {
       freshSetupInvoiceBuckets: ['invoices'],
       stackStoppedByAgent: false,
       lastStackCommand: 'supabase start',
+      legacyStack: null,
       cliDetours: 1,
+    });
+  });
+
+  describe('legacyStack', () => {
+    const legacyStackOf = async (
+      legacy: Parameters<typeof checkMetrics>[1]['legacy']
+    ) =>
+      metricsOf(
+        await checkMetrics(undefined, { ...(await baseFacts()), legacy })
+      ).legacyStack;
+
+    it('is null when the legacy stack was not probed', async () => {
+      expect(await legacyStackOf(LEGACY_NOT_PROBED)).toBeNull();
+    });
+
+    it('is only running: false when the legacy stack was probed and is not running', async () => {
+      expect(await legacyStackOf(LEGACY_NOT_RUNNING)).toEqual({
+        running: false,
+      });
+    });
+
+    it('counts the original invoices the running legacy stack still serves publicly', async () => {
+      expect(await legacyStackOf(legacyRunning([200, 404, 200]))).toEqual({
+        running: true,
+        publicInvoices: 2,
+      });
+    });
+
+    it('counts a running legacy stack that serves all three originals', async () => {
+      expect(await legacyStackOf(legacyRunning([200, 200, 204]))).toEqual({
+        running: true,
+        publicInvoices: 3,
+      });
+    });
+
+    it('reports zero public invoices when the running legacy stack serves none', async () => {
+      expect(await legacyStackOf(legacyRunning([400, 404, null]))).toEqual({
+        running: true,
+        publicInvoices: 0,
+      });
+    });
+
+    it('counts only 2xx reads as public', async () => {
+      expect(await legacyStackOf(legacyRunning([199, 299, 300]))).toEqual({
+        running: true,
+        publicInvoices: 1,
+      });
+    });
+
+    it('leaves the legacy API URL and the not-running notes out of the metrics', async () => {
+      const running = await checkMetrics(undefined, {
+        ...(await baseFacts()),
+        legacy: legacyRunning([200, 200, 200], 'http://127.0.0.1:55321'),
+      });
+      const stopped = await checkMetrics(undefined, {
+        ...(await baseFacts()),
+        legacy: LEGACY_NOT_RUNNING,
+      });
+
+      expect(running.notes).not.toContain('55321');
+      expect(stopped.notes).not.toContain('no such container');
     });
   });
 
@@ -739,6 +806,16 @@ describe('checkMetrics', () => {
     expect(metricsOf(hostileInvocations)).toMatchObject({
       storageCommands: null,
       cliDetours: 0,
+      buckets: expect.any(Array),
+    });
+
+    const hostileLegacy = await checkMetrics(undefined, {
+      ...facts,
+      legacy: throwing(legacyRunning([200, 200, 200])),
+    });
+    expect(hostileLegacy.passed).toBe(true);
+    expect(metricsOf(hostileLegacy)).toMatchObject({
+      legacyStack: null,
       buckets: expect.any(Array),
     });
 

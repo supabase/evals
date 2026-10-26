@@ -2,16 +2,22 @@ import { describe, expect, it } from 'vitest';
 import { mentionsNumber } from '../lib/report.js';
 import type { StackLifecycle } from '../lib/cli-invocations.js';
 import {
+  API_URL,
   bucketSeeding,
   fetched,
   invoiceHeld,
   KEY_VALUES,
+  LEGACY_NOT_PROBED,
+  LEGACY_NOT_RUNNING,
+  legacyRunning,
   MEDIA,
   mediaAvatars,
   mediaInvoiceHeld,
   movedInvoices,
+  originalReads,
   passingSeed,
   seedProbe,
+  SERVICE_ROLE,
   served,
   STACK,
   storageProbe,
@@ -28,6 +34,7 @@ const FACTS: Facts = {
   seed: passingSeed(),
   lifecycle: { lastCommand: null, stoppedByAgent: false },
   storageCommands: [],
+  legacy: LEGACY_NOT_PROBED,
 };
 
 const STOPPED: StackLifecycle = {
@@ -362,6 +369,157 @@ describe('describeGroundTruth', () => {
       expect(mentionsNumber(second, 200)).toBe(true);
       expect(mentionsNumber(third, 400)).toBe(true);
       expect(mentionsNumber(third, 200)).toBe(false);
+    });
+  });
+
+  describe('legacy stack the harness started', () => {
+    const header = (apiUrl = API_URL) =>
+      `- the legacy stack the harness started is still running at ${apiUrl}; original invoice public URL reads there:`;
+    const NOT_RUNNING =
+      '- the legacy stack the harness started is no longer running';
+    const LEGACY_FACT = /legacy stack the harness started/;
+
+    const afterLocalStack = (lines: string[]) =>
+      lines[lines.findIndex((line) => line.startsWith('- local stack:')) + 1];
+
+    const originalLine = (key: string, read: string) =>
+      `- original ${MEDIA_BUCKET}/${key} public URL read: ${read}`;
+
+    const scoredElsewhere = () =>
+      storageProbe({ originalInvoices: originalReads([403, 403, 403]) });
+
+    it('says the legacy stack is still running at its API URL, right after the local-stack line', () => {
+      const lines = groundTruth({
+        legacy: legacyRunning([404, 404, 404], 'http://127.0.0.1:55321'),
+      });
+
+      expect(afterLocalStack(lines)).toBe(header('http://127.0.0.1:55321'));
+    });
+
+    it('gives the public URL read of each original key on the legacy stack, one line per key in invoice order, in the format of the scored stack', () => {
+      const lines = groundTruth({
+        storage: scoredElsewhere(),
+        legacy: {
+          probed: true,
+          running: true,
+          apiUrl: API_URL,
+          originalInvoices: {
+            [INVOICES[0].key]: served(INVOICES[0].sha256),
+            [INVOICES[1].key]: fetched(404),
+            [INVOICES[2].key]: {
+              status: null,
+              sha256: null,
+              notes: 'exit 7: boom',
+            },
+          },
+        },
+      });
+
+      const at = lines.indexOf(header());
+      expect(at).toBeGreaterThan(-1);
+      expect(
+        lines.slice(at + 1, at + 1 + INVOICES.length).map((line) => line.trim())
+      ).toEqual([
+        originalLine(INVOICES[0].key, '200'),
+        originalLine(INVOICES[1].key, '404'),
+        originalLine(INVOICES[2].key, 'no response (exit 7: boom)'),
+      ]);
+    });
+
+    it('keeps the scored stack original reads apart from the legacy ones', () => {
+      const lines = groundTruth({
+        storage: scoredElsewhere(),
+        legacy: legacyRunning([200, 200, 200]),
+      });
+
+      const at = lines.indexOf(header());
+      const legacyLines = lines
+        .slice(at + 1, at + 1 + INVOICES.length)
+        .map((line) => line.trim());
+      const scoredLines = lines.filter(
+        (line, index) =>
+          line.includes('original media/') &&
+          (index <= at || index > at + INVOICES.length)
+      );
+      expect(scoredLines.map((line) => line.trim())).toEqual(
+        INVOICES.map(({ key }) => originalLine(key, '403'))
+      );
+      expect(legacyLines).toEqual(
+        INVOICES.map(({ key }) => originalLine(key, '200'))
+      );
+    });
+
+    it('says the legacy stack is no longer running, right after the local-stack line, when it was probed and is gone', () => {
+      const lines = groundTruth({ legacy: LEGACY_NOT_RUNNING });
+
+      expect(afterLocalStack(lines)).toBe(NOT_RUNNING);
+      expect(lines.filter((line) => LEGACY_FACT.test(line))).toEqual([
+        NOT_RUNNING,
+      ]);
+    });
+
+    it('says nothing about the legacy stack when it was not probed', () => {
+      const lines = groundTruth({ legacy: LEGACY_NOT_PROBED });
+
+      expect(lines.filter((line) => LEGACY_FACT.test(line))).toEqual([]);
+    });
+
+    it('leaves every other line as it is whether or not the legacy stack was probed', () => {
+      const without = groundTruth({ legacy: LEGACY_NOT_PROBED });
+      const gone = groundTruth({ legacy: LEGACY_NOT_RUNNING });
+      const up = groundTruth({ legacy: legacyRunning([200, 404, 400]) });
+
+      const at = up.indexOf(header());
+      expect(gone.filter((line) => !LEGACY_FACT.test(line))).toEqual(without);
+      expect([
+        ...up.slice(0, at),
+        ...up.slice(at + 1 + INVOICES.length),
+      ]).toEqual(without);
+    });
+
+    it('puts the legacy fact before the lifecycle and storage facts when the probe is unavailable', () => {
+      const lines = groundTruth({
+        lifecycle: STOPPED,
+        storage: { ok: false, notes: 'no local stack' },
+        legacy: LEGACY_NOT_RUNNING,
+      });
+
+      expect(afterLocalStack(lines)).toBe(NOT_RUNNING);
+      expect(lines.findIndex((line) => LEGACY_FACT.test(line))).toBeLessThan(
+        lines.findIndex((line) => line.includes('the agent stopped the stack'))
+      );
+    });
+
+    it('writes only dash-led lines and indented continuations for every legacy shape', () => {
+      for (const legacy of [
+        LEGACY_NOT_PROBED,
+        LEGACY_NOT_RUNNING,
+        legacyRunning([200, 404, 400]),
+      ]) {
+        for (const line of groundTruth({ legacy })) {
+          expect(line.startsWith('- ') || line.startsWith('  ')).toBe(true);
+        }
+      }
+    });
+
+    it('never carries an API key or the notes of a legacy stack that is gone', () => {
+      const stopped = groundTruth({
+        legacy: {
+          probed: true,
+          running: false,
+          notes: `exit 1: status said ${SERVICE_ROLE}`,
+        },
+      }).join('\n');
+      const running = groundTruth({
+        storage: COPY_LEFT(),
+        legacy: legacyRunning([200, 200, 200]),
+      }).join('\n');
+
+      for (const key of KEY_VALUES) {
+        expect(stopped).not.toContain(key);
+        expect(running).not.toContain(key);
+      }
+      expect(stopped).not.toContain('status said');
     });
   });
 

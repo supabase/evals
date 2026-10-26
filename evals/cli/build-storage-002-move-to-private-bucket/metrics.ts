@@ -16,7 +16,12 @@ import type { StackProbe } from '../lib/stack.js';
 import type { StackKeys } from '../lib/stack-keys.js';
 import { invoiceFor } from './fixtures.js';
 import type { SeedConfigProbe } from './seed-config.js';
-import { present, type StorageProbe } from './storage.js';
+import {
+  isSuccess,
+  present,
+  type LegacyStackProbe,
+  type StorageProbe,
+} from './storage.js';
 
 export type CliFacts = {
   versions: Awaited<ReturnType<typeof readCliVersions>> | null;
@@ -115,10 +120,20 @@ export async function checkMetrics(
     seed: SeedConfigProbe;
     lifecycle: StackLifecycle;
     cli: CliFacts;
+    legacy: LegacyStackProbe;
   }
 ): Promise<CheckResult> {
-  const { commands, invocations, stack, keys, storage, seed, lifecycle, cli } =
-    facts;
+  const {
+    commands,
+    invocations,
+    stack,
+    keys,
+    storage,
+    seed,
+    lifecycle,
+    cli,
+    legacy,
+  } = facts;
   const { versions, cliOverride } = cli;
 
   const metrics = {
@@ -179,6 +194,16 @@ export async function checkMetrics(
     ),
     stackStoppedByAgent: await safely(() => lifecycle.stoppedByAgent),
     lastStackCommand: await safely(() => lifecycle.lastCommand),
+    legacyStack: await safely(() => {
+      if (!legacy.probed) return null;
+      if (!legacy.running) return { running: false };
+      return {
+        running: true,
+        publicInvoices: Object.values(legacy.originalInvoices).filter((read) =>
+          isSuccess(read.status)
+        ).length,
+      };
+    }),
     // Regex diagnostic, never asserted against.
     cliDetours: await safely(() => findCliDetourCommands(commands).length),
   };

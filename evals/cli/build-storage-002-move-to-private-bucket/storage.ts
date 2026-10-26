@@ -1,6 +1,6 @@
 import type { CheckResult, LocalStackEvalContext } from '@supabase-evals/core';
 import { describeFailure, errorMessage, shellQuote } from '../lib/shell.js';
-import type { StackProbe } from '../lib/stack.js';
+import { readApiUrl, type StackProbe } from '../lib/stack.js';
 import type { StackKeys } from '../lib/stack-keys.js';
 import type { StackLifecycle } from '../lib/cli-invocations.js';
 import { AVATARS, INVOICES, MEDIA_BUCKET, invoiceFor } from './fixtures.js';
@@ -78,7 +78,7 @@ export type Fetched = {
   notes?: string;
 };
 
-const isSuccess = (status: number | null | undefined): boolean =>
+export const isSuccess = (status: number | null | undefined): boolean =>
   status != null && status >= 200 && status < 300;
 
 const FETCH_OUTPUT = /^(\d{3}) ([0-9a-f]{64})$/;
@@ -312,6 +312,46 @@ export async function probeStorage(
   };
 }
 
+/** The legacy backend's status command, which finds the stack the harness started. */
+export const LEGACY_STATUS_COMMAND =
+  'SUPABASE_EXPERIMENTAL_STACK=0 supabase status -o json';
+
+/** What the harness's own legacy stack still serves once a managed stack was scored instead. */
+export type LegacyStackProbe =
+  | { probed: false }
+  | { probed: true; running: false; notes: string }
+  | {
+      probed: true;
+      running: true;
+      apiUrl: string;
+      originalInvoices: Record<string, Fetched>;
+    };
+
+/** Reads the original invoice keys' public URLs on the legacy stack when the scored stack is a different one. */
+export async function probeLegacyStack(
+  ctx: ExecContext,
+  stack: StackProbe
+): Promise<LegacyStackProbe> {
+  if (!stack.ok || stack.backend === 'legacy') return { probed: false };
+  let apiUrl: string | undefined;
+  try {
+    const result = await ctx.exec(LEGACY_STATUS_COMMAND);
+    apiUrl = readApiUrl(result.stdout);
+    if (apiUrl === undefined) {
+      return { probed: true, running: false, notes: describeFailure(result) };
+    }
+  } catch (error) {
+    return { probed: true, running: false, notes: errorMessage(error) };
+  }
+  if (apiUrl === stack.apiUrl) return { probed: false };
+  return {
+    probed: true,
+    running: true,
+    apiUrl,
+    originalInvoices: await readPublic(ctx, apiUrl, INVOICES),
+  };
+}
+
 const unavailable = (
   name: string,
   notes: string,
@@ -357,7 +397,8 @@ export function checkInvoicesPrivate(
 
 export function checkNoInvoicePublic(
   probe: StorageProbe,
-  lifecycle?: StackLifecycle
+  lifecycle?: StackLifecycle,
+  legacy?: LegacyStackProbe
 ): CheckResult {
   const name = 'no invoice is publicly readable on the local stack';
   if (!probe.ok) return unavailable(name, probe.notes, lifecycle);
@@ -396,6 +437,15 @@ export function checkNoInvoicePublic(
   for (const [key, read] of Object.entries(probe.originalInvoices)) {
     if (isSuccess(read.status)) {
       problems.push(`${MEDIA_BUCKET}/${key} is still publicly readable`);
+    }
+  }
+  if (legacy?.probed && legacy.running) {
+    for (const [key, read] of Object.entries(legacy.originalInvoices)) {
+      if (isSuccess(read.status)) {
+        problems.push(
+          `${MEDIA_BUCKET}/${key} is still publicly readable on the legacy stack the harness started (${legacy.apiUrl})`
+        );
+      }
     }
   }
   if (problems.length === 0) return { name, passed: true };

@@ -97,8 +97,11 @@ Verified on `supabase@2.117.0`, `2.122.0`, `2.123.0-beta.1` and
   `allowed_mime_types` and `objects_path`, which is relative to `supabase/`;
   an object's key is its file path relative to it.
 - Legacy `supabase start` seeds configured buckets on a fresh database volume,
-  `supabase stack start` seeds them, and `db reset` re-seeds them.
-- The native (no-Docker) stack runtime runs storage.
+  `supabase stack start` seeds them on a stack's first start only, and `db
+  reset` re-seeds them.
+- `seed buckets` creates and overwrites objects but never deletes them, and
+  `stop` then `start` without `--no-backup` keeps the database volume, so
+  nothing is re-seeded.
 
 So the plausible failures are an agent that makes `media` private (avatars
 break), copies the invoices without deleting the originals, moves rows with
@@ -113,8 +116,9 @@ and leaves the config to seed them publicly again on the next start.
 Checks 1 to 3 share one probe of the stack, taken after the agent finished:
 
 - It resolves the stack for the project root (managed, then legacy, retried
-  under each CLI home the agent started a stack under), reads its keys with
-  `supabase status -o json` (legacy) or `supabase stack status --env`
+  under each CLI home the agent started a stack under), so a managed stack is
+  preferred over the legacy stack the harness started. It reads the stack's keys
+  with `supabase status -o json` (legacy) or `supabase stack status --env`
   (managed), and reads `storage.buckets` and `storage.objects` with `psql`.
 - It downloads every object through the Storage API with the service key
   (the service-role JWT, else the secret key; the first that gets a 200 from
@@ -129,15 +133,18 @@ Checks 1 to 3 share one probe of the stack, taken after the agent finished:
   that no invoice is readable.
 - It reads the public URL of each original `media/invoices/*` key and each
   `media/avatars/*` key.
+- When the scored stack isn't the legacy one, it also runs
+  `SUPABASE_EXPERIMENTAL_STACK=0 supabase status -o json`. If the legacy stack
+  the harness started is still up, it reads each original `media/invoices/*`
+  key's public URL there without credentials.
 - Every request is a `GET`, and no key appears in a check note or a judge
   input.
 - The agent's last stack start or stop command is read from its invocations
   (`start`, `stack start`, `stack restart` and `db start` start the stack;
   `stop`, `stack stop` and `stack destroy` stop it). When the last one was a
   stop, `metrics.stackStoppedByAgent` is true and `metrics.lastStackCommand`
-  holds that command with its flags. When the agent ran no stack command,
-  `lastStackCommand` is null, which is the usual case now the harness starts the
-  stack.
+  holds that command with its flags. `lastStackCommand` is null when the agent
+  ran no stack start or stop command.
 
 When no stack resolves, the stack reports no API URL, or the storage rows
 can't be read, checks 1 to 3 fail with `storage probe unavailable` and the
@@ -175,15 +182,20 @@ move`, with the error message as its notes.
   not to hold an invoice; an object holding an invoice answers its public URL
   with a 2xx, whichever bucket the row says it is in; an invoice-holding object
   answers the anon key with a 2xx, for example through a storage policy; an
-  original `media/invoices/*` key still answers its public URL with a 2xx.
+  original `media/invoices/*` key still answers its public URL with a 2xx; an
+  original key still answering 2xx on the harness's legacy stack, when a
+  different stack was scored.
 - Passes: invoices only in a private bucket with `media` holding avatars; the
   invoices removed from `media` by `storage rm`, by `db reset` after a config
   fix, or wiped with `supabase stop --no-backup` and re-seeded from the fixed
-  config by the next start.
+  config by the next start; `supabase stop --no-backup` and then a managed
+  `stack start` from the fixed config, which leaves no legacy stack serving the
+  invoices.
 - Fails: copy without delete; an invoice also uploaded to another public
   bucket; a private bucket with an anon `select` policy; a config fix applied
   with `seed buckets` alone, or with `stop` and `start`, which leaves the
-  originals in `media`.
+  originals in `media`; a second, managed stack started from the fixed config
+  while the harness's legacy stack still serves the invoices.
 
 ### `avatars are still public where the app loads them`
 
@@ -260,15 +272,20 @@ null; both read the last start or stop by command name, not by which stack it
 targeted, so stopping a different named stack also reads as stopped),
 `serviceIdentity` (`service-role` or `secret`, whichever got a 200 on
 its control request, else null), `anonIdentity` (`anon` or `publishable`, the
-same for the anon control request) and `cliDetours` (a regex count that can
-disagree with the detour judge).
+same for the anon control request), `legacyStack` (null when the harness's
+legacy stack wasn't probed, `{ running: false }` when it was probed and is down,
+else `{ running: true, publicInvoices }`, the count of original invoice keys it
+still serves with a 2xx) and `cliDetours` (a regex count that can disagree with
+the detour judge).
 
 ### `final report is truthful about the invoices`
 
 - Proves: the report matches what the harness found.
 - Measured: an LLM judge given the transcript with each tool call's output and
-  the harness ground truth: the stack resolution, the service-key and anon-key
-  control request statuses, each bucket and its visibility, where each
+  the harness ground truth: the stack resolution, the harness's legacy stack when
+  it was probed (still running, with the public reads of the original
+  `media/invoices/*` keys there, or no longer running), the service-key and
+  anon-key control request statuses, each bucket and its visibility, where each
   invoice's bytes are with the bucket's visibility and the public-URL and anon
   read statuses, the public reads of the original `media/invoices/*` keys, each
   avatar's public read and whether its bytes match, what each declared bucket
@@ -323,10 +340,15 @@ backend and runtime are reported through `metrics`.
 - The anon read covers the object `GET` endpoint with the anon key, not signed
   URLs or authenticated users.
 - The harness resolves only the project's default stack, so a stack started
-  with `--stack <name>` isn't found and checks 1 to 3 fail with the probe's
-  reason.
+  with `--stack <name>` isn't found. While the harness's stack is still up the
+  scorer scores that one, so checks 1 to 3 read like ordinary failures (for
+  example `not in a private bucket with their bytes intact: ...`) instead of
+  naming the probe's reason, which appears only once no stack resolves.
 - A stack started with a different CLI build (`npx supabase@<version>`) or
-  under a CLI home the harness can't find may be invisible, so the storage
-  checks fail with the probe's reason.
+  under a CLI home the harness can't find may be invisible. While the harness's
+  stack is still up the scorer scores that one, so the storage checks read like
+  ordinary failures rather than naming the probe's reason.
+- The legacy leftover read covers only the original `media/invoices/*` keys, not
+  invoice copies elsewhere on the legacy stack.
 - Invoices are matched by sha256, so a re-encoded or edited invoice counts as
   missing.

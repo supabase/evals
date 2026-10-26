@@ -15,13 +15,19 @@ import {
   fetched,
   type Held,
   invoiceHeld,
+  invoiceRows,
   KEY_VALUES,
   KEYS,
+  LEGACY_NOT_PROBED,
+  LEGACY_NOT_RUNNING,
+  legacyRunning,
+  MANAGED_STACK,
   MEDIA,
   mediaAvatars,
   mediaInvoiceHeld,
   movedInvoices,
   ok,
+  originalReads,
   passingWorld,
   PRIVATE_INVOICES,
   PUBLISHABLE,
@@ -42,10 +48,13 @@ import {
   checkInvoicesPrivate,
   checkNoInvoicePublic,
   fetchObject,
+  LEGACY_STATUS_COMMAND,
   objectUrl,
+  probeLegacyStack,
   probeStorage,
   readStorageRows,
   serviceHeaderSets,
+  type LegacyStackProbe,
   type StorageProbe,
 } from './storage.js';
 
@@ -1132,6 +1141,251 @@ describe('probeStorage', () => {
   });
 });
 
+describe('probeLegacyStack', () => {
+  const LEGACY_STATUS = 'SUPABASE_EXPERIMENTAL_STACK=0 supabase status -o json';
+  const MANAGED_NAMED: StackProbe = {
+    ...MANAGED_STACK,
+    backend: 'managed-named',
+  };
+
+  async function probeLegacy(
+    stack: StackProbe,
+    options: {
+      world?: World;
+      legacyKeys?: string | null;
+      intercept?: Intercept;
+    } = {}
+  ) {
+    const sandbox = createSandbox({
+      world: options.world ?? untouchedWorld(),
+      legacyKeys: options.legacyKeys,
+      intercept: options.intercept,
+    });
+    const result = await probeLegacyStack(sandbox.ctx, stack);
+    return { ...sandbox, result };
+  }
+
+  const curlCommands = (commands: readonly string[]) =>
+    commands.filter((command) => command.includes('curl'));
+
+  const stillInMedia = (count: number): World => ({
+    buckets: [MEDIA],
+    objects: [
+      ...avatarRows(),
+      ...invoiceRows(MEDIA_BUCKET, (file) => file.key).slice(0, count),
+    ],
+  });
+
+  it('names the command the harness started the stack with', () => {
+    expect(LEGACY_STATUS_COMMAND).toBe(LEGACY_STATUS);
+  });
+
+  it('is not probed and runs no command when no stack resolved', async () => {
+    const { result, commands } = await probeLegacy({
+      ok: false,
+      notes: 'The local stack is not running',
+    });
+
+    expect(result).toEqual({ probed: false });
+    expect(commands).toEqual([]);
+  });
+
+  it('is not probed and runs no command when the scored stack is the legacy one', async () => {
+    const { result, commands } = await probeLegacy(STACK);
+
+    expect(result).toEqual({ probed: false });
+    expect(commands).toEqual([]);
+  });
+
+  it('reads the status of the legacy stack with exactly the harness command and nothing before it', async () => {
+    const { commands } = await probeLegacy(MANAGED_STACK);
+
+    expect(commands[0]).toBe(LEGACY_STATUS);
+  });
+
+  it('reads the public URL of every original invoice key on the legacy API when a managed stack was scored', async () => {
+    const { result, commands } = await probeLegacy(MANAGED_STACK);
+
+    expect(result).toEqual({
+      probed: true,
+      running: true,
+      apiUrl: API_URL,
+      originalInvoices: Object.fromEntries(
+        INVOICES.map(({ key, sha256 }) => [key, served(sha256)])
+      ),
+    });
+    expect(commands).toHaveLength(1 + INVOICES.length);
+    for (const { key } of INVOICES) {
+      expect(
+        commands.some((command) =>
+          command.includes(urlFor('public', MEDIA_BUCKET, key))
+        )
+      ).toBe(true);
+    }
+  });
+
+  it('probes a named managed stack the same way', async () => {
+    const { result } = await probeLegacy(MANAGED_NAMED);
+
+    expect(result).toMatchObject({
+      probed: true,
+      running: true,
+      apiUrl: API_URL,
+    });
+  });
+
+  it('sends the reads without an API key or any header', async () => {
+    const { commands, requests } = await probeLegacy(MANAGED_STACK);
+
+    const reads = curlCommands(commands);
+    expect(reads).toHaveLength(INVOICES.length);
+    for (const command of reads) {
+      for (const key of KEY_VALUES) expect(command).not.toContain(key);
+      expect(command).not.toMatch(/apikey|authorization|\s-H\s/i);
+    }
+    expect(requests).toHaveLength(INVOICES.length);
+    for (const { key } of INVOICES) {
+      expect(requests).toContainEqual(
+        expect.objectContaining({
+          kind: 'public',
+          identity: 'none',
+          bucket: MEDIA_BUCKET,
+          key,
+        })
+      );
+    }
+  });
+
+  it('sends the same fetch commands as the original-invoice reads of the scored stack', async () => {
+    const { commands } = await probeLegacy(MANAGED_STACK);
+    const expected = createSandbox({ world: untouchedWorld() });
+    for (const { key } of INVOICES) {
+      await fetchObject(expected.ctx, urlFor('public', MEDIA_BUCKET, key), {});
+    }
+
+    expect([...curlCommands(commands)].sort()).toEqual(
+      [...expected.commands].sort()
+    );
+  });
+
+  it('records which original keys the legacy stack still serves', async () => {
+    const { result } = await probeLegacy(MANAGED_STACK, {
+      world: stillInMedia(1),
+    });
+
+    expect(result).toEqual({
+      probed: true,
+      running: true,
+      apiUrl: API_URL,
+      originalInvoices: {
+        ...originalReads([404, 404, 404]),
+        [INVOICES[0].key]: served(INVOICES[0].sha256),
+      },
+    });
+  });
+
+  it('records the denial when the legacy media bucket is private', async () => {
+    const { result } = await probeLegacy(MANAGED_STACK, {
+      world: {
+        buckets: [{ id: MEDIA_BUCKET, public: false }],
+        objects: invoiceRows(MEDIA_BUCKET, (file) => file.key),
+      },
+    });
+
+    expect(result).toMatchObject({
+      running: true,
+      originalInvoices: originalReads([400, 400, 400]),
+    });
+  });
+
+  it('keeps a read that failed as no status and still reports the stack running', async () => {
+    const target = urlFor('public', MEDIA_BUCKET, INVOICES[1].key);
+
+    const { result } = await probeLegacy(MANAGED_STACK, {
+      intercept: (kind, _call, command) =>
+        kind === 'curl' && command.includes(target)
+          ? failed('curl: (7) Failed to connect', 7)
+          : undefined,
+    });
+
+    expect(result).toMatchObject({ probed: true, running: true });
+    const reads = (result as Extract<LegacyStackProbe, { running: true }>)
+      .originalInvoices;
+    expect(reads[INVOICES[1].key]).toEqual({
+      status: null,
+      sha256: null,
+      notes: expect.stringContaining('Failed to connect'),
+    });
+    expect(reads[INVOICES[0].key]).toEqual(served(INVOICES[0].sha256));
+    expect(reads[INVOICES[2].key]).toEqual(served(INVOICES[2].sha256));
+  });
+
+  it('reports the legacy stack not running, with the failure, and sends no read when its status fails', async () => {
+    const { result, commands } = await probeLegacy(MANAGED_STACK, {
+      legacyKeys: null,
+      intercept: (kind) =>
+        kind === 'keys' ? failed('no such container') : undefined,
+    });
+
+    expect(result).toEqual({
+      probed: true,
+      running: false,
+      notes: 'exit 1: no such container',
+    });
+    expect(commands).toEqual([LEGACY_STATUS]);
+  });
+
+  it('reports the legacy stack not running, with the error message, when the command throws', async () => {
+    const { result, commands } = await probeLegacy(MANAGED_STACK, {
+      intercept: (kind) => (kind === 'keys' ? 'throw' : undefined),
+    });
+
+    expect(result).toEqual({
+      probed: true,
+      running: false,
+      notes: 'sandbox gone',
+    });
+    expect(curlCommands(commands)).toEqual([]);
+  });
+
+  it('reports the legacy stack not running when its status prints no API URL', async () => {
+    const { result, commands } = await probeLegacy(MANAGED_STACK, {
+      legacyKeys: '{}',
+    });
+
+    expect(result).toEqual({
+      probed: true,
+      running: false,
+      notes: 'exit 0: {}',
+    });
+    expect(curlCommands(commands)).toEqual([]);
+  });
+
+  it('is not probed, and reads nothing, when the legacy status points at the API the scored stack answered on', async () => {
+    const { result, commands } = await probeLegacy({
+      ...MANAGED_STACK,
+      apiUrl: API_URL,
+    });
+
+    expect(result).toEqual({ probed: false });
+    expect(commands).toEqual([LEGACY_STATUS]);
+  });
+
+  it('keeps every API key out of the probe', async () => {
+    const running = await probeLegacy(MANAGED_STACK);
+    const stopped = await probeLegacy(MANAGED_STACK, {
+      legacyKeys: null,
+      intercept: (kind) => (kind === 'keys' ? failed('exited') : undefined),
+    });
+
+    for (const { result } of [running, stopped]) {
+      for (const key of KEY_VALUES) {
+        expect(JSON.stringify(result)).not.toContain(key);
+      }
+    }
+  });
+});
+
 describe('checkInvoicesPrivate', () => {
   it('passes when every invoice sits, byte for byte, in a private bucket', () => {
     expect(checkInvoicesPrivate(storageProbe())).toMatchObject({
@@ -1561,6 +1815,148 @@ describe('checkNoInvoicePublic', () => {
     expect(checkNoInvoicePublic(storageProbe(), STOPPED)).toEqual(
       checkNoInvoicePublic(storageProbe())
     );
+  });
+
+  describe('against the legacy stack the harness started', () => {
+    const LEGACY_NOTE = (key: string, apiUrl = API_URL) =>
+      `media/${key} is still publicly readable on the legacy stack the harness started (${apiUrl})`;
+
+    it('fails naming the key and the legacy stack when one original read there is 200', () => {
+      const check = checkNoInvoicePublic(
+        storageProbe(),
+        undefined,
+        legacyRunning([404, 200, 404])
+      );
+
+      expect(check).toEqual({
+        name: NOT_PUBLIC,
+        passed: false,
+        notes: LEGACY_NOTE(INVOICES[1].key),
+      });
+    });
+
+    it('names every key the legacy stack still serves and no other', () => {
+      const check = checkNoInvoicePublic(
+        storageProbe(),
+        STARTED,
+        legacyRunning([200, 400, 200])
+      );
+
+      expect(check.passed).toBe(false);
+      expect(check.notes).toBe(
+        [LEGACY_NOTE(INVOICES[0].key), LEGACY_NOTE(INVOICES[2].key)].join('; ')
+      );
+    });
+
+    it('names the legacy API URL the reads were made on', () => {
+      const check = checkNoInvoicePublic(
+        storageProbe(),
+        undefined,
+        legacyRunning([200, 404, 404], 'http://127.0.0.1:55321')
+      );
+
+      expect(check.notes).toBe(
+        LEGACY_NOTE(INVOICES[0].key, 'http://127.0.0.1:55321')
+      );
+    });
+
+    it('adds its problem to the problems of the scored stack', () => {
+      const scored = storageProbe({
+        objects: [
+          ...mediaAvatars(),
+          ...movedInvoices(),
+          mediaInvoiceHeld(INVOICES[1]),
+        ],
+        originalInvoices: {
+          ...storageProbe().originalInvoices,
+          [INVOICES[1].key]: served(INVOICES[1].sha256),
+        },
+      });
+
+      const check = checkNoInvoicePublic(
+        scored,
+        undefined,
+        legacyRunning([200, 404, 404])
+      );
+
+      expect(check.notes).toContain(
+        `media/${INVOICES[1].key} is still publicly readable`
+      );
+      expect(check.notes).toContain(LEGACY_NOTE(INVOICES[0].key));
+    });
+
+    it.each([
+      [199, false],
+      [200, true],
+      [204, true],
+      [299, true],
+      [300, false],
+      [302, false],
+      [400, false],
+      [404, false],
+      [500, false],
+      [null, false],
+    ])(
+      'treats a legacy original read of %s as public: %s',
+      (status, public_) => {
+        const check = checkNoInvoicePublic(
+          storageProbe(),
+          undefined,
+          legacyRunning([status, 404, 404])
+        );
+
+        expect(check.passed).toBe(!public_);
+      }
+    );
+
+    it.each([
+      ['every original read is 400', legacyRunning([400, 400, 400])],
+      ['every original read is 404', legacyRunning([404, 404, 404])],
+      ['no original read got a response', legacyRunning([null, null, null])],
+      ['the legacy stack is not running', LEGACY_NOT_RUNNING],
+      ['the legacy stack was not probed', LEGACY_NOT_PROBED],
+    ])('matches the two-argument result when %s', (_name, legacy) => {
+      expect(checkNoInvoicePublic(storageProbe(), undefined, legacy)).toEqual(
+        checkNoInvoicePublic(storageProbe())
+      );
+      expect(
+        checkNoInvoicePublic(storageProbe(), undefined, legacy).passed
+      ).toBe(true);
+    });
+
+    it('does not change a failing result when the legacy stack serves nothing', () => {
+      const probe = storageProbe({ objects: mediaAvatars() });
+      const failing = checkNoInvoicePublic({
+        ...probe,
+        control: fetched(401),
+      });
+
+      expect(failing.passed).toBe(false);
+      expect(
+        checkNoInvoicePublic(
+          { ...probe, control: fetched(401) },
+          undefined,
+          legacyRunning([404, 404, 404])
+        )
+      ).toEqual(failing);
+    });
+
+    it('ignores the legacy stack when the storage probe is unavailable', () => {
+      expect(
+        checkNoInvoicePublic(
+          UNAVAILABLE,
+          STOPPED,
+          legacyRunning([200, 200, 200])
+        )
+      ).toEqual(checkNoInvoicePublic(UNAVAILABLE, STOPPED));
+      expect(
+        checkNoInvoicePublic(
+          UNAVAILABLE,
+          undefined,
+          legacyRunning([200, 200, 200])
+        ).notes
+      ).not.toContain('legacy stack');
+    });
   });
 });
 
