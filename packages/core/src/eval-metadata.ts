@@ -45,20 +45,9 @@ export const evalSuiteSchema = z.enum([
   'regression',
   'docs',
   'cli',
-  'other',
 ]);
 export const EVAL_SUITES = evalSuiteSchema.options;
 export type EvalSuite = z.infer<typeof evalSuiteSchema>;
-
-export const experimentSuiteSchema = z.enum([
-  'benchmark',
-  'no-skills',
-  'regression',
-  'docs',
-  'cli',
-]);
-export const EXPERIMENT_SUITES = experimentSuiteSchema.options;
-export type ExperimentSuite = z.infer<typeof experimentSuiteSchema>;
 
 export const agentHarnessIdSchema = z.enum([
   'ai-sdk',
@@ -421,8 +410,6 @@ export type DocsResult = z.infer<typeof docsResultSchema>;
 // than rendered with a stale value, and is rebuilt on the next run.
 const evalResultShape = {
   experiment: z.string(),
-  experimentSuite: experimentSuiteSchema.optional(),
-  profile: experimentSuiteSchema.optional(),
   experimentDisplay: experimentDisplayMetadataSchema.optional(),
   eval: z.string(),
   stage: evalStageSchema.optional(),

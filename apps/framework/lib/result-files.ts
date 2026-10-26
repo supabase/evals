@@ -12,7 +12,6 @@ import {
   type ExperimentConfig,
   type ExperimentDisplayMetadata,
 } from '@supabase-evals/core';
-import type { ExperimentSuite } from '@supabase-evals/core/eval-metadata';
 import { discoverExperimentFiles } from './experiment-files.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -23,7 +22,6 @@ const EXPERIMENTS_DIR = join(ROOT, 'experiments');
 
 export interface ExperimentMetadata {
   display: ExperimentDisplayMetadata;
-  suites: ExperimentSuite[];
 }
 
 export async function loadExperimentMetadata(): Promise<
@@ -35,7 +33,6 @@ export async function loadExperimentMetadata(): Promise<
     const config: ExperimentConfig = mod.default;
     map.set(experiment.name, {
       display: getExperimentDisplayMetadata(config),
-      suites: config.suite ?? [],
     });
   }
   return map;

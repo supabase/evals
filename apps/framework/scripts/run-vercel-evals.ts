@@ -89,7 +89,6 @@ const SANDBOX_TIMEOUT_BUFFER_MS = 10 * 60 * 1_000;
 const evalPairSchema = z.object({
   eval_id: z.string(),
   experiment: z.string(),
-  experiment_suite: z.string(),
   eval_suite: z.string(),
 });
 export type EvalPair = z.infer<typeof evalPairSchema>;
@@ -441,8 +440,6 @@ async function runPairOnce(
           '--',
           '--experiment',
           pair.experiment,
-          '--experiment-suite',
-          pair.experiment_suite,
           '--eval',
           pair.eval_id,
           '--run-index',
@@ -782,7 +779,7 @@ export function parsePairs(value: string): EvalPair[] {
   const parsed = z.array(evalPairSchema).safeParse(json);
   if (!parsed.success) {
     throw new Error(
-      'each pair must contain eval_id, experiment, experiment_suite, and eval_suite strings'
+      'each pair must contain eval_id, experiment, and eval_suite strings'
     );
   }
   return parsed.data;

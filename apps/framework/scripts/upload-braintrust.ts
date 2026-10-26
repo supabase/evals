@@ -375,7 +375,6 @@ async function collectRows(
         model_provider: display?.modelProvider,
         model_id: display?.modelId,
         reasoning_effort: display?.reasoningEffort,
-        experiment_suites: meta?.suites,
         eval_suite: suite,
         stage: promptData?.stage ?? result.stage,
         interface: promptData?.interface ?? result.interface,
@@ -775,7 +774,6 @@ async function main() {
         model_provider: meta?.display.modelProvider,
         model_id: meta?.display.modelId,
         reasoning_effort: meta?.display.reasoningEffort,
-        experiment_suites: meta?.suites,
         experiment,
         ...(EXPECTED_RUNS === undefined
           ? {}

@@ -274,7 +274,6 @@ describe('requiredCliChannels', () => {
   const pair = (overrides: Partial<EvalPair> = {}): EvalPair => ({
     eval_id: 'eval-1',
     experiment: 'experiment-1',
-    experiment_suite: 'benchmark',
     eval_suite: 'benchmark',
     ...overrides,
   });
@@ -386,7 +385,6 @@ describe('Vercel eval controller', () => {
           {
             eval_id: 'eval-1',
             experiment: 'experiment-1',
-            experiment_suite: 'benchmark',
             eval_suite: 'benchmark',
           },
         ])
@@ -434,7 +432,6 @@ describe('Vercel eval controller', () => {
     const pair = {
       eval_id: 'eval-1',
       experiment: 'experiment-1',
-      experiment_suite: 'benchmark',
       eval_suite: 'benchmark',
     };
     const poisonFilename = 'poison"name';
@@ -658,7 +655,6 @@ describe('expandJobs', () => {
   const pair = (evalId: string) => ({
     eval_id: evalId,
     experiment: 'model-a',
-    experiment_suite: 'benchmark',
     eval_suite: 'benchmark',
   });
 

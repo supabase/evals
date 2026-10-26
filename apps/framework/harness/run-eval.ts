@@ -22,7 +22,6 @@ import {
 import {
   normalizeExperimentName,
   positiveInteger,
-  readExperimentSuiteFilters,
   readFlag,
   readRepeatedFlag,
   readSuiteFilters,
@@ -76,11 +75,6 @@ const EXPERIMENT_FILTERS = readRepeatedFlag(rawArgs, 'experiment').map(
 );
 const EVAL_FILTERS = readRepeatedFlag(rawArgs, 'eval');
 const SUITE_FILTERS = readSuiteFilters(rawArgs);
-const EXPERIMENT_SUITE_FILTERS = readExperimentSuiteFilters(rawArgs);
-const SELECTED_EXPERIMENT_SUITE =
-  EXPERIMENT_SUITE_FILTERS.length === 1
-    ? EXPERIMENT_SUITE_FILTERS[0]
-    : undefined;
 const RUNS = positiveInteger(readFlag(rawArgs, 'runs') ?? '1', 'runs');
 // Lets the Vercel controller run one specific index in its own Sandbox.
 const RUN_INDEX_FLAG = readFlag(rawArgs, 'run-index');
@@ -103,11 +97,16 @@ const DEBUG = args.has('--debug');
 
 async function loadExperiments() {
   const dir = join(ROOT, 'experiments');
-  const out: Array<{ name: string; config: ExperimentConfig }> = [];
+  const out: Array<{
+    name: string;
+    suite: EvalSuite;
+    config: ExperimentConfig;
+  }> = [];
   for (const experiment of await discoverExperimentFiles(dir)) {
     const mod = await import(pathToFileURL(experiment.path).href);
     out.push({
       name: experiment.name,
+      suite: experiment.suite,
       config: mod.default as ExperimentConfig,
     });
   }
@@ -636,14 +635,8 @@ async function main() {
   if (rawArgs.filter((a) => a !== '--')[0] === 'list') {
     const experiments = await loadExperiments();
     let filtered =
-      EXPERIMENT_SUITE_FILTERS.length > 0
-        ? experiments.filter(
-            (e) =>
-              e.config.suite !== undefined &&
-              e.config.suite.some((suite) =>
-                EXPERIMENT_SUITE_FILTERS.includes(suite)
-              )
-          )
+      SUITE_FILTERS.length > 0
+        ? experiments.filter((e) => SUITE_FILTERS.includes(e.suite))
         : experiments;
     if (EVAL_FILTERS.length > 0) {
       // Drop experiments that would skipEval every requested eval, so callers
@@ -672,15 +665,15 @@ async function main() {
     }
   }
 
-  const experiments = allExperiments.filter(({ name, config }) => {
-    if (EXPERIMENT_FILTERS.length > 0 && !EXPERIMENT_FILTERS.includes(name))
-      return false;
-    if (
-      EXPERIMENT_SUITE_FILTERS.length > 0 &&
-      (config.suite === undefined ||
-        !config.suite.some((suite) => EXPERIMENT_SUITE_FILTERS.includes(suite)))
-    )
-      return false;
+  // Naming experiments overrides the folder pairing. A name shared by several
+  // suite folders runs once, since every copy spreads the same preset.
+  const seenNames = new Set<string>();
+  const experiments = allExperiments.filter(({ name, suite }) => {
+    if (EXPERIMENT_FILTERS.length === 0) {
+      return SUITE_FILTERS.length === 0 || SUITE_FILTERS.includes(suite);
+    }
+    if (!EXPERIMENT_FILTERS.includes(name) || seenNames.has(name)) return false;
+    seenNames.add(name);
     return true;
   });
   if (EXPERIMENT_FILTERS.length > 0) {
@@ -741,7 +734,7 @@ async function main() {
     run: number;
   }> = [];
 
-  for (const { name, config } of experiments) {
+  for (const { name, suite, config } of experiments) {
     if (!DRY) {
       try {
         config.agent.assertReady();
@@ -752,6 +745,7 @@ async function main() {
     }
 
     for (const ev of suiteFiltered) {
+      if (EXPERIMENT_FILTERS.length === 0 && ev.suite !== suite) continue;
       if (ev.mode === 'local-stack' && !config.localStack) {
         console.log(
           `SKIP ${name} x ${ev.id} (no local stack runtime — add \`localStack: localStackRuntime()\` from "@supabase-evals/sandbox" to experiments/<team>/${name}.experiment.ts)`
@@ -799,7 +793,6 @@ async function main() {
           JSON.stringify(
             {
               experiment: name,
-              experimentSuite: SELECTED_EXPERIMENT_SUITE ?? config.suite?.[0],
               experimentDisplay,
               eval: ev.id,
               ...ev.metadata,
