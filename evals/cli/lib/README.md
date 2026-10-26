@@ -4,8 +4,9 @@ Helpers used by more than one eval under `evals/cli/`. This directory has no
 `PROMPT.md`, so eval discovery skips it — never add one, or a `local/` dir.
 
 What belongs here: pure and probe helpers (`shell.ts`, `stack.ts`,
-`projects.ts`, `markers.ts`, `metrics.ts`, `migrations.ts`, `link.ts`), shared
-judge policy text and input formatters (`detours.ts`, `report.ts`).
+`projects.ts`, `markers.ts`, `metrics.ts`, `migrations.ts`, `psql.ts`,
+`link.ts`), shared judge policy text and input formatters (`detours.ts`,
+`report.ts`).
 
 What stays in each eval's `EVAL.ts`: check composition, every `ctx.judge()`
 call, its scenario-specific rubric text, and `export default`. Scenario-only
@@ -57,6 +58,24 @@ tracked.
 string literals and dollar-quoted bodies masked, `create [unlogged] table`
 accepted) in a project directory, and checks its version is in the stack's
 `supabase_migrations.schema_migrations`.
+
+`migrations.ts` also reads the migration history: `readMigrationHistory(ctx,
+stack, versions)` returns the statements recorded for each version, decoded from
+the hex psql prints, and fails on a psql error or a row it doesn't recognise;
+`sortMigrationsByHistory(migrations, history, matches)` sorts an eval's
+migrations into `recorded`, `missing` and `mismatched` with the eval's own sync
+or async `matches`, failing with the error message when it throws;
+`checkMigrationsRecorded` builds the check from that sort, with the eval's
+wording for the recorded and mismatched migrations.
+
+`psql.ts` runs one query in a stack's database: `queryDatabase(ctx, stack, sql,
+parse)` passes `sql` to `psql -XtAc` unchanged, hands stdout to `parse`, and
+returns `{ ok: false, notes }` when the stack isn't ok or psql fails or throws.
+
+`readStackLifecycle(invocations)` (`cli-invocations.ts`) returns the last stack
+start (`start`, `stack start`, `stack restart`, `db start`) or stop (`stop`,
+`stack stop`, `stack destroy`) invocation the agent ran, flags included, and
+whether it left the stack stopped.
 
 `redact.ts` replaces known secret values and secret-shaped text (URL passwords,
 keys, flags, JSON and YAML fields, and the cells of table columns under an

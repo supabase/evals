@@ -1248,7 +1248,7 @@ function fakeHistory({
         ? result(files[cat[1]])
         : result('', false, `cat: ${cat[1]}: No such file or directory`);
     }
-    const psql = command.match(/^psql '([^']+)' -tAc ([\s\S]+)$/);
+    const psql = command.match(/^psql '([^']+)' -X?tAc ([\s\S]+)$/);
     if (
       !psql ||
       psql[1] !== DB_URL ||

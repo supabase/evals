@@ -4,9 +4,8 @@ import type {
   LocalStackEvalContext,
 } from '@supabase-evals/core';
 import {
-  invocationSubcommand,
-  invocationVerb,
   listCliOverrides,
+  type StackLifecycle,
   type SupabaseInvocation,
 } from '../lib/cli-invocations.js';
 import {
@@ -40,47 +39,6 @@ export function countDirectPolicyDdl(commands: readonly string[]): number {
 /** Commands that ran `pg_prove` by hand. A regex diagnostic. */
 export function countPgProveDirect(commands: readonly string[]): number {
   return commands.filter(runsPgProve).length;
-}
-
-export type StackLifecycle = {
-  lastCommand: string | null;
-  stoppedByAgent: boolean;
-};
-
-const STACK_START_COMMANDS = new Set([
-  'start',
-  'stack start',
-  'stack restart',
-  'db start',
-]);
-const STACK_STOP_COMMANDS = new Set(['stop', 'stack stop', 'stack destroy']);
-
-function lifecycleCommand(invocation: SupabaseInvocation): string | undefined {
-  const verb = invocationVerb(invocation);
-  if (verb === undefined) return undefined;
-  const command =
-    verb === 'db' ? `db ${invocationSubcommand(invocation)}` : verb;
-  return STACK_START_COMMANDS.has(command) || STACK_STOP_COMMANDS.has(command)
-    ? command
-    : undefined;
-}
-
-/** The last stack start or stop invocation the agent ran, flags included, and whether it left the stack stopped. */
-export function readStackLifecycle(
-  invocations: readonly SupabaseInvocation[]
-): StackLifecycle {
-  const last = invocations
-    .flatMap((invocation) => {
-      const command = lifecycleCommand(invocation);
-      return command === undefined ? [] : [{ command, argv: invocation.argv }];
-    })
-    .at(-1);
-  return last === undefined
-    ? { lastCommand: null, stoppedByAgent: false }
-    : {
-        lastCommand: last.argv.join(' '),
-        stoppedByAgent: STACK_STOP_COMMANDS.has(last.command),
-      };
 }
 
 export type CliFacts = {

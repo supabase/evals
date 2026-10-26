@@ -1,5 +1,6 @@
+import type { StackLifecycle } from '../lib/cli-invocations.js';
 import { describeStack, type StackProbe } from '../lib/stack.js';
-import type { CliFacts, GenTypesRuns, StackLifecycle } from './metrics.js';
+import type { CliFacts, GenTypesRuns } from './metrics.js';
 import {
   type MigrationEvidence,
   NEW_MIGRATION_VERSION,
