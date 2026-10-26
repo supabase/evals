@@ -77,7 +77,8 @@ start (`start`, `stack start`, `stack restart`, `db start`) or stop (`stop`,
 whether it left the stack stopped.
 
 `pgtap.ts` parses TAP output with the pg_prove pass rule, reads a `pg_prove`
-summary, and finds the `supabase test db` runs in a transcript.
+summary (`readPgProveSummaries` reads every one in an output), and finds the
+`supabase test db` runs in a transcript with each run's summaries.
 
 `redact.ts` replaces known secret values and secret-shaped text (URL passwords,
 keys, flags, JSON and YAML fields, and the cells of table columns under an

@@ -8,6 +8,7 @@ import {
   findTestDbRuns,
   isTestDbInvocation,
   parseTap,
+  readPgProveSummaries,
   readPgProveSummary,
   runsPgProve,
   tapPassed,
@@ -82,6 +83,12 @@ Files=2, Tests=9,  0 wallclock secs ( 0.00 usr +  0.01 sys =  0.01 CPU)
 Result: PASS
 `;
 
+const SINGLE_FILE_PASS_OUTPUT = `/tests/line_discounts.test.sql .. ok
+All tests successful.
+Files=1, Tests=5,  0 wallclock secs ( 0.00 usr +  0.01 sys =  0.01 CPU)
+Result: PASS
+`;
+
 const NOTESTS_OUTPUT = `Files=0, Tests=0,  0 wallclock secs ( 0.00 usr +  0.00 sys =  0.00 CPU)
 Result: NOTESTS
 `;
@@ -94,6 +101,7 @@ const PG_PROVE =
 
 const FAIL: PgProveSummary = { result: 'FAIL', files: 2, tests: 6 };
 const PASS: PgProveSummary = { result: 'PASS', files: 2, tests: 9 };
+const PASS_ONE_FILE: PgProveSummary = { result: 'PASS', files: 1, tests: 5 };
 
 const entry = (
   ok: boolean,
@@ -448,6 +456,83 @@ describe('readPgProveSummary', () => {
   });
 });
 
+describe('readPgProveSummaries', () => {
+  it('reads two summary blocks in order', () => {
+    expect(
+      readPgProveSummaries(`${TEST_DB_FAIL_OUTPUT}${TEST_DB_PASS_OUTPUT}`)
+    ).toEqual([FAIL, PASS]);
+    expect(
+      readPgProveSummaries(`${TEST_DB_PASS_OUTPUT}${SINGLE_FILE_PASS_OUTPUT}`)
+    ).toEqual([PASS, PASS_ONE_FILE]);
+  });
+
+  it('reads one block', () => {
+    expect(readPgProveSummaries(TEST_DB_FAIL_OUTPUT)).toEqual([FAIL]);
+    expect(readPgProveSummaries(TEST_DB_PASS_OUTPUT)).toEqual([PASS]);
+  });
+
+  it('reads a Result line with no Files line as a block with null counts', () => {
+    expect(readPgProveSummaries('Result: PASS\n')).toEqual([
+      { result: 'PASS', files: null, tests: null },
+    ]);
+  });
+
+  it('gives a Result line with no Files line since the previous Result null counts', () => {
+    expect(
+      readPgProveSummaries(`${TEST_DB_PASS_OUTPUT}Result: FAIL\n`)
+    ).toEqual([PASS, { result: 'FAIL', files: null, tests: null }]);
+  });
+
+  it('reads a Files line with no Result line after it as a block with no result', () => {
+    expect(
+      readPgProveSummaries(
+        'Files=2, Tests=6,  0 wallclock secs ( 0.00 usr +  0.01 sys =  0.01 CPU)\n'
+      )
+    ).toEqual([{ result: null, files: 2, tests: 6 }]);
+    expect(readPgProveSummaries(NOTESTS_OUTPUT)).toEqual([
+      { result: null, files: 0, tests: 0 },
+    ]);
+  });
+
+  it('reads a trailing Files line after a Result line as a block of its own', () => {
+    expect(
+      readPgProveSummaries(
+        `${TEST_DB_PASS_OUTPUT}Files=1, Tests=5,  0 wallclock secs\n`
+      )
+    ).toEqual([PASS, { result: null, files: 1, tests: 5 }]);
+  });
+
+  it('pairs a Result line with the last Files line since the previous Result line', () => {
+    expect(
+      readPgProveSummaries('Files=1, Tests=1\nFiles=2, Tests=3\nResult: PASS\n')
+    ).toEqual([{ result: 'PASS', files: 2, tests: 3 }]);
+  });
+
+  it('reads blocks among progress and error lines', () => {
+    expect(
+      readPgProveSummaries(
+        `Initialising login role...\n${TEST_DB_FAIL_OUTPUT}${TEST_DB_PASS_OUTPUT}`
+      )
+    ).toEqual([FAIL, PASS]);
+  });
+
+  it('ends on the same summary as readPgProveSummary for one run', () => {
+    expect(readPgProveSummaries(TEST_DB_FAIL_OUTPUT).at(-1)).toEqual(
+      readPgProveSummary(TEST_DB_FAIL_OUTPUT)
+    );
+  });
+
+  it.each([
+    ['empty output', ''],
+    ['a docker error with no summary', DOCKER_ERROR],
+    ['the word PASS outside a result line', 'tests will PASS once fixed\n'],
+    ['a result line that is neither PASS nor FAIL', 'Result: NOTESTS\n'],
+    ['plain TAP with no pg_prove summary', LINE_DISCOUNTS_PASSING],
+  ])('finds no block in %s', (_label, text) => {
+    expect(readPgProveSummaries(text)).toEqual([]);
+  });
+});
+
 describe('isTestDbInvocation', () => {
   function invocationOf(command: string) {
     const calls = [call(command)];
@@ -506,7 +591,14 @@ describe('findTestDbRuns', () => {
   it('maps a supabase test db run to the summary its tool call printed', () => {
     expect(
       runsOf([call('supabase test db', { result: TEST_DB_PASS_OUTPUT })])
-    ).toEqual([{ commandIndex: 0, summary: PASS, wholeDirectory: true }]);
+    ).toEqual([
+      {
+        commandIndex: 0,
+        summary: PASS,
+        summaries: [PASS],
+        wholeDirectory: true,
+      },
+    ]);
   });
 
   it.each([
@@ -523,7 +615,12 @@ describe('findTestDbRuns', () => {
     'supabase --workdir /ws test db --debug | tail -1',
   ])('recognises %j as a whole-directory test db run', (command) => {
     expect(runsOf([call(command, { result: TEST_DB_PASS_OUTPUT })])).toEqual([
-      { commandIndex: 0, summary: PASS, wholeDirectory: true },
+      {
+        commandIndex: 0,
+        summary: PASS,
+        summaries: [PASS],
+        wholeDirectory: true,
+      },
     ]);
   });
 
@@ -542,7 +639,7 @@ describe('findTestDbRuns', () => {
     'recognises %j as a test db run without the whole-directory mark',
     (command) => {
       expect(runsOf([call(command, { result: TEST_DB_PASS_OUTPUT })])).toEqual([
-        { commandIndex: 0, summary: PASS },
+        { commandIndex: 0, summary: PASS, summaries: [PASS] },
       ]);
     }
   );
@@ -558,6 +655,7 @@ describe('findTestDbRuns', () => {
       {
         commandIndex: 0,
         summary: { result: 'PASS', files: null, tests: null },
+        summaries: [{ result: 'PASS', files: null, tests: null }],
         wholeDirectory: true,
       },
     ]);
@@ -572,8 +670,13 @@ describe('findTestDbRuns', () => {
         call('supabase test db', { result: TEST_DB_PASS_OUTPUT }),
       ])
     ).toEqual([
-      { commandIndex: 0, summary: PASS },
-      { commandIndex: 1, summary: PASS, wholeDirectory: true },
+      { commandIndex: 0, summary: PASS, summaries: [PASS] },
+      {
+        commandIndex: 1,
+        summary: PASS,
+        summaries: [PASS],
+        wholeDirectory: true,
+      },
     ]);
   });
 
@@ -600,8 +703,18 @@ describe('findTestDbRuns', () => {
       }),
     ];
     expect(runsOf(calls)).toEqual([
-      { commandIndex: 0, summary: PASS, wholeDirectory: true },
-      { commandIndex: 1, summary: FAIL, wholeDirectory: true },
+      {
+        commandIndex: 0,
+        summary: PASS,
+        summaries: [PASS],
+        wholeDirectory: true,
+      },
+      {
+        commandIndex: 1,
+        summary: FAIL,
+        summaries: [FAIL],
+        wholeDirectory: true,
+      },
     ]);
   });
 
@@ -612,7 +725,14 @@ describe('findTestDbRuns', () => {
           error: `Exit code 1\n${TEST_DB_FAIL_OUTPUT}`,
         }),
       ])
-    ).toEqual([{ commandIndex: 0, summary: FAIL, wholeDirectory: true }]);
+    ).toEqual([
+      {
+        commandIndex: 0,
+        summary: FAIL,
+        summaries: [FAIL],
+        wholeDirectory: true,
+      },
+    ]);
   });
 
   it('reads the summary from the result and the error together', () => {
@@ -623,7 +743,14 @@ describe('findTestDbRuns', () => {
           error: 'Exit code 1',
         }),
       ])
-    ).toEqual([{ commandIndex: 0, summary: PASS, wholeDirectory: true }]);
+    ).toEqual([
+      {
+        commandIndex: 0,
+        summary: PASS,
+        summaries: [PASS],
+        wholeDirectory: true,
+      },
+    ]);
   });
 
   it('keeps a run that printed no pg_prove summary, with a null summary', () => {
@@ -633,8 +760,8 @@ describe('findTestDbRuns', () => {
         call('supabase test db', { result: '' }),
       ])
     ).toEqual([
-      { commandIndex: 0, summary: null, wholeDirectory: true },
-      { commandIndex: 1, summary: null, wholeDirectory: true },
+      { commandIndex: 0, summary: null, summaries: [], wholeDirectory: true },
+      { commandIndex: 1, summary: null, summaries: [], wholeDirectory: true },
     ]);
   });
 
@@ -645,19 +772,42 @@ describe('findTestDbRuns', () => {
       {
         commandIndex: 0,
         summary: { result: null, files: 0, tests: 0 },
+        summaries: [{ result: null, files: 0, tests: 0 }],
         wholeDirectory: true,
       },
     ]);
   });
 
-  it('makes one run per tool call even when the call ran test db twice, taking the last summary', () => {
+  it('makes one run per tool call even when the call ran test db twice, keeping every summary and taking the last as the summary', () => {
     const runs = runsOf([
       call('supabase test db; supabase test db', {
         result: `${TEST_DB_FAIL_OUTPUT}${TEST_DB_PASS_OUTPUT}`,
       }),
     ]);
     expect(runs).toEqual([
-      { commandIndex: 0, summary: PASS, wholeDirectory: true },
+      {
+        commandIndex: 0,
+        summary: PASS,
+        summaries: [FAIL, PASS],
+        wholeDirectory: true,
+      },
+    ]);
+  });
+
+  it('keeps a whole-suite summary and a later single-file one from one call, without the whole-directory mark', () => {
+    expect(
+      runsOf([
+        call(
+          'supabase test db && supabase test db supabase/tests/line_discounts.test.sql',
+          { result: `${TEST_DB_PASS_OUTPUT}${SINGLE_FILE_PASS_OUTPUT}` }
+        ),
+      ])
+    ).toEqual([
+      {
+        commandIndex: 0,
+        summary: PASS_ONE_FILE,
+        summaries: [PASS, PASS_ONE_FILE],
+      },
     ]);
   });
 
@@ -669,8 +819,18 @@ describe('findTestDbRuns', () => {
         call('supabase test db', { result: TEST_DB_PASS_OUTPUT }),
       ])
     ).toEqual([
-      { commandIndex: 0, summary: FAIL, wholeDirectory: true },
-      { commandIndex: 2, summary: PASS, wholeDirectory: true },
+      {
+        commandIndex: 0,
+        summary: FAIL,
+        summaries: [FAIL],
+        wholeDirectory: true,
+      },
+      {
+        commandIndex: 2,
+        summary: PASS,
+        summaries: [PASS],
+        wholeDirectory: true,
+      },
     ]);
   });
 
@@ -689,7 +849,14 @@ describe('findTestDbRuns', () => {
         call('supabase test db', { result: TEST_DB_PASS_OUTPUT }),
         call('supabase db reset', { result: TEST_DB_FAIL_OUTPUT }),
       ])
-    ).toEqual([{ commandIndex: 0, summary: PASS, wholeDirectory: true }]);
+    ).toEqual([
+      {
+        commandIndex: 0,
+        summary: PASS,
+        summaries: [PASS],
+        wholeDirectory: true,
+      },
+    ]);
   });
 
   it('finds nothing without tool calls', () => {
@@ -707,7 +874,7 @@ describe('findTestDbRuns', () => {
       'gets no summary and is flagged withPgProve when joined with %s',
       (_operator, command) => {
         expect(runsOf([call(command, { result: FALLBACK_OUTPUT })])).toEqual([
-          { commandIndex: 0, summary: null, withPgProve: true },
+          { commandIndex: 0, summary: null, summaries: [], withPgProve: true },
         ]);
       }
     );
@@ -719,8 +886,13 @@ describe('findTestDbRuns', () => {
           call('supabase test db', { result: TEST_DB_PASS_OUTPUT }),
         ])
       ).toEqual([
-        { commandIndex: 0, summary: null, withPgProve: true },
-        { commandIndex: 1, summary: PASS, wholeDirectory: true },
+        { commandIndex: 0, summary: null, summaries: [], withPgProve: true },
+        {
+          commandIndex: 1,
+          summary: PASS,
+          summaries: [PASS],
+          wholeDirectory: true,
+        },
       ]);
     });
 
@@ -729,7 +901,12 @@ describe('findTestDbRuns', () => {
       'echo "pg_prove later"; supabase test db',
     ])('still credits %j, which never runs pg_prove', (command) => {
       expect(runsOf([call(command, { result: TEST_DB_PASS_OUTPUT })])).toEqual([
-        { commandIndex: 0, summary: PASS, wholeDirectory: true },
+        {
+          commandIndex: 0,
+          summary: PASS,
+          summaries: [PASS],
+          wholeDirectory: true,
+        },
       ]);
     });
   });

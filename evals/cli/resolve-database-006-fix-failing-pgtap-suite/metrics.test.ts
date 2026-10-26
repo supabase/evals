@@ -2,7 +2,7 @@
 import type { LocalStackEnvironmentMarker } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
 import { findSupabaseInvocations } from '../lib/cli-invocations.js';
-import type { TestDbRun } from '../lib/pgtap.js';
+import type { PgProveSummary, TestDbRun } from '../lib/pgtap.js';
 import type { StackProbe } from '../lib/stack.js';
 import {
   readSeedFile,
@@ -70,9 +70,13 @@ const workspaceOf = (
   testFiles,
 });
 
+const PASS_SUMMARY: PgProveSummary = { result: 'PASS', files: 2, tests: 9 };
+const FAIL_SUMMARY: PgProveSummary = { result: 'FAIL', files: 2, tests: 6 };
+
 const PASS_RUN: TestDbRun = {
   commandIndex: 3,
-  summary: { result: 'PASS', files: 2, tests: 9 },
+  summary: PASS_SUMMARY,
+  summaries: [PASS_SUMMARY],
 };
 
 const facts = (overrides: Partial<Facts> = {}): Facts => ({
@@ -171,10 +175,11 @@ describe('checkMetrics', () => {
     it('counts the runs and lists their results in order, null for a run that printed no summary', async () => {
       const metrics = await metricsOf({
         testDbRuns: [
-          { commandIndex: 0, summary: null, withPgProve: true },
+          { commandIndex: 0, summary: null, summaries: [], withPgProve: true },
           {
             commandIndex: 1,
-            summary: { result: 'FAIL', files: 2, tests: 6 },
+            summary: FAIL_SUMMARY,
+            summaries: [FAIL_SUMMARY],
           },
           PASS_RUN,
         ],
@@ -188,7 +193,11 @@ describe('checkMetrics', () => {
     it('lists a null result for a summary that has no Result line', async () => {
       const metrics = await metricsOf({
         testDbRuns: [
-          { commandIndex: 0, summary: { result: null, files: 2, tests: 9 } },
+          {
+            commandIndex: 0,
+            summary: { result: null, files: 2, tests: 9 },
+            summaries: [{ result: null, files: 2, tests: 9 }],
+          },
         ],
       });
       expect(metrics.testDbResults).toEqual([null]);
@@ -196,12 +205,63 @@ describe('checkMetrics', () => {
 
     const FAIL_RUN: TestDbRun = {
       commandIndex: 1,
-      summary: { result: 'FAIL', files: 2, tests: 6 },
+      summary: FAIL_SUMMARY,
+      summaries: [FAIL_SUMMARY],
     };
 
     it('records testDbFailedFirst as true when the first run with a summary printed FAIL', async () => {
       const metrics = await metricsOf({
-        testDbRuns: [{ commandIndex: 0, summary: null }, FAIL_RUN, PASS_RUN],
+        testDbRuns: [
+          { commandIndex: 0, summary: null, summaries: [] },
+          FAIL_RUN,
+          PASS_RUN,
+        ],
+      });
+      expect(metrics.testDbFailedFirst).toBe(true);
+    });
+
+    it('records testDbFailedFirst as true for one call that printed FAIL and then PASS, while testDbResults lists the last summary', async () => {
+      const metrics = await metricsOf({
+        testDbRuns: [
+          {
+            commandIndex: 0,
+            summary: PASS_SUMMARY,
+            summaries: [FAIL_SUMMARY, PASS_SUMMARY],
+          },
+        ],
+      });
+      expect(metrics).toMatchObject({
+        testDbResults: ['PASS'],
+        testDbFailedFirst: true,
+      });
+    });
+
+    it('records testDbFailedFirst as false for one call that printed PASS and then FAIL', async () => {
+      const metrics = await metricsOf({
+        testDbRuns: [
+          {
+            commandIndex: 0,
+            summary: FAIL_SUMMARY,
+            summaries: [PASS_SUMMARY, FAIL_SUMMARY],
+          },
+        ],
+      });
+      expect(metrics.testDbFailedFirst).toBe(false);
+    });
+
+    it('skips a summary with no Result line within a call when finding the first result', async () => {
+      const metrics = await metricsOf({
+        testDbRuns: [
+          {
+            commandIndex: 0,
+            summary: PASS_SUMMARY,
+            summaries: [
+              { result: null, files: 0, tests: 0 },
+              FAIL_SUMMARY,
+              PASS_SUMMARY,
+            ],
+          },
+        ],
       });
       expect(metrics.testDbFailedFirst).toBe(true);
     });
@@ -220,8 +280,17 @@ describe('checkMetrics', () => {
       expect(
         await metricsOf({
           testDbRuns: [
-            { commandIndex: 0, summary: null, withPgProve: true },
-            { commandIndex: 1, summary: { result: null, files: 2, tests: 9 } },
+            {
+              commandIndex: 0,
+              summary: null,
+              summaries: [],
+              withPgProve: true,
+            },
+            {
+              commandIndex: 1,
+              summary: { result: null, files: 2, tests: 9 },
+              summaries: [{ result: null, files: 2, tests: 9 }],
+            },
           ],
         })
       ).toMatchObject({ testDbFailedFirst: null });

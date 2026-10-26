@@ -81,15 +81,20 @@ function describeMigrationFiles(workspace: WorkspaceProbe): string[] {
 
 function describeTestDbRuns(runs: readonly TestDbRun[]): string {
   if (runs.length === 0) return 'none, it was never run';
-  const described = runs.map(({ commandIndex, summary, withPgProve }) => {
-    const command = `command ${commandIndex + 1}`;
-    if (summary !== null) {
-      return `${command} ${describePgProveSummary(summary)}`;
+  const described = runs.map(
+    ({ commandIndex, summary, summaries, withPgProve }) => {
+      const command = `command ${commandIndex + 1}`;
+      if (summaries.length > 1) {
+        return `${command} ${summaries.map(describePgProveSummary).join(' then ')}`;
+      }
+      if (summary !== null) {
+        return `${command} ${describePgProveSummary(summary)}`;
+      }
+      return withPgProve
+        ? `${command} also ran pg_prove by hand, so no summary is credited to it`
+        : `${command} printed no pg_prove summary`;
     }
-    return withPgProve
-      ? `${command} also ran pg_prove by hand, so no summary is credited to it`
-      : `${command} printed no pg_prove summary`;
-  });
+  );
   return `${runs.length}: ${described.join(', ')}`;
 }
 

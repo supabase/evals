@@ -31,6 +31,8 @@ export type PgProveSummary = {
 export type TestDbRun = {
   commandIndex: number;
   summary: PgProveSummary | null;
+  /** Every pg_prove summary the call's output printed, in order. */
+  summaries: PgProveSummary[];
   withPgProve?: true;
   /** Every `supabase test db` in the call ran with no path argument and no `--db-url`, so it covered the whole `supabase/tests` directory of the local project. */
   wholeDirectory?: true;
@@ -43,6 +45,10 @@ const HAVE_RE = /^#\s+have:\s*(.*)$/;
 const WANT_RE = /^#\s+want:\s*(.*)$/;
 const SUMMARY_RESULT_RE = /^Result:\s+(PASS|FAIL)\s*$/gm;
 const SUMMARY_COUNTS_RE = /^Files=(\d+),\s*Tests=(\d+)\b/gm;
+const SUMMARY_LINE_RE = new RegExp(
+  `${SUMMARY_RESULT_RE.source}|${SUMMARY_COUNTS_RE.source}`,
+  'gm'
+);
 const DB_URL_FLAG = '--db-url';
 
 function readResult(line: string): TapEntry | undefined {
@@ -127,6 +133,26 @@ export function readPgProveSummary(text: string): PgProveSummary | null {
   };
 }
 
+/** Reads every `pg_prove` summary block in order: a `Result:` line closes a block and takes the last `Files=N, Tests=M` line since the previous `Result:` line, and a trailing `Files=` line with no `Result:` after it is a block with no result. */
+export function readPgProveSummaries(text: string): PgProveSummary[] {
+  const summaries: PgProveSummary[] = [];
+  let counts: Pick<PgProveSummary, 'files' | 'tests'> | null = null;
+  for (const [, result, files, tests] of text.matchAll(SUMMARY_LINE_RE)) {
+    if (result === undefined) {
+      counts = { files: Number(files), tests: Number(tests) };
+      continue;
+    }
+    summaries.push({
+      result: result as 'PASS' | 'FAIL',
+      files: counts?.files ?? null,
+      tests: counts?.tests ?? null,
+    });
+    counts = null;
+  }
+  if (counts !== null) summaries.push({ result: null, ...counts });
+  return summaries;
+}
+
 /** Renders a summary as `PASS (Files=2, Tests=9)`, or just the result when the counts are missing. */
 export function describePgProveSummary({
   result,
@@ -164,7 +190,7 @@ export function runsPgProve(command: string): boolean {
   );
 }
 
-/** One run per tool call that executed `supabase test db`, with the summary its output printed; a call that also ran `pg_prove` gets none, since either command could have printed it. */
+/** One run per tool call that executed `supabase test db`, with the summaries its output printed and the last of them as `summary`; a call that also ran `pg_prove` gets none, since either command could have printed it. */
 export function findTestDbRuns(
   toolCalls: readonly ToolCallRecord[],
   invocations: readonly SupabaseInvocation[]
@@ -177,7 +203,7 @@ export function findTestDbRuns(
   ].sort((a, b) => a - b);
   return indexes.map((commandIndex) => {
     if (runsPgProve(entries[commandIndex].command)) {
-      return { commandIndex, summary: null, withPgProve: true };
+      return { commandIndex, summary: null, summaries: [], withPgProve: true };
     }
     const { result, error } = calls[commandIndex];
     const output = collectStringValues([result, error]).join('\n');
@@ -187,6 +213,7 @@ export function findTestDbRuns(
     return {
       commandIndex,
       summary: readPgProveSummary(output),
+      summaries: readPgProveSummaries(output),
       ...(wholeDirectory ? { wholeDirectory: true as const } : {}),
     };
   });

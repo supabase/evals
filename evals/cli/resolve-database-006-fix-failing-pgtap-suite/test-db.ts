@@ -5,35 +5,45 @@ import {
   type TestDbRun,
 } from '../lib/pgtap.js';
 
-type SummarisedRun = TestDbRun & { summary: PgProveSummary };
+type SummaryEvent = {
+  commandIndex: number;
+  summary: PgProveSummary;
+  wholeDirectory: boolean;
+};
 
 export const TEST_DB_CHECK = 'the whole suite passed under supabase test db';
 
-const hasSummary = (run: TestDbRun): run is SummarisedRun =>
-  run.summary !== null;
+const summaryEvents = (runs: readonly TestDbRun[]): SummaryEvent[] =>
+  runs.flatMap(({ commandIndex, summaries, wholeDirectory }) =>
+    summaries.map((summary) => ({
+      commandIndex,
+      summary,
+      wholeDirectory: wholeDirectory === true,
+    }))
+  );
 
 const isPass = ({ result, tests }: PgProveSummary) =>
   result === 'PASS' && tests !== 0;
 
-const isWholeSuitePass = (run: SummarisedRun, seededFileCount: number) =>
-  isPass(run.summary) &&
-  (run.summary.files === null
-    ? run.wholeDirectory === true
-    : run.summary.files >= seededFileCount);
+const isWholeSuitePass = (event: SummaryEvent, seededFileCount: number) =>
+  isPass(event.summary) &&
+  (event.summary.files === null
+    ? event.wholeDirectory
+    : event.summary.files >= seededFileCount);
 
-const failedFileCount = (run: SummarisedRun, seededFileCount: number) =>
-  run.summary.files ?? (run.wholeDirectory === true ? seededFileCount : 1);
+const failedFileCount = (event: SummaryEvent, seededFileCount: number) =>
+  event.summary.files ?? (event.wholeDirectory ? seededFileCount : 1);
 
 const clears = (
   pass: PgProveSummary,
-  fail: SummarisedRun,
+  fail: SummaryEvent,
   seededFileCount: number
 ) =>
   isPass(pass) &&
   pass.files !== null &&
   pass.files >= failedFileCount(fail, seededFileCount);
 
-/** Passes when a `supabase test db` run printed `Result: PASS` for the whole suite and every later `Result: FAIL` was followed by a pass covering at least as many files. */
+/** Passes when a `supabase test db` summary printed `Result: PASS` for the whole suite and every later `Result: FAIL`, in the same call or a later one, was followed by a pass covering at least as many files. */
 export function checkSuitePassedUnderTestDb(
   runs: readonly TestDbRun[],
   seededFileCount: number
@@ -46,8 +56,8 @@ export function checkSuitePassedUnderTestDb(
   });
   if (runs.length === 0) return fail('supabase test db was never run');
 
-  const summarised = runs.filter(hasSummary);
-  const last = summarised.at(-1);
+  const events = summaryEvents(runs);
+  const last = events.at(-1);
   if (last === undefined) {
     const byHand = runs
       .filter((run) => run.withPgProve)
@@ -61,20 +71,20 @@ export function checkSuitePassedUnderTestDb(
     );
   }
 
-  const wholeSuite = summarised
-    .filter((run) => isWholeSuitePass(run, seededFileCount))
+  const wholeSuite = events
+    .filter((event) => isWholeSuitePass(event, seededFileCount))
     .at(-1);
   if (wholeSuite === undefined) {
-    const lastPass = summarised
-      .filter((run) => run.summary.result === 'PASS')
+    const lastPass = events
+      .filter((event) => event.summary.result === 'PASS')
       .at(-1);
     if (lastPass?.summary.files === null) {
       return fail(
         `command ${lastPass.commandIndex + 1} printed Result: PASS without a Files= count, so it can't be credited with the whole suite`
       );
     }
-    const partial = summarised
-      .filter((run) => isPass(run.summary) && run.summary.files !== null)
+    const partial = events
+      .filter((event) => isPass(event.summary) && event.summary.files !== null)
       .at(-1);
     return fail(
       partial === undefined
@@ -83,14 +93,13 @@ export function checkSuitePassedUnderTestDb(
     );
   }
 
-  let unresolved: SummarisedRun[] = [];
-  for (const run of summarised) {
-    if (run.commandIndex <= wholeSuite.commandIndex) continue;
+  let unresolved: SummaryEvent[] = [];
+  for (const event of events.slice(events.indexOf(wholeSuite) + 1)) {
     unresolved =
-      run.summary.result === 'FAIL'
-        ? [...unresolved, run]
+      event.summary.result === 'FAIL'
+        ? [...unresolved, event]
         : unresolved.filter(
-            (failed) => !clears(run.summary, failed, seededFileCount)
+            (failed) => !clears(event.summary, failed, seededFileCount)
           );
   }
   const failedAfter = unresolved.at(-1);

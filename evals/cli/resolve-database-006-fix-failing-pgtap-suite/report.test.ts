@@ -1,7 +1,7 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/resolve-database-006-fix-failing-pgtap-suite
 import type { CheckResult } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
-import type { TestDbRun } from '../lib/pgtap.js';
+import type { PgProveSummary, TestDbRun } from '../lib/pgtap.js';
 import { describeStack, type StackProbe } from '../lib/stack.js';
 import {
   readSeedFile,
@@ -51,13 +51,17 @@ const workspaceOf = (
   testFiles: [...SEEDED_TEST_FILES],
 });
 
+const PASS_SUMMARY: PgProveSummary = { result: 'PASS', files: 2, tests: 9 };
+const FAIL_SUMMARY: PgProveSummary = { result: 'FAIL', files: 2, tests: 6 };
 const PASS_RUN: TestDbRun = {
   commandIndex: 3,
-  summary: { result: 'PASS', files: 2, tests: 9 },
+  summary: PASS_SUMMARY,
+  summaries: [PASS_SUMMARY],
 };
 const FAIL_RUN: TestDbRun = {
   commandIndex: 1,
-  summary: { result: 'FAIL', files: 2, tests: 6 },
+  summary: FAIL_SUMMARY,
+  summaries: [FAIL_SUMMARY],
 };
 
 const FACTS: Facts = {
@@ -424,9 +428,26 @@ describe('describeGroundTruth', () => {
 
     it('lists a run that printed no summary without a result', () => {
       const entry =
-        runsLine([{ commandIndex: 4, summary: null, withPgProve: true }]) ?? '';
+        runsLine([
+          { commandIndex: 4, summary: null, summaries: [], withPgProve: true },
+        ]) ?? '';
       expect(entry).toContain('command 5');
       expect(entry).not.toMatch(/PASS|FAIL/);
+    });
+
+    it('lists every summary a command printed in order', () => {
+      const lastOfCall: PgProveSummary = { result: 'PASS', files: 1, tests: 5 };
+      const entry =
+        runsLine([
+          {
+            commandIndex: 2,
+            summary: lastOfCall,
+            summaries: [PASS_SUMMARY, lastOfCall],
+          },
+        ]) ?? '';
+      expect(entry).toContain(
+        'command 3 PASS (Files=2, Tests=9) then PASS (Files=1, Tests=5)'
+      );
     });
 
     it('says so when supabase test db was never run', () => {

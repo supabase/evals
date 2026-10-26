@@ -55,7 +55,7 @@ const countRuns = (
 
 function firstTestDbFailed(runs: readonly TestDbRun[]): boolean | null {
   const first = runs
-    .map((run) => run.summary?.result ?? null)
+    .flatMap((run) => run.summaries.map(({ result }) => result))
     .find((result) => result !== null);
   return first === undefined ? null : first === 'FAIL';
 }

@@ -18,7 +18,17 @@ const run = (
 ): TestDbRun => ({
   commandIndex,
   summary: value,
+  summaries: value === null ? [] : [value],
   ...(withPgProve === undefined ? {} : { withPgProve }),
+});
+
+const callRun = (
+  commandIndex: number,
+  ...summaries: PgProveSummary[]
+): TestDbRun => ({
+  commandIndex,
+  summary: summaries.at(-1) ?? null,
+  summaries,
 });
 
 const wholeDirectoryRun = (
@@ -175,6 +185,31 @@ describe('checkSuitePassedUnderTestDb', () => {
           run(0, PASS_ALL),
           wholeDirectoryRun(1, summary('FAIL', null, null)),
           run(2, PASS_ALL),
+        ]).passed
+      ).toBe(true);
+    });
+
+    it('passes when one call ran the whole suite and then a single file, crediting the whole-suite summary', () => {
+      expect(check([callRun(2, PASS_ALL, PASS_ONE)])).toEqual({
+        name: TEST_DB_CHECK,
+        passed: true,
+        notes: 'command 3 printed Result: PASS (Files=2, Tests=9)',
+      });
+    });
+
+    it('passes when one call printed a failure and then a whole-suite pass', () => {
+      expect(check([callRun(0, FAIL_ALL, PASS_ALL)])).toEqual({
+        name: TEST_DB_CHECK,
+        passed: true,
+        notes: 'command 1 printed Result: PASS (Files=2, Tests=9)',
+      });
+    });
+
+    it('passes when a failure printed after the whole-suite pass in the same call was cleared by a later call', () => {
+      expect(
+        check([
+          callRun(0, PASS_ALL, summary('FAIL', 1, 2)),
+          run(1, summary('PASS', 1, 2)),
         ]).passed
       ).toBe(true);
     });
@@ -402,6 +437,23 @@ describe('checkSuitePassedUnderTestDb', () => {
         notes:
           'command 2 printed Result: FAIL after the passing run in command 1',
       });
+    });
+
+    it('fails when one call printed a whole-suite pass and then a single-file failure, naming the same command twice', () => {
+      expect(check([callRun(0, PASS_ALL, summary('FAIL', 1, 2))])).toEqual({
+        name: TEST_DB_CHECK,
+        passed: false,
+        notes:
+          'command 1 printed Result: FAIL after the passing run in command 1',
+      });
+    });
+
+    it('fails when a failure printed after the whole-suite pass in the same call is still open after a later call', () => {
+      expect(
+        check([callRun(0, PASS_ALL, FAIL_ALL), run(1, PASS_ONE)]).notes
+      ).toBe(
+        'command 1 printed Result: FAIL after the passing run in command 1'
+      );
     });
 
     it('fails when a single-file failure was followed by nothing', () => {
