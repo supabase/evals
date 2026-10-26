@@ -32,6 +32,8 @@ export type DbPush = {
   explicitlyLocal: boolean;
   yes: boolean;
   failed: boolean;
+  /** The push's tool call printed that there was nothing to apply, so it changed nothing. */
+  upToDate: boolean;
   /** The first failure line the push's tool call showed, when it failed. */
   failure?: string;
 };
@@ -75,8 +77,10 @@ const QUERY_VALUE_FLAGS = new Set([
 
 const STDIN_FILES = new Set(['-', '/dev/stdin']);
 const CAT_SUBSTITUTION = /^\$\(\s*cat\s+([^\s'"`$()]+)\s*\)$/;
+const SHELL_EXPANSION = /^\s*(?:\$\(|\$\{?[A-Za-z_]|`)/;
 const CLI_FAILURE_RE =
   /"_tag"\s*:\s*"Error"|Cannot find project ref|Access token not provided|Confirmation required|failed to connect|unknown flag|command not found|unexpected status \d{3}|failed to execute query/i;
+const UP_TO_DATE_RE = /\bis up to date\b|"upToDate"\s*:\s*true/i;
 const FAILURE_NOTE_LENGTH = 200;
 
 const WRITE_WORD_RE =
@@ -171,10 +175,17 @@ function callFailed(call: ToolCallRecord | undefined): boolean {
   return call.error !== undefined || CLI_FAILURE_RE.test(output);
 }
 
+function pushedNothing(call: ToolCallRecord | undefined): boolean {
+  return typeof call?.result === 'string' && UP_TO_DATE_RE.test(call.result);
+}
+
+/** A failed call's output is in `error` with no `result`, and can open with warnings, so both are searched for the CLI's failure line. */
 function failureLine(call: ToolCallRecord | undefined): string | undefined {
   const output = typeof call?.result === 'string' ? call.result : '';
   const line =
-    output.split('\n').find((candidate) => CLI_FAILURE_RE.test(candidate)) ??
+    `${output}\n${call?.error ?? ''}`
+      .split('\n')
+      .find((candidate) => CLI_FAILURE_RE.test(candidate)) ??
     call?.error?.split('\n').find((candidate) => candidate.trim() !== '');
   return line?.trim().slice(0, FAILURE_NOTE_LENGTH);
 }
@@ -246,18 +257,24 @@ function readQuery(
     };
   };
 
+  const commandOnly: DbQuery = {
+    ...base,
+    sql: null,
+    ...(command === undefined ? {} : { command }),
+  };
+
   const positional = positionals(inv.argv)[2];
   if (positional !== undefined) {
     const catted = CAT_SUBSTITUTION.exec(positional)?.[1];
-    return catted === undefined
-      ? { ...base, sql: stripSqlComments(positional) }
-      : withFile(catted);
+    if (catted !== undefined) return withFile(catted);
+    return SHELL_EXPANSION.test(positional)
+      ? commandOnly
+      : { ...base, sql: stripSqlComments(positional) };
   }
 
   const file =
     command === undefined ? undefined : sqlFile(inv, command, ordinal);
-  if (file !== undefined) return withFile(file);
-  return { ...base, sql: null, ...(command === undefined ? {} : { command }) };
+  return file === undefined ? commandOnly : withFile(file);
 }
 
 export function readDbActivity(
@@ -280,6 +297,7 @@ export function readDbActivity(
           explicitlyLocal: isExplicitlyLocal(inv),
           yes: booleanFlag(inv.argv, '--yes'),
           failed,
+          upToDate: pushedNothing(call),
           ...(failure === undefined ? {} : { failure }),
         });
         break;
@@ -330,39 +348,45 @@ export function namesChangedTable(sql: string): boolean {
   return CHANGED_TABLE.test(sql);
 }
 
-/** Passes for a real push that didn't fail; the history check scores whether it landed. */
-export function checkPushed(activity: DbActivity): CheckResult {
-  const name = PUSH_CHECK_NAME;
-  const real = activity.pushes.filter((push) => !push.dryRun);
-  if (real.some((push) => !push.failed)) return { name, passed: true };
-
-  const fail = (notes: string): CheckResult => ({ name, passed: false, notes });
-  if (activity.pushes.length === 0) return fail('no supabase db push ran');
-  if (real.length === 0) return fail('only supabase db push --dry-run ran');
-  const failure = real.find((push) => push.failure !== undefined)?.failure;
-  return fail(
-    `every non-dry-run supabase db push failed${failure === undefined ? '' : `; first failure: "${failure}"`}`
-  );
-}
-
 /** A push that isn't a dry run and isn't explicitly local. */
 export function isRealPush(push: DbPush): boolean {
   return !push.dryRun && !push.explicitlyLocal;
 }
 
-function describeSkippedPushes(pushes: readonly DbPush[]): string {
-  if (pushes.length === 0) return 'no supabase db push ran';
-  const kinds = [
-    ...(pushes.some((push) => push.dryRun) ? ['dry-run'] : []),
-    ...(pushes.some((push) => !push.dryRun) ? ['local'] : []),
-  ];
-  return `only ${kinds.join(' and ')} supabase db push ran`;
+/** A push that isn't a dry run, isn't explicitly local, and neither failed nor found nothing to apply. */
+export function isCreditedPush(push: DbPush): boolean {
+  return isRealPush(push) && !push.failed && !push.upToDate;
 }
 
-/** The first real push that didn't fail, else the last real push: the point after which a query has to read the hosted database. */
+function describePushes(pushes: readonly DbPush[]): string {
+  if (pushes.length === 0) return 'no supabase db push ran';
+  const real = pushes.filter(isRealPush);
+  const kinds = [
+    ...(pushes.some((push) => push.dryRun) ? ['dry-run'] : []),
+    ...(pushes.some((push) => !push.dryRun && push.explicitlyLocal)
+      ? ['local']
+      : []),
+    ...(real.some((push) => !push.failed && push.upToDate)
+      ? ['up-to-date']
+      : []),
+    ...(real.some((push) => push.failed) ? ['failed'] : []),
+  ];
+  const failure = real.find((push) => push.failure !== undefined)?.failure;
+  return `only ${new Intl.ListFormat('en').format(kinds)} supabase db push ran${failure === undefined ? '' : `; first failure: "${failure}"`}`;
+}
+
+/** Passes for a credited push; the history check scores whether it landed. */
+export function checkPushed(activity: DbActivity): CheckResult {
+  const name = PUSH_CHECK_NAME;
+  return activity.pushes.some(isCreditedPush)
+    ? { name, passed: true }
+    : { name, passed: false, notes: describePushes(activity.pushes) };
+}
+
+/** The first credited push, else the last real push: the point after which a query has to read the hosted database. */
 function verifyAnchor(pushes: readonly DbPush[]): number | undefined {
   const real = pushes.filter(isRealPush);
-  return (real.find((push) => !push.failed) ?? real[real.length - 1])?.order;
+  return (pushes.find(isCreditedPush) ?? real[real.length - 1])?.order;
 }
 
 function onlyReads(sql: string): boolean {
@@ -397,7 +421,7 @@ export function checkVerifiedAfterPush(
   if (!hosted) return fail(NO_HOSTED_PROJECT);
   const anchor = verifyAnchor(activity.pushes);
   if (anchor === undefined) {
-    return fail(describeSkippedPushes(activity.pushes));
+    return fail(describePushes(activity.pushes));
   }
 
   const after = activity.queries.filter((query) => query.order > anchor);
@@ -419,7 +443,7 @@ export function checkVerifiedAfterPush(
   const reading = naming.filter(readsOnly);
   if (reading.length === 0) {
     return fail(
-      'the remote db queries after the push wrote to plans or profiles but never read them'
+      'the remote db queries after the push that named plans or profiles also contained a write keyword or a non-read statement, so none counts as a read'
     );
   }
   if (reading.every((query) => query.failed)) {

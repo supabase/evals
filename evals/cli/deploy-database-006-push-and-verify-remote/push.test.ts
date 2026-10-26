@@ -91,6 +91,13 @@ const MIGRATION_ROUTE = filesRoute(/add_plans\.sql/, MIGRATION_SQL);
 const WRAPPER_CONFLICT =
   'if any flags in the group [db-url linked local] are set none of the others can be; [db-url linked] were all set';
 const REPAIR = 'supabase migration repair --status applied 20261020120000';
+const APPLIED =
+  'Applying migration 20261020120000_add_plans.sql...\nFinished supabase db push.';
+const UP_TO_DATE = 'Remote database is up to date.';
+const UP_TO_DATE_JSON =
+  '{"_tag":"Success","message":"Remote database is up to date.","data":{"upToDate":true,"dryRun":false,"migrations":[]}}';
+const UNLINKED_ERROR =
+  '{"_tag":"Error","error":{"code":"ProjectRefNotLinkedError","message":"Cannot find project ref. Have you run supabase link?"}}';
 const DELETED_FILE: Route = [
   /verify\.sql/,
   failure(1, 'cat: /tmp/verify.sql: No such file or directory'),
@@ -118,6 +125,7 @@ describe('readDbActivity: pushes', () => {
           explicitlyLocal: false,
           yes: true,
           failed: false,
+          upToDate: false,
         },
       ],
       queries: [],
@@ -136,6 +144,7 @@ describe('readDbActivity: pushes', () => {
         explicitlyLocal: false,
         yes: false,
         failed: false,
+        upToDate: false,
       },
     ]);
   });
@@ -180,6 +189,7 @@ describe('readDbActivity: pushes', () => {
         explicitlyLocal: false,
         yes: false,
         failed: false,
+        upToDate: false,
       },
     ]);
   });
@@ -273,6 +283,37 @@ describe('readDbActivity: pushes', () => {
       expect(pushes[0]?.failure).toHaveLength(200);
     });
 
+    it.each([
+      [
+        'a deprecation warning',
+        `Warning: --linked is deprecated and will be removed in v4. Use --remote instead\n${UNLINKED_ERROR}`,
+      ],
+      [
+        'an npx warning',
+        `npm warn exec The following package was not found and will be installed: supabase@2.117.0\n${UNLINKED_ERROR}`,
+      ],
+    ])(
+      'keeps the CLI failure line of the error text past %s, with no output',
+      (_, error) => {
+        const call = shellCall('supabase db push --linked', { error });
+        expect(call.result).toBeUndefined();
+        expect(activityOf(call).pushes[0]).toMatchObject({
+          failed: true,
+          failure: UNLINKED_ERROR,
+        });
+      }
+    );
+
+    it('searches the output and the error text together for the failure line', () => {
+      const { pushes } = activityOf(
+        shellCall(PUSH, {
+          result: 'Connecting to remote database...',
+          error: `exit status 1\n${UNLINKED_ERROR}`,
+        })
+      );
+      expect(pushes[0]?.failure).toBe(UNLINKED_ERROR);
+    });
+
     it('reads the output of the tool call the push ran in, not of another call', () => {
       const { pushes } = activityOf(
         shellCall('supabase migration list --linked', {
@@ -281,6 +322,57 @@ describe('readDbActivity: pushes', () => {
         shellCall(PUSH, { result: 'Finished supabase db push.' })
       );
       expect(pushes.map(({ failed }) => failed)).toEqual([false]);
+    });
+  });
+
+  describe('up to date', () => {
+    it.each([
+      ['the text output', UP_TO_DATE],
+      ['the text output in another case', 'REMOTE DATABASE IS UP TO DATE.'],
+      ['the JSON output', UP_TO_DATE_JSON],
+      ['JSON output with spacing', '{ "upToDate" : true }'],
+      [
+        'a deprecation warning before it',
+        `Warning: --db-url is deprecated\n${UP_TO_DATE}`,
+      ],
+    ])('marks a push up to date on %s', (_, result) => {
+      const { pushes } = activityOf(shellCall('supabase db push', { result }));
+      expect(pushes[0]).toMatchObject({ upToDate: true, failed: false });
+    });
+
+    it.each([
+      ['a push that applied a migration', APPLIED],
+      ['JSON output of a push that applied', '{"data":{"upToDate":false}}'],
+      [
+        'a migration named up_to_date',
+        'Applying migration 1_up_to_date.sql...',
+      ],
+      ['an empty output', ''],
+    ])('does not mark a push up to date on %s', (_, result) => {
+      const { pushes } = activityOf(shellCall('supabase db push', { result }));
+      expect(pushes[0]?.upToDate).toBe(false);
+    });
+
+    it('marks every push in one tool call up to date when its output says so', () => {
+      const { pushes } = activityOf(
+        shellCall('supabase db push --yes && supabase db push', {
+          result: `${APPLIED}\n${UP_TO_DATE}`,
+        })
+      );
+      expect(pushes.map(({ upToDate }) => upToDate)).toEqual([true, true]);
+    });
+
+    it('does not mark a push up to date when its tool call errored', () => {
+      const { pushes } = activityOf(failedShellCall('supabase db push'));
+      expect(pushes[0]?.upToDate).toBe(false);
+    });
+
+    it('reads the output of the tool call the push ran in, not of another call', () => {
+      const { pushes } = activityOf(
+        shellCall('supabase migration list --linked', { result: UP_TO_DATE }),
+        shellCall(PUSH, { result: APPLIED })
+      );
+      expect(pushes.map(({ upToDate }) => upToDate)).toEqual([false]);
     });
   });
 
@@ -503,6 +595,42 @@ describe('readDbActivity: query SQL', () => {
         `supabase db query --linked "select * from information_schema.tables where table_name = 'plans'"`
       )
     ).toContain(`'plans'`);
+  });
+
+  it.each([
+    [
+      'a heredoc inside a command substitution',
+      `supabase db query --linked "$(cat <<'SQL'\nselect plan_id, count(*) from public.profiles group by plan_id;\nSQL\n)"`,
+    ],
+    [
+      'a command substitution of more than one file',
+      'supabase db query --linked "$(cat a.sql b.sql)"',
+    ],
+    [
+      'a variable',
+      'SQL="select * from plans"; supabase db query --linked "$SQL"',
+    ],
+    [
+      'a braced variable',
+      'SQL="select * from plans"; supabase db query --linked "${SQL}"',
+    ],
+    [
+      'a backtick substitution',
+      'supabase db query --linked "`echo select * from plans`"',
+    ],
+  ])(
+    'keeps the whole command text instead of SQL for a positional that is %s',
+    (_, command) => {
+      const [query] = activityOf(command).queries;
+      expect(query).toMatchObject({ sql: null, command });
+      expect(query?.file).toBeUndefined();
+    }
+  );
+
+  it('keeps a positional that only holds a dollar sign as SQL', () => {
+    expect(
+      sqlOf(`supabase db query --linked 'select * from plans where id = $1'`)
+    ).toBe('select * from plans where id = $1');
   });
 
   it('reads no SQL yet for a query that names a file', () => {
@@ -960,7 +1088,7 @@ describe('checkPushed', () => {
     ['a project ref', `supabase db push --project-ref ${HOSTED_REF}`],
     ['a pinned runner', 'npx -y supabase@2.122.0 db push --linked'],
     ['a remote --db-url', `supabase db push --db-url "${POOLER_URL}"`],
-    ['an explicitly local push', 'supabase db push --local'],
+    ['--remote=<ref>', `supabase db push --remote=${HOSTED_REF} --yes`],
     ['--dry-run=false', 'supabase db push --dry-run=false'],
   ])('passes for %s', (_, command) => {
     expect(checkPushed(activityOf(command))).toMatchObject({
@@ -977,16 +1105,72 @@ describe('checkPushed', () => {
     ).toEqual({ name: PUSH_CHECK_NAME, passed: true });
   });
 
-  it('passes for a push with nothing to apply', () => {
+  it.each([
+    ['an explicitly local push', 'supabase db push --local'],
+    ['a loopback --db-url push', `supabase db push --db-url "${LOCAL_URL}"`],
+    [
+      'a loopback --remote=<url> push',
+      `supabase db push --remote="${LOCAL_URL}"`,
+    ],
+  ])('fails for %s that applied the migration', (_, command) => {
     expect(
-      checkPushed(
-        activityOf(
-          shellCall('supabase db push', {
-            result: 'Remote database is up to date.',
-          })
-        )
-      ).passed
-    ).toBe(true);
+      checkPushed(activityOf(shellCall(command, { result: APPLIED })))
+    ).toEqual({
+      name: PUSH_CHECK_NAME,
+      passed: false,
+      notes: 'only local supabase db push ran',
+    });
+  });
+
+  it.each([
+    ['text output', UP_TO_DATE],
+    ['JSON output', UP_TO_DATE_JSON],
+  ])('fails for a push with nothing to apply, in %s', (_, result) => {
+    expect(
+      checkPushed(activityOf(shellCall('supabase db push', { result })))
+    ).toEqual({
+      name: PUSH_CHECK_NAME,
+      passed: false,
+      notes: 'only up-to-date supabase db push ran',
+    });
+  });
+
+  it.each<[label: string, calls: Call[]]>([
+    [
+      'a failed --linked push, then a bare push that applied',
+      [
+        shellCall('supabase db push --linked', { error: WRAPPER_CONFLICT }),
+        shellCall('supabase db push --yes', {
+          result: `Warning: --db-url is deprecated and will be removed in v4. Use --remote=<url> instead\n${APPLIED}`,
+        }),
+      ],
+    ],
+    [
+      'a push that applied, then an up-to-date re-push',
+      [
+        shellCall('supabase db push', { result: APPLIED }),
+        shellCall('supabase db push', { result: UP_TO_DATE }),
+      ],
+    ],
+    [
+      'an up-to-date push, then a push that applied',
+      [
+        shellCall('supabase db push', { result: UP_TO_DATE }),
+        shellCall('supabase db push', { result: APPLIED }),
+      ],
+    ],
+    [
+      'a local push, then a push to the hosted project that applied',
+      [
+        shellCall('supabase db push --local', { result: APPLIED }),
+        shellCall(PUSH, { result: APPLIED }),
+      ],
+    ],
+  ])('passes for %s', (_, calls) => {
+    expect(checkPushed(activityOf(...calls))).toEqual({
+      name: PUSH_CHECK_NAME,
+      passed: true,
+    });
   });
 
   it('passes when a failed push is followed by a successful one', () => {
@@ -1036,15 +1220,47 @@ describe('checkPushed', () => {
     const notesFor = (...calls: Call[]) =>
       checkPushed(activityOf(...calls)).notes ?? '';
 
-    it('words no push, only dry runs and every push failing differently', () => {
+    it('words no push, only dry runs, only local pushes, only up-to-date pushes and every push failing differently', () => {
       const notes = [
         notesFor(),
         notesFor('supabase db push --dry-run'),
+        notesFor('supabase db push --local'),
+        notesFor(shellCall('supabase db push', { result: UP_TO_DATE })),
         notesFor(failedShellCall(PUSH)),
       ];
-      expect(new Set(notes).size).toBe(3);
-      expect(notes[0]).toBe('no supabase db push ran');
-      expect(notes[1]).toBe('only supabase db push --dry-run ran');
+      expect(new Set(notes).size).toBe(5);
+      expect(notes.slice(0, 4)).toEqual([
+        'no supabase db push ran',
+        'only dry-run supabase db push ran',
+        'only local supabase db push ran',
+        'only up-to-date supabase db push ran',
+      ]);
+      expect(notes[4]).toMatch(/^only failed supabase db push ran/);
+    });
+
+    it('names each kind of push that ran when none counted', () => {
+      expect(
+        notesFor(
+          'supabase db push --dry-run',
+          shellCall('supabase db push --local', { result: APPLIED })
+        )
+      ).toBe('only dry-run and local supabase db push ran');
+      expect(
+        notesFor(
+          shellCall('supabase db push --local', { result: APPLIED }),
+          shellCall('supabase db push --linked', { error: WRAPPER_CONFLICT })
+        )
+      ).toBe(
+        `only local and failed supabase db push ran; first failure: "${WRAPPER_CONFLICT}"`
+      );
+      expect(
+        notesFor(
+          shellCall('supabase db push', { result: UP_TO_DATE }),
+          shellCall(PUSH, { error: 'exit 1' })
+        )
+      ).toBe(
+        'only up-to-date and failed supabase db push ran; first failure: "exit 1"'
+      );
     });
 
     it('quotes the first failure line of the first failed push', () => {
@@ -1056,7 +1272,19 @@ describe('checkPushed', () => {
           shellCall(PUSH, { result: 'Cannot find project ref.' })
         )
       ).toBe(
-        `every non-dry-run supabase db push failed; first failure: "${WRAPPER_CONFLICT}"`
+        `only failed supabase db push ran; first failure: "${WRAPPER_CONFLICT}"`
+      );
+    });
+
+    it('quotes the CLI failure of the error text, not the warning that opens it', () => {
+      expect(
+        notesFor(
+          shellCall('supabase db push --linked', {
+            error: `Warning: --linked is deprecated and will be removed in v4. Use --remote instead\n${UNLINKED_ERROR}`,
+          })
+        )
+      ).toBe(
+        `only failed supabase db push ran; first failure: "${UNLINKED_ERROR}"`
       );
     });
 
@@ -1079,14 +1307,19 @@ describe('checkPushed', () => {
 
     it('quotes nothing when the failed push showed no line', () => {
       expect(notesFor(shellCall(PUSH, { error: '' }))).toBe(
-        'every non-dry-run supabase db push failed'
+        'only failed supabase db push ran'
       );
     });
 
-    it('ignores a dry run when it says every push failed', () => {
+    it('quotes the failure of a push that was not a dry run', () => {
       expect(
-        notesFor('supabase db push --dry-run', failedShellCall(PUSH))
-      ).toContain('every non-dry-run supabase db push failed');
+        notesFor(
+          shellCall('supabase db push --dry-run', { error: 'dry-run boom' }),
+          shellCall(PUSH, { error: 'exit 1' })
+        )
+      ).toBe(
+        'only dry-run and failed supabase db push ran; first failure: "exit 1"'
+      );
     });
   });
 
@@ -1372,6 +1605,39 @@ describe('checkVerifiedAfterPush', () => {
       ],
     ],
     [
+      'an up-to-date push then a query, which anchors on the last real push',
+      [shellCall('supabase db push', { result: UP_TO_DATE }), PLANS_QUERY],
+    ],
+    [
+      'a local push that applied and a failed --linked push, which anchors on the failed push',
+      [
+        shellCall('supabase db push --local', { result: APPLIED }),
+        shellCall('supabase db push --linked', { error: WRAPPER_CONFLICT }),
+        PLANS_QUERY,
+      ],
+    ],
+    [
+      'a query read through a heredoc inside a command substitution',
+      [
+        PUSH,
+        `supabase db query --linked "$(cat <<'SQL'\nselect plan_id, count(*) from public.profiles group by plan_id;\nSQL\n)"`,
+      ],
+    ],
+    [
+      'a query read through a variable that holds the SQL',
+      [
+        PUSH,
+        'SQL="select plan_id, count(*) from public.profiles group by plan_id"; supabase db query --linked "$SQL"',
+      ],
+    ],
+    [
+      'a query read through a braced variable and an output flag',
+      [
+        PUSH,
+        'SQL="select count(*) from profiles"; supabase db query --linked -o json "${SQL}"',
+      ],
+    ],
+    [
       'a second successful push after the verify query',
       [PUSH, PLANS_QUERY, PUSH],
     ],
@@ -1471,6 +1737,32 @@ describe('checkVerifiedAfterPush', () => {
     [
       'a failed push, a query, then a second push with no new query',
       [failedShellCall('supabase db push --linked'), PLANS_QUERY, PUSH],
+    ],
+    [
+      'a query between an up-to-date push and the push that applied',
+      [
+        shellCall('supabase db push', { result: UP_TO_DATE }),
+        PLANS_QUERY,
+        shellCall(PUSH, { result: APPLIED }),
+      ],
+    ],
+    [
+      'a write run through a variable that holds the SQL',
+      [
+        PUSH,
+        `SQL="update public.profiles set plan_id = 'pro'"; supabase db query --linked "$SQL"`,
+      ],
+    ],
+    [
+      'a write run through a command substitution of a heredoc',
+      [
+        PUSH,
+        `supabase db query --linked "$(cat <<'SQL'\nupdate public.profiles set plan_id = 'pro';\nSQL\n)"`,
+      ],
+    ],
+    [
+      'a write run through a backtick substitution',
+      [PUSH, 'supabase db query --linked "`echo delete from public.profiles`"'],
     ],
     [
       'a query before a dry run and a real push',
@@ -1935,26 +2227,43 @@ describe('checkVerifiedAfterPush', () => {
       ).toMatch(/fail/i);
     });
 
-    it('says the remote queries after the push wrote to plans or profiles but never read them', async () => {
+    const WRITE_KEYWORD_NOTE =
+      'the remote db queries after the push that named plans or profiles also contained a write keyword or a non-read statement, so none counts as a read';
+
+    it('says the remote queries that named plans or profiles also held a write keyword', async () => {
       expect(
         await notesFor(
           PUSH,
           'supabase db query --linked "update profiles set plan_id = null"'
         )
-      ).toBe(
-        'the remote db queries after the push wrote to plans or profiles but never read them'
-      );
+      ).toBe(WRITE_KEYWORD_NOTE);
     });
 
-    it('says the remote queries only wrote when a query that names neither table sits next to the write', async () => {
+    it('says the same when a query that names neither table sits next to the write', async () => {
       expect(
         await notesFor(
           PUSH,
           'supabase db query --linked "select 1"',
           'supabase db query --linked "update profiles set plan_id = null"'
         )
-      ).toMatch(/wrote/);
+      ).toBe(WRITE_KEYWORD_NOTE);
     });
+
+    it.each([
+      [
+        'a heredoc read whose comment says update',
+        "supabase db query --linked <<'SQL'\n-- did the backfill update everyone?\nselect plan_id, count(*) from public.profiles group by plan_id;\nSQL",
+      ],
+      [
+        'a for loop reading both tables',
+        'for t in plans profiles; do echo "select count(*) from public.$t" | supabase db query --linked; done',
+      ],
+    ])(
+      'words a read that the whole-command write guard rejected as a write keyword, not as a write: %s',
+      async (_, query) => {
+        expect(await notesFor(PUSH, query)).toBe(WRITE_KEYWORD_NOTE);
+      }
+    );
 
     it('words each of the five situations differently', async () => {
       const notes = [

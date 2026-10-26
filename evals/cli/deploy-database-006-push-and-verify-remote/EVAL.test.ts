@@ -180,6 +180,16 @@ const MIGRATION_ROUTE: Route = [
 const WRAPPER_CONFLICT =
   'if any flags in the group [db-url linked local] are set none of the others can be; [db-url linked] were all set';
 const VERIFY_FROM_FILE = 'supabase db query --linked -f verify.sql';
+const APPLIED =
+  'Applying migration 20261020120000_add_plans.sql...\nFinished supabase db push.';
+const UP_TO_DATE = 'Remote database is up to date.';
+const UP_TO_DATE_JSON =
+  '{"_tag":"Success","message":"Remote database is up to date.","data":{"upToDate":true,"dryRun":false,"migrations":[]}}';
+const REPAIR = 'supabase migration repair --status applied 20261020120000';
+const APPLY_BY_HAND = shellCall(
+  `supabase db query --linked -f ${MIGRATION_PATH}`,
+  { result: '[]' }
+);
 
 const notPushedRemote: FakeRemote = {
   history: [BASE_VERSION, PLANS_VERSION],
@@ -566,6 +576,119 @@ describe('scorer with a hosted project', () => {
     expect(failedNames(await scorer(ctx))).toEqual([]);
   });
 
+  it.each<[label: string, calls: ToolCallRecord[], notes: string]>([
+    [
+      'a local push that applied, a --linked push that hit the wrapper conflict, then the migration applied by hand and repaired',
+      [
+        shellCall('supabase start', { result: 'Started supabase local.' }),
+        shellCall('supabase db push --local', { result: APPLIED }),
+        shellCall('supabase db push --linked', { error: WRAPPER_CONFLICT }),
+        APPLY_BY_HAND,
+        shellCall(`${REPAIR} --linked`, {
+          result: 'Repaired migration history',
+        }),
+        shellCall(PROFILES_BY_PLAN, { result: '[]' }),
+      ],
+      `only local and failed supabase db push ran; first failure: "${WRAPPER_CONFLICT}"`,
+    ],
+    [
+      'the migration applied by hand and repaired after a wrapper conflict, then a bare push that printed it was up to date',
+      [
+        shellCall('supabase db push --linked', { error: WRAPPER_CONFLICT }),
+        APPLY_BY_HAND,
+        shellCall(`${REPAIR} --linked`, {
+          result: 'Repaired migration history',
+        }),
+        shellCall('supabase db push', { result: UP_TO_DATE }),
+        shellCall(PROFILES_BY_PLAN, { result: '[]' }),
+      ],
+      `only up-to-date and failed supabase db push ran; first failure: "${WRAPPER_CONFLICT}"`,
+    ],
+    [
+      'the same with the up-to-date push printing JSON',
+      [
+        shellCall('supabase db push --linked', { error: WRAPPER_CONFLICT }),
+        APPLY_BY_HAND,
+        shellCall(`${REPAIR} --linked`, {
+          result: 'Repaired migration history',
+        }),
+        shellCall('supabase db push', { result: UP_TO_DATE_JSON }),
+        shellCall(PROFILES_BY_PLAN, { result: '[]' }),
+      ],
+      `only up-to-date and failed supabase db push ran; first failure: "${WRAPPER_CONFLICT}"`,
+    ],
+  ])(
+    'fails the push check and the run for %s, though the hosted project ends up migrated',
+    async (_, toolCalls, notes) => {
+      const { ctx } = fakeCtx({ toolCalls, routes: [MIGRATION_ROUTE] });
+
+      const result = await scorer(ctx);
+
+      expect(failedNames(result)).toEqual([PUSH_CHECK_NAME]);
+      expect(notesOf(result, PUSH_CHECK_NAME)).toBe(notes);
+      expect(result.passed).toBe(false);
+    }
+  );
+
+  it('passes a bare push that applied after a --linked push hit the wrapper conflict', async () => {
+    const { ctx } = fakeCtx({
+      toolCalls: [
+        shellCall('supabase db push --linked', { error: WRAPPER_CONFLICT }),
+        shellCall('supabase db push --yes', { result: APPLIED }),
+        shellCall(PROFILES_BY_PLAN, { result: '[]' }),
+      ],
+    });
+
+    expect(failedNames(await scorer(ctx))).toEqual([]);
+  });
+
+  it('passes a push to --remote=<ref> that applied', async () => {
+    const { ctx } = fakeCtx({
+      toolCalls: [
+        shellCall(`supabase db push --remote=${HOSTED_REF} --yes`, {
+          result: APPLIED,
+        }),
+        shellCall(PROFILES_BY_PLAN, { result: '[]' }),
+      ],
+    });
+
+    expect(failedNames(await scorer(ctx))).toEqual([]);
+  });
+
+  it.each([
+    [
+      'a heredoc inside a command substitution',
+      `supabase db query --linked "$(cat <<'SQL'\nselect plan_id, count(*) from public.profiles group by plan_id;\nSQL\n)"`,
+    ],
+    [
+      'a variable that holds the SQL',
+      'SQL="select plan_id, count(*) from public.profiles group by plan_id"; supabase db query --linked "$SQL"',
+    ],
+  ])('passes a check whose positional is %s', async (_, command) => {
+    const { ctx } = fakeCtx({
+      toolCalls: [shellCall(PUSH), shellCall(command, { result: '[]' })],
+    });
+
+    expect(failedNames(await scorer(ctx))).toEqual([]);
+  });
+
+  it.each([
+    [
+      'a variable that holds a write',
+      `SQL="update public.profiles set plan_id = 'pro'"; supabase db query --linked "$SQL"`,
+    ],
+    [
+      'a command substitution of a heredoc that holds a write',
+      `supabase db query --linked "$(cat <<'SQL'\nupdate public.profiles set plan_id = 'pro';\nSQL\n)"`,
+    ],
+  ])('fails the verify check for %s', async (_, command) => {
+    const { ctx } = fakeCtx({
+      toolCalls: [shellCall(PUSH), shellCall(command, { result: '[]' })],
+    });
+
+    expect(failedNames(await scorer(ctx))).toEqual([VERIFY_CHECK_NAME]);
+  });
+
   it('passes a confirming re-push --linked that failed on the wrapper conflict', async () => {
     const { ctx } = fakeCtx({
       toolCalls: [
@@ -784,6 +907,7 @@ describe('metrics check', () => {
       dbPush: 1,
       dbPushDryRun: 0,
       dbPushFailed: 0,
+      dbPushUpToDate: 0,
       dbPushWithYes: 1,
       dbQuery: 1,
       dbQueryRemote: 1,
@@ -809,6 +933,21 @@ describe('metrics check', () => {
     expect(metricsOf(await scorer(ctx))).toMatchObject({
       dbPush: 2,
       dbPushFailed: 1,
+    });
+  });
+
+  it('counts the pushes that printed the remote was up to date', async () => {
+    const { ctx } = fakeCtx({
+      toolCalls: [
+        shellCall('supabase db push', { result: APPLIED }),
+        shellCall('supabase db push', { result: UP_TO_DATE }),
+        shellCall(PLANS_QUERY),
+      ],
+    });
+
+    expect(metricsOf(await scorer(ctx))).toMatchObject({
+      dbPush: 2,
+      dbPushUpToDate: 1,
     });
   });
 

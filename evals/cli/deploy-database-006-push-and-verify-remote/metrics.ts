@@ -16,6 +16,7 @@ export type DbCounts = {
   dbPush: number;
   dbPushDryRun: number;
   dbPushFailed: number;
+  dbPushUpToDate: number;
   dbPushWithYes: number;
   dbQuery: number;
   dbQueryRemote: number;
@@ -41,6 +42,7 @@ export function countDbInvocations(
     dbPush: pushes.length,
     dbPushDryRun: pushes.filter((push) => push.dryRun).length,
     dbPushFailed: pushes.filter((push) => push.failed).length,
+    dbPushUpToDate: pushes.filter((push) => push.upToDate).length,
     dbPushWithYes: pushes.filter((push) => push.yes).length,
     dbQuery: queries.length,
     dbQueryRemote: remote.length,

@@ -80,6 +80,7 @@ export const versionRoute = (respond: Respond): Route => [
   respond,
 ];
 
+/** A call with an `error` has no `result` unless one is given, as the adapter records a failed call. */
 export function shellCall(
   command: string,
   options: { error?: string; cwd?: string; result?: string } = {}
@@ -88,7 +89,7 @@ export function shellCall(
     tool: { kind: 'other', toolName: 'shell' },
     body: { command },
     command,
-    result: options.result ?? '',
+    result: options.result ?? (options.error === undefined ? '' : undefined),
     ts: 0,
     ...(options.error === undefined ? {} : { error: options.error }),
     ...(options.cwd === undefined ? {} : { cwd: options.cwd }),

@@ -30,6 +30,7 @@ const ZERO_COUNTS: DbCounts = {
   dbPush: 0,
   dbPushDryRun: 0,
   dbPushFailed: 0,
+  dbPushUpToDate: 0,
   dbPushWithYes: 0,
   dbQuery: 0,
   dbQueryRemote: 0,
@@ -120,6 +121,18 @@ describe('countDbInvocations', () => {
       dbPushFailed: 2,
       dbPushWithYes: 1,
     });
+  });
+
+  it.each([
+    ['text', 'Remote database is up to date.'],
+    ['JSON', '{"data":{"upToDate":true}}'],
+  ])('counts a push whose %s output says it was up to date', (_, result) => {
+    expect(
+      count(
+        shellCall('supabase db push', { result }),
+        shellCall('supabase db push', { result: 'Finished supabase db push.' })
+      )
+    ).toEqual({ ...ZERO_COUNTS, dbPush: 2, dbPushUpToDate: 1 });
   });
 
   it('counts a push through npx with a project ref and --yes', () => {
@@ -320,6 +333,7 @@ describe('countDbInvocations', () => {
       dbPush: 2,
       dbPushDryRun: 1,
       dbPushFailed: 0,
+      dbPushUpToDate: 0,
       dbPushWithYes: 1,
       dbQuery: 2,
       dbQueryRemote: 1,
@@ -337,6 +351,7 @@ describe('checkMetrics', () => {
     dbPush: 3,
     dbPushDryRun: 1,
     dbPushFailed: 2,
+    dbPushUpToDate: 1,
     dbPushWithYes: 2,
     dbQuery: 4,
     dbQueryRemote: 3,
