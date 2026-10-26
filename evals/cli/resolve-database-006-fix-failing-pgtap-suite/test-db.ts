@@ -12,10 +12,22 @@ export const TEST_DB_CHECK = 'the whole suite passed under supabase test db';
 const hasSummary = (run: TestDbRun): run is SummarisedRun =>
   run.summary !== null;
 
-const isPassing = ({ result, files, tests }: PgProveSummary) =>
-  result === 'PASS' && files !== null && (tests ?? 0) > 0;
+const isPass = ({ result, tests }: PgProveSummary) =>
+  result === 'PASS' && tests !== 0;
 
-/** Passes when a `supabase test db` run printed `Result: PASS` for at least the seeded number of files and no later run printed `Result: FAIL`. */
+const isWholeSuitePass = (run: SummarisedRun, seededFileCount: number) =>
+  isPass(run.summary) &&
+  (run.summary.files === null
+    ? run.wholeDirectory === true
+    : run.summary.files >= seededFileCount);
+
+const clears = (pass: PgProveSummary, fail: PgProveSummary) =>
+  isPass(pass) &&
+  pass.files !== null &&
+  fail.files !== null &&
+  pass.files >= fail.files;
+
+/** Passes when a `supabase test db` run printed `Result: PASS` for the whole suite and every later `Result: FAIL` was followed by a pass covering at least as many files. */
 export function checkSuitePassedUnderTestDb(
   runs: readonly TestDbRun[],
   seededFileCount: number
@@ -43,9 +55,8 @@ export function checkSuitePassedUnderTestDb(
     );
   }
 
-  const passing = summarised.filter((run) => isPassing(run.summary));
-  const wholeSuite = passing
-    .filter((run) => (run.summary.files ?? 0) >= seededFileCount)
+  const wholeSuite = summarised
+    .filter((run) => isWholeSuitePass(run, seededFileCount))
     .at(-1);
   if (wholeSuite === undefined) {
     const lastPass = summarised
@@ -56,7 +67,9 @@ export function checkSuitePassedUnderTestDb(
         `command ${lastPass.commandIndex + 1} printed Result: PASS without a Files= count, so it can't be credited with the whole suite`
       );
     }
-    const partial = passing.at(-1);
+    const partial = summarised
+      .filter((run) => isPass(run.summary) && run.summary.files !== null)
+      .at(-1);
     return fail(
       partial === undefined
         ? `no supabase test db run passed the whole suite (last summary: ${describePgProveSummary(last.summary)}, command ${last.commandIndex + 1})`
@@ -64,13 +77,15 @@ export function checkSuitePassedUnderTestDb(
     );
   }
 
-  const failedAfter = summarised
-    .filter(
-      (run) =>
-        run.commandIndex > wholeSuite.commandIndex &&
-        run.summary.result === 'FAIL'
-    )
-    .at(-1);
+  let unresolved: SummarisedRun[] = [];
+  for (const run of summarised) {
+    if (run.commandIndex <= wholeSuite.commandIndex) continue;
+    unresolved =
+      run.summary.result === 'FAIL'
+        ? [...unresolved, run]
+        : unresolved.filter(({ summary }) => !clears(run.summary, summary));
+  }
+  const failedAfter = unresolved.at(-1);
   if (failedAfter !== undefined) {
     return fail(
       `command ${failedAfter.commandIndex + 1} printed Result: FAIL after the passing run in command ${wholeSuite.commandIndex + 1}`
@@ -79,6 +94,6 @@ export function checkSuitePassedUnderTestDb(
   return {
     name,
     passed: true,
-    notes: `command ${wholeSuite.commandIndex + 1} printed Result: PASS (Files=${wholeSuite.summary.files}, Tests=${wholeSuite.summary.tests})`,
+    notes: `command ${wholeSuite.commandIndex + 1} printed Result: ${describePgProveSummary(wholeSuite.summary)}`,
   };
 }

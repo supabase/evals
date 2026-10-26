@@ -6,6 +6,7 @@ import { readSeedFile } from './fixtures.js';
 import {
   psqlCommand,
   readPsqlError,
+  splitSqlStatements,
   sqlFingerprint,
   withDatabase,
 } from './sql.js';
@@ -130,6 +131,110 @@ describe('sqlFingerprint', () => {
     expect(sqlFingerprint('select $tag$ -- not a comment $tag$;')).toBe(
       'select$tag$--notacomment$tag$'
     );
+  });
+});
+
+describe('splitSqlStatements', () => {
+  it('splits on semicolons and trims each statement', () => {
+    expect(splitSqlStatements('begin;\n  select 1 ;\nrollback;\n')).toEqual([
+      'begin',
+      'select 1',
+      'rollback',
+    ]);
+  });
+
+  it('keeps a final statement that has no semicolon', () => {
+    expect(splitSqlStatements('select 1;\nselect 2')).toEqual([
+      'select 1',
+      'select 2',
+    ]);
+  });
+
+  it('drops empty statements', () => {
+    expect(splitSqlStatements(';; select 1;;\n;')).toEqual(['select 1']);
+    expect(splitSqlStatements('')).toEqual([]);
+    expect(splitSqlStatements('-- only a comment\n/* and another */')).toEqual(
+      []
+    );
+  });
+
+  it('removes comments and does not split on a semicolon inside one', () => {
+    expect(
+      splitSqlStatements('select 1 -- one; two\n;\n/* three; four */ select 2;')
+    ).toEqual(['select 1', 'select 2']);
+  });
+
+  it('does not split on a semicolon inside a string literal', () => {
+    expect(splitSqlStatements("select 'a; b'; select 'c';")).toEqual([
+      "select 'a; b'",
+      "select 'c'",
+    ]);
+  });
+
+  it('does not split on a semicolon after a doubled quote inside a literal', () => {
+    expect(splitSqlStatements("select 'it''s; fine'; select 2;")).toEqual([
+      "select 'it''s; fine'",
+      'select 2',
+    ]);
+  });
+
+  it('does not split on a semicolon inside an escape string with a backslash-escaped quote', () => {
+    expect(splitSqlStatements("select E'it\\'s; fine'; select 2;")).toEqual([
+      "select E'it\\'s; fine'",
+      'select 2',
+    ]);
+  });
+
+  it('does not split on a semicolon inside a dollar-quoted body', () => {
+    expect(
+      splitSqlStatements(
+        "select throws_ok($$insert into t values (1); insert into t values (2)$$, '23505', null, 'twice'); select 2;"
+      )
+    ).toEqual([
+      "select throws_ok($$insert into t values (1); insert into t values (2)$$, '23505', null, 'twice')",
+      'select 2',
+    ]);
+  });
+
+  it('does not split on a semicolon inside a tagged dollar-quoted body', () => {
+    expect(
+      splitSqlStatements(
+        'create function f() returns int as $body$ begin return 1; end; $body$ language plpgsql; select 2;'
+      )
+    ).toEqual([
+      'create function f() returns int as $body$ begin return 1; end; $body$ language plpgsql',
+      'select 2',
+    ]);
+  });
+
+  it('keeps splitting after a literal that held several semicolons', () => {
+    expect(splitSqlStatements("select ';;;'; select 2; select 3;")).toEqual([
+      "select ';;;'",
+      'select 2',
+      'select 3',
+    ]);
+  });
+
+  it('keeps a comment marker inside a string literal', () => {
+    expect(splitSqlStatements("select '-- not a comment'; select 2;")).toEqual([
+      "select '-- not a comment'",
+      'select 2',
+    ]);
+  });
+
+  it('splits a seeded test file into its begin, plan, assertions and rollback', () => {
+    const statements = splitSqlStatements(
+      readSeedFile('supabase/tests/line_discounts.test.sql')
+    );
+    expect(statements).toHaveLength(11);
+    expect(statements.slice(0, 2)).toEqual(['begin', 'select plan(5)']);
+    expect(statements.slice(-2)).toEqual([
+      'select * from finish()',
+      'rollback',
+    ]);
+    expect(
+      statements.filter((statement) => statement.startsWith('select throws_ok'))
+    ).toHaveLength(1);
   });
 });
 

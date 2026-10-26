@@ -196,6 +196,19 @@ describe('readWorkspace', () => {
       ).toBe(true);
     });
 
+    it('reads a migration with nothing between the underscore and .sql, as the CLI does', async () => {
+      const bare = '20261026000000_.sql';
+      const { ctx } = fakeWorkspace({
+        listing: `${A}\n${bare}\n`,
+        migrations: { [A]: FILES[A], [bare]: 'select 1;' },
+      });
+
+      expect(okOf(await readWorkspace(ctx)).migrations).toEqual([
+        { name: A, version: '20260101000000', sql: FILES[A] },
+        { name: bare, version: '20261026000000', sql: 'select 1;' },
+      ]);
+    });
+
     it('is ok with no migrations when the directory holds no migration file', async () => {
       const { ctx } = fakeWorkspace({ listing: 'README.md\n' });
 
@@ -425,6 +438,130 @@ describe('checkSeededTestsUnchanged', () => {
     expect(checkSeededTestsUnchanged(probeOf(tests)).passed).toBe(true);
   });
 
+  describe('with statements added to a seeded file', () => {
+    const EXTRA_ASSERTION = `insert into public.invoices (id, customer_name) values (900104, 'Default Discount Ltd');
+insert into public.invoice_lines (invoice_id, description, quantity, unit_price_cents) values (900104, 'No discount given', 1, 500);
+select is(public.invoice_total_cents(900104), 500::bigint, 'a line without a discount is full price');
+`;
+    const FIRST_IS =
+      "select is(\n  public.invoice_total_cents(900101),\n  2700::bigint,\n  'a 10% discount takes 10% off the line'\n);\n\n";
+    const FINISH = 'select * from finish();';
+
+    const edited = (edit: (sql: string) => string) =>
+      probeOf(withEdit(1, edit));
+    const withPlan = (plan: number) => (sql: string) =>
+      replaceOnce(sql, 'select plan(5)', `select plan(${plan})`);
+
+    it('passes when an assertion was added and the plan raised to match', () => {
+      const probe = edited((sql) =>
+        replaceOnce(withPlan(6)(sql), FINISH, `${EXTRA_ASSERTION}\n${FINISH}`)
+      );
+      expect(checkSeededTestsUnchanged(probe)).toEqual({
+        name: TESTS_UNCHANGED_CHECK,
+        passed: true,
+        notes: '2 seeded test files unchanged',
+      });
+    });
+
+    it('passes when statements were added before, between and after the seeded ones', () => {
+      const probe = edited((sql) =>
+        replaceOnce(
+          replaceOnce(
+            replaceOnce(
+              withPlan(8)(sql),
+              'select plan',
+              "select ok(true, 'first');\nselect plan"
+            ),
+            FIRST_IS,
+            `${FIRST_IS}select ok(true, 'between');\n\n`
+          ),
+          FINISH,
+          `select ok(true, 'last');\n${FINISH}`
+        )
+      );
+      expect(checkSeededTestsUnchanged(probe).passed).toBe(true);
+    });
+
+    it('passes when the plan was only raised', () => {
+      expect(checkSeededTestsUnchanged(edited(withPlan(9))).passed).toBe(true);
+    });
+
+    it('passes when the plan statement was reformatted', () => {
+      expect(
+        checkSeededTestsUnchanged(
+          edited((sql) =>
+            replaceOnce(sql, 'select plan(5)', 'SELECT  plan( 5 )')
+          )
+        ).passed
+      ).toBe(true);
+    });
+
+    it('passes when an added assertion holds a semicolon inside its dollar-quoted body', () => {
+      const probe = edited((sql) =>
+        replaceOnce(
+          withPlan(6)(sql),
+          FINISH,
+          `select throws_ok(\n  $$insert into public.invoices (id, customer_name) values (1, 'a'); insert into public.invoices (id, customer_name) values (1, 'b')$$,\n  '23505'\n);\n\n${FINISH}`
+        )
+      );
+      expect(checkSeededTestsUnchanged(probe).passed).toBe(true);
+    });
+
+    it('fails when the plan was lowered and nothing was removed', () => {
+      expect(checkSeededTestsUnchanged(edited(withPlan(4)))).toEqual({
+        name: TESTS_UNCHANGED_CHECK,
+        passed: false,
+        notes: `modified: ${SEEDED_TEST_FILES[1]}`,
+      });
+    });
+
+    it('fails when a seeded assertion was replaced by a different one', () => {
+      const probe = edited((sql) =>
+        replaceOnce(sql, FIRST_IS, "select ok(true, 'something else');\n\n")
+      );
+      expect(checkSeededTestsUnchanged(probe).passed).toBe(false);
+    });
+
+    it('fails when seeded assertions were reordered', () => {
+      const probe = edited((sql) =>
+        replaceOnce(
+          replaceOnce(sql, FIRST_IS, ''),
+          FINISH,
+          `${FIRST_IS}${FINISH}`
+        )
+      );
+      expect(checkSeededTestsUnchanged(probe).passed).toBe(false);
+    });
+
+    it('fails when the plan statement is gone', () => {
+      const probe = edited((sql) => replaceOnce(sql, 'select plan(5);\n', ''));
+      expect(checkSeededTestsUnchanged(probe).passed).toBe(false);
+    });
+
+    it('fails when the file plans twice', () => {
+      const probe = edited((sql) =>
+        replaceOnce(sql, FINISH, `select plan(5);\n${FINISH}`)
+      );
+      expect(checkSeededTestsUnchanged(probe).passed).toBe(false);
+    });
+
+    it('fails when a statement was added to a seeded dollar-quoted body', () => {
+      const probe = edited((sql) =>
+        replaceOnce(
+          sql,
+          "values (900101, 'Too generous', 1, 100, 101)$$",
+          "values (900101, 'Too generous', 1, 100, 101); select 1$$"
+        )
+      );
+      expect(checkSeededTestsUnchanged(probe).passed).toBe(false);
+    });
+
+    it('fails when keywords were upper-cased, since statements compare case-sensitively', () => {
+      const probe = edited((sql) => replaceOnce(sql, 'begin;', 'BEGIN;'));
+      expect(checkSeededTestsUnchanged(probe).passed).toBe(false);
+    });
+  });
+
   it('passes when other test files exist beside the seeded ones', () => {
     const probe = probeOf();
     if (!probe.ok) throw new Error('unreachable');
@@ -494,9 +631,13 @@ describe('checkSeededTestsUnchanged', () => {
   });
 
   it('names every file when both were modified', () => {
-    const tests = SEEDED_TESTS.map(({ file, sql }) => ({
+    const tests = SEEDED_TESTS.map(({ file, sql }, i) => ({
       file,
-      sql: `${sql}\nselect 1;\n`,
+      sql: replaceOnce(
+        sql,
+        i === 0 ? '5500::bigint' : '2700::bigint',
+        '0::bigint'
+      ),
     }));
     const result = checkSeededTestsUnchanged(probeOf(tests));
     expect(result.passed).toBe(false);

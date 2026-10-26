@@ -506,19 +506,67 @@ describe('findTestDbRuns', () => {
   it('maps a supabase test db run to the summary its tool call printed', () => {
     expect(
       runsOf([call('supabase test db', { result: TEST_DB_PASS_OUTPUT })])
-    ).toEqual([{ commandIndex: 0, summary: PASS }]);
+    ).toEqual([{ commandIndex: 0, summary: PASS, wholeDirectory: true }]);
   });
 
   it.each([
     'supabase test db',
     'supabase db test',
     'npx supabase test db --local',
-    'supabase test db supabase/tests/line_discounts.test.sql',
     'supabase db reset && supabase test db',
     'cd /ws && supabase test db 2>&1 | tail -20',
-  ])('recognises %j as a test db run', (command) => {
+    "supabase db reset && supabase test db 2>&1 | grep -E 'Result|not ok'",
+    'supabase test db --debug | tail -n 1',
+    'supabase --workdir /ws test db',
+  ])('recognises %j as a whole-directory test db run', (command) => {
     expect(runsOf([call(command, { result: TEST_DB_PASS_OUTPUT })])).toEqual([
+      { commandIndex: 0, summary: PASS, wholeDirectory: true },
+    ]);
+  });
+
+  it.each([
+    'supabase test db supabase/tests/line_discounts.test.sql',
+    'supabase test db supabase/tests',
+    'supabase test db --db-url postgresql://postgres:postgres@127.0.0.1:54322/postgres',
+    'supabase test db supabase/tests/line_discounts.test.sql | tail -1',
+    'supabase test db && supabase test db supabase/tests/line_discounts.test.sql',
+    'supabase test db supabase/tests/line_discounts.test.sql; supabase test db',
+  ])(
+    'recognises %j as a test db run without the whole-directory mark',
+    (command) => {
+      expect(runsOf([call(command, { result: TEST_DB_PASS_OUTPUT })])).toEqual([
+        { commandIndex: 0, summary: PASS },
+      ]);
+    }
+  );
+
+  it('marks a filtered run that printed only the result line', () => {
+    expect(
+      runsOf([
+        call("supabase test db 2>&1 | grep -E 'Result|not ok'", {
+          result: 'Result: PASS\n',
+        }),
+      ])
+    ).toEqual([
+      {
+        commandIndex: 0,
+        summary: { result: 'PASS', files: null, tests: null },
+        wholeDirectory: true,
+      },
+    ]);
+  });
+
+  it('marks each call on its own, so a path argument in one leaves the next marked', () => {
+    expect(
+      runsOf([
+        call('supabase test db supabase/tests/line_discounts.test.sql', {
+          result: TEST_DB_PASS_OUTPUT,
+        }),
+        call('supabase test db', { result: TEST_DB_PASS_OUTPUT }),
+      ])
+    ).toEqual([
       { commandIndex: 0, summary: PASS },
+      { commandIndex: 1, summary: PASS, wholeDirectory: true },
     ]);
   });
 
@@ -545,8 +593,8 @@ describe('findTestDbRuns', () => {
       }),
     ];
     expect(runsOf(calls)).toEqual([
-      { commandIndex: 0, summary: PASS },
-      { commandIndex: 1, summary: FAIL },
+      { commandIndex: 0, summary: PASS, wholeDirectory: true },
+      { commandIndex: 1, summary: FAIL, wholeDirectory: true },
     ]);
   });
 
@@ -557,7 +605,7 @@ describe('findTestDbRuns', () => {
           error: `Exit code 1\n${TEST_DB_FAIL_OUTPUT}`,
         }),
       ])
-    ).toEqual([{ commandIndex: 0, summary: FAIL }]);
+    ).toEqual([{ commandIndex: 0, summary: FAIL, wholeDirectory: true }]);
   });
 
   it('reads the summary from the result and the error together', () => {
@@ -568,7 +616,7 @@ describe('findTestDbRuns', () => {
           error: 'Exit code 1',
         }),
       ])
-    ).toEqual([{ commandIndex: 0, summary: PASS }]);
+    ).toEqual([{ commandIndex: 0, summary: PASS, wholeDirectory: true }]);
   });
 
   it('keeps a run that printed no pg_prove summary, with a null summary', () => {
@@ -578,8 +626,8 @@ describe('findTestDbRuns', () => {
         call('supabase test db', { result: '' }),
       ])
     ).toEqual([
-      { commandIndex: 0, summary: null },
-      { commandIndex: 1, summary: null },
+      { commandIndex: 0, summary: null, wholeDirectory: true },
+      { commandIndex: 1, summary: null, wholeDirectory: true },
     ]);
   });
 
@@ -587,7 +635,11 @@ describe('findTestDbRuns', () => {
     expect(
       runsOf([call('supabase test db', { result: NOTESTS_OUTPUT })])
     ).toEqual([
-      { commandIndex: 0, summary: { result: null, files: 0, tests: 0 } },
+      {
+        commandIndex: 0,
+        summary: { result: null, files: 0, tests: 0 },
+        wholeDirectory: true,
+      },
     ]);
   });
 
@@ -597,7 +649,9 @@ describe('findTestDbRuns', () => {
         result: `${TEST_DB_FAIL_OUTPUT}${TEST_DB_PASS_OUTPUT}`,
       }),
     ]);
-    expect(runs).toEqual([{ commandIndex: 0, summary: PASS }]);
+    expect(runs).toEqual([
+      { commandIndex: 0, summary: PASS, wholeDirectory: true },
+    ]);
   });
 
   it('keeps the runs in order, so a failing run is followed by the passing one', () => {
@@ -608,8 +662,8 @@ describe('findTestDbRuns', () => {
         call('supabase test db', { result: TEST_DB_PASS_OUTPUT }),
       ])
     ).toEqual([
-      { commandIndex: 0, summary: FAIL },
-      { commandIndex: 2, summary: PASS },
+      { commandIndex: 0, summary: FAIL, wholeDirectory: true },
+      { commandIndex: 2, summary: PASS, wholeDirectory: true },
     ]);
   });
 
@@ -628,7 +682,7 @@ describe('findTestDbRuns', () => {
         call('supabase test db', { result: TEST_DB_PASS_OUTPUT }),
         call('supabase db reset', { result: TEST_DB_FAIL_OUTPUT }),
       ])
-    ).toEqual([{ commandIndex: 0, summary: PASS }]);
+    ).toEqual([{ commandIndex: 0, summary: PASS, wholeDirectory: true }]);
   });
 
   it('finds nothing without tool calls', () => {
@@ -659,7 +713,7 @@ describe('findTestDbRuns', () => {
         ])
       ).toEqual([
         { commandIndex: 0, summary: null, withPgProve: true },
-        { commandIndex: 1, summary: PASS },
+        { commandIndex: 1, summary: PASS, wholeDirectory: true },
       ]);
     });
 
@@ -668,7 +722,7 @@ describe('findTestDbRuns', () => {
       'echo "pg_prove later"; supabase test db',
     ])('still credits %j, which never runs pg_prove', (command) => {
       expect(runsOf([call(command, { result: TEST_DB_PASS_OUTPUT })])).toEqual([
-        { commandIndex: 0, summary: PASS },
+        { commandIndex: 0, summary: PASS, wholeDirectory: true },
       ]);
     });
   });

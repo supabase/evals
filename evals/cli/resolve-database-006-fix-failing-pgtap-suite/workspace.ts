@@ -8,7 +8,7 @@ import {
   SEEDED_TESTS,
   TESTS_DIR,
 } from './fixtures.js';
-import { sqlFingerprint } from './sql.js';
+import { splitSqlStatements, sqlFingerprint } from './sql.js';
 
 type ExecContext = Pick<LocalStackEvalContext, 'exec'>;
 
@@ -29,7 +29,8 @@ type MigrationsProbe =
 
 export const TESTS_UNCHANGED_CHECK = 'the seeded tests were left as they were';
 
-const MIGRATION_FILE_RE = /^(\d+)_(.+)\.sql$/;
+const MIGRATION_FILE_RE = /^(\d+)_(.*)\.sql$/;
+const PLAN_STATEMENT_RE = /^select\s+plan\s*\(\s*(\d+)\s*\)$/i;
 const TEST_FILE_RE = /\.(?:sql|pg)$/;
 const TESTS_PREFIX = `${TESTS_DIR}/`;
 
@@ -97,7 +98,31 @@ export async function readWorkspace(ctx: ExecContext): Promise<WorkspaceProbe> {
   }
 }
 
-/** Passes when every seeded test file is still there and holds the same statements, ignoring comments and whitespace. */
+const plansOf = (statements: readonly string[]) =>
+  statements.flatMap((statement) => {
+    const plan = PLAN_STATEMENT_RE.exec(statement)?.[1];
+    return plan === undefined ? [] : [Number(plan)];
+  });
+
+/** Whether `workspace` still holds every statement of `pristine` in order with a plan no lower, ignoring added statements. */
+function keepsSeededStatements(pristine: string, workspace: string): boolean {
+  const seeded = splitSqlStatements(pristine);
+  const current = splitSqlStatements(workspace);
+  const [seededPlan = 0] = plansOf(seeded);
+  const currentPlans = plansOf(current);
+  if (currentPlans.length !== 1 || currentPlans[0] < seededPlan) return false;
+  const fingerprints = current.map(sqlFingerprint);
+  let next = 0;
+  for (const statement of seeded) {
+    if (PLAN_STATEMENT_RE.test(statement)) continue;
+    const found = fingerprints.indexOf(sqlFingerprint(statement), next);
+    if (found === -1) return false;
+    next = found + 1;
+  }
+  return true;
+}
+
+/** Passes when every seeded test file is still there with all its statements in order and a plan no lower, ignoring comments and whitespace; added statements are allowed. */
 export function checkSeededTestsUnchanged(probe: WorkspaceProbe): CheckResult {
   const name = TESTS_UNCHANGED_CHECK;
   if (!probe.ok) return { name, passed: false, notes: probe.notes };
@@ -107,9 +132,8 @@ export function checkSeededTestsUnchanged(probe: WorkspaceProbe): CheckResult {
     const sql =
       probe.seededTests.find(({ file }) => file === seeded.file)?.sql ?? null;
     if (sql === null) missing.push(seeded.file);
-    else if (sqlFingerprint(sql) !== sqlFingerprint(seeded.sql)) {
+    else if (!keepsSeededStatements(seeded.sql, sql))
       modified.push(seeded.file);
-    }
   }
   if (modified.length === 0 && missing.length === 0) {
     return {

@@ -21,6 +21,11 @@ const run = (
   ...(withPgProve === undefined ? {} : { withPgProve }),
 });
 
+const wholeDirectoryRun = (
+  commandIndex: number,
+  value: PgProveSummary | null
+): TestDbRun => ({ ...run(commandIndex, value), wholeDirectory: true });
+
 const PASS_ALL = summary('PASS', 2, 9);
 const FAIL_ALL = summary('FAIL', 2, 6);
 const PASS_ONE = summary('PASS', 1, 4);
@@ -80,6 +85,78 @@ describe('checkSuitePassedUnderTestDb', () => {
       expect(result.notes).toBe(
         'command 4 printed Result: PASS (Files=2, Tests=9)'
       );
+    });
+
+    it('passes when a whole-suite pass was followed by a failing single file and then a passing one', () => {
+      expect(
+        check([
+          run(10, PASS_ALL),
+          run(12, summary('FAIL', 1, 2)),
+          run(14, summary('PASS', 1, 2)),
+        ])
+      ).toEqual({
+        name: TEST_DB_CHECK,
+        passed: true,
+        notes: 'command 11 printed Result: PASS (Files=2, Tests=9)',
+      });
+    });
+
+    it('passes when a failing single file was followed by a whole-suite run, crediting the later one', () => {
+      expect(
+        check([
+          run(10, PASS_ALL),
+          run(12, summary('FAIL', 1, 2)),
+          run(14, summary('PASS', 3, 11)),
+        ])
+      ).toEqual({
+        name: TEST_DB_CHECK,
+        passed: true,
+        notes: 'command 15 printed Result: PASS (Files=3, Tests=11)',
+      });
+    });
+
+    it('passes when a later failure was followed by a pass covering at least as many files', () => {
+      expect(
+        check(
+          [
+            run(0, summary('PASS', 3, 11)),
+            run(1, summary('FAIL', 2, 6)),
+            run(2, summary('PASS', 2, 6)),
+          ],
+          3
+        ).passed
+      ).toBe(true);
+    });
+
+    it('passes when each of several later failures was followed by its own pass', () => {
+      expect(
+        check([
+          run(0, PASS_ALL),
+          run(1, summary('FAIL', 1, 2)),
+          run(2, summary('PASS', 1, 2)),
+          run(3, summary('FAIL', 1, 4)),
+          run(4, summary('PASS', 1, 4)),
+        ]).passed
+      ).toBe(true);
+    });
+
+    it('credits a whole-directory run that printed only Result: PASS, naming the command', () => {
+      expect(
+        check([wholeDirectoryRun(3, summary('PASS', null, null))])
+      ).toEqual({
+        name: TEST_DB_CHECK,
+        passed: true,
+        notes: 'command 4 printed Result: PASS',
+      });
+    });
+
+    it('credits a whole-directory run after an earlier run failed', () => {
+      expect(
+        check([
+          run(0, FAIL_ALL),
+          wholeDirectoryRun(2, summary('PASS', null, null)),
+        ]).passed
+      ).toBe(true);
     });
 
     it('ignores runs that printed no summary around the passing one', () => {
@@ -221,6 +298,28 @@ describe('checkSuitePassedUnderTestDb', () => {
       );
     });
 
+    it('fails on a PASS with no Files= count from a run that named a path', () => {
+      expect(check([run(1, summary('PASS', null, null))])).toMatchObject({
+        passed: false,
+        notes:
+          "command 2 printed Result: PASS without a Files= count, so it can't be credited with the whole suite",
+      });
+    });
+
+    it('does not let the whole-directory mark credit a Files= count below the seeded one', () => {
+      expect(check([wholeDirectoryRun(0, PASS_ONE)])).toMatchObject({
+        passed: false,
+        notes:
+          'command 1 printed Result: PASS for 1 file(s); the seeded suite has 2',
+      });
+    });
+
+    it('does not credit a whole-directory run that printed a failure', () => {
+      expect(
+        check([wholeDirectoryRun(0, summary('FAIL', null, null))]).passed
+      ).toBe(false);
+    });
+
     it('fails on a summary with no Result line', () => {
       expect(check([run(0, summary(null, 2, 9))]).passed).toBe(false);
     });
@@ -272,6 +371,85 @@ describe('checkSuitePassedUnderTestDb', () => {
         notes:
           'command 2 printed Result: FAIL after the passing run in command 1',
       });
+    });
+
+    it('fails when a failure from the whole suite was followed only by a single-file pass', () => {
+      expect(
+        check([run(0, PASS_ALL), run(1, FAIL_ALL), run(2, PASS_ONE)])
+      ).toEqual({
+        name: TEST_DB_CHECK,
+        passed: false,
+        notes:
+          'command 2 printed Result: FAIL after the passing run in command 1',
+      });
+    });
+
+    it('fails when a single-file failure was followed by nothing', () => {
+      expect(
+        check([run(0, PASS_ALL), run(1, summary('FAIL', 1, 4))]).passed
+      ).toBe(false);
+    });
+
+    it('fails when a whole-suite failure is still open after a later single-file failure was cleared', () => {
+      expect(
+        check(
+          [
+            run(0, summary('PASS', 3, 11)),
+            run(1, summary('FAIL', 2, 6)),
+            run(2, summary('FAIL', 1, 2)),
+            run(3, summary('PASS', 1, 2)),
+          ],
+          3
+        )
+      ).toEqual({
+        name: TEST_DB_CHECK,
+        passed: false,
+        notes:
+          'command 2 printed Result: FAIL after the passing run in command 1',
+      });
+    });
+
+    it('names the latest failure that is still unresolved', () => {
+      expect(
+        check([
+          run(0, PASS_ALL),
+          run(1, summary('FAIL', 1, 2)),
+          run(2, summary('PASS', 1, 2)),
+          run(3, summary('FAIL', 1, 4)),
+        ]).notes
+      ).toBe(
+        'command 4 printed Result: FAIL after the passing run in command 1'
+      );
+    });
+
+    it('fails when a failure with no Files= count was followed only by a single-file pass', () => {
+      expect(
+        check([
+          run(0, PASS_ALL),
+          run(1, summary('FAIL', null, null)),
+          run(2, PASS_ONE),
+        ]).passed
+      ).toBe(false);
+    });
+
+    it('fails when a single-file failure was followed by a pass with no Files= count', () => {
+      expect(
+        check([
+          run(0, PASS_ALL),
+          run(1, summary('FAIL', 1, 2)),
+          run(2, summary('PASS', null, null)),
+        ]).passed
+      ).toBe(false);
+    });
+
+    it('fails when a failure was followed by a pass that ran zero tests', () => {
+      expect(
+        check([
+          run(0, PASS_ALL),
+          run(1, summary('FAIL', 1, 2)),
+          run(2, summary('PASS', 1, 0)),
+        ]).passed
+      ).toBe(false);
     });
 
     it('fails on a failing run even when later runs printed no summary', () => {

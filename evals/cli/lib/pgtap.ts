@@ -32,6 +32,8 @@ export type TestDbRun = {
   commandIndex: number;
   summary: PgProveSummary | null;
   withPgProve?: true;
+  /** Every `supabase test db` in the call ran with no path argument, so it covered the whole `supabase/tests` directory. */
+  wholeDirectory?: true;
 };
 
 const PLAN_RE = /^1\.\.(\d+)(?:\s+#.*)?$/;
@@ -159,12 +161,9 @@ export function findTestDbRuns(
 ): TestDbRun[] {
   const calls = commandToolCalls(toolCalls);
   const entries = extractCommandEntries(toolCalls);
+  const testDbInvocations = invocations.filter(isTestDbInvocation);
   const indexes = [
-    ...new Set(
-      invocations
-        .filter(isTestDbInvocation)
-        .map((invocation) => invocation.commandIndex)
-    ),
+    ...new Set(testDbInvocations.map((invocation) => invocation.commandIndex)),
   ].sort((a, b) => a - b);
   return indexes.map((commandIndex) => {
     if (runsPgProve(entries[commandIndex].command)) {
@@ -172,6 +171,13 @@ export function findTestDbRuns(
     }
     const { result, error } = calls[commandIndex];
     const output = collectStringValues([result, error]).join('\n');
-    return { commandIndex, summary: readPgProveSummary(output) };
+    const wholeDirectory = testDbInvocations
+      .filter((invocation) => invocation.commandIndex === commandIndex)
+      .every((invocation) => invocationPositionals(invocation).length === 2);
+    return {
+      commandIndex,
+      summary: readPgProveSummary(output),
+      ...(wholeDirectory ? { wholeDirectory: true as const } : {}),
+    };
   });
 }

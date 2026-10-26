@@ -35,6 +35,7 @@ const [CREATE_FILE, DISCOUNTS_FILE] = SEEDED_MIGRATIONS;
 const [TOTALS_TEST, DISCOUNTS_TEST] = SEEDED_TEST_FILES;
 const FIX_FILE = '20260302000000_fix_discounts.sql';
 const EARLY_FIX_FILE = '20260201000000_fix_discounts.sql';
+const EMPTY_NAME_FIX_FILE = '20261026000000_.sql';
 
 const replaceOnce = (text: string, from: string, to: string) => {
   if (!text.includes(from)) throw new Error(`seed no longer contains ${from}`);
@@ -526,6 +527,12 @@ Result: FAIL
 error running container: exit 1
 `;
 
+const EXTRA_ASSERTION_PASS_OUTPUT = PASS_OUTPUT.replace('Tests=9', 'Tests=10');
+const SINGLE_FILE_PASS_OUTPUT =
+  'supabase/tests/rounding.test.sql .. ok\nAll tests successful.\nFiles=1, Tests=2,  0 wallclock secs\nResult: PASS\n';
+const SINGLE_FILE_FAIL_OUTPUT =
+  'supabase/tests/rounding.test.sql ..\nFailed 1/2 subtests\nFiles=1, Tests=2,  0 wallclock secs\nResult: FAIL\nerror running container: exit 1\n';
+
 const START = call('supabase start');
 const WRITE_FIX = call(
   `cat > supabase/migrations/${FIX_FILE} <<'EOF'\n${FIX_SQL}EOF`
@@ -616,6 +623,25 @@ describe('valid fixes pass every check', () => {
     expect(scored.passed).toBe(true);
   });
 
+  it('passes a fix migration with an empty name part applied with migration up', async () => {
+    const files = { ...SEEDED_FILES, [EMPTY_NAME_FIX_FILE]: FIX_SQL };
+    const { failed, check } = await score(
+      [
+        START,
+        call(
+          `cat > supabase/migrations/${EMPTY_NAME_FIX_FILE} <<'EOF'\n${FIX_SQL}EOF`
+        ),
+        MIGRATION_UP,
+        TEST_DB_PASS,
+      ],
+      { files }
+    );
+    expect(failed).toEqual([]);
+    expect(check(HISTORY)?.notes).toBe(
+      '3 migration files recorded as they are now'
+    );
+  });
+
   it('passes an in-place fix beside an abandoned empty migration recorded with no statements', async () => {
     const files = {
       ...FIXED_IN_PLACE,
@@ -670,6 +696,38 @@ describe('valid fixes pass every check', () => {
     );
   });
 
+  it('passes a fix that adds an assertion to a seeded test and raises its plan to match', async () => {
+    const extended = replaceOnce(
+      replaceOnce(
+        SEEDED_TEST_SQL[DISCOUNTS_TEST],
+        'select plan(5);',
+        'select plan(6);'
+      ),
+      'select * from finish();',
+      `select is(
+  public.invoice_total_cents(900101),
+  2700::bigint,
+  'the 10% line still totals 2700'
+);
+
+select * from finish();`
+    );
+    const { failed, check } = await score(
+      [
+        START,
+        EDIT_MIGRATION,
+        RESET,
+        call('supabase test db', EXTRA_ASSERTION_PASS_OUTPUT),
+      ],
+      { tests: { ...SEEDED_TEST_SQL, [DISCOUNTS_TEST]: extended } }
+    );
+    expect(failed).toEqual([]);
+    expect(check(UNCHANGED)?.notes).toBe('2 seeded test files unchanged');
+    expect(check(TEST_DB)?.notes).toBe(
+      'command 4 printed Result: PASS (Files=2, Tests=10)'
+    );
+  });
+
   it('passes when a single-file re-run of the passing suite came last', async () => {
     const singleFile = call(
       'supabase test db supabase/tests/line_discounts.test.sql',
@@ -677,6 +735,42 @@ describe('valid fixes pass every check', () => {
     );
     const { failed } = await score([...IN_PLACE_RUN, singleFile]);
     expect(failed).toEqual([]);
+  });
+
+  it.each([
+    [
+      'grep',
+      "supabase db reset && supabase test db 2>&1 | grep -E 'Result|not ok'",
+    ],
+    ['tail', 'supabase test db | tail -n 1'],
+    ['npx and tail', 'npx supabase test db | tail -1'],
+    ['a flag and tail', 'supabase test db --debug | tail -1'],
+  ])(
+    'passes when the whole-directory run was filtered down to its result line with %s',
+    async (_label, command) => {
+      const { failed, check } = await score([
+        START,
+        EDIT_MIGRATION,
+        RESET,
+        call(command, 'Result: PASS\n'),
+      ]);
+      expect(failed).toEqual([]);
+      expect(check(TEST_DB)?.notes).toBe('command 4 printed Result: PASS');
+    }
+  );
+
+  it('passes when a failing run of a single test file the agent added, and its passing re-run, came after the whole-suite pass', async () => {
+    const own = 'supabase test db supabase/tests/rounding.test.sql';
+    const { failed, check } = await score([
+      ...IN_PLACE_RUN,
+      errored(own, SINGLE_FILE_FAIL_OUTPUT),
+      EDIT_MIGRATION,
+      call(own, SINGLE_FILE_PASS_OUTPUT),
+    ]);
+    expect(failed).toEqual([]);
+    expect(check(TEST_DB)?.notes).toBe(
+      'command 4 printed Result: PASS (Files=2, Tests=9)'
+    );
   });
 
   it('passes when a failing supabase test db run came before the fix and a passing one after', async () => {
@@ -865,6 +959,37 @@ describe('known-bad runs fail on the right check', () => {
     ]);
     expect(failed).toEqual([TEST_DB]);
     expect(check(TEST_DB)?.notes).toContain('also ran pg_prove by hand');
+  });
+
+  it('fails the agent whose filtered single-file run printed only a result line, since it does not say how many files ran', async () => {
+    const { failed, check } = await score([
+      START,
+      EDIT_MIGRATION,
+      RESET,
+      call(
+        'supabase test db supabase/tests/line_discounts.test.sql | tail -1',
+        'Result: PASS\n'
+      ),
+    ]);
+    expect(failed).toEqual([TEST_DB]);
+    expect(check(TEST_DB)?.notes).toBe(
+      "command 4 printed Result: PASS without a Files= count, so it can't be credited with the whole suite"
+    );
+  });
+
+  it('fails the agent whose whole-suite failure after a passing run was followed only by a single-file pass', async () => {
+    const { failed, check } = await score([
+      ...IN_PLACE_RUN,
+      TEST_DB_FAIL,
+      call(
+        'supabase test db supabase/tests/rounding.test.sql',
+        SINGLE_FILE_PASS_OUTPUT
+      ),
+    ]);
+    expect(failed).toEqual([TEST_DB]);
+    expect(check(TEST_DB)?.notes).toBe(
+      'command 5 printed Result: FAIL after the passing run in command 4'
+    );
   });
 
   it('fails the agent whose last supabase test db run failed after a passing one', async () => {
