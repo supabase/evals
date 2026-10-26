@@ -76,7 +76,8 @@ const QUERY_VALUE_FLAGS = new Set([
 ]);
 
 const STDIN_FILES = new Set(['-', '/dev/stdin']);
-const CAT_SUBSTITUTION = /^\$\(\s*cat\s+([^\s'"`$()]+)\s*\)$/;
+const CAT_SUBSTITUTION =
+  /^\s*\$\(\s*(?:cat\s+|<\s*)(['"]?)([^\s'"`$()]+)\1\s*\)\s*$/;
 const SHELL_EXPANSION = /^\s*(?:\$\(|\$\{?[A-Za-z_]|`)/;
 const CLI_FAILURE_RE =
   /"_tag"\s*:\s*"Error"|Cannot find project ref|Access token not provided|Confirmation required|failed to connect|unknown flag|command not found|unexpected status \d{3}|failed to execute query/i;
@@ -95,10 +96,15 @@ const LOOPBACK_HOSTS = new Set([
 ]);
 const LOOPBACK_IPV4_RE = /^127(?:\.\d{1,3}){3}$/;
 
-const CHANGED_TABLE = new RegExp(
-  `(?<![A-Za-z0-9_$])(?:${CHANGED_TABLES.join('|')})(?![A-Za-z0-9_$])`,
-  'i'
-);
+function wholeIdentifier(names: readonly string[]): RegExp {
+  return new RegExp(
+    `(?<![A-Za-z0-9_$])(?:${names.join('|')})(?![A-Za-z0-9_$])`,
+    'i'
+  );
+}
+
+const CHANGED_TABLE = wholeIdentifier(CHANGED_TABLES);
+const PROFILES_TABLE = wholeIdentifier(['profiles']);
 
 function positionals(argv: readonly string[]): string[] {
   const out: string[] = [];
@@ -265,7 +271,7 @@ function readQuery(
 
   const positional = positionals(inv.argv)[2];
   if (positional !== undefined) {
-    const catted = CAT_SUBSTITUTION.exec(positional)?.[1];
+    const catted = CAT_SUBSTITUTION.exec(positional)?.[2];
     if (catted !== undefined) return withFile(catted);
     return SHELL_EXPANSION.test(positional)
       ? commandOnly
@@ -348,6 +354,10 @@ export function namesChangedTable(sql: string): boolean {
   return CHANGED_TABLE.test(sql);
 }
 
+export function namesProfiles(sql: string): boolean {
+  return PROFILES_TABLE.test(sql);
+}
+
 /** A push that isn't a dry run and isn't explicitly local. */
 export function isRealPush(push: DbPush): boolean {
   return !push.dryRun && !push.explicitlyLocal;
@@ -411,6 +421,11 @@ function namesChangedTableIn(query: DbQuery): boolean {
   return text !== undefined && namesChangedTable(text);
 }
 
+function namesProfilesIn(query: DbQuery): boolean {
+  const text = query.sql ?? query.command;
+  return text !== undefined && namesProfiles(text);
+}
+
 export function checkVerifiedAfterPush(
   hosted: boolean,
   activity: DbActivity
@@ -436,9 +451,7 @@ export function checkVerifiedAfterPush(
   }
   const naming = remote.filter(namesChangedTableIn);
   if (naming.length === 0) {
-    return fail(
-      'the remote db queries after the push never read plans or profiles'
-    );
+    return fail('the remote db queries after the push never read profiles');
   }
   const reading = naming.filter(readsOnly);
   if (reading.length === 0) {
@@ -446,9 +459,15 @@ export function checkVerifiedAfterPush(
       'the remote db queries after the push that named plans or profiles also contained a write keyword or a non-read statement, so none counts as a read'
     );
   }
-  if (reading.every((query) => query.failed)) {
+  const readingProfiles = reading.filter(namesProfilesIn);
+  if (readingProfiles.length === 0) {
     return fail(
-      'every remote db query that read plans or profiles after the push failed'
+      'the remote db queries after the push read plans but never profiles, so no query checked which plan users are on'
+    );
+  }
+  if (readingProfiles.every((query) => query.failed)) {
+    return fail(
+      'every remote db query that read profiles after the push failed'
     );
   }
   return { name, passed: true };

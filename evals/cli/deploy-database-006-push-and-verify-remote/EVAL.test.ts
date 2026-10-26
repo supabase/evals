@@ -66,9 +66,10 @@ const CHECK_NAMES = [
 ];
 
 const PUSH = 'supabase db push --linked --yes';
-const PLANS_QUERY = 'supabase db query --linked "select * from plans"';
 const PROFILES_BY_PLAN =
   'supabase db query --linked "select plan_id, count(*) from profiles group by 1"';
+const PLANS_ONLY_QUERY =
+  'supabase db query --linked "select id, name, monthly_price_cents from public.plans"';
 const VERIFY_SQL = 'select plan_id, count(*) from public.profiles group by 1;';
 const GOOD_RUN = [shellCall(PUSH), shellCall(PROFILES_BY_PLAN)];
 
@@ -261,15 +262,15 @@ describe('scorer without a hosted project', () => {
       'a push and a piped query that stopped at the confirmation',
       [
         shellCall(PUSH),
-        shellCall('supabase db query --remote "select * from plans" | jq', {
+        shellCall('supabase db query --remote "select * from profiles" | jq', {
           result:
             '{"_tag":"Error","error":{"message":"Confirmation required: ... Nothing was changed."}}',
         }),
       ],
     ],
     [
-      'a push and a query that read plans',
-      [shellCall(PUSH), shellCall(PLANS_QUERY)],
+      'a push and a query that read profiles',
+      [shellCall(PUSH), shellCall(PROFILES_BY_PLAN)],
     ],
   ])(
     'fails the verify check with NO_HOSTED_PROJECT for %s',
@@ -390,7 +391,7 @@ describe('scorer with a hosted project', () => {
       notPushedRemote,
       [
         shellCall('supabase migration repair --status applied 20261020120000'),
-        shellCall(PLANS_QUERY),
+        shellCall(PROFILES_BY_PLAN),
       ],
       [SCHEMA_CHECK_NAME, DATA_CHECK_NAME, PUSH_CHECK_NAME, VERIFY_CHECK_NAME],
     ],
@@ -402,7 +403,7 @@ describe('scorer with a hosted project', () => {
           'supabase db query --linked -f supabase/migrations/20261020120000_add_plans.sql'
         ),
         shellCall('supabase migration repair --status applied 20261020120000'),
-        shellCall(PLANS_QUERY),
+        shellCall(PROFILES_BY_PLAN),
       ],
       [PUSH_CHECK_NAME, VERIFY_CHECK_NAME],
     ],
@@ -415,7 +416,10 @@ describe('scorer with a hosted project', () => {
     [
       'a db reset --linked in place of the push, which empties the tables',
       resetRemote,
-      [shellCall('supabase db reset --linked --yes'), shellCall(PLANS_QUERY)],
+      [
+        shellCall('supabase db reset --linked --yes'),
+        shellCall(PROFILES_BY_PLAN),
+      ],
       [DATA_CHECK_NAME, PUSH_CHECK_NAME, VERIFY_CHECK_NAME],
     ],
     [
@@ -478,25 +482,34 @@ describe('scorer with a hosted project', () => {
     [
       'a check that ran before the push only',
       MIGRATED_REMOTE,
-      [shellCall(PLANS_QUERY), shellCall(PUSH)],
+      [shellCall(PROFILES_BY_PLAN), shellCall(PUSH)],
       [VERIFY_CHECK_NAME],
     ],
     [
       'a check that read the local database',
       MIGRATED_REMOTE,
-      [shellCall(PUSH), shellCall('supabase db query "select * from plans"')],
+      [
+        shellCall(PUSH),
+        shellCall('supabase db query "select * from profiles"'),
+      ],
       [VERIFY_CHECK_NAME],
     ],
     [
       'a remote check whose tool call errored',
       MIGRATED_REMOTE,
-      [shellCall(PUSH), failedShellCall(PLANS_QUERY)],
+      [shellCall(PUSH), failedShellCall(PROFILES_BY_PLAN)],
       [VERIFY_CHECK_NAME],
     ],
     [
-      'a remote check that never read plans or profiles',
+      'a remote check that never read profiles',
       MIGRATED_REMOTE,
       [shellCall(PUSH), shellCall('supabase db query --linked "select 1"')],
+      [VERIFY_CHECK_NAME],
+    ],
+    [
+      'a remote check that read the plans but never the profiles',
+      MIGRATED_REMOTE,
+      [shellCall(PUSH), shellCall(PLANS_ONLY_QUERY)],
       [VERIFY_CHECK_NAME],
     ],
     [
@@ -504,7 +517,7 @@ describe('scorer with a hosted project', () => {
       UNMIGRATED_REMOTE,
       [
         shellCall('supabase db push --dry-run --linked'),
-        shellCall(PLANS_QUERY),
+        shellCall(PROFILES_BY_PLAN),
       ],
       [
         HISTORY_CHECK_NAME,
@@ -531,9 +544,9 @@ describe('scorer with a hosted project', () => {
     const { ctx } = fakeCtx({
       toolCalls: [
         shellCall(PUSH),
-        failedShellCall('supabase db query --remote "select * from plans"'),
+        failedShellCall('supabase db query --remote "select * from profiles"'),
         shellCall(
-          'supabase db query --remote --read-only "select * from plans"'
+          'supabase db query --remote --read-only "select * from profiles"'
         ),
       ],
     });
@@ -545,6 +558,32 @@ describe('scorer with a hosted project', () => {
     const { ctx } = fakeCtx({
       toolCalls: [shellCall(PUSH), shellCall(VERIFY_FROM_FILE)],
       routes: [VERIFY_FILE_ROUTE],
+    });
+
+    expect(failedNames(await scorer(ctx))).toEqual([]);
+  });
+
+  it('fails the verify check for a check that read the plans but never the profiles, and says so', async () => {
+    const { ctx } = fakeCtx({
+      toolCalls: [shellCall(PUSH), shellCall(PLANS_ONLY_QUERY)],
+    });
+
+    const result = await scorer(ctx);
+
+    expect(failedNames(result)).toEqual([VERIFY_CHECK_NAME]);
+    expect(notesOf(result, VERIFY_CHECK_NAME)).toBe(
+      'the remote db queries after the push read plans but never profiles, so no query checked which plan users are on'
+    );
+  });
+
+  it('passes a check that joined the profiles to the plans', async () => {
+    const { ctx } = fakeCtx({
+      toolCalls: [
+        shellCall(PUSH),
+        shellCall(
+          'supabase db query --linked "select pl.name, count(*) from public.profiles p join public.plans pl on pl.id = p.plan_id group by 1"'
+        ),
+      ],
     });
 
     expect(failedNames(await scorer(ctx))).toEqual([]);
@@ -751,7 +790,7 @@ describe('scorer with a hosted project', () => {
     ],
     [
       'a stopped confirmation',
-      'supabase db query --remote "select * from plans" | jq',
+      'supabase db query --remote "select * from profiles" | jq',
       '{"_tag":"Error","error":{"message":"Confirmation required: ... Nothing was changed."}}',
     ],
   ])(
@@ -926,7 +965,7 @@ describe('metrics check', () => {
       toolCalls: [
         shellCall('supabase db push --linked', { error: WRAPPER_CONFLICT }),
         shellCall(PUSH),
-        shellCall(PLANS_QUERY),
+        shellCall(PROFILES_BY_PLAN),
       ],
     });
 
@@ -941,7 +980,7 @@ describe('metrics check', () => {
       toolCalls: [
         shellCall('supabase db push', { result: APPLIED }),
         shellCall('supabase db push', { result: UP_TO_DATE }),
-        shellCall(PLANS_QUERY),
+        shellCall(PROFILES_BY_PLAN),
       ],
     });
 
@@ -954,9 +993,9 @@ describe('metrics check', () => {
   it('counts the remote query that came before the push in a query, push, query run', async () => {
     const { ctx } = fakeCtx({
       toolCalls: [
-        shellCall(PLANS_QUERY),
+        shellCall(PROFILES_BY_PLAN),
         shellCall(PUSH),
-        shellCall(PLANS_QUERY),
+        shellCall(PROFILES_BY_PLAN),
       ],
     });
 

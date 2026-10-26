@@ -18,6 +18,7 @@ import {
   checkPushed,
   checkVerifiedAfterPush,
   namesChangedTable,
+  namesProfiles,
   PUSH_CHECK_NAME,
   readDbActivity,
   readQueryFiles,
@@ -51,8 +52,9 @@ const LOCALHOST_SUBDOMAIN_URL =
 const VERIFY_SQL = 'select plan_id, count(*) from public.profiles group by 1;';
 const PROFILES_BY_PLAN =
   'supabase db query --linked "select plan_id, count(*) from profiles group by 1"';
+const PLANS_ONLY_QUERY =
+  'supabase db query --linked "select id, name, monthly_price_cents from public.plans"';
 const PUSH = 'supabase db push --linked --yes';
-const PLANS_QUERY = 'supabase db query --linked "select * from plans"';
 
 const CLI_FAILURES: [label: string, output: string][] = [
   ['a JSON error', '{"_tag":"Error","error":{"code":1,"message":"boom"}}'],
@@ -607,6 +609,14 @@ describe('readDbActivity: query SQL', () => {
       'supabase db query --linked "$(cat a.sql b.sql)"',
     ],
     [
+      'a redirect substitution of more than one file',
+      'supabase db query --linked "$(< a.sql b.sql)"',
+    ],
+    [
+      'a cat substitution with a file name in mismatched quotes',
+      `supabase db query --linked "$(cat 'verify.sql")"`,
+    ],
+    [
       'a variable',
       'SQL="select * from plans"; supabase db query --linked "$SQL"',
     ],
@@ -744,6 +754,31 @@ describe('readDbActivity: query SQL', () => {
         'supabase db query "$(cat verify.sql)" --linked',
         'verify.sql',
       ],
+      [
+        'a cat substitution of a quoted file name',
+        `supabase db query --linked "$(cat 'verify.sql')"`,
+        'verify.sql',
+      ],
+      [
+        'a redirect substitution',
+        'supabase db query --linked "$(< verify.sql)"',
+        'verify.sql',
+      ],
+      [
+        'a redirect substitution without a space',
+        'supabase db query --linked "$(<verify.sql)"',
+        'verify.sql',
+      ],
+      [
+        'a quoted redirect substitution',
+        `supabase db query --linked "$(< 'verify.sql')"`,
+        'verify.sql',
+      ],
+      [
+        'a cat substitution with whitespace around it',
+        'supabase db query --linked " $(cat verify.sql) "',
+        'verify.sql',
+      ],
     ])('reads the file of %s', (_, command, file) => {
       expect(fileOf(command)).toMatchObject({ sql: null, file });
     });
@@ -801,7 +836,7 @@ describe('readDbActivity: query SQL', () => {
   it('numbers queries and pushes in one sequence', () => {
     const { pushes, queries } = activityOf(
       'supabase migration list --linked',
-      PLANS_QUERY,
+      PROFILES_BY_PLAN,
       'supabase db push',
       'supabase db query "select 1"'
     );
@@ -814,8 +849,8 @@ describe('readDbActivity: query SQL', () => {
 
   it('marks a query failed when its tool call reported an error', () => {
     const { queries } = activityOf(
-      failedShellCall(PLANS_QUERY),
-      shellCall(PLANS_QUERY)
+      failedShellCall(PROFILES_BY_PLAN),
+      shellCall(PROFILES_BY_PLAN)
     );
     expect(queries.map(({ failed }) => failed)).toEqual([true, false]);
   });
@@ -823,7 +858,7 @@ describe('readDbActivity: query SQL', () => {
   it.each(CLI_FAILURES)(
     'marks a query failed when its output shows %s, with no tool error',
     (_, result) => {
-      const { queries } = activityOf(shellCall(PLANS_QUERY, { result }));
+      const { queries } = activityOf(shellCall(PROFILES_BY_PLAN, { result }));
       expect(queries[0]?.failed).toBe(true);
     }
   );
@@ -836,7 +871,7 @@ describe('readDbActivity: query SQL', () => {
     ['an empty output', ''],
     ['a warning', 'WARNING: --linked is deprecated, use --remote'],
   ])('does not mark a query failed on %s', (_, result) => {
-    const { queries } = activityOf(shellCall(PLANS_QUERY, { result }));
+    const { queries } = activityOf(shellCall(PROFILES_BY_PLAN, { result }));
     expect(queries[0]?.failed).toBe(false);
   });
 
@@ -845,7 +880,7 @@ describe('readDbActivity: query SQL', () => {
       shellCall('supabase migration list --linked', {
         result: 'Cannot find project ref.',
       }),
-      shellCall(PLANS_QUERY, { result: '[]' })
+      shellCall(PROFILES_BY_PLAN, { result: '[]' })
     );
     expect(queries.map(({ failed }) => failed)).toEqual([false]);
   });
@@ -933,6 +968,7 @@ describe('readQueryFiles', () => {
     ['a redirect', 'supabase db query --linked < verify.sql'],
     ['a cat pipe', 'cat verify.sql | supabase db query --linked'],
     ['a cat substitution', 'supabase db query --linked "$(cat verify.sql)"'],
+    ['a redirect substitution', 'supabase db query --linked "$(< verify.sql)"'],
     ['-f - with a redirect', 'supabase db query --linked -f - < verify.sql'],
   ])(
     'reads the file of %s relative to the directory the query ran in',
@@ -1014,10 +1050,12 @@ describe('readQueryFiles', () => {
     const { ctx, calls } = fakeExec([filesRoute(/.*/, VERIFY_SQL)]);
     const { queries } = await readQueryFiles(
       ctx,
-      activityOf(PLANS_QUERY, 'supabase db query --linked <<< "select 1"')
+      activityOf(PROFILES_BY_PLAN, 'supabase db query --linked <<< "select 1"')
     );
     expect(calls).toEqual([]);
-    expect(queries[0]?.sql).toBe('select * from plans');
+    expect(queries[0]?.sql).toBe(
+      'select plan_id, count(*) from profiles group by 1'
+    );
   });
 
   it('keeps the pushes and every other query field as they were', async () => {
@@ -1071,6 +1109,30 @@ describe('namesChangedTable', () => {
     '',
   ])('does not count %j as naming a changed table', (sql) => {
     expect(namesChangedTable(sql)).toBe(false);
+  });
+});
+
+describe('namesProfiles', () => {
+  it.each([
+    'select * from profiles',
+    'SELECT COUNT(*) FROM Profiles',
+    'select count(*) from public."profiles"',
+    "select * from information_schema.tables where table_name = 'profiles'",
+    'select p.id from public.plans pl join profiles p on p.plan_id = pl.id',
+  ])('counts %j as naming profiles', (sql) => {
+    expect(namesProfiles(sql)).toBe(true);
+  });
+
+  it.each([
+    'select * from plans',
+    "select * from information_schema.tables where table_name = 'plans'",
+    'select * from profiles_audit',
+    'select * from my_profiles',
+    'select plan_id from public.orders',
+    'select 1',
+    '',
+  ])('does not count %j as naming profiles', (sql) => {
+    expect(namesProfiles(sql)).toBe(false);
   });
 });
 
@@ -1351,7 +1413,7 @@ describe('checkPushed', () => {
         `psql "${DIRECT_URL}" -f supabase/migrations/20261020120000_add_plans.sql`,
       ],
     ],
-    ['only a query', [PLANS_QUERY]],
+    ['only a query', [PROFILES_BY_PLAN]],
   ])('fails with %s, saying no db push ran', (_, commands) => {
     expect(checkPushed(activityOf(...commands))).toEqual({
       name: PUSH_CHECK_NAME,
@@ -1375,52 +1437,61 @@ describe('checkVerifiedAfterPush', () => {
       'a --linked query naming profiles after the push',
       [PUSH, PROFILES_BY_PLAN],
     ],
-    ['a query in the same command as the push', [`${PUSH} && ${PLANS_QUERY}`]],
-    ['a bare push followed by a query', ['supabase db push', PLANS_QUERY]],
+    [
+      'a query in the same command as the push',
+      [`${PUSH} && ${PROFILES_BY_PLAN}`],
+    ],
+    ['a bare push followed by a query', ['supabase db push', PROFILES_BY_PLAN]],
     [
       '--project-ref <ref>',
       [
         PUSH,
-        `supabase db query --project-ref ${HOSTED_REF} "select * from plans"`,
+        `supabase db query --project-ref ${HOSTED_REF} "select * from profiles"`,
       ],
     ],
     [
       '--project-ref=<ref>',
       [
         PUSH,
-        `supabase db query --project-ref=${HOSTED_REF} "select * from plans"`,
+        `supabase db query --project-ref=${HOSTED_REF} "select * from profiles"`,
       ],
     ],
     [
       '--remote',
       [
         'supabase db push --remote --yes',
-        'supabase db query --remote "select * from plans"',
+        'supabase db query --remote "select * from profiles"',
       ],
     ],
     [
       '--remote=<ref>',
-      [PUSH, `supabase db query --remote=${HOSTED_REF} "select * from plans"`],
+      [
+        PUSH,
+        `supabase db query --remote=${HOSTED_REF} "select * from profiles"`,
+      ],
     ],
     [
       '--remote --read-only',
-      [PUSH, 'supabase db query --remote --read-only "select * from plans"'],
+      [PUSH, 'supabase db query --remote --read-only "select * from profiles"'],
     ],
     [
       '--remote --yes',
-      [PUSH, 'supabase db query --remote --yes "select * from plans"'],
+      [PUSH, 'supabase db query --remote --yes "select * from profiles"'],
     ],
     [
       '-o json',
-      [PUSH, 'supabase db query --linked -o json "select * from plans"'],
+      [PUSH, 'supabase db query --linked -o json "select * from profiles"'],
     ],
     [
       '--output json',
-      [PUSH, 'supabase db query --linked --output json "select * from plans"'],
+      [
+        PUSH,
+        'supabase db query --linked --output json "select * from profiles"',
+      ],
     ],
     [
       'a quoted schema-qualified table',
-      [PUSH, `supabase db query --linked 'select * from "public"."plans"'`],
+      [PUSH, `supabase db query --linked 'select * from "public"."profiles"'`],
     ],
     [
       'upper-case SQL',
@@ -1430,14 +1501,14 @@ describe('checkVerifiedAfterPush', () => {
       'a pinned runner for both commands',
       [
         'npx -y supabase@2.122.0 db push --linked --yes',
-        'npx -y supabase@2.122.0 db query --linked "select * from plans"',
+        'npx -y supabase@2.122.0 db query --linked "select * from profiles"',
       ],
     ],
     [
       'a --db-url on a pooler host',
       [
         PUSH,
-        `supabase db query --db-url "${POOLER_URL}" "select * from plans"`,
+        `supabase db query --db-url "${POOLER_URL}" "select * from profiles"`,
       ],
     ],
     [
@@ -1448,7 +1519,7 @@ describe('checkVerifiedAfterPush', () => {
       ],
     ],
     [
-      'a file that names plans',
+      'a file that names profiles',
       [PUSH, 'supabase db query --linked -f verify.sql'],
       [VERIFY_FILE],
     ],
@@ -1461,14 +1532,14 @@ describe('checkVerifiedAfterPush', () => {
     ],
     [
       'a pipe on stdin',
-      [PUSH, 'echo "select * from plans" | supabase db query --linked'],
+      [PUSH, 'echo "select * from profiles" | supabase db query --linked'],
     ],
     [
       'a here-string on stdin',
-      [PUSH, 'supabase db query --linked <<< "select * from plans"'],
+      [PUSH, 'supabase db query --linked <<< "select * from profiles"'],
     ],
     [
-      'a redirect from a file that names plans',
+      'a redirect from a file that names profiles',
       [PUSH, 'supabase db query --linked < verify.sql'],
       [VERIFY_FILE],
     ],
@@ -1483,6 +1554,21 @@ describe('checkVerifiedAfterPush', () => {
       [VERIFY_FILE],
     ],
     [
+      'a cat substitution of a quoted file name',
+      [PUSH, `supabase db query --linked "$(cat 'verify.sql')"`],
+      [VERIFY_FILE],
+    ],
+    [
+      'a redirect substitution of a file that names profiles',
+      [PUSH, 'supabase db query --linked "$(< verify.sql)"'],
+      [VERIFY_FILE],
+    ],
+    [
+      'a cat substitution with a space after it',
+      [PUSH, 'supabase db query --linked "$(cat verify.sql) "'],
+      [VERIFY_FILE],
+    ],
+    [
       '-f - with a redirect from a file',
       [PUSH, 'supabase db query --linked -f - < verify.sql'],
       [VERIFY_FILE],
@@ -1491,14 +1577,14 @@ describe('checkVerifiedAfterPush', () => {
       '-f /dev/stdin with a heredoc',
       [
         PUSH,
-        "supabase db query --linked -f /dev/stdin <<'SQL'\nselect * from plans\nSQL",
+        "supabase db query --linked -f /dev/stdin <<'SQL'\nselect * from profiles\nSQL",
       ],
     ],
     [
       '-f - with a heredoc',
       [
         PUSH,
-        "supabase db query --linked -f - <<'SQL'\nselect * from plans\nSQL",
+        "supabase db query --linked -f - <<'SQL'\nselect * from profiles\nSQL",
       ],
     ],
     [
@@ -1515,7 +1601,7 @@ describe('checkVerifiedAfterPush', () => {
       [
         PUSH,
         shellCall(
-          'supabase db query --remote --read-only "select * from plans" | jq',
+          'supabase db query --remote --read-only "select * from profiles" | jq',
           {
             result: '[{"id":"free"},{"id":"pro"}]',
           }
@@ -1523,64 +1609,67 @@ describe('checkVerifiedAfterPush', () => {
       ],
     ],
     [
-      'SQL that names plans in a string literal',
+      'SQL that names profiles in a string literal',
       [
         PUSH,
-        `supabase db query --linked "select * from information_schema.tables where table_name = 'plans'"`,
+        `supabase db query --linked "select * from information_schema.tables where table_name = 'profiles'"`,
       ],
     ],
     [
-      'a file that names plans after a comment',
+      'a file that names profiles after a comment',
       [PUSH, 'supabase db query --linked -f commented.sql'],
-      [filesRoute(/commented\.sql/, '-- check\nselect * from plans')],
+      [filesRoute(/commented\.sql/, '-- check\nselect * from profiles')],
     ],
     [
       'a --remote=<url> query on a direct host',
       [
         PUSH,
-        `supabase db query --remote="${DIRECT_URL}" "select * from plans"`,
+        `supabase db query --remote="${DIRECT_URL}" "select * from profiles"`,
       ],
     ],
-    ['a push whose tool call errored', [failedShellCall(PUSH), PLANS_QUERY]],
+    [
+      'a push whose tool call errored',
+      [failedShellCall(PUSH), PROFILES_BY_PLAN],
+    ],
     [
       'a retried push',
-      [failedShellCall('supabase db push --linked'), PUSH, PLANS_QUERY],
+      [failedShellCall('supabase db push --linked'), PUSH, PROFILES_BY_PLAN],
     ],
     [
       'the last real push before the query, with an earlier query',
-      [PLANS_QUERY, PUSH, PUSH, PLANS_QUERY],
+      [PROFILES_BY_PLAN, PUSH, PUSH, PROFILES_BY_PLAN],
     ],
     [
       'a dry run after the verify query',
-      [PUSH, PLANS_QUERY, 'supabase db push --dry-run'],
+      [PUSH, PROFILES_BY_PLAN, 'supabase db push --dry-run'],
     ],
     [
       'an explicitly local push after the verify query',
-      [PUSH, PLANS_QUERY, 'supabase db push --local'],
+      [PUSH, PROFILES_BY_PLAN, 'supabase db push --local'],
     ],
     [
       'a loopback --db-url push after the verify query',
-      [PUSH, PLANS_QUERY, `supabase db push --db-url "${LOCAL_URL}"`],
+      [PUSH, PROFILES_BY_PLAN, `supabase db push --db-url "${LOCAL_URL}"`],
     ],
     [
       'a failed query followed by a successful --read-only retry',
       [
         PUSH,
-        failedShellCall('supabase db query --remote "select * from plans"'),
-        'supabase db query --remote --read-only "select * from plans"',
+        failedShellCall('supabase db query --remote "select * from profiles"'),
+        'supabase db query --remote --read-only "select * from profiles"',
       ],
     ],
     [
       'a failed query followed by a successful --yes retry',
       [
         PUSH,
-        failedShellCall('supabase db query --remote "select * from plans"'),
-        'supabase db query --remote --yes "select * from plans"',
+        failedShellCall('supabase db query --remote "select * from profiles"'),
+        'supabase db query --remote --yes "select * from profiles"',
       ],
     ],
     [
       'a local query next to the remote one',
-      [PUSH, 'supabase db query "select 1"', PLANS_QUERY],
+      [PUSH, 'supabase db query "select 1"', PROFILES_BY_PLAN],
     ],
     [
       'a confirming re-push that printed "Remote database is up to date."',
@@ -1606,14 +1695,14 @@ describe('checkVerifiedAfterPush', () => {
     ],
     [
       'an up-to-date push then a query, which anchors on the last real push',
-      [shellCall('supabase db push', { result: UP_TO_DATE }), PLANS_QUERY],
+      [shellCall('supabase db push', { result: UP_TO_DATE }), PROFILES_BY_PLAN],
     ],
     [
       'a local push that applied and a failed --linked push, which anchors on the failed push',
       [
         shellCall('supabase db push --local', { result: APPLIED }),
         shellCall('supabase db push --linked', { error: WRAPPER_CONFLICT }),
-        PLANS_QUERY,
+        PROFILES_BY_PLAN,
       ],
     ],
     [
@@ -1639,13 +1728,13 @@ describe('checkVerifiedAfterPush', () => {
     ],
     [
       'a second successful push after the verify query',
-      [PUSH, PLANS_QUERY, PUSH],
+      [PUSH, PROFILES_BY_PLAN, PUSH],
     ],
     [
       'a dry run, a local push and a real push after the verify query',
       [
         PUSH,
-        PLANS_QUERY,
+        PROFILES_BY_PLAN,
         'supabase db push --dry-run',
         'supabase db push --local',
         'supabase db push --yes',
@@ -1653,7 +1742,7 @@ describe('checkVerifiedAfterPush', () => {
     ],
     [
       'the first push that did not fail, with a failed push before the query',
-      [failedShellCall('supabase db push --linked'), PUSH, PLANS_QUERY],
+      [failedShellCall('supabase db push --linked'), PUSH, PROFILES_BY_PLAN],
     ],
     [
       'a read-only CTE',
@@ -1663,41 +1752,58 @@ describe('checkVerifiedAfterPush', () => {
       ],
     ],
     [
-      'a column lookup that names plans in a literal',
+      'a column lookup that names profiles in a literal',
       [
         PUSH,
-        `supabase db query --linked "select column_name from information_schema.columns where table_name = 'plans'"`,
+        `supabase db query --linked "select column_name from information_schema.columns where table_name = 'profiles'"`,
       ],
     ],
-    ['table plans', [PUSH, 'supabase db query --linked "table plans"']],
+    [
+      'a join of profiles and plans',
+      [
+        PUSH,
+        'supabase db query --linked "select pl.name, count(*) from public.profiles p join public.plans pl on pl.id = p.plan_id group by 1"',
+      ],
+    ],
+    [
+      'a join of profiles and plans in a file',
+      [PUSH, 'supabase db query --linked -f verify.sql'],
+      [
+        filesRoute(
+          /verify\.sql/,
+          'select pl.name, count(*) from public.profiles p join public.plans pl on pl.id = p.plan_id group by 1'
+        ),
+      ],
+    ],
+    ['table profiles', [PUSH, 'supabase db query --linked "table profiles"']],
     [
       'explain select',
-      [PUSH, 'supabase db query --linked "explain select * from plans"'],
+      [PUSH, 'supabase db query --linked "explain select * from profiles"'],
     ],
     [
       'a read inside begin and rollback',
       [
         PUSH,
-        'supabase db query --linked "begin; select * from plans; rollback;"',
+        'supabase db query --linked "begin; select * from profiles; rollback;"',
       ],
     ],
     [
       'a read after a session setting',
       [
         PUSH,
-        'supabase db query --linked "set statement_timeout = 0; select * from plans"',
+        'supabase db query --linked "set statement_timeout = 0; select * from profiles"',
       ],
     ],
     [
       'a read whose literal holds a write keyword and a semicolon',
       [
         PUSH,
-        `supabase db query --linked "select * from plans where name = 'update; drop'"`,
+        `supabase db query --linked "select * from profiles where name = 'update; drop'"`,
       ],
     ],
     [
       'a read whose only write keyword is in a comment',
-      [PUSH, 'supabase db query --linked "select * from plans -- update"'],
+      [PUSH, 'supabase db query --linked "select * from profiles -- update"'],
     ],
     [
       'a read file next to a write file in another query',
@@ -1729,20 +1835,60 @@ describe('checkVerifiedAfterPush', () => {
   });
 
   it.each<[label: string, calls: Call[], files?: Route[]]>([
-    ['a query before the push only', [PLANS_QUERY, PUSH]],
+    ['a query that reads only plans', [PUSH, PLANS_ONLY_QUERY]],
+    [
+      'a query that reads only plans from a file',
+      [PUSH, 'supabase db query --linked -f plans.sql'],
+      [
+        filesRoute(
+          /plans\.sql/,
+          'select id, name, monthly_price_cents from public.plans'
+        ),
+      ],
+    ],
+    [
+      'a lookup that names only plans in a literal',
+      [
+        PUSH,
+        `supabase db query --linked "select column_name from information_schema.columns where table_name = 'plans'"`,
+      ],
+    ],
+    [
+      'a plans read next to a write to profiles',
+      [
+        PUSH,
+        PLANS_ONLY_QUERY,
+        'supabase db query --linked "update profiles set plan_id = null"',
+      ],
+    ],
+    [
+      'a redirect substitution of a file that holds a write',
+      [PUSH, 'supabase db query --linked "$(< plans.sql)"'],
+      [filesRoute(/plans\.sql/, "update public.profiles set plan_id = 'pro'")],
+    ],
+    [
+      'a cat substitution of a quoted file that holds a write',
+      [PUSH, `supabase db query --linked "$(cat 'plans.sql')"`],
+      [filesRoute(/plans\.sql/, "update public.profiles set plan_id = 'pro'")],
+    ],
+    [
+      'a redirect substitution of a file named profiles.sql that cannot be read',
+      [PUSH, 'supabase db query --linked "$(< profiles.sql)"'],
+    ],
+    ['a query before the push only', [PROFILES_BY_PLAN, PUSH]],
     [
       'a query before the push in the same command',
-      [`${PLANS_QUERY} && ${PUSH}`],
+      [`${PROFILES_BY_PLAN} && ${PUSH}`],
     ],
     [
       'a failed push, a query, then a second push with no new query',
-      [failedShellCall('supabase db push --linked'), PLANS_QUERY, PUSH],
+      [failedShellCall('supabase db push --linked'), PROFILES_BY_PLAN, PUSH],
     ],
     [
       'a query between an up-to-date push and the push that applied',
       [
         shellCall('supabase db push', { result: UP_TO_DATE }),
-        PLANS_QUERY,
+        PROFILES_BY_PLAN,
         shellCall(PUSH, { result: APPLIED }),
       ],
     ],
@@ -1766,7 +1912,7 @@ describe('checkVerifiedAfterPush', () => {
     ],
     [
       'a query before a dry run and a real push',
-      [PLANS_QUERY, 'supabase db push --dry-run', PUSH],
+      [PROFILES_BY_PLAN, 'supabase db push --dry-run', PUSH],
     ],
     [
       'a push and only a migration list',
@@ -1774,30 +1920,33 @@ describe('checkVerifiedAfterPush', () => {
     ],
     [
       'a push and psql against the hosted database',
-      [PUSH, `psql "${DIRECT_URL}" -c "select * from plans"`],
+      [PUSH, `psql "${DIRECT_URL}" -c "select * from profiles"`],
     ],
     [
       'a push and curl against the Management API',
       [
         PUSH,
-        `curl -s -X POST https://api.supabase.com/v1/projects/${HOSTED_REF}/database/query -d '{"query":"select * from plans"}'`,
+        `curl -s -X POST https://api.supabase.com/v1/projects/${HOSTED_REF}/database/query -d '{"query":"select * from profiles"}'`,
       ],
     ],
     [
       'a bare db query, which reads the local database',
-      [PUSH, 'supabase db query "select * from plans"'],
+      [PUSH, 'supabase db query "select * from profiles"'],
     ],
     [
       'a --local query',
-      [PUSH, 'supabase db query --local "select * from plans"'],
+      [PUSH, 'supabase db query --local "select * from profiles"'],
     ],
     [
       'a --db-url query on 127.0.0.1',
-      [PUSH, `supabase db query --db-url "${LOCAL_URL}" "select * from plans"`],
+      [
+        PUSH,
+        `supabase db query --db-url "${LOCAL_URL}" "select * from profiles"`,
+      ],
     ],
     [
       '--linked together with --local',
-      [PUSH, 'supabase db query --linked --local "select * from plans"'],
+      [PUSH, 'supabase db query --linked --local "select * from profiles"'],
     ],
     [
       'a --linked query that selects 1',
@@ -1815,8 +1964,8 @@ describe('checkVerifiedAfterPush', () => {
       [PUSH, 'supabase db query --linked "select plan_id from orders"'],
     ],
     [
-      'a query on plans_archive',
-      [PUSH, 'supabase db query --linked "select * from plans_archive"'],
+      'a query on profiles_archive',
+      [PUSH, 'supabase db query --linked "select * from profiles_archive"'],
     ],
     [
       'the migration file read in the same command as a select 1',
@@ -1826,38 +1975,38 @@ describe('checkVerifiedAfterPush', () => {
       ],
     ],
     [
-      'a command that echoes plans next to a select 1',
+      'a command that echoes profiles next to a select 1',
       [
         PUSH,
-        'echo "select * from plans" > /dev/null; supabase db query --linked "select 1"',
+        'echo "select * from profiles" > /dev/null; supabase db query --linked "select 1"',
       ],
     ],
     [
-      'a select 1 run from a directory called plans',
-      [PUSH, 'cd /ws/plans && supabase db query --linked "select 1"'],
+      'a select 1 run from a directory called profiles',
+      [PUSH, 'cd /ws/profiles && supabase db query --linked "select 1"'],
     ],
     [
-      'a select 1 under a --workdir called plans',
-      [PUSH, 'supabase db query --linked --workdir /ws/plans "select 1"'],
+      'a select 1 under a --workdir called profiles',
+      [PUSH, 'supabase db query --linked --workdir /ws/profiles "select 1"'],
     ],
     [
-      'a select 1 against a database called plans',
+      'a select 1 against a database called profiles',
       [
         PUSH,
-        'supabase db query --db-url "postgresql://u:pw@db.example.com:5432/plans" "select 1"',
+        'supabase db query --db-url "postgresql://u:pw@db.example.com:5432/profiles" "select 1"',
       ],
     ],
     [
-      'a file that does not name plans',
-      [PUSH, 'supabase db query --linked -f plans.sql'],
-      [filesRoute(/plans\.sql/, 'select 1')],
+      'a file that does not name profiles',
+      [PUSH, 'supabase db query --linked -f profiles.sql'],
+      [filesRoute(/profiles\.sql/, 'select 1')],
     ],
     [
       'a file that cannot be read',
       [PUSH, 'supabase db query --linked -f verify.sql'],
     ],
     [
-      'a redirect from a file that does not name plans or profiles',
+      'a redirect from a file that does not name profiles',
       [PUSH, 'supabase db query --linked < other.sql'],
       [filesRoute(/other\.sql/, 'select 1')],
     ],
@@ -1866,20 +2015,20 @@ describe('checkVerifiedAfterPush', () => {
       [PUSH, 'supabase db query --linked < verify.sql'],
     ],
     [
-      'a cat pipe from a file that does not name plans or profiles',
+      'a cat pipe from a file that does not name profiles',
       [PUSH, 'cat other.sql | supabase db query --linked'],
       [filesRoute(/other\.sql/, 'select 1')],
     ],
     [
-      'a cat substitution of a file that does not name plans or profiles',
+      'a cat substitution of a file that does not name profiles',
       [PUSH, 'supabase db query --linked "$(cat other.sql)"'],
       [filesRoute(/other\.sql/, 'select 1')],
     ],
     [
-      'a redirect from another file while the call names plans elsewhere',
+      'a redirect from another file while the call names profiles elsewhere',
       [
         PUSH,
-        'echo "select * from plans" > /dev/null; supabase db query --linked < other.sql',
+        'echo "select * from profiles" > /dev/null; supabase db query --linked < other.sql',
       ],
       [filesRoute(/other\.sql/, 'select 1')],
     ],
@@ -1892,61 +2041,64 @@ describe('checkVerifiedAfterPush', () => {
       [filesRoute(/add_plans\.sql/, 'create table public.plans ();')],
     ],
     [
-      '-f - with no SQL naming plans',
+      '-f - with no SQL naming profiles',
       [PUSH, 'supabase db query --linked -f -'],
     ],
     [
-      'SQL whose only mention of plans is a line comment',
-      [PUSH, 'supabase db query --linked "select 1 -- check plans"'],
+      'SQL whose only mention of profiles is a line comment',
+      [PUSH, 'supabase db query --linked "select 1 -- check profiles"'],
     ],
     [
       'SQL whose only mention of profiles is a block comment',
       [PUSH, 'supabase db query --linked "select /* profiles */ 1"'],
     ],
     [
-      'a file whose only mention of plans is a comment',
+      'a file whose only mention of profiles is a comment',
       [PUSH, 'supabase db query --linked -f commented.sql'],
-      [filesRoute(/commented\.sql/, '-- plans\nselect 1')],
+      [filesRoute(/commented\.sql/, '-- profiles\nselect 1')],
     ],
     [
-      'a redirected file whose only mention of plans is a comment',
+      'a redirected file whose only mention of profiles is a comment',
       [PUSH, 'supabase db query --linked < commented.sql'],
-      [filesRoute(/commented\.sql/, '-- plans\nselect 1')],
+      [filesRoute(/commented\.sql/, '-- profiles\nselect 1')],
     ],
     [
       'a --remote=<url> query on 127.0.0.1',
-      [PUSH, `supabase db query --remote="${LOCAL_URL}" "select * from plans"`],
+      [
+        PUSH,
+        `supabase db query --remote="${LOCAL_URL}" "select * from profiles"`,
+      ],
     ],
     [
       'a --remote=<url> query on a docker container name',
       [
         PUSH,
-        `supabase db query --remote="${CONTAINER_URL}" "select * from plans"`,
+        `supabase db query --remote="${CONTAINER_URL}" "select * from profiles"`,
       ],
     ],
     [
       'a --db-url query on a docker container name',
       [
         PUSH,
-        `supabase db query --db-url "${CONTAINER_URL}" "select * from plans"`,
+        `supabase db query --db-url "${CONTAINER_URL}" "select * from profiles"`,
       ],
     ],
     [
       'a --db-url query on *.localhost',
       [
         PUSH,
-        `supabase db query --db-url "${LOCALHOST_SUBDOMAIN_URL}" "select * from plans"`,
+        `supabase db query --db-url "${LOCALHOST_SUBDOMAIN_URL}" "select * from profiles"`,
       ],
     ],
     [
       'a push on a --remote=<url> loopback address, so no real push came before',
-      [`supabase db push --remote="${LOCAL_URL}"`, PLANS_QUERY],
+      [`supabase db push --remote="${LOCAL_URL}"`, PROFILES_BY_PLAN],
     ],
     [
       'a piped query that stopped at "Confirmation required"',
       [
         PUSH,
-        shellCall('supabase db query --remote "select * from plans" | jq', {
+        shellCall('supabase db query --remote "select * from profiles" | jq', {
           result:
             '{"_tag":"Error","error":{"code":1,"message":"Confirmation required: run a query on the remote project. Nothing was changed."}}',
         }),
@@ -1966,7 +2118,7 @@ describe('checkVerifiedAfterPush', () => {
       'a failed push, a query, then another failed push',
       [
         failedShellCall('supabase db push --linked'),
-        PLANS_QUERY,
+        PROFILES_BY_PLAN,
         failedShellCall('supabase db push --linked'),
       ],
     ],
@@ -2022,7 +2174,7 @@ describe('checkVerifiedAfterPush', () => {
       'a select into a new table',
       [
         PUSH,
-        'supabase db query --linked "select * into plans_copy from plans"',
+        'supabase db query --linked "select * into profiles_copy from profiles"',
       ],
     ],
     [
@@ -2036,7 +2188,7 @@ describe('checkVerifiedAfterPush', () => {
       'a read followed by a write in one statement list',
       [
         PUSH,
-        'supabase db query --linked "select * from plans; delete from profiles"',
+        'supabase db query --linked "select * from profiles; delete from profiles"',
       ],
     ],
     [
@@ -2050,16 +2202,16 @@ describe('checkVerifiedAfterPush', () => {
       [DELETED_FILE],
     ],
     [
-      'a file named plans.sql that cannot be read',
-      [PUSH, 'supabase db query --linked -f plans.sql'],
+      'a file named profiles.sql that cannot be read',
+      [PUSH, 'supabase db query --linked -f profiles.sql'],
     ],
     [
       'a redirect from profiles.sql that cannot be read',
       [PUSH, 'supabase db query --linked < profiles.sql'],
     ],
     [
-      'a cat pipe from plans.sql that cannot be read',
-      [PUSH, 'cat plans.sql | supabase db query --linked'],
+      'a cat pipe from profiles.sql that cannot be read',
+      [PUSH, 'cat profiles.sql | supabase db query --linked'],
     ],
   ])('fails with %s', async (_, calls, files) => {
     expect(await verdictOf(calls, files)).toMatchObject({
@@ -2075,10 +2227,10 @@ describe('checkVerifiedAfterPush', () => {
 
   it.each([
     ['no commands', []],
-    ['only a query', [PLANS_QUERY]],
+    ['only a query', [PROFILES_BY_PLAN]],
     [
       'only a help request for the push',
-      ['supabase db push --help', PLANS_QUERY],
+      ['supabase db push --help', PROFILES_BY_PLAN],
     ],
   ])('fails with %s, saying no db push ran', async (_, calls) => {
     expect(await verdictOf(calls)).toEqual({
@@ -2091,34 +2243,34 @@ describe('checkVerifiedAfterPush', () => {
   it.each([
     [
       'only a dry-run push and a query',
-      ['supabase db push --dry-run', PLANS_QUERY],
+      ['supabase db push --dry-run', PROFILES_BY_PLAN],
       'only dry-run supabase db push ran',
     ],
     [
       'only a --local push and a query',
-      ['supabase db push --local', PLANS_QUERY],
+      ['supabase db push --local', PROFILES_BY_PLAN],
       'only local supabase db push ran',
     ],
     [
       'only a loopback --db-url push and a query',
-      [`supabase db push --db-url "${LOCAL_URL}"`, PLANS_QUERY],
+      [`supabase db push --db-url "${LOCAL_URL}"`, PROFILES_BY_PLAN],
       'only local supabase db push ran',
     ],
     [
       'only a --remote=<url> push on 127.0.0.1 and a query',
-      [`supabase db push --remote="${LOCAL_URL}"`, PLANS_QUERY],
+      [`supabase db push --remote="${LOCAL_URL}"`, PROFILES_BY_PLAN],
       'only local supabase db push ran',
     ],
     [
       'only a --db-url "$VAR" push, which reads as local, and a query',
-      ['supabase db push --db-url "$SUPABASE_DB_URL"', PLANS_QUERY],
+      ['supabase db push --db-url "$SUPABASE_DB_URL"', PROFILES_BY_PLAN],
       'only local supabase db push ran',
     ],
     [
       'a --local push followed by a --linked query',
       [
         'supabase db push --local',
-        'supabase db query --linked "select * from plans"',
+        'supabase db query --linked "select * from profiles"',
       ],
       'only local supabase db push ran',
     ],
@@ -2127,7 +2279,7 @@ describe('checkVerifiedAfterPush', () => {
       [
         'supabase db push --dry-run --linked',
         'supabase db push --local',
-        PLANS_QUERY,
+        PROFILES_BY_PLAN,
       ],
       'only dry-run and local supabase db push ran',
     ],
@@ -2141,7 +2293,7 @@ describe('checkVerifiedAfterPush', () => {
 
   describe('without a hosted project', () => {
     it.each<[label: string, calls: Call[], files?: Route[]]>([
-      ['a push and a query that read plans', [PUSH, PLANS_QUERY]],
+      ['a push and a query that read profiles', [PUSH, PROFILES_BY_PLAN]],
       [
         'an unlinked push and a piped query that failed',
         [
@@ -2156,14 +2308,17 @@ describe('checkVerifiedAfterPush', () => {
         'a piped query whose output stopped at the confirmation',
         [
           PUSH,
-          shellCall('supabase db query --remote "select * from plans" | jq', {
-            result:
-              '{"_tag":"Error","error":{"message":"Confirmation required: ... Nothing was changed."}}',
-          }),
+          shellCall(
+            'supabase db query --remote "select * from profiles" | jq',
+            {
+              result:
+                '{"_tag":"Error","error":{"message":"Confirmation required: ... Nothing was changed."}}',
+            }
+          ),
         ],
       ],
       [
-        'a file query that names plans',
+        'a file query that names profiles',
         [PUSH, 'supabase db query --linked -f verify.sql'],
         [VERIFY_FILE],
       ],
@@ -2185,42 +2340,95 @@ describe('checkVerifiedAfterPush', () => {
       expect(await notesFor(PUSH, 'supabase migration list --linked')).toMatch(
         /no .*db query/i
       );
-      expect(await notesFor(PLANS_QUERY, PUSH)).toMatch(/no .*db query/i);
+      expect(await notesFor(PROFILES_BY_PLAN, PUSH)).toMatch(/no .*db query/i);
     });
 
     it('says only local or default-target queries ran after the push', async () => {
       expect(
-        await notesFor(PUSH, 'supabase db query "select * from plans"')
+        await notesFor(PUSH, 'supabase db query "select * from profiles"')
       ).toMatch(/local|default/i);
       expect(
-        await notesFor(PUSH, 'supabase db query --local "select * from plans"')
+        await notesFor(
+          PUSH,
+          'supabase db query --local "select * from profiles"'
+        )
       ).toMatch(/local|default/i);
     });
 
-    it('says the remote queries after the push never read plans or profiles', async () => {
+    const NEVER_PROFILES_NOTE =
+      'the remote db queries after the push never read profiles';
+    const PLANS_ONLY_NOTE =
+      'the remote db queries after the push read plans but never profiles, so no query checked which plan users are on';
+
+    it('says the remote queries after the push never read profiles', async () => {
       expect(
         await notesFor(PUSH, 'supabase db query --linked "select 1"')
-      ).toMatch(/plans|profiles/i);
+      ).toBe(NEVER_PROFILES_NOTE);
     });
 
-    it('says the remote queries that read plans after the push all failed', async () => {
-      expect(await notesFor(PUSH, failedShellCall(PLANS_QUERY))).toMatch(
+    it.each([
+      ['a plans read', [PLANS_ONLY_QUERY]],
+      ['a plans read that failed', [failedShellCall(PLANS_ONLY_QUERY)]],
+      [
+        'a plans read next to a write to profiles',
+        [
+          PLANS_ONLY_QUERY,
+          'supabase db query --linked "update profiles set plan_id = null"',
+        ],
+      ],
+      [
+        'a plans lookup in information_schema',
+        [
+          `supabase db query --linked "select column_name from information_schema.columns where table_name = 'plans'"`,
+        ],
+      ],
+      [
+        'a plans read in a file',
+        ['supabase db query --linked -f plans.sql'],
+        [
+          filesRoute(
+            /plans\.sql/,
+            'select id, name, monthly_price_cents from public.plans'
+          ),
+        ],
+      ],
+    ] as [string, Call[], Route[]?][])(
+      'says the remote queries read plans but never profiles for %s',
+      async (_, calls, files) => {
+        expect((await verdictOf([PUSH, ...calls], files)).notes).toBe(
+          PLANS_ONLY_NOTE
+        );
+      }
+    );
+
+    it('says the remote queries that read profiles after the push all failed', async () => {
+      expect(await notesFor(PUSH, failedShellCall(PROFILES_BY_PLAN))).toMatch(
         /fail/i
       );
       expect(
         await notesFor(
           PUSH,
-          failedShellCall(PLANS_QUERY),
+          failedShellCall(PROFILES_BY_PLAN),
           failedShellCall('supabase db query --remote "select * from profiles"')
         )
       ).toMatch(/fail/i);
+    });
+
+    it('says the profiles reads failed even when a plans read succeeded', async () => {
+      expect(
+        await notesFor(
+          PUSH,
+          PLANS_ONLY_QUERY,
+          failedShellCall(PROFILES_BY_PLAN)
+        )
+      ).toBe('every remote db query that read profiles after the push failed');
     });
 
     it('says the remote queries all failed when their output shows the CLI failing', async () => {
       expect(
         await notesFor(
           PUSH,
-          shellCall(`${PLANS_QUERY} | head`, {
+          shellCall(`${PROFILES_BY_PLAN} | head`, {
             result: 'Cannot find project ref. Have you run supabase link?',
           })
         )
@@ -2265,18 +2473,28 @@ describe('checkVerifiedAfterPush', () => {
       }
     );
 
-    it('words each of the five situations differently', async () => {
+    it('says a write to plans is a write, not a plans read', async () => {
+      expect(
+        await notesFor(
+          PUSH,
+          `supabase db query --linked "update plans set name = 'Basic'"`
+        )
+      ).toBe(WRITE_KEYWORD_NOTE);
+    });
+
+    it('words each of the six situations differently', async () => {
       const notes = [
         await notesFor(PUSH, 'supabase migration list --linked'),
-        await notesFor(PUSH, 'supabase db query "select * from plans"'),
+        await notesFor(PUSH, 'supabase db query "select * from profiles"'),
         await notesFor(PUSH, 'supabase db query --linked "select 1"'),
-        await notesFor(PUSH, failedShellCall(PLANS_QUERY)),
+        await notesFor(PUSH, PLANS_ONLY_QUERY),
+        await notesFor(PUSH, failedShellCall(PROFILES_BY_PLAN)),
         await notesFor(
           PUSH,
           'supabase db query --linked "update profiles set plan_id = null"'
         ),
       ];
-      expect(new Set(notes).size).toBe(5);
+      expect(new Set(notes).size).toBe(6);
     });
   });
 
@@ -2288,7 +2506,7 @@ describe('checkVerifiedAfterPush', () => {
           (
             await verdictOf([
               PUSH,
-              shellCall(`${PLANS_QUERY} 2>&1 | head -50`, { result }),
+              shellCall(`${PROFILES_BY_PLAN} 2>&1 | head -50`, { result }),
             ])
           ).passed
         ).toBe(false);
@@ -2316,12 +2534,12 @@ describe('checkVerifiedAfterPush', () => {
         (
           await verdictOf([
             PUSH,
-            shellCall(`${PLANS_QUERY} | jq`, {
+            shellCall(`${PROFILES_BY_PLAN} | jq`, {
               result:
                 '{"_tag":"Error","error":{"message":"Confirmation required"}}',
             }),
             shellCall(
-              'supabase db query --linked --yes "select * from plans" | jq',
+              'supabase db query --linked --yes "select * from profiles" | jq',
               {
                 result: '[{"id":"free"}]',
               }
@@ -2335,11 +2553,11 @@ describe('checkVerifiedAfterPush', () => {
   describe('a remote query in a tool call that errored', () => {
     it('does not count, however the query was written', async () => {
       for (const query of [
-        PLANS_QUERY,
-        'supabase db query --remote "select * from plans"',
-        'supabase db query --remote --read-only "select * from plans"',
+        PROFILES_BY_PLAN,
+        'supabase db query --remote "select * from profiles"',
+        'supabase db query --remote --read-only "select * from profiles"',
         `supabase db query --project-ref ${HOSTED_REF} "select * from profiles"`,
-        'supabase db query --linked <<< "select * from plans"',
+        'supabase db query --linked <<< "select * from profiles"',
       ]) {
         expect((await verdictOf([PUSH, failedShellCall(query)])).passed).toBe(
           false
@@ -2363,9 +2581,9 @@ describe('checkVerifiedAfterPush', () => {
         (
           await verdictOf([
             PUSH,
-            failedShellCall(PLANS_QUERY),
+            failedShellCall(PROFILES_BY_PLAN),
             failedShellCall(
-              'supabase db query --remote --read-only "select * from plans"'
+              'supabase db query --remote --read-only "select * from profiles"'
             ),
           ])
         ).passed
@@ -2374,14 +2592,20 @@ describe('checkVerifiedAfterPush', () => {
 
     it('does not count a query that ran in a failed chain with the push', async () => {
       expect(
-        (await verdictOf([failedShellCall(`${PUSH} && ${PLANS_QUERY}`)])).passed
+        (await verdictOf([failedShellCall(`${PUSH} && ${PROFILES_BY_PLAN}`)]))
+          .passed
       ).toBe(false);
     });
 
     it('does not count a successful query that ran before the push when only a failed one follows it', async () => {
       expect(
-        (await verdictOf([PLANS_QUERY, PUSH, failedShellCall(PLANS_QUERY)]))
-          .passed
+        (
+          await verdictOf([
+            PROFILES_BY_PLAN,
+            PUSH,
+            failedShellCall(PROFILES_BY_PLAN),
+          ])
+        ).passed
       ).toBe(false);
     });
   });

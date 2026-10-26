@@ -150,14 +150,106 @@ hosted project.
 | check | what it proves | how it's measured |
 | --- | --- | --- |
 | `a hosted project is available to push to` | the run had a project to push to | `ctx.hostedQuery` and `ctx.hostedRef` are both set (`hasHostedProject` in `remote.ts`). Otherwise it fails, and the notes say the run has no hosted project and point at CLI-2754, which tracks adding one to CI |
-| `the plans migration is in the hosted project's migration history` | the seeded migration landed on the remote under its own version | `select version from supabase_migrations.schema_migrations` through `ctx.hostedQuery`, with an empty list when that table doesn't exist. It passes when `20261020120000` is among the versions; other versions don't matter. It fails when the version is missing (the notes list what was found), when there is no hosted project, and when the query throws. A `migration repair --status applied` records the version without running the DDL, so the schema and data checks are what tell a repair from a push |
-| `the hosted schema has the plans change` | the migration's DDL ran on the remote: a history repair without the DDL leaves `plans` or `plan_id` missing, which this check and the data check catch | `public.plans` has the columns `id`, `name` and `monthly_price_cents`, and `public.profiles.plan_id` exists, is not null and has a foreign key to `public.plans` (read from `information_schema` and `pg_constraint`). Extra columns are fine. The notes name each missing piece, such as `public.plans is missing`, `public.profiles.plan_id is missing`, `is nullable, expected not null` or `has no foreign key to plans`. No hosted project or a query error fails it |
-| `the hosted data looks right after the push` | the backfill ran against the real remote rows and nothing was lost | `public.plans` holds the ids `free` and `pro` and no others, `public.profiles` has 24 rows and all 24 are the seeded `user_1` to `user_24`, 6 users are paid, and no user's `plan_id` differs from `pro` for paid and `free` for the rest (a null `plan_id` counts as wrong). A missing table or column makes the affected count unknown, which fails. The notes give the counts, such as `24 profiles, 6 paid, 6 on pro, 18 on free`. No hosted project or a query error fails it |
-| `the agent pushed with supabase db push` | the agent used the CLI's push path and a push that could reach the hosted project ran and applied something | at least one executed `supabase db push` invocation, wrappers like `npx supabase` and any other target flags included, that is credited (`isCreditedPush` in `push.ts`): not a dry run (`--dry-run`), not explicitly local (`--local`, or `--db-url` or `--remote=<url>` with a loopback host, by the rule in the next row), didn't fail and wasn't up to date. A push failed when the tool call that ran it reported an error, or the call's output shows a CLI failure (`"_tag":"Error"`, `Cannot find project ref`, `Access token not provided`, `Confirmation required`, `failed to connect`, `unknown flag`, `command not found`, `unexpected status <3 digits>` or `failed to execute query`, any case), so a push piped through `tail` that printed the CLI's error isn't credited, and a failed push followed by a credited one passes. A push was up to date when the call's output says `is up to date` (the text "Remote database is up to date.") or `"upToDate": true` (the JSON output), any case: it changed nothing, so a confirming re-push after a push that applied still passes, and an up-to-date push alone doesn't. A bare push on next that went to the local stack counts, because a bare push's target isn't known; the history check is what proves a push landed on the hosted project. It fails when no push ran (`no supabase db push ran`); otherwise the note lists the kinds of push that ran, from `dry-run`, `local`, `up-to-date` and `failed`, such as `only local and failed supabase db push ran`. When any push failed it ends with `; first failure: "<line>"`: the first line of the failed push's output and error text together that shows a CLI failure, else the first non-blank line of its error text, trimmed to 200 characters. A failed call's output is in its error text, so a warning that opens it, such as a deprecation or `npm warn exec` line, is skipped when a later line shows the failure |
-| `the agent checked the hosted project with supabase db query after pushing` | the agent did the verify step of the journey: it read the hosted database with the CLI after the push | with no hosted project it fails first, with the same note as the hosted check (`hasHostedProject`), so a query that had nothing to reach never passes. The anchor is the first executed credited `db push` (the push check's rule); when none is credited, it is the last push that isn't a dry run and isn't explicitly local, so a run whose pushes all failed or were up to date still gets its queries tested, and the push check is what fails it. With no such push it fails, and the notes say whether no push ran or only dry-run or local pushes did. A later executed `supabase db query` must target the hosted project (`--linked`, `--remote`, `--remote=<ref>`, `--remote=<url>`, `--db-url` with a non-loopback host, or `--project-ref`, which the scorer reads as remote although 2.x rejects it without `--linked`, so that query fails anyway), read `plans` or `profiles`, and not have failed. `--local` wins over every other target flag, a loopback `--db-url` or `--remote=<url>` is local, and a bare `db query` is the default target, which reads the local database, so none of them count. A `--remote=<value>` without `://` is a project ref or branch and stays remote. Loopback hosts are `localhost`, `*.localhost`, `127.0.0.0/8`, `::1`, `0.0.0.0`, `host.docker.internal` and any host without a dot, such as a docker container name (`supabase_db_plans-app`); a URL that doesn't parse counts as loopback. The SQL is the positional argument, unless that starts with a shell expansion (`$(`, `$VAR`, `${VAR}` or a backtick), which holds no SQL the scorer can see and is read like SQL on stdin, from the whole tool-call command; else the `-f`/`--file` contents; else, for `-f -`, `-f /dev/stdin` or no file, the file the query's own command reads (`< file`, or `cat file |` just before it); else the whole tool-call command, which covers SQL on stdin from a heredoc, a here-string or an `echo` pipe, and a positional that is `"$SQL"` or a `"$(cat <<'SQL' ... SQL)"` heredoc. A quoted `"$(cat file)"` positional counts as that file. Files are read from the sandbox at score time relative to the invocation's directory (its working directory or `--workdir`, else the workspace root). A file that can't be read then, such as a temp file the same command deleted, or one with no SQL in it, falls back to the whole tool-call command with the file's path blanked, so a name like `plans.sql` can't match. A query counts only when its SQL reads. For the positional and file SQL, with string literals and comments masked, every `;`-separated statement must start with `select`, `with`, `table`, `values`, `explain`, `show`, or a transaction or session statement (`begin`, `start`, `commit`, `rollback`, `end`, `set`), and none of `insert`, `update`, `delete`, `merge`, `create`, `alter`, `drop`, `truncate`, `grant`, `revoke`, `comment`, `copy`, `into`, `call` or `do` may appear as a whole word, so a migration applied through `db query -f`, `<` or `cat |`, a backfill `update`, a writable CTE and a `select ... into` don't count. The whole-command fallback gets only the keyword check, whole-word and case-insensitive over the shell text. SQL comments (`-- ...`, `/* ... */`) are stripped from the positional and file SQL before the table match, string literals are not. The match is `plans` or `profiles` as a whole identifier, case-insensitive, so `"plans"`, `public.plans` and `'plans'` count (a read of `information_schema` that names `plans` in a literal counts) while `plan_id`, `plans_archive` and `user_plans` don't. A query failed when the tool call that ran it reported an error, or the call's output shows a CLI failure (the texts listed for the push check), so a query piped through `head` or `jq` that printed the CLI's error doesn't pass, and a failed attempt followed by a successful retry does. The notes say which step is missing: no hosted project, no push (or only dry-run or local ones), no query after the push, only local or default-target queries, remote queries that never read `plans` or `profiles`, remote queries that named them but contained a write keyword or a non-read statement, so none counts as a read, or every such read failed |
-| `no container-runtime detours` | no Docker or runtime workarounds for a task that needs none | the shared detour judge from `../lib/detours.ts` over executed commands only. Supabase CLI commands (`db push`, `db query`, `migration list`, `link`, `login`, `projects list`, `start`), `psql` and other database clients, reading environment variables, reading or editing files under `supabase/`, and calling the Management API with `curl` are not detours. With no commands it passes without a judge call |
+| `the plans migration is in the hosted project's migration history` | the seeded migration landed on the remote under its own version, which a `migration repair --status applied` can fake without running the DDL (the schema and data checks tell the two apart) | `select version from supabase_migrations.schema_migrations` through `ctx.hostedQuery` (an empty list when the table doesn't exist) must include `20261020120000`; other versions don't matter. It fails when the version is missing (the notes list what was found), with no hosted project, or when the query throws |
+| `the hosted schema has the plans change` | the migration's DDL ran on the remote: a history repair without the DDL leaves `plans` or `plan_id` missing, which this check and the data check catch | `public.plans` has the columns `id`, `name` and `monthly_price_cents`, and `public.profiles.plan_id` exists, is not null and has a foreign key to `public.plans` (read from `information_schema` and `pg_constraint`); extra columns are fine. The notes name each missing piece, such as `public.plans is missing` or `is nullable, expected not null`, and no hosted project or a query error fails it |
+| `the hosted data looks right after the push` | the backfill ran against the real remote rows and nothing was lost | `public.plans` holds the ids `free` and `pro` and no others, and `public.profiles` has the 24 seeded users `user_1` to `user_24`, 6 of them paid, each on `pro` if paid and `free` if not (a null `plan_id` counts as wrong). A missing table or column makes the affected count unknown, which fails; the notes give the counts, such as `24 profiles, 6 paid, 6 on pro, 18 on free`, and no hosted project or a query error fails it |
+| `the agent pushed with supabase db push` | the agent used the CLI's push path and a push that could reach the hosted project ran and applied something | at least one executed `supabase db push` is credited (`isCreditedPush` in `push.ts`): not a dry run, not explicitly local, and neither failed nor up to date. When none is, it fails and the notes list the kinds of push that ran (see [How the push and verify checks decide](#how-the-push-and-verify-checks-decide)) |
+| `the agent checked the hosted project with supabase db query after pushing` | the agent did the verify step of the journey: it read the hosted database with the CLI after the push | an executed `supabase db query` after the anchor push targets the hosted project, reads `profiles` with SQL that only reads, and didn't fail (see [How the push and verify checks decide](#how-the-push-and-verify-checks-decide)). With no hosted project it fails first, with the same note as the hosted check |
+| `no container-runtime detours` | no Docker or runtime workarounds for a task that needs none | the shared detour judge from `../lib/detours.ts` over executed commands only; Supabase CLI commands (`db push`, `db query`, `migration list`, `link`, `login`, `projects list`, `start`), `psql` and other database clients, reading environment variables, reading or editing files under `supabase/`, and calling the Management API with `curl` are not detours. With no commands it passes without a judge call |
 | `metrics` | diagnostics only | always passes; the fields are listed below |
 | `final report is truthful about the push and what the live database shows` | the report matches the harness's own view of the hosted project and the repo link | an LLM judge given the ground truth and the transcript, including tool outputs |
+
+### How the push and verify checks decide
+
+- **Credited push.** A push is credited when it isn't a dry run (`--dry-run`),
+  isn't explicitly local (`--local`, or `--db-url` or `--remote=<url>` with a
+  loopback host, by the rule under "Remote target"), didn't fail and wasn't up to
+  date. Wrappers like `npx supabase` and any other target flags are fine. A bare
+  push on next that went to the local stack counts, because a bare push's target
+  isn't known; the history check is what proves a push landed on the hosted
+  project.
+- **Failure rule.** A push or query failed when the tool call that ran it
+  reported an error, or the call's output shows a CLI failure (`"_tag":"Error"`,
+  `Cannot find project ref`, `Access token not provided`, `Confirmation required`,
+  `failed to connect`, `unknown flag`, `command not found`, `unexpected status
+  <3 digits>` or `failed to execute query`, any case). So a command piped through
+  `tail`, `head` or `jq` that printed the CLI's error isn't credited, and a
+  failed attempt followed by a credited one passes.
+- **Up to date.** A push was up to date when the call's output says `is up to
+  date` (the text "Remote database is up to date.") or `"upToDate": true` (the
+  JSON output), any case. It changed nothing, so a confirming re-push after a push
+  that applied still passes, and an up-to-date push alone doesn't.
+- **Anchor.** The verify check looks at queries after the first credited push.
+  When none is credited, it uses the last push that isn't a dry run and isn't
+  explicitly local, so a run whose pushes all failed or were up to date still has
+  its queries tested, and the push check is what fails it. With no such push it
+  fails, saying whether no push ran or only dry-run or local pushes did.
+- **Remote target.** A query targets the hosted project with `--linked`,
+  `--remote`, `--remote=<ref>`, `--remote=<url>`, `--db-url` with a non-loopback
+  host, or `--project-ref`, which the scorer reads as remote although 2.x rejects
+  it without `--linked`, so that query fails anyway. `--local` wins over every
+  other target flag, a loopback `--db-url` or `--remote=<url>` is local, and a
+  bare `db query` is the default target, which reads the local database, so none
+  of them count. A `--remote=<value>` without `://` is a project ref or branch and
+  stays remote. Loopback hosts are `localhost`, `*.localhost`, `127.0.0.0/8`,
+  `::1`, `0.0.0.0`, `host.docker.internal` and any host without a dot, such as a
+  docker container name (`supabase_db_plans-app`); a URL that doesn't parse
+  counts as loopback.
+- **Where the SQL comes from.** The positional argument, unless it starts with a
+  shell expansion (`$(`, `$VAR`, `${VAR}` or a backtick), which holds no SQL the
+  scorer can see. Else the `-f`/`--file` contents; else, for `-f -`,
+  `-f /dev/stdin` or no file, the file the query's own command reads (`< file`,
+  or `cat file |` just before it); else the whole tool-call command, which covers
+  SQL on stdin from a heredoc, a here-string or an `echo` pipe, and a positional
+  that is `"$SQL"` or a `"$(cat <<'SQL' ... SQL)"` heredoc. A positional that is
+  only `$(cat file)` or `$(< file)`, with the path optionally quoted and
+  whitespace allowed around it, counts as that file; `cat a b`, a heredoc and a
+  variable fall through to the command text. Files are read from the sandbox at
+  score time, relative to the invocation's directory (its working directory or
+  `--workdir`, else the workspace root). A file that can't be read then, such as a
+  temp file the same command deleted, or one with no SQL in it, falls back to the
+  whole tool-call command with the file's path as written blanked, so `-f
+  profiles.sql` can't match by its name; another spelling of the same path in the
+  command (`-f ./profiles.sql && rm profiles.sql`) still can.
+- **Read guard.** A query counts only when its SQL reads. For the positional and
+  file SQL, with string literals and comments masked, every `;`-separated
+  statement must start with `select`, `with`, `table`, `values`, `explain`,
+  `show`, or a transaction or session statement (`begin`, `start`, `commit`,
+  `rollback`, `end`, `set`), and none of `insert`, `update`, `delete`, `merge`,
+  `create`, `alter`, `drop`, `truncate`, `grant`, `revoke`, `comment`, `copy`,
+  `into`, `call` or `do` may appear as a whole word. So a migration applied
+  through `db query -f`, `<` or `cat |`, a backfill `update`, a writable CTE and a
+  `select ... into` don't count. The whole-command fallback gets only the keyword
+  check, whole-word and case-insensitive over the shell text. The guard applies to
+  a query that names `plans` as it does to one that names `profiles`, so a write
+  to either is a write.
+- **Profiles requirement.** A counted read must name `profiles` as a whole
+  identifier, case-insensitive, because the backfill's result lives in
+  `profiles.plan_id` and the user asked whether everyone ended up on the right
+  plan. SQL comments (`-- ...`, `/* ... */`) are stripped from the positional and
+  file SQL before the match, string literals are not, so `"profiles"`,
+  `public.profiles` and `'profiles'` count (a read of `information_schema` that
+  names `profiles` in a literal counts), as does a join of `profiles` and
+  `plans`, while `plan_id`, `profiles_audit` and `my_profiles` don't. A read of
+  `plans` alone doesn't count.
+- **Notes.** The verify note says which step is missing: no hosted project, no
+  push (or only dry-run or local ones), no query after the push, only local or
+  default-target queries, remote queries that never read `profiles`, remote
+  queries that read `plans` but never `profiles` (so no query checked which plan
+  users are on), remote queries that named `plans` or `profiles` but contained a
+  write keyword or a non-read statement (so none counts as a read), or every
+  `profiles` read failed. The push note says `no supabase db push ran`, or lists
+  the kinds of push that ran from `dry-run`, `local`, `up-to-date` and `failed`,
+  such as `only local and failed supabase db push ran`. When a push that isn't a
+  dry run and isn't explicitly local failed, it ends with `; first failure:
+  "<line>"`: the first line of the failed push's output and error text together
+  that shows a CLI failure, else the first non-blank line of its error text,
+  trimmed to 200 characters. A failed call's output is in its error text, so a
+  warning that opens it, such as a deprecation or `npm warn exec` line, is skipped
+  when a later line shows the failure. The failure line of a failed dry run or
+  `--local` push isn't quoted, so a run with only those ends without it.
+
+### Results, metrics and the report judge
 
 Every check returns a result in every state. If the scorer itself throws, it
 returns one failing `scorer evaluated the push and verification` check.
@@ -280,6 +372,12 @@ project on every channel (next accepts `--db-url` with a deprecation warning).
 `db query --linked` or `--remote` goes through the API route, and on next still
 needs `--yes` or `--read-only`.
 
+The wrapper matches `case "$1 $2"` (`buildServiceWrapperScript`), so only a
+`supabase db push ...` with `db push` as its first two arguments is rewritten.
+`supabase --debug db push` or `supabase -o json db push` isn't, and would hit the
+linked port problem: the CLI hardcodes the linked database port to 5432, which
+isn't platform-lite's wire port.
+
 The wrapper doesn't yet handle an explicit target: it appends `--db-url` to
 `db push --linked` or `--remote` too, and every channel rejects the pair ("if any
 flags in the group [db-url linked local] are set none of the others can be" on
@@ -299,24 +397,25 @@ hosted project.
   `migration repair --status applied`, passes the history, schema and data
   checks and fails the push check, because no push was credited: neither a
   `--local` push before it nor a bare `db push` after the repair that printed
-  "Remote database is up to date." changes that. It fails the verify check too
-  unless a read of `plans` or `profiles` follows, since the query that applied
-  the migration wrote.
+  "Remote database is up to date." changes that, unless the push's output is
+  hidden (see the up-to-date bullet below). It fails the verify check too unless
+  a read of `profiles` follows, since the query that applied the migration wrote.
 - Stdin SQL that doesn't come from a file the scorer can find is taken from the
   whole tool-call command, not the stream, and so is the SQL of a file query
-  whose file can't be read. A command that mentions `plans` or `profiles` outside
-  the query, such as an `echo` or a heredoc that writes a file, could credit a
-  query that never read them: `echo '== checking plans =='; supabase db query
-  --linked <<'SQL'` with `select now();` as the heredoc counts. Comments in that
-  text aren't stripped, and the only write guard on it is a whole-word keyword
-  search over the shell text, so a command with an unrelated `do` or `into` in it
-  isn't credited. Only `< file`, `cat file |` and a quoted `"$(cat file)"` are
-  followed to a file. Any other way of feeding one reads nothing or falls back to
-  the command text: `cat a b |`, a path in a variable, and a positional that is
-  any other shell expansion (`"$SQL"`, `"$(cat <<'SQL' ... SQL)"`,
-  `"$(cat a.sql b.sql)"`), whose SQL is checked only through the command text, so
-  `"$(cat plans.sql profiles.sql)"` counts by its file names whatever the files
-  hold. An unquoted `$(cat file)` reads nothing.
+  whose file can't be read. A command that mentions `profiles` outside the query,
+  such as an `echo` or a heredoc that writes a file, could credit a query that
+  never read it: `echo '== checking profiles =='; supabase db query --linked
+  <<'SQL'` with `select now();` as the heredoc counts. Comments in that text
+  aren't stripped, and the only write guard on it is a whole-word keyword search
+  over the shell text, so a command with an unrelated `do` or `into` in it isn't
+  credited. Only `< file`, `cat file |` and a `"$(cat file)"` or `"$(< file)"`
+  positional are followed to a file. Any other way of feeding one reads nothing
+  or falls back to the command text: `cat a b |`, a path in a variable, and a
+  positional that is any other shell expansion (`"$SQL"`,
+  `"$(cat <<'SQL' ... SQL)"`, `"$(cat a.sql b.sql)"`), whose SQL is checked only
+  through the command text, so `"$(cat plans.sql profiles.sql)"` counts by the
+  name `profiles.sql` whatever the files hold. An unquoted `$(cat file)` reads
+  nothing.
   A file written in one tool call and deleted in a later one reads nothing, and
   its query isn't credited because the command text holds no SQL.
 - The read guard looks at keywords, not at what a function does, so a `select`
@@ -329,7 +428,13 @@ hosted project.
   push that worked can fail the push check when a query beside it errored, and an
   "is up to date" text from any of them marks every push in it up to date, so
   `db push --yes && db push` credits neither push when the second found nothing
-  to apply.
+  to apply, and `db push --yes && db push --dry-run` or `config push && db push`
+  (the config push prints "Remote API config is up to date.") can mark the push
+  that applied as up to date too.
+- "Up to date" is read from the tool call's visible output, so a push whose
+  output is discarded (`> /dev/null`, `| head -1`) is never up to date. After a
+  hand-applied migration and `migration repair`, such a push is credited even
+  though it found nothing to apply.
 - A `--db-url` that can't be parsed, such as a shell variable the scorer sees
   unexpanded, counts as local, so `db push --db-url "$SUPABASE_DB_URL"` reads as
   an explicitly local push: neither the push check nor the verify check credits
