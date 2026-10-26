@@ -159,6 +159,26 @@ describe('checkSuitePassedUnderTestDb', () => {
       ).toBe(true);
     });
 
+    it('passes when a failure with no Files= count from a run that named a path was followed by a single-file pass', () => {
+      expect(
+        check([
+          run(0, PASS_ALL),
+          run(1, summary('FAIL', null, null)),
+          run(2, PASS_ONE),
+        ]).passed
+      ).toBe(true);
+    });
+
+    it('passes when a failure with no Files= count from a no-path run was followed by a pass covering the whole suite', () => {
+      expect(
+        check([
+          run(0, PASS_ALL),
+          wholeDirectoryRun(1, summary('FAIL', null, null)),
+          run(2, PASS_ALL),
+        ]).passed
+      ).toBe(true);
+    });
+
     it('ignores runs that printed no summary around the passing one', () => {
       expect(check([run(0, null), run(1, PASS_ALL), run(2, null)]).passed).toBe(
         true
@@ -422,13 +442,24 @@ describe('checkSuitePassedUnderTestDb', () => {
       );
     });
 
-    it('fails when a failure with no Files= count was followed only by a single-file pass', () => {
+    it('fails when a failure with no Files= count from a no-path run was followed only by a single-file pass', () => {
       expect(
         check([
           run(0, PASS_ALL),
-          run(1, summary('FAIL', null, null)),
+          wholeDirectoryRun(1, summary('FAIL', null, null)),
           run(2, PASS_ONE),
-        ]).passed
+        ])
+      ).toEqual({
+        name: TEST_DB_CHECK,
+        passed: false,
+        notes:
+          'command 2 printed Result: FAIL after the passing run in command 1',
+      });
+    });
+
+    it('fails when a failure with no Files= count from a run that named a path was followed by nothing', () => {
+      expect(
+        check([run(0, PASS_ALL), run(1, summary('FAIL', null, null))]).passed
       ).toBe(false);
     });
 

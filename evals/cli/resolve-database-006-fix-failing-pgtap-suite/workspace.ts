@@ -1,4 +1,5 @@
 import type { CheckResult, LocalStackEvalContext } from '@supabase-evals/core';
+import { maskSqlLiteralsAndComments } from '../lib/migrations.js';
 import { describeFailure, errorMessage, shellQuote } from '../lib/shell.js';
 import {
   MIGRATIONS_DIR,
@@ -30,7 +31,97 @@ type MigrationsProbe =
 export const TESTS_UNCHANGED_CHECK = 'the seeded tests were left as they were';
 
 const MIGRATION_FILE_RE = /^(\d+)_(.*)\.sql$/;
-const PLAN_STATEMENT_RE = /^select\s+plan\s*\(\s*(\d+)\s*\)$/i;
+const PLAN_STATEMENT_RE = /^select\s+(?:\*\s+from\s+)?plan\s*\(\s*(\d+)\s*\)$/i;
+const ASSERTION_CALL_RE =
+  /^select\s+(?:\*\s+from\s+)?(?:extensions\s*\.\s*)?([a-z_][a-z0-9_]*)\s*\(/i;
+const INSERT_RE = /^insert\s+into\s/i;
+const ON_CONFLICT_UPDATE_RE = /\bon\s+conflict\b[\s\S]*\bdo\s+update\b/i;
+const RETURNING_OR_SELECT_RE = /\b(?:returning|select)\b/i;
+const QUOTED_IDENTIFIER_RE = /"(?:[^"]|"")*"/g;
+const MAX_NOTED_STATEMENT = 80;
+
+// The statements a seeded test file may gain besides comments and the plan: a pgTAP assertion call that spans the whole
+// statement, or a plain test-data insert. Plan, todo and skip functions, `finish` and `set_config` may not appear in either.
+const ASSERTION_NAMES: ReadonlySet<string> = new Set([
+  'ok',
+  'is',
+  'isnt',
+  'matches',
+  'imatches',
+  'doesnt_match',
+  'doesnt_imatch',
+  'alike',
+  'ialike',
+  'unalike',
+  'unialike',
+  'cmp_ok',
+  'pass',
+  'fail',
+  'isa_ok',
+  'throws_ok',
+  'throws_like',
+  'throws_ilike',
+  'throws_matching',
+  'throws_imatching',
+  'lives_ok',
+  'performs_ok',
+  'performs_within',
+  'results_eq',
+  'results_ne',
+  'set_eq',
+  'set_ne',
+  'set_has',
+  'set_hasnt',
+  'bag_eq',
+  'bag_ne',
+  'bag_has',
+  'bag_hasnt',
+  'is_empty',
+  'row_eq',
+  'diag',
+  'fk_ok',
+]);
+const ASSERTION_PREFIXES: readonly string[] = [
+  'has_',
+  'hasnt_',
+  'col_',
+  'is_',
+  'isnt_',
+  'function_',
+  'volatility_is',
+  'trigger_is',
+  'policy_',
+  'policies_are',
+  'tables_are',
+  'columns_are',
+];
+const UNSAFE_CALL_RE =
+  /\b(?:todo|todo_start|todo_end|in_todo|skip|plan|no_plan|finish|set_config)\s*\(/i;
+// An allowed assertion can run SQL from a string or `$$` body, so these are searched for in the raw text, literals included.
+const STATE_CHANGING_KEYWORDS: readonly string[] = [
+  'create',
+  'alter',
+  'drop',
+  'update',
+  'delete',
+  'truncate',
+  'grant',
+  'revoke',
+  'comment on',
+  'set_config',
+  'set role',
+  'set session',
+  'set local',
+  'reset',
+  'do',
+  'call',
+  'copy',
+  'security definer',
+];
+const STATE_CHANGING_RE = new RegExp(
+  `(?<![\\p{L}\\p{N}_])(?:${STATE_CHANGING_KEYWORDS.map((keyword) => keyword.replace(/ /g, '\\s+')).join('|')})(?![\\p{L}\\p{N}_])`,
+  'iu'
+);
 const TEST_FILE_RE = /\.(?:sql|pg)$/;
 const TESTS_PREFIX = `${TESTS_DIR}/`;
 
@@ -104,42 +195,116 @@ const plansOf = (statements: readonly string[]) =>
     return plan === undefined ? [] : [Number(plan)];
   });
 
-/** Whether `workspace` still holds every statement of `pristine` in order with a plan no lower, ignoring added statements. */
-function keepsSeededStatements(pristine: string, workspace: string): boolean {
+const isKnownAssertion = (name: string) =>
+  ASSERTION_NAMES.has(name) ||
+  ASSERTION_PREFIXES.some((prefix) => name.startsWith(prefix));
+
+/** Whether the parenthesis opening at `open` closes at the last character of `text`. */
+function callSpans(text: string, open: number): boolean {
+  let depth = 0;
+  for (let i = open; i < text.length; i++) {
+    if (text[i] === '(') depth++;
+    else if (text[i] === ')' && --depth === 0) return i === text.length - 1;
+  }
+  return false;
+}
+
+/** Whether a statement added to a seeded test file is a pgTAP assertion call or a test-data insert, the only additions that can't change what the seeded assertions run against. */
+function isAllowedAddition(statement: string): boolean {
+  if (STATE_CHANGING_RE.test(statement)) return false;
+  const masked = maskSqlLiteralsAndComments(statement)
+    .replace(QUOTED_IDENTIFIER_RE, '""')
+    .trim();
+  if (UNSAFE_CALL_RE.test(masked)) return false;
+  if (INSERT_RE.test(masked)) {
+    return (
+      !ON_CONFLICT_UPDATE_RE.test(masked) &&
+      !RETURNING_OR_SELECT_RE.test(masked)
+    );
+  }
+  const call = ASSERTION_CALL_RE.exec(masked);
+  return (
+    call !== null &&
+    isKnownAssertion(call[1].toLowerCase()) &&
+    callSpans(masked, call[0].length - 1)
+  );
+}
+
+type SeededFile =
+  | { kept: true; added: number }
+  | { kept: false; disallowed?: string };
+
+/** Whether `workspace` holds every statement of `pristine` in order, one plan no lower, and no added statement beyond assertions and test-data inserts. */
+function inspectSeededFile(pristine: string, workspace: string): SeededFile {
   const seeded = splitSqlStatements(pristine);
   const current = splitSqlStatements(workspace);
   const [seededPlan = 0] = plansOf(seeded);
   const currentPlans = plansOf(current);
-  if (currentPlans.length !== 1 || currentPlans[0] < seededPlan) return false;
+  if (currentPlans.length !== 1 || currentPlans[0] < seededPlan) {
+    return { kept: false };
+  }
   const fingerprints = current.map(sqlFingerprint);
+  const matched = new Set<number>();
   let next = 0;
   for (const statement of seeded) {
     if (PLAN_STATEMENT_RE.test(statement)) continue;
     const found = fingerprints.indexOf(sqlFingerprint(statement), next);
-    if (found === -1) return false;
+    if (found === -1) return { kept: false };
+    matched.add(found);
     next = found + 1;
   }
-  return true;
+  const added = current.filter(
+    (statement, index) =>
+      !matched.has(index) && !PLAN_STATEMENT_RE.test(statement)
+  );
+  const disallowed = added.find((statement) => !isAllowedAddition(statement));
+  return disallowed === undefined
+    ? { kept: true, added: added.length }
+    : { kept: false, disallowed };
 }
 
-/** Passes when every seeded test file is still there with all its statements in order and a plan no lower, ignoring comments and whitespace; added statements are allowed. */
+function describeAddition(statement: string): string {
+  const flat = statement.replace(/\s+/g, ' ');
+  return flat.length > MAX_NOTED_STATEMENT
+    ? `${flat.slice(0, MAX_NOTED_STATEMENT)}...`
+    : flat;
+}
+
+/** Passes when every seeded test file is still there with all its statements in order and a plan no lower, ignoring comments and whitespace; the only statements it may gain are pgTAP assertions and test-data inserts. */
 export function checkSeededTestsUnchanged(probe: WorkspaceProbe): CheckResult {
   const name = TESTS_UNCHANGED_CHECK;
   if (!probe.ok) return { name, passed: false, notes: probe.notes };
   const modified: string[] = [];
   const missing: string[] = [];
+  const extended: string[] = [];
   for (const seeded of SEEDED_TESTS) {
     const sql =
       probe.seededTests.find(({ file }) => file === seeded.file)?.sql ?? null;
-    if (sql === null) missing.push(seeded.file);
-    else if (!keepsSeededStatements(seeded.sql, sql))
-      modified.push(seeded.file);
+    if (sql === null) {
+      missing.push(seeded.file);
+      continue;
+    }
+    const inspected = inspectSeededFile(seeded.sql, sql);
+    if (!inspected.kept) {
+      modified.push(
+        inspected.disallowed === undefined
+          ? seeded.file
+          : `${seeded.file} (added a statement the check doesn't allow: ${describeAddition(inspected.disallowed)})`
+      );
+    } else if (inspected.added > 0) {
+      extended.push(
+        `added to ${seeded.file}: ${inspected.added} ${inspected.added === 1 ? 'statement' : 'statements'}`
+      );
+    }
   }
   if (modified.length === 0 && missing.length === 0) {
     return {
       name,
       passed: true,
-      notes: `${SEEDED_TESTS.length} seeded test files unchanged`,
+      notes: [
+        `${SEEDED_TESTS.length} seeded test files unchanged`,
+        ...extended,
+      ].join('; '),
     };
   }
   return {

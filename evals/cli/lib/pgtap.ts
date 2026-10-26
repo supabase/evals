@@ -32,7 +32,7 @@ export type TestDbRun = {
   commandIndex: number;
   summary: PgProveSummary | null;
   withPgProve?: true;
-  /** Every `supabase test db` in the call ran with no path argument, so it covered the whole `supabase/tests` directory. */
+  /** Every `supabase test db` in the call ran with no path argument and no `--db-url`, so it covered the whole `supabase/tests` directory of the local project. */
   wholeDirectory?: true;
 };
 
@@ -43,6 +43,7 @@ const HAVE_RE = /^#\s+have:\s*(.*)$/;
 const WANT_RE = /^#\s+want:\s*(.*)$/;
 const SUMMARY_RESULT_RE = /^Result:\s+(PASS|FAIL)\s*$/gm;
 const SUMMARY_COUNTS_RE = /^Files=(\d+),\s*Tests=(\d+)\b/gm;
+const DB_URL_FLAG = '--db-url';
 
 function readResult(line: string): TapEntry | undefined {
   const match = RESULT_RE.exec(line);
@@ -147,6 +148,15 @@ export function isTestDbInvocation(invocation: SupabaseInvocation): boolean {
   );
 }
 
+function coversWholeDirectory(invocation: SupabaseInvocation): boolean {
+  return (
+    invocationPositionals(invocation).length === 2 &&
+    !invocation.argv.some(
+      (token) => token === DB_URL_FLAG || token.startsWith(`${DB_URL_FLAG}=`)
+    )
+  );
+}
+
 /** Whether the command runs `pg_prove` by hand in any executable segment. */
 export function runsPgProve(command: string): boolean {
   return unmaskedCommandSegments(command).some(
@@ -173,7 +183,7 @@ export function findTestDbRuns(
     const output = collectStringValues([result, error]).join('\n');
     const wholeDirectory = testDbInvocations
       .filter((invocation) => invocation.commandIndex === commandIndex)
-      .every((invocation) => invocationPositionals(invocation).length === 2);
+      .every(coversWholeDirectory);
     return {
       commandIndex,
       summary: readPgProveSummary(output),

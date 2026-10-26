@@ -222,6 +222,65 @@ describe('splitSqlStatements', () => {
     ]);
   });
 
+  describe('psql meta-commands', () => {
+    it('makes a line starting with a backslash a statement of its own', () => {
+      expect(
+        splitSqlStatements('begin;\n\\set QUIET on\nselect plan(1);')
+      ).toEqual(['begin', '\\set QUIET on', 'select plan(1)']);
+    });
+
+    it('does not glue a meta-command, which ends at the line break, to the statement after it', () => {
+      expect(splitSqlStatements('\\set QUIET on\nselect 1;')).toEqual([
+        '\\set QUIET on',
+        'select 1',
+      ]);
+    });
+
+    it('splits an unterminated statement off before a meta-command', () => {
+      expect(splitSqlStatements('select 1\n\\set x y\nselect 2;')).toEqual([
+        'select 1',
+        '\\set x y',
+        'select 2',
+      ]);
+    });
+
+    it('recognises an indented meta-command and a CRLF line break', () => {
+      expect(
+        splitSqlStatements('begin;\r\n  \\set QUIET on\r\nselect 1;\r\n')
+      ).toEqual(['begin', '\\set QUIET on', 'select 1']);
+    });
+
+    it('keeps a semicolon in a meta-command line with that line', () => {
+      expect(splitSqlStatements('\\echo done;\nselect 2;')).toEqual([
+        '\\echo done;',
+        'select 2',
+      ]);
+    });
+
+    it('keeps two meta-commands in a row apart', () => {
+      expect(splitSqlStatements('\\set a 1\n\\set b 2\nselect 1;')).toEqual([
+        '\\set a 1',
+        '\\set b 2',
+        'select 1',
+      ]);
+    });
+
+    it('does not treat a backslash that starts a line inside a literal or dollar-quoted body as a meta-command', () => {
+      expect(
+        splitSqlStatements(
+          "select 'a\n\\b'; select $$c\n\\d$$; select E'e\n\\\\f';"
+        )
+      ).toEqual(["select 'a\n\\b'", 'select $$c\n\\d$$', "select E'e\n\\\\f'"]);
+    });
+
+    it('keeps a backslash that does not start a line inside its statement', () => {
+      expect(splitSqlStatements('select 1 \\g; select 2;')).toEqual([
+        'select 1 \\g',
+        'select 2',
+      ]);
+    });
+  });
+
   it('splits a seeded test file into its begin, plan, assertions and rollback', () => {
     const statements = splitSqlStatements(
       readSeedFile('supabase/tests/line_discounts.test.sql')

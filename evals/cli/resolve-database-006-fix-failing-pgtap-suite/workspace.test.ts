@@ -396,7 +396,7 @@ const withEdit = (index: number, edit: (sql: string) => string) =>
 
 const replaceOnce = (text: string, from: string, to: string) => {
   if (!text.includes(from)) throw new Error(`seed no longer contains ${from}`);
-  return text.replace(from, to);
+  return text.replace(from, () => to);
 };
 
 describe('checkSeededTestsUnchanged', () => {
@@ -459,7 +459,7 @@ select is(public.invoice_total_cents(900104), 500::bigint, 'a line without a dis
       expect(checkSeededTestsUnchanged(probe)).toEqual({
         name: TESTS_UNCHANGED_CHECK,
         passed: true,
-        notes: '2 seeded test files unchanged',
+        notes: `2 seeded test files unchanged; added to ${SEEDED_TEST_FILES[1]}: 3 statements`,
       });
     });
 
@@ -482,8 +482,54 @@ select is(public.invoice_total_cents(900104), 500::bigint, 'a line without a dis
       expect(checkSeededTestsUnchanged(probe).passed).toBe(true);
     });
 
-    it('passes when the plan was only raised', () => {
-      expect(checkSeededTestsUnchanged(edited(withPlan(9))).passed).toBe(true);
+    it('passes when the plan was only raised, with nothing to add to the notes', () => {
+      expect(checkSeededTestsUnchanged(edited(withPlan(9)))).toEqual({
+        name: TESTS_UNCHANGED_CHECK,
+        passed: true,
+        notes: '2 seeded test files unchanged',
+      });
+    });
+
+    it('counts one added statement in the singular and names each extended file', () => {
+      const tests = SEEDED_TESTS.map(({ file, sql }, i) => ({
+        file,
+        sql: replaceOnce(
+          replaceOnce(
+            sql,
+            `select plan(${i === 0 ? 4 : 5})`,
+            `select plan(${i === 0 ? 5 : 6})`
+          ),
+          FINISH,
+          `select ok(true, 'extra');\n${FINISH}`
+        ),
+      }));
+      expect(checkSeededTestsUnchanged(probeOf(tests)).notes).toBe(
+        `2 seeded test files unchanged; added to ${SEEDED_TEST_FILES[0]}: 1 statement; added to ${SEEDED_TEST_FILES[1]}: 1 statement`
+      );
+    });
+
+    it('passes when the plan is written as select * from plan(N)', () => {
+      expect(
+        checkSeededTestsUnchanged(
+          edited((sql) =>
+            replaceOnce(sql, 'select plan(5)', 'select * from plan(6)')
+          )
+        )
+      ).toMatchObject({ passed: true, notes: '2 seeded test files unchanged' });
+      expect(
+        checkSeededTestsUnchanged(
+          edited((sql) =>
+            replaceOnce(sql, 'select plan(5)', 'select * from plan(4)')
+          )
+        ).passed
+      ).toBe(false);
+    });
+
+    it("counts select * from plan(N) as the file's plan, so a second plan fails", () => {
+      const probe = edited((sql) =>
+        replaceOnce(sql, FINISH, `select * from plan(5);\n${FINISH}`)
+      );
+      expect(checkSeededTestsUnchanged(probe).passed).toBe(false);
     });
 
     it('passes when the plan statement was reformatted', () => {
@@ -559,6 +605,297 @@ select is(public.invoice_total_cents(900104), 500::bigint, 'a line without a dis
     it('fails when keywords were upper-cased, since statements compare case-sensitively', () => {
       const probe = edited((sql) => replaceOnce(sql, 'begin;', 'BEGIN;'));
       expect(checkSeededTestsUnchanged(probe).passed).toBe(false);
+    });
+
+    describe('the statements an added assertion or insert may be', () => {
+      const addedAfterPlan = (statement: string, plan = 6) =>
+        edited((sql) =>
+          replaceOnce(
+            replaceOnce(sql, 'select plan(5);', `select plan(${plan});`),
+            'select * from finish();',
+            `${statement}\n${FINISH}`
+          )
+        );
+      const rejection = (statement: string, shown = statement) => ({
+        name: TESTS_UNCHANGED_CHECK,
+        passed: false,
+        notes: `modified: ${SEEDED_TEST_FILES[1]} (added a statement the check doesn't allow: ${shown})`,
+      });
+
+      it.each([
+        [
+          'a set-returning assertion',
+          "select * from results_eq($$select 1$$, $$select 1$$, 'same rows');",
+        ],
+        [
+          'an assertion qualified with extensions',
+          "select extensions.ok(true, 'qualified');",
+        ],
+        ['an assertion in capitals', "SELECT OK(true, 'loud');"],
+        [
+          'a prefixed assertion',
+          "select col_not_null('public', 'invoice_lines', 'quantity');",
+        ],
+        [
+          'an assertion with a nested select',
+          "select is((select count(*) from public.invoices), 0::bigint, 'none');",
+        ],
+        [
+          'an assertion that runs SQL from a string',
+          "select lives_ok($$select public.invoice_total_cents(900101)$$, 'it runs');",
+        ],
+        [
+          'a test-data insert',
+          "insert into public.invoices (id, customer_name) values (900105, 'More Ltd');",
+        ],
+        [
+          'an assertion that expects a check violation from a dollar-quoted insert',
+          "select throws_ok($$insert into public.invoice_lines (invoice_id, description, quantity, unit_price_cents, discount_percent) values (900101, 'x', 1, 100, 101)$$, '23514', null, 'a discount over 100% is rejected');",
+        ],
+        [
+          'an assertion naming columns that only contain a keyword',
+          "select has_column('public', 'invoices', 'updated_at', 'is_deleted and created_by are not keywords');",
+        ],
+        [
+          'a keyword touching a digit or a letter',
+          "select ok(true, 'reset2 xcopy do_it dropped calling');",
+        ],
+        [
+          'an insert in capitals',
+          "INSERT INTO public.invoices (id, customer_name) VALUES (900105, 'More Ltd');",
+        ],
+        [
+          'an insert whose string mentions select and returning',
+          "insert into public.invoices (id, customer_name) values (900105, 'select returning todo(');",
+        ],
+      ])('passes %s', (_label, statement) => {
+        expect(checkSeededTestsUnchanged(addedAfterPlan(statement))).toEqual({
+          name: TESTS_UNCHANGED_CHECK,
+          passed: true,
+          notes: `2 seeded test files unchanged; added to ${SEEDED_TEST_FILES[1]}: 1 statement`,
+        });
+      });
+
+      it('passes an insert of test data together with an assertion that reads it', () => {
+        const probe = addedAfterPlan(
+          `insert into public.invoice_lines (invoice_id, description, quantity, unit_price_cents, discount_percent) values (900101, 'Extra', 1, 1000, 50);\nselect is(public.invoice_total_cents(900101), 3200::bigint, 'the extra line counts');`
+        );
+        expect(checkSeededTestsUnchanged(probe)).toMatchObject({
+          passed: true,
+          notes: `2 seeded test files unchanged; added to ${SEEDED_TEST_FILES[1]}: 2 statements`,
+        });
+      });
+
+      it.each([
+        ['todo with a count', "select todo('discount maths under review', 3);"],
+        ['todo_start', "select todo_start('pending');"],
+        ['todo_end', 'select todo_end();'],
+        ['skip', "select skip('later', 2);"],
+        ['a second finish', 'select * from finish();'],
+        [
+          'a bare select of another function',
+          "select set_config('app.mode', 'x', true);",
+        ],
+        [
+          'an insert that skips conflicts, since do is a keyword',
+          "insert into public.invoices (id, customer_name) values (900101, 'Again') on conflict do nothing;",
+        ],
+        [
+          'an assertion that alters a table from a dollar-quoted body',
+          'select lives_ok($$alter table public.invoice_lines alter column discount_percent set default 0$$);',
+        ],
+        [
+          'an assertion that drops the function under test',
+          "select throws_ok($$drop function public.invoice_total_cents(bigint)$$, '42883', null, 'it is gone');",
+        ],
+        [
+          'an assertion that sets a config value from a dollar-quoted body',
+          "select results_eq($$select set_config('search_path', 'x', true)$$, $$select 'x'::text$$, 'it is set');",
+        ],
+        [
+          'an assertion that updates rows from a plain string',
+          "select lives_ok('update public.invoice_lines set discount_percent = 0');",
+        ],
+        [
+          'an assertion whose description holds a keyword',
+          "select ok(true, 'users can delete a line');",
+        ],
+        [
+          'an assertion that runs a keyword in capitals',
+          "select lives_ok('UPDATE public.invoice_lines SET discount_percent = 0');",
+        ],
+        [
+          'an assertion that splits a keyword across lines',
+          "select lives_ok($$comment\n  on table public.invoices is 'x'$$);",
+        ],
+        ['an update', 'update public.invoice_lines set discount_percent = 0;'],
+        ['a delete', 'delete from public.invoice_lines;'],
+        ['a drop', 'drop function public.invoice_total_cents(bigint);'],
+        ['a grant', 'grant all on public.invoices to anon;'],
+        ['a set', 'set local search_path = public;'],
+        [
+          'a do block',
+          "do $$ begin perform set_config('a', 'b', true); end $$;",
+        ],
+        [
+          'an alter table',
+          'alter table public.invoice_lines alter column discount_percent set default 0;',
+        ],
+        [
+          'a not null drop',
+          'alter table public.invoice_lines alter column discount_percent drop not null;',
+        ],
+        [
+          'a redefinition of the function under test',
+          'create or replace function public.invoice_total_cents(p_invoice_id bigint) returns bigint language sql as $$ select 0::bigint $$;',
+        ],
+        [
+          'a function that shadows an assertion',
+          'create function public.is(anyelement, anyelement, text) returns text language sql as $$ select extensions.ok(true, $3) $$;',
+        ],
+        ['a psql meta-command', '\\set QUIET on'],
+        [
+          'an assertion qualified with a schema other than extensions',
+          "select public.ok(true, 'shadowed');",
+        ],
+        ['an assertion with a quoted name', `select "ok"(true, 'quoted');`],
+        [
+          'a select of a function that is not an assertion',
+          'select public.invoice_total_cents(900101);',
+        ],
+        ['a select from a table', 'select * from public.invoices;'],
+        [
+          'an assertion followed by a todo column',
+          "select ok(true, 'x'), todo('later', 3);",
+        ],
+        [
+          'an assertion with a from clause',
+          "select ok(true, 'x') from public.invoices;",
+        ],
+        [
+          'an assertion that calls todo as an argument',
+          "select is(todo('later', 3), 3, 'x');",
+        ],
+        [
+          'an insert that updates on conflict',
+          "insert into public.invoice_lines (invoice_id, description, quantity, unit_price_cents) values (900101, 'x', 1, 1) on conflict (id) do update set quantity = 0;",
+        ],
+        [
+          'an insert that returns rows',
+          "insert into public.invoices (id, customer_name) values (900105, 'x') returning id;",
+        ],
+        [
+          'an insert from a select',
+          'insert into public.invoices (id, customer_name) select id + 1000, customer_name from public.invoices;',
+        ],
+        [
+          'a with query that inserts',
+          "with i as (insert into public.invoices (id, customer_name) values (900105, 'x') returning id) select ok(true, 'x') from i;",
+        ],
+      ])('fails an added %s, naming the statement', (_label, statement) => {
+        const { passed, notes } = checkSeededTestsUnchanged(
+          addedAfterPlan(statement)
+        );
+        expect(passed).toBe(false);
+        expect(notes).toContain(
+          `modified: ${SEEDED_TEST_FILES[1]} (added a statement the check doesn't allow: ${statement.replace(/;$/, '').slice(0, 20)}`
+        );
+      });
+
+      it.each([
+        'create',
+        'alter',
+        'drop',
+        'update',
+        'delete',
+        'truncate',
+        'grant',
+        'revoke',
+        'comment on',
+        'set_config',
+        'set role',
+        'set session',
+        'set local',
+        'reset',
+        'do',
+        'call',
+        'copy',
+        'security definer',
+      ])('fails an added assertion whose SQL string holds %s', (keyword) => {
+        const probe = addedAfterPlan(`select lives_ok($$${keyword} x$$);`);
+        expect(checkSeededTestsUnchanged(probe).passed).toBe(false);
+      });
+
+      it('names the first disallowed statement and drops the semicolon and comments', () => {
+        const probe = addedAfterPlan(
+          "select ok(true, 'fine');\n-- masks the totals\nselect todo('later', 3);\nupdate public.invoices set customer_name = 'x';"
+        );
+        expect(checkSeededTestsUnchanged(probe)).toEqual(
+          rejection("select todo('later', 3)")
+        );
+      });
+
+      it('truncates a long statement to 80 characters and collapses its whitespace', () => {
+        const probe = addedAfterPlan(
+          `create or replace function public.invoice_total_cents(p_invoice_id bigint)\n  returns bigint language sql as $$ select 0::bigint $$;`
+        );
+        expect(checkSeededTestsUnchanged(probe).notes).toBe(
+          `modified: ${SEEDED_TEST_FILES[1]} (added a statement the check doesn't allow: create or replace function public.invoice_total_cents(p_invoice_id bigint) retur...)`
+        );
+      });
+
+      it('fails a todo added to the first file without touching the second', () => {
+        const probe = probeOf(
+          withEdit(0, (sql) =>
+            replaceOnce(
+              replaceOnce(sql, 'select plan(4);', 'select plan(5);'),
+              'select * from finish();',
+              "select todo('later', 1);\nselect * from finish();"
+            )
+          )
+        );
+        expect(checkSeededTestsUnchanged(probe)).toEqual({
+          name: TESTS_UNCHANGED_CHECK,
+          passed: false,
+          notes: `modified: ${SEEDED_TEST_FILES[0]} (added a statement the check doesn't allow: select todo('later', 1))`,
+        });
+      });
+
+      it('names both files when both gained a disallowed statement', () => {
+        const tests = SEEDED_TESTS.map(({ file, sql }) => ({
+          file,
+          sql: replaceOnce(
+            sql,
+            'begin;',
+            'begin;\nset local search_path = public;'
+          ),
+        }));
+        expect(checkSeededTestsUnchanged(probeOf(tests)).notes).toBe(
+          `modified: ${SEEDED_TEST_FILES[0]} (added a statement the check doesn't allow: set local search_path = public), ${SEEDED_TEST_FILES[1]} (added a statement the check doesn't allow: set local search_path = public)`
+        );
+      });
+
+      it('gives only the file name when a seeded statement is also missing', () => {
+        const probe = edited((sql) =>
+          replaceOnce(
+            sql,
+            FIRST_IS,
+            "select todo('later', 1);\nselect ok(true, 'something else');\n\n"
+          )
+        );
+        expect(checkSeededTestsUnchanged(probe).notes).toBe(
+          `modified: ${SEEDED_TEST_FILES[1]}`
+        );
+      });
+
+      it('finds the seeded statements after an added psql meta-command and names the meta-command', () => {
+        const probe = edited((sql) =>
+          replaceOnce(sql, 'begin;\n', 'begin;\n\\set QUIET on\n')
+        );
+        expect(checkSeededTestsUnchanged(probe)).toEqual(
+          rejection('\\set QUIET on')
+        );
+      });
     });
   });
 

@@ -518,6 +518,9 @@ describe('findTestDbRuns', () => {
     "supabase db reset && supabase test db 2>&1 | grep -E 'Result|not ok'",
     'supabase test db --debug | tail -n 1',
     'supabase --workdir /ws test db',
+    'supabase test db --workdir /ws',
+    'supabase test db --workdir=/ws',
+    'supabase --workdir /ws test db --debug | tail -1',
   ])('recognises %j as a whole-directory test db run', (command) => {
     expect(runsOf([call(command, { result: TEST_DB_PASS_OUTPUT })])).toEqual([
       { commandIndex: 0, summary: PASS, wholeDirectory: true },
@@ -528,6 +531,10 @@ describe('findTestDbRuns', () => {
     'supabase test db supabase/tests/line_discounts.test.sql',
     'supabase test db supabase/tests',
     'supabase test db --db-url postgresql://postgres:postgres@127.0.0.1:54322/postgres',
+    'supabase test db --db-url=postgresql://postgres:postgres@127.0.0.1:54322/postgres',
+    'supabase test db --db-url postgresql://postgres:postgres@127.0.0.1:54322/postgres | tail -1',
+    'supabase test db --db-url=postgresql://postgres:postgres@127.0.0.1:54322/postgres | tail -1',
+    'supabase test db --workdir /ws --db-url=postgresql://postgres:postgres@127.0.0.1:54322/postgres',
     'supabase test db supabase/tests/line_discounts.test.sql | tail -1',
     'supabase test db && supabase test db supabase/tests/line_discounts.test.sql',
     'supabase test db supabase/tests/line_discounts.test.sql; supabase test db',

@@ -5,34 +5,45 @@ import {
 import { shellQuote } from '../lib/shell.js';
 
 const PSQL_ERROR_RE = /^psql:(.+?):(\d+): ERROR:\s+(.*)$/m;
-const SEMICOLON_MARK_RE = /\uE000(\d+)\uE001/g;
+const CUT_MARK_RE = /\uE000(\d+)\uE001/g;
+const CUT_RE = /;|^[ \t]*\\/gm;
 
 /** The SQL with comments, whitespace and semicolons removed, so a migration file compares equal to the statements the CLI recorded for it. */
 export function sqlFingerprint(sql: string): string {
   return stripSqlComments(sql).replace(/[\s;]/g, '');
 }
 
-/** The comment-free statements of `sql`, split on `;` outside string literals and dollar-quoted bodies, with empty ones dropped. */
+/** The comment-free statements of `sql`, split on `;` outside string literals and dollar-quoted bodies, with empty ones dropped; a line starting with a backslash is a psql meta-command and a statement of its own. */
 export function splitSqlStatements(sql: string): string[] {
   const stripped = stripSqlComments(sql);
-  let count = 0;
-  // Masking empties literals and dollar-quoted bodies, so only the marks on top-level semicolons survive it.
-  const marked = stripped.replace(/;/g, () => `;\uE000${count++}\uE001`);
+  const cuts: { at: number; meta: boolean }[] = [];
+  // Masking empties literals and dollar-quoted bodies, so only the marks at top-level cuts survive it.
+  const marked = stripped.replace(CUT_RE, (match, offset: number) => {
+    const meta = match !== ';';
+    cuts.push({ at: meta ? offset + match.length - 1 : offset, meta });
+    const mark = `\uE000${cuts.length - 1}\uE001`;
+    return meta ? `${match.slice(0, -1)}${mark}\\` : `;${mark}`;
+  });
   const topLevel = new Set(
     Array.from(
-      maskSqlLiteralsAndComments(marked).matchAll(SEMICOLON_MARK_RE),
+      maskSqlLiteralsAndComments(marked).matchAll(CUT_MARK_RE),
       (mark) => Number(mark[1])
     )
   );
   const statements: string[] = [];
   let start = 0;
-  let index = 0;
-  for (const { index: at } of stripped.matchAll(/;/g)) {
-    if (topLevel.has(index++)) {
+  cuts.forEach(({ at, meta }, index) => {
+    if (!topLevel.has(index) || at < start) return;
+    if (meta) {
+      const lineEnd = stripped.indexOf('\n', at);
+      const end = lineEnd === -1 ? stripped.length : lineEnd;
+      statements.push(stripped.slice(start, at), stripped.slice(at, end));
+      start = end;
+    } else {
       statements.push(stripped.slice(start, at));
       start = at + 1;
     }
-  }
+  });
   statements.push(stripped.slice(start));
   return statements.map((statement) => statement.trim()).filter(Boolean);
 }

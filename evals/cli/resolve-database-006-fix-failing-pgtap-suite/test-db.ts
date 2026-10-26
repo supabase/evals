@@ -21,11 +21,17 @@ const isWholeSuitePass = (run: SummarisedRun, seededFileCount: number) =>
     ? run.wholeDirectory === true
     : run.summary.files >= seededFileCount);
 
-const clears = (pass: PgProveSummary, fail: PgProveSummary) =>
+const failedFileCount = (run: SummarisedRun, seededFileCount: number) =>
+  run.summary.files ?? (run.wholeDirectory === true ? seededFileCount : 1);
+
+const clears = (
+  pass: PgProveSummary,
+  fail: SummarisedRun,
+  seededFileCount: number
+) =>
   isPass(pass) &&
   pass.files !== null &&
-  fail.files !== null &&
-  pass.files >= fail.files;
+  pass.files >= failedFileCount(fail, seededFileCount);
 
 /** Passes when a `supabase test db` run printed `Result: PASS` for the whole suite and every later `Result: FAIL` was followed by a pass covering at least as many files. */
 export function checkSuitePassedUnderTestDb(
@@ -83,7 +89,9 @@ export function checkSuitePassedUnderTestDb(
     unresolved =
       run.summary.result === 'FAIL'
         ? [...unresolved, run]
-        : unresolved.filter(({ summary }) => !clears(run.summary, summary));
+        : unresolved.filter(
+            (failed) => !clears(run.summary, failed, seededFileCount)
+          );
   }
   const failedAfter = unresolved.at(-1);
   if (failedAfter !== undefined) {
