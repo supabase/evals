@@ -51,6 +51,26 @@ function seededBucket(probe: SeedConfigProbe, name: string) {
   return bucket;
 }
 
+/** The passing project's config with `enabled` and the invoices bucket's `public` written as raw TOML values. */
+function passingProjectWith(raw: {
+  enabled?: string;
+  invoicesPublic?: string;
+}) {
+  return {
+    ...passingProject(),
+    config: [
+      '[storage]',
+      `enabled = ${raw.enabled ?? 'true'}`,
+      '[storage.buckets.media]',
+      'public = true',
+      'objects_path = "./storage/media"',
+      '[storage.buckets.invoices]',
+      `public = ${raw.invoicesPublic ?? 'false'}`,
+      'objects_path = "./storage/invoices"',
+    ].join('\n'),
+  };
+}
+
 async function seed(current: Project, intercept?: Intercept) {
   const sandbox = createSandbox({ project: current, intercept });
   const result = await readSeedConfig(sandbox.ctx);
@@ -266,6 +286,121 @@ describe('parseBucketDecls', () => {
 
     expect(result.ok).toBe(false);
     expect(result).toMatchObject({ notes: expect.stringMatching(/\S/) });
+  });
+
+  it.each([
+    [
+      'a quoted "true" public flag',
+      '[storage.buckets.media]\npublic = "true"\n',
+      'storage.buckets.media.public must be a boolean, not "true"',
+    ],
+    [
+      'a quoted "false" public flag',
+      '[storage.buckets.invoices]\npublic = "false"\n',
+      'storage.buckets.invoices.public must be a boolean, not "false"',
+    ],
+    [
+      'a quoted "yes" public flag',
+      '[storage.buckets.media]\npublic = "yes"\n',
+      'storage.buckets.media.public must be a boolean, not "yes"',
+    ],
+    [
+      'a numeric public flag',
+      '[storage.buckets.media]\npublic = 1\n',
+      'storage.buckets.media.public must be a boolean, not 1',
+    ],
+    [
+      'an array public flag',
+      '[storage.buckets.media]\npublic = [true]\n',
+      'storage.buckets.media.public must be a boolean, not an array',
+    ],
+    [
+      'a table public flag',
+      '[storage.buckets.media]\npublic = { value = true }\n',
+      'storage.buckets.media.public must be a boolean, not a table',
+    ],
+    [
+      'a quoted public flag in an inline bucket table',
+      '[storage.buckets]\nmedia = { public = "true", objects_path = "./storage/media" }\n',
+      'storage.buckets.media.public must be a boolean, not "true"',
+    ],
+    [
+      'a quoted public flag on the second of two buckets',
+      [
+        '[storage.buckets.media]',
+        'public = true',
+        'objects_path = "./storage/media"',
+        '[storage.buckets.invoices]',
+        'public = "false"',
+        'objects_path = "./storage/invoices"',
+      ].join('\n'),
+      'storage.buckets.invoices.public must be a boolean, not "false"',
+    ],
+    [
+      'a quoted enabled flag',
+      '[storage]\nenabled = "false"\n',
+      'storage.enabled must be a boolean, not "false"',
+    ],
+    [
+      'a numeric enabled flag',
+      '[storage]\nenabled = 0\n[storage.buckets.media]\npublic = true\n',
+      'storage.enabled must be a boolean, not 0',
+    ],
+    [
+      'a numeric objects_path',
+      '[storage.buckets.media]\npublic = true\nobjects_path = 1\n',
+      'storage.buckets.media.objects_path must be a string, not 1',
+    ],
+    [
+      'a boolean objects_path',
+      '[storage.buckets.media]\nobjects_path = true\n',
+      'storage.buckets.media.objects_path must be a string, not true',
+    ],
+    [
+      'an array objects_path',
+      '[storage.buckets.media]\nobjects_path = ["./storage/media"]\n',
+      'storage.buckets.media.objects_path must be a string, not an array',
+    ],
+    [
+      'a numeric bucket entry',
+      '[storage.buckets]\nmedia = 1\n',
+      'storage.buckets.media must be a table, not 1',
+    ],
+    [
+      'a string bucket entry',
+      '[storage.buckets]\nmedia = "public"\n',
+      'storage.buckets.media must be a table, not "public"',
+    ],
+    [
+      'an array of tables for a bucket entry',
+      '[[storage.buckets.media]]\npublic = true\n',
+      'storage.buckets.media must be a table, not an array',
+    ],
+    [
+      'a numeric buckets entry',
+      '[storage]\nbuckets = 1\n',
+      'storage.buckets must be a table, not 1',
+    ],
+    [
+      'a string buckets entry',
+      '[storage]\nbuckets = "media"\n',
+      'storage.buckets must be a table, not "media"',
+    ],
+    [
+      'an array buckets entry',
+      '[storage]\nbuckets = ["media"]\n',
+      'storage.buckets must be a table, not an array',
+    ],
+    [
+      'a numeric storage entry',
+      'storage = 1\n',
+      'storage must be a table, not 1',
+    ],
+  ])('fails because the CLI would not load %s', (_name, toml, problem) => {
+    expect(parseBucketDecls(toml)).toEqual({
+      ok: false,
+      notes: `${SEED_CONFIG_PATH} would not load: ${problem}`,
+    });
   });
 });
 
@@ -516,6 +651,18 @@ describe('readSeedConfig', () => {
 
     expect(result.ok).toBe(false);
     expect(result).toMatchObject({ notes: expect.stringMatching(/\S/) });
+    expect(events).not.toContain('find');
+  });
+
+  it('fails with the field and lists nothing when storage.enabled is quoted, which the CLI rejects', async () => {
+    const { result, events } = await seed(
+      passingProjectWith({ enabled: '"false"' })
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      notes: `${SEED_CONFIG_PATH} would not load: storage.enabled must be a boolean, not "false"`,
+    });
     expect(events).not.toContain('find');
   });
 });
@@ -1071,5 +1218,35 @@ describe('the fresh-setup check on a project read from the sandbox', () => {
         },
       })
     ).toBe(true);
+  });
+
+  it('passes for a config that writes enabled and public as booleans', async () => {
+    expect(await verdict(passingProjectWith({}))).toBe(true);
+  });
+
+  it.each(['"false"', '"true"'])(
+    'fails the invoices bucket quoting public = %s, since the CLI would not start with that config',
+    async (quoted) => {
+      const { result, events } = await seed(
+        passingProjectWith({ invoicesPublic: quoted })
+      );
+
+      expect(checkFreshSetup(result)).toEqual({
+        name: FRESH,
+        passed: false,
+        notes: `seed config unavailable: ${SEED_CONFIG_PATH} would not load: storage.buckets.invoices.public must be a boolean, not ${quoted}`,
+      });
+      expect(events).not.toContain('find');
+    }
+  );
+
+  it('fails a quoted storage.enabled instead of reading storage as enabled', async () => {
+    const { result } = await seed(passingProjectWith({ enabled: '"false"' }));
+
+    expect(checkFreshSetup(result)).toEqual({
+      name: FRESH,
+      passed: false,
+      notes: `seed config unavailable: ${SEED_CONFIG_PATH} would not load: storage.enabled must be a boolean, not "false"`,
+    });
   });
 });

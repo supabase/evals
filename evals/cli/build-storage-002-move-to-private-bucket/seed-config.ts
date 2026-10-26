@@ -24,35 +24,72 @@ export type BucketDecl = {
 const isTable = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
-/** The buckets `[storage.buckets.*]` declares, with the CLI's defaults: storage enabled and buckets private. */
+class WouldNotLoad extends Error {}
+
+type FieldTypes = {
+  boolean: boolean;
+  string: string;
+  table: Record<string, unknown>;
+};
+
+function show(value: unknown): string {
+  if (Array.isArray(value)) return 'an array';
+  if (typeof value === 'string') return JSON.stringify(value);
+  if (typeof value === 'object') return 'a table';
+  return String(value);
+}
+
+function typed<K extends keyof FieldTypes>(
+  value: unknown,
+  type: K,
+  path: string
+): FieldTypes[K] | undefined {
+  if (value === undefined) return undefined;
+  if (!(type === 'table' ? isTable(value) : typeof value === type)) {
+    throw new WouldNotLoad(
+      `${SEED_CONFIG_PATH} would not load: ${path} must be a ${type}, not ${show(value)}`
+    );
+  }
+  return value as FieldTypes[K];
+}
+
+/** The buckets `[storage.buckets.*]` declares, with the CLI's defaults: storage enabled and buckets private. Fails on a field of a type the CLI rejects. */
 export function parseBucketDecls(
   toml: string
 ):
   | { ok: true; storageEnabled: boolean; buckets: BucketDecl[] }
   | { ok: false; notes: string } {
   try {
-    const { storage } = parse(toml);
-    const settings = isTable(storage) ? storage : {};
-    const declared = isTable(settings.buckets) ? settings.buckets : {};
+    const settings = typed(parse(toml).storage, 'table', 'storage') ?? {};
+    const storageEnabled =
+      typed(settings.enabled, 'boolean', 'storage.enabled') ?? true;
+    const declared = typed(settings.buckets, 'table', 'storage.buckets') ?? {};
     return {
       ok: true,
-      storageEnabled: settings.enabled !== false,
+      storageEnabled,
       buckets: Object.entries(declared).map(([name, decl]) => {
-        const bucket = isTable(decl) ? decl : {};
-        const objectsPath = bucket.objects_path;
+        const path = `storage.buckets.${name}`;
+        const bucket = typed(decl, 'table', path) ?? {};
+        const isPublic = typed(bucket.public, 'boolean', `${path}.public`);
+        const objectsPath = typed(
+          bucket.objects_path,
+          'string',
+          `${path}.objects_path`
+        );
         return {
           name,
-          public: bucket.public === true,
-          ...(typeof objectsPath === 'string' && objectsPath !== ''
-            ? { objectsPath }
-            : {}),
+          public: isPublic ?? false,
+          ...(objectsPath ? { objectsPath } : {}),
         };
       }),
     };
   } catch (error) {
     return {
       ok: false,
-      notes: `${SEED_CONFIG_PATH} does not parse: ${errorMessage(error)}`,
+      notes:
+        error instanceof WouldNotLoad
+          ? error.message
+          : `${SEED_CONFIG_PATH} does not parse: ${errorMessage(error)}`,
     };
   }
 }

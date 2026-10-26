@@ -446,6 +446,28 @@ describe('a project and stack the agent never changed', () => {
   });
 });
 
+describe('a seed config that quotes the invoices bucket public flag', () => {
+  const config = [
+    '[storage.buckets.media]',
+    'public = true',
+    'objects_path = "./storage/media"',
+    '[storage.buckets.invoices]',
+    'public = "false"',
+    'objects_path = "./storage/invoices"',
+  ].join('\n');
+
+  it('fails only the fresh-setup check, because the CLI would not start with that config', async () => {
+    const { ctx } = fakeCtx({ project: { ...passingProject(), config } });
+
+    const result = await scorer(ctx);
+
+    expectFailed(result, [FRESH]);
+    expect(notesOf(result, FRESH)).toBe(
+      `seed config unavailable: ${SEED_CONFIG_PATH} would not load: storage.buckets.invoices.public must be a boolean, not "false"`
+    );
+  });
+});
+
 describe('a move on the pre-started stack with no stack command', () => {
   const STORAGE_ONLY = [
     call(

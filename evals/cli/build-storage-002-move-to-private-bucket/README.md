@@ -226,7 +226,11 @@ move`, with the error message as its notes.
   bucket with `public = false`. The note then reads `a fresh local setup would
   not seed <file names> into a private bucket`, followed by the listing reason
   of each private bucket with an `objects_path` that does not exist or could
-  not be listed. An unreadable or unparseable config fails.
+  not be listed. An unreadable or unparseable config fails, and so does one the
+  CLI would refuse to load because a field the check reads has the wrong type:
+  a non-boolean `storage.enabled` or bucket `public`, a non-string
+  `objects_path`, or a bucket entry that isn't a table. Every channel's
+  `supabase start` rejects these.
 - Passes: a new private bucket with any name and path, for example
   `[storage.buckets.invoices]` with `objects_path = "./storage/invoices"`, and
   the invoice files moved there; the invoices split across two private buckets,
@@ -238,8 +242,9 @@ move`, with the error message as its notes.
   which drops `avatars/` from the keys; `media`'s seed folder emptied of
   avatars; the invoice seed files deleted; a private bucket whose
   `objects_path` has a typo, so the invoices are seeded into no bucket at all;
-  or a private bucket whose `objects_path` can't be listed, so the check can't
-  show it seeds the invoices (the note carries the listing reason).
+  a private bucket whose `objects_path` can't be listed, so the check can't
+  show it seeds the invoices (the note carries the listing reason); or a
+  bucket's `public` written as a quoted string, e.g. `public = "false"`.
 
 ### `no container-runtime detours`
 
