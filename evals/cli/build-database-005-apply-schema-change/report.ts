@@ -1,9 +1,9 @@
 import { serializeTranscript, type TranscriptPart } from '@supabase-evals/core';
+import { describeMissingVersions } from '../lib/migrations.js';
 import { describeStack, type StackProbe } from '../lib/stack.js';
 import type { CliFacts, ProjectFileFacts } from './metrics.js';
 import {
   describeMigrations,
-  describeMissingVersions,
   type ColumnMigrationsProbe,
   type RecordedMigrationsProbe,
 } from './migrations.js';

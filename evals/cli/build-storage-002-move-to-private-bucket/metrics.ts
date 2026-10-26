@@ -7,13 +7,13 @@ import {
   invocationSubcommand,
   invocationVerb,
   listCliOverrides,
+  type StackLifecycle,
   type SupabaseInvocation,
 } from '../lib/cli-invocations.js';
 import { findCliDetourCommands } from '../lib/detours.js';
 import { readCliVersions, safely } from '../lib/metrics.js';
 import type { StackProbe } from '../lib/stack.js';
 import type { StackKeys } from '../lib/stack-keys.js';
-import type { StackLifecycle } from '../lib/stack-lifecycle.js';
 import { invoiceFor } from './fixtures.js';
 import type { SeedConfigProbe } from './seed-config.js';
 import { present, type StorageProbe } from './storage.js';

@@ -2,7 +2,7 @@ import type { CheckResult, LocalStackEvalContext } from '@supabase-evals/core';
 import { describeFailure, errorMessage, shellQuote } from '../lib/shell.js';
 import type { StackProbe } from '../lib/stack.js';
 import type { StackKeys } from '../lib/stack-keys.js';
-import type { StackLifecycle } from '../lib/stack-lifecycle.js';
+import type { StackLifecycle } from '../lib/cli-invocations.js';
 import { AVATARS, INVOICES, MEDIA_BUCKET, invoiceFor } from './fixtures.js';
 
 type ExecContext = Pick<LocalStackEvalContext, 'exec'>;

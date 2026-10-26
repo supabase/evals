@@ -7,7 +7,7 @@ import {
   ORDERS_TABLE,
   SEEDED_ORDER_COUNT,
 } from './fixtures.js';
-import { type Failed, queryDatabase } from './psql.js';
+import { type Failed, queryDatabase } from '../lib/psql.js';
 
 type ExecContext = Pick<LocalStackEvalContext, 'exec'>;
 

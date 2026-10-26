@@ -1,7 +1,7 @@
 import { redactSecrets } from '../lib/redact.js';
 import { truncate } from '../lib/shell.js';
 import { describeStack, type StackProbe } from '../lib/stack.js';
-import type { StackLifecycle } from '../lib/stack-lifecycle.js';
+import type { StackLifecycle } from '../lib/cli-invocations.js';
 import { AVATARS, INVOICES, MEDIA_BUCKET, invoiceFor } from './fixtures.js';
 import type { SeedConfigProbe, SeededBucket } from './seed-config.js';
 import type { Fetched, StorageProbe } from './storage.js';

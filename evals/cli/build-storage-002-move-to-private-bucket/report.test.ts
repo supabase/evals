@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { mentionsNumber } from '../lib/report.js';
-import type { StackLifecycle } from '../lib/stack-lifecycle.js';
+import type { StackLifecycle } from '../lib/cli-invocations.js';
 import {
   bucketSeeding,
   fetched,

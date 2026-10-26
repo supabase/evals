@@ -1,3 +1,4 @@
+import { describeMissingVersions } from '../lib/migrations.js';
 import { describeStack, type StackProbe } from '../lib/stack.js';
 import { SEEDED_ORDER_COUNT } from './fixtures.js';
 import type { EvidenceCall, InspectRun } from './inspect.js';
@@ -5,7 +6,6 @@ import type { CliFacts, ProjectFileFacts } from './metrics.js';
 import {
   describeMigrations,
   describeMismatchedVersions,
-  describeMissingVersions,
   type IndexMigrationsProbe,
   type RecordedProbe,
 } from './migrations.js';

@@ -4,11 +4,11 @@ import type {
   LocalStackEvalContext,
 } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
-import { findSupabaseInvocations } from '../lib/cli-invocations.js';
 import {
+  findSupabaseInvocations,
   readStackLifecycle,
   type StackLifecycle,
-} from '../lib/stack-lifecycle.js';
+} from '../lib/cli-invocations.js';
 import {
   basename,
   bucketSeeding,

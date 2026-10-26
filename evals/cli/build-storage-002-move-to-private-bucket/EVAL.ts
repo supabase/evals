@@ -4,7 +4,10 @@ import {
   type LocalStackScorer,
 } from '@supabase-evals/core';
 import { stripIndent } from 'common-tags';
-import { findSupabaseInvocations } from '../lib/cli-invocations.js';
+import {
+  findSupabaseInvocations,
+  readStackLifecycle,
+} from '../lib/cli-invocations.js';
 import {
   DETOUR_CHECK_NAME,
   detourJudgeRubric,
@@ -17,7 +20,6 @@ import { formatGroundTruthJudgeInput } from '../lib/report.js';
 import { errorMessage } from '../lib/shell.js';
 import { resolveStackWithAgentHomes } from '../lib/stack.js';
 import { readStackKeys } from '../lib/stack-keys.js';
-import { readStackLifecycle } from '../lib/stack-lifecycle.js';
 import { checkMetrics, isStorageCommand, readCliFacts } from './metrics.js';
 import { describeGroundTruth } from './report.js';
 import { checkFreshSetup, readSeedConfig } from './seed-config.js';

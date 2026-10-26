@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { StackProbe } from '../lib/stack.js';
 import type { StackKeys } from '../lib/stack-keys.js';
-import type { StackLifecycle } from '../lib/stack-lifecycle.js';
+import type { StackLifecycle } from '../lib/cli-invocations.js';
 import {
   ANON,
   API_URL,
