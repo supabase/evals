@@ -9,7 +9,7 @@ describe('aiSdkAgent usage', () => {
     vi.stubEnv('ANTHROPIC_API_KEY', 'test'); // to satisfy `assertProviderReady()`
     const model = new MockLanguageModelV3({
       provider: 'anthropic.messages',
-      modelId: 'claude-sonnet-5',
+      modelId: 'claude-sonnet-5-5',
       doGenerate: async () => ({
         content: [{ type: 'text', text: 'Done.' }],
         finishReason: { unified: 'stop', raw: 'stop' },
@@ -34,7 +34,7 @@ describe('aiSdkAgent usage', () => {
 
     expect(run.usage).toEqual([
       {
-        model: 'claude-sonnet-5',
+        model: 'claude-sonnet-5-5',
         inputTokens: 3210,
         cacheReadInputTokens: 3000,
         cacheWriteInputTokens: 200,
