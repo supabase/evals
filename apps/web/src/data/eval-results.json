@@ -5697,7 +5697,7 @@
       "agent": "claude-code",
       "modelProvider": "anthropic",
       "modelId": "claude-opus-5-5",
-      "reasoningEffort": "medium"
+      "reasoningEffort": "high"
     },
     "eval": "resolve-dataapi-001-empty-results",
     "stage": "resolve",
@@ -5741,7 +5741,179 @@
       {
         "name": "diagnosed RLS and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "Correctly diagnoses RLS enabled without policies as deny-all, creates authenticated-only owner-scoped SELECT and INSERT policies using auth.uid(), and leaves RLS enabled."
+        "judgeNotes": "Diagnosed RLS deny-all, kept RLS enabled, and created authenticated SELECT and INSERT policies scoped to each user's bookmarks."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": []
+    },
+    "usage": [
+      {
+        "model": "claude-opus-5-5",
+        "inputTokens": 291639,
+        "cacheReadInputTokens": 270261,
+        "cacheWriteInputTokens": 21356,
+        "outputTokens": 5474
+      }
+    ],
+    "stepCount": 17,
+    "toolCallCount": 15,
+    "agentRunDurationMs": 60110,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
+    "promptSourcePath": "evals/benchmark/resolve-dataapi-001-empty-results/PROMPT.md",
+    "run": 1,
+    "sourcePath": "claude-code-opus-5.5/resolve-dataapi-001-empty-results/run-1/result.json"
+  },
+  {
+    "experiment": "claude-code-opus-5.5",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-opus-5-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "resolve-dataapi-001-empty-results",
+    "stage": "resolve",
+    "product": [
+      "data-api",
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user A reads own bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user B cannot read user A bookmarks",
+        "passed": true
+      },
+      {
+        "name": "anon reads no bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user A can save a new bookmark",
+        "passed": true
+      },
+      {
+        "name": "user B cannot insert a bookmark as user A",
+        "passed": true
+      },
+      {
+        "name": "diagnosed RLS and added owner-scoped policies",
+        "passed": true,
+        "judgeNotes": "Diagnosed RLS with no policies as the cause of empty Data API results, created owner-scoped SELECT and INSERT policies for authenticated users, kept RLS enabled, and verified access."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": []
+    },
+    "usage": [
+      {
+        "model": "claude-opus-5-5",
+        "inputTokens": 315506,
+        "cacheReadInputTokens": 293993,
+        "cacheWriteInputTokens": 21489,
+        "outputTokens": 5299
+      }
+    ],
+    "stepCount": 18,
+    "toolCallCount": 16,
+    "agentRunDurationMs": 66314,
+    "sandboxUsage": {
+      "memory": 8192
+    },
+    "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
+    "promptSourcePath": "evals/benchmark/resolve-dataapi-001-empty-results/PROMPT.md",
+    "run": 2,
+    "sourcePath": "claude-code-opus-5.5/resolve-dataapi-001-empty-results/run-2/result.json"
+  },
+  {
+    "experiment": "claude-code-opus-5.5",
+    "experimentSuite": "benchmark",
+    "experimentDisplay": {
+      "agent": "claude-code",
+      "modelProvider": "anthropic",
+      "modelId": "claude-opus-5-5",
+      "reasoningEffort": "high"
+    },
+    "eval": "resolve-dataapi-001-empty-results",
+    "stage": "resolve",
+    "product": [
+      "data-api",
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user A reads own bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user B cannot read user A bookmarks",
+        "passed": true
+      },
+      {
+        "name": "anon reads no bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user A can save a new bookmark",
+        "passed": true
+      },
+      {
+        "name": "user B cannot insert a bookmark as user A",
+        "passed": true
+      },
+      {
+        "name": "diagnosed RLS and added owner-scoped policies",
+        "passed": true,
+        "judgeNotes": "Correctly diagnosed deny-all RLS, created authenticated-only owner-scoped SELECT and INSERT policies, and kept RLS enabled."
       }
     ],
     "skills": {
@@ -5757,28 +5929,22 @@
     "usage": [
       {
         "model": "claude-opus-5-5",
-        "inputTokens": 296229,
-        "cacheReadInputTokens": 279491,
-        "cacheWriteInputTokens": 16712,
-        "outputTokens": 4205
+        "inputTokens": 323324,
+        "cacheReadInputTokens": 305485,
+        "cacheWriteInputTokens": 17811,
+        "outputTokens": 5414
       }
     ],
-    "stepCount": 16,
-    "toolCallCount": 15,
-    "agentRunDurationMs": 49585,
+    "stepCount": 17,
+    "toolCallCount": 16,
+    "agentRunDurationMs": 59898,
     "sandboxUsage": {
-      "activeCpuDurationMs": 155711,
-      "duration": 169764,
-      "memory": 8192,
-      "networkTransfer": {
-        "ingress": 721169174,
-        "egress": 2570080
-      }
+      "memory": 8192
     },
     "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
     "promptSourcePath": "evals/benchmark/resolve-dataapi-001-empty-results/PROMPT.md",
-    "run": 1,
-    "sourcePath": "claude-code-opus-5.5/resolve-dataapi-001-empty-results/run-1/result.json"
+    "run": 3,
+    "sourcePath": "claude-code-opus-5.5/resolve-dataapi-001-empty-results/run-3/result.json"
   },
   {
     "experiment": "claude-code-opus-5.5",
@@ -24477,117 +24643,6 @@
     "promptSourcePath": "evals/benchmark/resolve-security-002-rls-cross-tenant-leak/PROMPT.md",
     "run": 3,
     "sourcePath": "claude-code-sonnet-5-no-skills/resolve-security-002-rls-cross-tenant-leak/run-3/result.json"
-  },
-  {
-    "experiment": "claude-code-sonnet-5.5",
-    "experimentSuite": "benchmark",
-    "experimentDisplay": {
-      "agent": "claude-code",
-      "modelProvider": "anthropic",
-      "modelId": "claude-sonnet-5-5",
-      "reasoningEffort": "medium"
-    },
-    "eval": "resolve-dataapi-001-empty-results",
-    "stage": "resolve",
-    "product": [
-      "data-api",
-      "database",
-      "auth"
-    ],
-    "topic": [
-      "rls",
-      "sdk"
-    ],
-    "suite": "benchmark",
-    "interface": "mcp",
-    "passed": true,
-    "checks": [
-      {
-        "name": "RLS still enabled on bookmarks",
-        "passed": true
-      },
-      {
-        "name": "user A reads own bookmarks",
-        "passed": true
-      },
-      {
-        "name": "user B cannot read user A bookmarks",
-        "passed": true
-      },
-      {
-        "name": "anon reads no bookmarks",
-        "passed": true
-      },
-      {
-        "name": "user A can save a new bookmark",
-        "passed": true
-      },
-      {
-        "name": "user B cannot insert a bookmark as user A",
-        "passed": true
-      },
-      {
-        "name": "diagnosed RLS and added owner-scoped policies",
-        "passed": true,
-        "judgeNotes": "Diagnosed RLS enabled without policies as deny-all, created authenticated-only owner-scoped SELECT and INSERT policies, and kept RLS enabled. Also tested ownership isolation and rejection of inserts for another user."
-      }
-    ],
-    "skills": {
-      "available": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ],
-      "loaded": [
-        "supabase"
-      ]
-    },
-    "docs": {
-      "calls": [
-        {
-          "source": "web_fetch",
-          "query": "Summarize debugging guidance for empty results / RLS / permissions",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/monitoring-and-debugging.md"
-            }
-          ],
-          "resultChars": 1392
-        }
-      ]
-    },
-    "usage": [
-      {
-        "model": "claude-sonnet-5-5",
-        "inputTokens": 164108,
-        "cacheReadInputTokens": 147998,
-        "cacheWriteInputTokens": 16096,
-        "outputTokens": 2430
-      },
-      {
-        "model": "claude-haiku-4-5-20251001",
-        "inputTokens": 1091,
-        "cacheReadInputTokens": 0,
-        "cacheWriteInputTokens": 0,
-        "outputTokens": 292
-      }
-    ],
-    "stepCount": 12,
-    "toolCallCount": 10,
-    "agentRunDurationMs": 23457,
-    "sandboxUsage": {
-      "activeCpuDurationMs": 117336,
-      "duration": 121806,
-      "memory": 8192,
-      "networkTransfer": {
-        "ingress": 723349609,
-        "egress": 3870800
-      }
-    },
-    "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
-    "promptSourcePath": "evals/benchmark/resolve-dataapi-001-empty-results/PROMPT.md",
-    "run": 1,
-    "sourcePath": "claude-code-sonnet-5.5/resolve-dataapi-001-empty-results/run-1/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna",
