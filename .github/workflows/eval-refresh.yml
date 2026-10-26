@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       experiments:
-        description: "Comma-separated experiment names to run (overrides the suite folder pairing)"
+        description: "Comma-separated experiments to run as <suite>/<name>, e.g. benchmark/grok-4.7 (overrides the suite folder pairing)"
         required: false
         default: ""
       eval:
@@ -250,20 +250,21 @@ jobs:
             if [ "$experiments_override" = "[]" ]; then
               experiments_json="$(pnpm --silent eval -- list --suite "$eval_suite" --eval "$id")"
             else
-              experiments_json="$(pnpm --silent eval -- list --eval "$id" | jq -c --argjson want "$experiments_override" 'map(select(IN($want[]))) | unique')"
+              experiments_json="$(pnpm --silent eval -- list --eval "$id" | jq -c --argjson want "$experiments_override" 'map(select(IN($want[])))')"
             fi
 
-            while IFS= read -r experiment; do
+            while IFS= read -r ref; do
               pairs="$(jq -c \
                 --arg eval_id "$id" \
-                --arg experiment "$experiment" \
+                --arg experiment "${ref#*/}" \
+                --arg experiment_folder "${ref%%/*}" \
                 --arg eval_suite "$eval_suite" \
-                '. + [{eval_id: $eval_id, experiment: $experiment, eval_suite: $eval_suite}]' \
+                '. + [{eval_id: $eval_id, experiment: $experiment, experiment_folder: $experiment_folder, eval_suite: $eval_suite}]' \
                 <<< "$pairs")"
             done < <(jq -r '.[]' <<< "$experiments_json")
           done
 
-          unmatched="$(jq -r --argjson pairs "$pairs" '. - ($pairs | map(.experiment)) | join(",")' <<< "$experiments_override")"
+          unmatched="$(jq -r --argjson pairs "$pairs" '. - ($pairs | map("\(.experiment_folder)/\(.experiment)")) | join(",")' <<< "$experiments_override")"
           if [ -n "$unmatched" ]; then
             echo "Experiments that match none of the selected evals: $unmatched" >&2
             exit 1

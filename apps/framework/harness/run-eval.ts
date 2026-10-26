@@ -20,9 +20,9 @@ import {
   stripFrontmatter,
 } from '@supabase-evals/sandbox';
 import {
-  normalizeExperimentName,
   positiveInteger,
   readFlag,
+  readExperimentFilters,
   readRepeatedFlag,
   readSuiteFilters,
 } from '../lib/cli-args.js';
@@ -70,9 +70,7 @@ const args = new Set(rawArgs);
 const FORCE = !args.has('--skip-existing');
 const SMOKE = args.has('--smoke');
 const DRY = args.has('--dry');
-const EXPERIMENT_FILTERS = readRepeatedFlag(rawArgs, 'experiment').map(
-  normalizeExperimentName
-);
+const EXPERIMENT_FILTERS = readExperimentFilters(rawArgs);
 const EVAL_FILTERS = readRepeatedFlag(rawArgs, 'eval');
 const SUITE_FILTERS = readSuiteFilters(rawArgs);
 const RUNS = positiveInteger(readFlag(rawArgs, 'runs') ?? '1', 'runs');
@@ -650,36 +648,33 @@ async function main() {
         evals.some((ev) => !config.skipEval?.(ev))
       );
     }
-    console.log(JSON.stringify(filtered.map((e) => e.name)));
+    console.log(JSON.stringify(filtered.map((e) => `${e.suite}/${e.name}`)));
     return;
   }
 
   const allExperiments = await loadExperiments();
-  if (EXPERIMENT_FILTERS.length > 0) {
-    const experimentNames = new Set(allExperiments.map(({ name }) => name));
-    const missing = EXPERIMENT_FILTERS.filter(
-      (name) => !experimentNames.has(name)
+  const isRequested = (suite: string, name: string) =>
+    EXPERIMENT_FILTERS.some((ref) => ref.suite === suite && ref.name === name);
+  const missing = EXPERIMENT_FILTERS.filter(
+    (ref) =>
+      !allExperiments.some((e) => e.suite === ref.suite && e.name === ref.name)
+  );
+  if (missing.length > 0) {
+    throw new Error(
+      `no experiment matched: ${missing.map((ref) => `${ref.suite}/${ref.name}`).join(',')}`
     );
-    if (missing.length > 0) {
-      throw new Error(`no experiment matched: ${missing.join(',')}`);
-    }
   }
 
-  // Naming experiments overrides the folder pairing. A name shared by several
-  // suite folders runs once, since every copy spreads the same preset.
-  const seenNames = new Set<string>();
-  const experiments = allExperiments.filter(({ name, suite }) => {
-    if (EXPERIMENT_FILTERS.length === 0) {
-      return SUITE_FILTERS.length === 0 || SUITE_FILTERS.includes(suite);
-    }
-    if (!EXPERIMENT_FILTERS.includes(name) || seenNames.has(name)) return false;
-    seenNames.add(name);
-    return true;
-  });
+  // Naming experiments overrides the folder pairing.
+  const experiments = allExperiments.filter(({ name, suite }) =>
+    EXPERIMENT_FILTERS.length > 0
+      ? isRequested(suite, name)
+      : SUITE_FILTERS.length === 0 || SUITE_FILTERS.includes(suite)
+  );
   if (EXPERIMENT_FILTERS.length > 0) {
     if (experiments.length === 0) {
       throw new Error(
-        `no experiments matched experiment=${EXPERIMENT_FILTERS.join(',')}`
+        `no experiments matched experiment=${EXPERIMENT_FILTERS.map((ref) => `${ref.suite}/${ref.name}`).join(',')}`
       );
     }
   }

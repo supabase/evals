@@ -89,6 +89,8 @@ const SANDBOX_TIMEOUT_BUFFER_MS = 10 * 60 * 1_000;
 const evalPairSchema = z.object({
   eval_id: z.string(),
   experiment: z.string(),
+  /** The `experiments/<folder>/` the experiment file lives in. */
+  experiment_folder: z.string(),
   eval_suite: z.string(),
 });
 export type EvalPair = z.infer<typeof evalPairSchema>;
@@ -169,10 +171,11 @@ export async function requiredCliChannels(
   for (const pair of pairs) {
     if (loadEvalMetadata(pair).cliVersion !== undefined) continue;
 
-    let config = configs.get(pair.experiment);
+    const ref = `${pair.experiment_folder}/${pair.experiment}`;
+    let config = configs.get(ref);
     if (!config) {
-      config = loadExperimentConfig(pair.experiment);
-      configs.set(pair.experiment, config);
+      config = loadExperimentConfig(ref);
+      configs.set(ref, config);
     }
     const channel = (await config).localStack?.cliChannel;
     if (channel) channels.add(channel);
@@ -200,7 +203,8 @@ let experimentPaths: Promise<Map<string, string>> | undefined;
 
 function experimentPathsByName(): Promise<Map<string, string>> {
   experimentPaths ??= discoverExperimentFiles(EXPERIMENTS_DIR).then(
-    (files) => new Map(files.map((file) => [file.name, file.path]))
+    (files) =>
+      new Map(files.map((file) => [`${file.suite}/${file.name}`, file.path]))
   );
   return experimentPaths;
 }
@@ -439,7 +443,7 @@ async function runPairOnce(
           'eval',
           '--',
           '--experiment',
-          pair.experiment,
+          `${pair.experiment_folder}/${pair.experiment}`,
           '--eval',
           pair.eval_id,
           '--run-index',
@@ -779,7 +783,7 @@ export function parsePairs(value: string): EvalPair[] {
   const parsed = z.array(evalPairSchema).safeParse(json);
   if (!parsed.success) {
     throw new Error(
-      'each pair must contain eval_id, experiment, and eval_suite strings'
+      'each pair must contain eval_id, experiment, experiment_folder, and eval_suite strings'
     );
   }
   return parsed.data;
