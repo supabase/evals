@@ -1,9 +1,9 @@
-// Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/investigate-database-001-slow-query
+// Run: pnpm --filter @supabase-evals/framework exec vitest run --root ../.. evals/cli/lib
 import { execFileSync } from 'node:child_process';
 import type { CommandResult } from '@supabase-evals/core';
 import { describe, expect, it, vi } from 'vitest';
-import type { StackProbe } from '../lib/stack.js';
 import { queryDatabase } from './psql.js';
+import type { StackProbe } from './stack.js';
 
 const DB_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
 

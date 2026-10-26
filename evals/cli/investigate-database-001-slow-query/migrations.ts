@@ -1,5 +1,11 @@
 import type { CheckResult, LocalStackEvalContext } from '@supabase-evals/core';
-import { maskSqlLiteralsAndComments } from '../lib/migrations.js';
+import {
+  checkMigrationsRecorded,
+  maskSqlLiteralsAndComments,
+  readMigrationHistory,
+  sortMigrationsByHistory,
+  type SortedMigrations,
+} from '../lib/migrations.js';
 import { describeFailure, errorMessage, shellQuote } from '../lib/shell.js';
 import type { StackProbe } from '../lib/stack.js';
 import {
@@ -8,7 +14,6 @@ import {
   SEEDED_MIGRATION_FILE,
   SEEDED_MIGRATION_VERSION,
 } from './fixtures.js';
-import { queryDatabase } from './psql.js';
 
 type ExecContext = Pick<LocalStackEvalContext, 'exec'>;
 
@@ -17,14 +22,7 @@ export type IndexMigration = { file: string; version: string };
 export type IndexMigrationsProbe =
   | { ok: true; migrations: IndexMigration[]; notes: string }
   | { ok: false; notes: string };
-export type RecordedProbe =
-  | {
-      ok: true;
-      recorded: IndexMigration[];
-      missing: IndexMigration[];
-      mismatched: IndexMigration[];
-    }
-  | { ok: false; notes: string };
+export type RecordedProbe = SortedMigrations<IndexMigration>;
 
 export const MIGRATION_CHECK_NAME =
   'a new migration creates an index on orders.customer_email';
@@ -42,7 +40,6 @@ const EMAIL_KEY_RE = new RegExp(
   String.raw`^"?${EMAIL_COLUMN}"?(?:\s+${NAME}(?:\s*\.\s*${NAME})*)*$`,
   'i'
 );
-const HISTORY_ROW_RE = /^(\d+)\|((?:[0-9a-f]{2})*)$/i;
 const NO_NEW_MIGRATION_NOTE = `no new migration creates an index on ${ORDERS_TABLE}.${EMAIL_COLUMN}`;
 
 const compareText = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
@@ -197,27 +194,6 @@ export function checkNewMigrationCreatesIndex(
   return { name, passed: true, notes: describeMigrations(probe.migrations) };
 }
 
-type HistoryProbe =
-  | { ok: true; history: Map<string, string> }
-  | { ok: false; notes: string };
-
-function parseHistory(stdout: string): HistoryProbe {
-  const history = new Map<string, string>();
-  for (const line of stdout.split('\n')) {
-    const row = line.trim();
-    if (row === '') continue;
-    const match = HISTORY_ROW_RE.exec(row);
-    if (match === null) {
-      return {
-        ok: false,
-        notes: `unrecognised migration history row: ${row.slice(0, 120)}`,
-      };
-    }
-    history.set(match[1], Buffer.from(match[2], 'hex').toString('utf8'));
-  }
-  return { ok: true, history };
-}
-
 /** Reads which of the found migrations the local migration history holds with a statement that creates the index. */
 export async function readRecordedIndexMigrations(
   ctx: ExecContext,
@@ -230,31 +206,14 @@ export async function readRecordedIndexMigrations(
   if (migrations.length === 0) {
     return { ok: false, notes: NO_NEW_MIGRATION_NOTE };
   }
-  const versions = migrations.map(({ version }) => `'${version}'`).join(', ');
-  const read = await queryDatabase(
+  const read = await readMigrationHistory(
     ctx,
     stack,
-    `select version || '|' || encode(convert_to(coalesce(array_to_string(statements, ';' || chr(10)), ''), 'UTF8'), 'hex') from supabase_migrations.schema_migrations where version in (${versions})`,
-    parseHistory
+    migrations.map(({ version }) => version)
   );
   if (!read.ok) return read;
-
-  const recorded: IndexMigration[] = [];
-  const missing: IndexMigration[] = [];
-  const mismatched: IndexMigration[] = [];
-  for (const migration of migrations) {
-    const statements = read.history.get(migration.version);
-    if (statements === undefined) {
-      missing.push(migration);
-    } else {
-      (createsEmailIndex(statements) ? recorded : mismatched).push(migration);
-    }
-  }
-  return { ok: true, recorded, missing, mismatched };
+  return sortMigrationsByHistory(migrations, read.history, createsEmailIndex);
 }
-
-export const describeMissingVersions = (missing: readonly IndexMigration[]) =>
-  `version(s) ${missing.map(({ version }) => version).join(', ')} not in supabase_migrations.schema_migrations`;
 
 export const describeMismatchedVersions = (
   mismatched: readonly IndexMigration[]
@@ -262,26 +221,9 @@ export const describeMismatchedVersions = (
   `version(s) ${mismatched.map(({ version }) => version).join(', ')} recorded with statements that do not create an index on ${ORDERS_TABLE}.${EMAIL_COLUMN}`;
 
 export function checkMigrationRecorded(probe: RecordedProbe): CheckResult {
-  const name = RECORDED_CHECK_NAME;
-  if (!probe.ok) return { name, passed: false, notes: probe.notes };
-  const problems = [
-    ...(probe.missing.length > 0
-      ? [describeMissingVersions(probe.missing)]
-      : []),
-    ...(probe.mismatched.length > 0
-      ? [describeMismatchedVersions(probe.mismatched)]
-      : []),
-  ];
-  if (problems.length > 0 || probe.recorded.length === 0) {
-    return {
-      name,
-      passed: false,
-      notes: problems.join('; ') || 'no migration is recorded',
-    };
-  }
-  return {
-    name,
-    passed: true,
-    notes: `${describeMigrations(probe.recorded)} ${probe.recorded.length === 1 ? 'is' : 'are'} in supabase_migrations.schema_migrations with the index statement`,
-  };
+  return checkMigrationsRecorded(RECORDED_CHECK_NAME, probe, {
+    describeRecorded: describeMigrations,
+    describeMismatched: describeMismatchedVersions,
+    passedSuffix: 'with the index statement',
+  });
 }

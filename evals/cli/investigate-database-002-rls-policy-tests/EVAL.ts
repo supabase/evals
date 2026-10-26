@@ -4,7 +4,11 @@ import {
   type LocalStackScorer,
 } from '@supabase-evals/core';
 import { stripIndent } from 'common-tags';
-import { findSupabaseInvocations } from '../lib/cli-invocations.js';
+import {
+  findSupabaseInvocations,
+  readStackLifecycle,
+  type StackLifecycle,
+} from '../lib/cli-invocations.js';
 import {
   DETOUR_CHECK_NAME,
   detourJudgeRubric,
@@ -23,12 +27,7 @@ import {
   checkWriteIsolation,
   readNotesAccess,
 } from './access.js';
-import {
-  checkMetrics,
-  readCliFacts,
-  readStackLifecycle,
-  type StackLifecycle,
-} from './metrics.js';
+import { checkMetrics, readCliFacts } from './metrics.js';
 import {
   checkFixInAppliedMigration,
   findPolicyMigrations,

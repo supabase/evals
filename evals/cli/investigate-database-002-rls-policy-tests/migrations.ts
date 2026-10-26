@@ -1,8 +1,12 @@
 import type { CheckResult, LocalStackEvalContext } from '@supabase-evals/core';
 import {
+  describeMissingVersions,
   maskSqlLiteralsAndComments,
   migrationCreatesTable,
+  readMigrationHistory,
+  sortMigrationsByHistory,
   stripSqlComments,
+  type SortedMigrations,
 } from '../lib/migrations.js';
 import { describeFailure, errorMessage, shellQuote } from '../lib/shell.js';
 import type { StackProbe } from '../lib/stack.js';
@@ -38,14 +42,7 @@ export type PolicyMigrationsProbe =
       notesNeverCreated?: true;
     }
   | { ok: false; notes: string };
-export type RecordedPolicyMigrationsProbe =
-  | {
-      ok: true;
-      recorded: PolicyMigration[];
-      missing: PolicyMigration[];
-      mismatched: PolicyMigration[];
-    }
-  | { ok: false; notes: string };
+export type RecordedPolicyMigrationsProbe = SortedMigrations<PolicyMigration>;
 
 export const MIGRATION_CHECK_NAME =
   'the notes policy fix is in an applied migration';
@@ -53,7 +50,6 @@ export const MIGRATION_CHECK_NAME =
 const MIGRATIONS_DIR = 'supabase/migrations';
 const NOTES_NEVER_CREATED = `the seeded migration is gone and no migration creates public.${NOTES_TABLE}, so a reset could not rebuild the table`;
 const MIGRATION_FILENAME_RE = /^(\d+)_(.+)\.sql$/;
-const HISTORY_ROW_RE = /^(\d+)\|((?:[0-9a-f]{2})*)$/i;
 const NOTES = `(?:"?public"?\\s*\\.\\s*)?"?${NOTES_TABLE}"?(?![\\w$"])`;
 const POLICY_RE = new RegExp(
   `^(?:create|alter|drop) policy (?:if exists )?(?:"(?:[^"]|"")*"|[^\\s"]+) on ${NOTES}`
@@ -271,9 +267,6 @@ export const describeMigrations = (migrations: readonly PolicyMigration[]) =>
 const versionList = (migrations: readonly PolicyMigration[]) =>
   `version(s) ${migrations.map(({ version }) => version).join(', ')}`;
 
-export const describeMissingVersions = (missing: readonly PolicyMigration[]) =>
-  `${versionList(missing)} not in supabase_migrations.schema_migrations`;
-
 const sameRulesAs = (a: string, b: string) =>
   sameStatements(accessRuleStatements(a), accessRuleStatements(b));
 
@@ -289,44 +282,18 @@ export async function readRecordedPolicyMigrations(
   if (migrations.length === 0) {
     return { ok: false, notes: 'no migration touches the notes policies' };
   }
-  try {
-    const versions = migrations.map(({ version }) => `'${version}'`).join(', ');
-    const result = await ctx.exec(
-      psqlCommand(stack.dbUrl, [
-        `-c "select version || '|' || encode(convert_to(coalesce(array_to_string(statements, ';' || chr(10)), ''), 'UTF8'), 'hex') from supabase_migrations.schema_migrations where version in (${versions})"`,
-      ])
-    );
-    if (!result.ok) return { ok: false, notes: describeFailure(result) };
-    const history = new Map<string, string>();
-    for (const line of result.stdout.split('\n')) {
-      const trimmed = line.trim();
-      if (trimmed === '') continue;
-      const row = HISTORY_ROW_RE.exec(trimmed);
-      if (row === null) {
-        return {
-          ok: false,
-          notes: `unrecognised migration history row: ${trimmed.slice(0, 120)}`,
-        };
-      }
-      history.set(row[1], Buffer.from(row[2], 'hex').toString('utf8'));
-    }
-
-    const recorded: PolicyMigration[] = [];
-    const missing: PolicyMigration[] = [];
-    const mismatched: PolicyMigration[] = [];
-    for (const migration of migrations) {
-      const statements = history.get(migration.version);
-      if (statements === undefined) {
-        missing.push(migration);
-        continue;
-      }
-      const file = await readMigrationFile(ctx, migration.file);
-      (sameRulesAs(statements, file) ? recorded : mismatched).push(migration);
-    }
-    return { ok: true, recorded, missing, mismatched };
-  } catch (error) {
-    return { ok: false, notes: errorMessage(error) };
-  }
+  const read = await readMigrationHistory(
+    ctx,
+    stack,
+    migrations.map(({ version }) => version)
+  );
+  if (!read.ok) return read;
+  return sortMigrationsByHistory(
+    migrations,
+    read.history,
+    async (statements, { file }) =>
+      sameRulesAs(statements, await readMigrationFile(ctx, file))
+  );
 }
 
 function fileAndHistoryProblems(

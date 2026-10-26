@@ -1,13 +1,12 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/investigate-database-002-rls-policy-tests
 import type { LocalStackEnvironmentMarker } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
-import { findSupabaseInvocations } from '../lib/cli-invocations.js';
-import type { StackProbe } from '../lib/stack.js';
 import {
-  checkMetrics,
-  readStackLifecycle,
+  findSupabaseInvocations,
   type StackLifecycle,
-} from './metrics.js';
+} from '../lib/cli-invocations.js';
+import type { StackProbe } from '../lib/stack.js';
+import { checkMetrics } from './metrics.js';
 import type { PolicyMigration } from './migrations.js';
 import type { SuiteProbe, TapResult, TestFileRun } from './pgtap.js';
 import type { TestDbRun } from './test-db-runs.js';
@@ -142,100 +141,6 @@ const metricsOf = async (
   const check = await checkMetrics(marker ?? undefined, facts(overrides));
   return { check, metrics: JSON.parse(check.notes ?? '{}') };
 };
-
-const PINNED_R1_FINAL_COMMAND = `node <<'NODE'
-const fs = require('node:fs');
-fs.writeFileSync('summary.md', 'notes tests added and passing');
-NODE
-supabase stop --no-backup --workdir /tmp/sandbox-56d60ea5`;
-
-describe('readStackLifecycle', () => {
-  const lifecycle = (commands: string[]) =>
-    readStackLifecycle(findSupabaseInvocations(commands));
-
-  it('reads the stop that ended a pinned run, flags and workdir included', () => {
-    expect(
-      lifecycle([
-        'supabase start',
-        'supabase db reset --local --no-seed && supabase test db --local && supabase migration list --local',
-        'supabase stop --help',
-        PINNED_R1_FINAL_COMMAND,
-      ])
-    ).toEqual({
-      lastCommand: 'supabase stop --no-backup --workdir /tmp/sandbox-56d60ea5',
-      stoppedByAgent: true,
-    });
-  });
-
-  it('reads the stop that ended a beta run that tested before starting', () => {
-    expect(
-      lifecycle([
-        'supabase test db',
-        'supabase start',
-        'supabase test db',
-        'supabase stop',
-      ])
-    ).toEqual({ lastCommand: 'supabase stop', stoppedByAgent: true });
-  });
-
-  it('is not stopped when the agent started the stack again after a stop', () => {
-    expect(lifecycle(['supabase stop', 'supabase start'])).toEqual({
-      lastCommand: 'supabase start',
-      stoppedByAgent: false,
-    });
-  });
-
-  it('ignores a stop that only asked for help', () => {
-    expect(lifecycle(['supabase start', 'supabase stop --help'])).toEqual({
-      lastCommand: 'supabase start',
-      stoppedByAgent: false,
-    });
-  });
-
-  it('reads stack destroy after stack start as a stop', () => {
-    expect(
-      lifecycle(['supabase stack start', 'supabase stack destroy'])
-    ).toEqual({ lastCommand: 'supabase stack destroy', stoppedByAgent: true });
-  });
-
-  it.each([
-    'supabase start',
-    'supabase stack start',
-    'supabase stack restart',
-    'supabase db start',
-  ])('treats %s as a start', (command) => {
-    expect(lifecycle(['supabase stop', command])).toEqual({
-      lastCommand: command,
-      stoppedByAgent: false,
-    });
-  });
-
-  it.each([
-    ['supabase stop', 'supabase stop'],
-    ['supabase stack stop', 'supabase stack stop'],
-    ['supabase stack destroy', 'supabase stack destroy'],
-  ])('treats %s as a stop', (command, last) => {
-    expect(lifecycle(['supabase start', command])).toEqual({
-      lastCommand: last,
-      stoppedByAgent: true,
-    });
-  });
-
-  it.each([
-    ['no supabase command ran', [] as string[]],
-    [
-      'only other commands ran',
-      [
-        'supabase test db',
-        'supabase db reset --local',
-        'supabase migration list --local',
-        'echo "supabase stop"',
-      ],
-    ],
-  ])('reports no lifecycle command when %s', (_name, commands) => {
-    expect(lifecycle(commands)).toEqual(NO_LIFECYCLE);
-  });
-});
 
 describe('checkMetrics', () => {
   it('is named metrics and always passes', async () => {
