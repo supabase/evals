@@ -76,14 +76,14 @@ function listOf(frontmatter: string, key: string): string[] {
 }
 
 describe('PROMPT.md frontmatter', () => {
-  it('declares a resolve-stage CLI eval for database tests and migrations that needs neither a running project nor docker', () => {
+  it('declares a resolve-stage CLI eval for database tests and migrations that starts with the stack running and needs docker', () => {
     const { frontmatter } = promptParts();
     expect(frontmatter).toMatch(/^stage: resolve$/m);
     expect(frontmatter).toMatch(/^interface: cli$/m);
     expect(listOf(frontmatter, 'product')).toEqual(['database']);
     expect(listOf(frontmatter, 'topic')).toEqual(['tests', 'migrations']);
-    expect(frontmatter).toMatch(/^projectRunning: false$/m);
-    expect(frontmatter).toMatch(/^needsDocker: false$/m);
+    expect(frontmatter).toMatch(/^projectRunning: true$/m);
+    expect(frontmatter).toMatch(/^needsDocker: true$/m);
   });
 
   it('links CLI-2733 as its motivation', () => {
@@ -194,9 +194,15 @@ describe('readSeedFile', () => {
 });
 
 describe('seeded project config', () => {
+  it('prefixes the project_id with sandbox-, which the harness sweeps leaked stacks by', () => {
+    expect(read('local/supabase/config.toml')).toMatch(
+      /^project_id = "sandbox-[^"]+"$/m
+    );
+  });
+
   it('names the project, pins Postgres 17 and keeps migrations enabled', () => {
     const config = read('local/supabase/config.toml');
-    expect(config).toMatch(/^project_id = "invoices-app"$/m);
+    expect(config).toMatch(/^project_id = "sandbox-invoices-app"$/m);
     expect(config).toMatch(/^major_version = 17$/m);
     expect(config).toMatch(/\[db\.migrations\]\s+enabled = true/);
   });
@@ -223,7 +229,7 @@ describe('the first migration', () => {
   });
 });
 
-describe('the line_discounts migration plants exactly two bugs', () => {
+describe('the line_discounts migration plants two bugs', () => {
   const sql = () => stripSqlComments(migration(LINE_DISCOUNTS));
 
   it('says the discount is optional, which the column definition contradicts', () => {
@@ -268,14 +274,11 @@ describe('the seeded pgTAP tests', () => {
   it.each([
     ['invoice_totals.test.sql', 4],
     ['line_discounts.test.sql', 5],
-  ])(
-    '%s plans %i tests, and runs exactly that many assertions',
-    (file, planned) => {
-      const sql = testFile(file);
-      expect(plan(sql)).toBe(planned);
-      expect(assertions(sql)).toBe(planned);
-    }
-  );
+  ])('%s plans %i tests, and runs that many assertions', (file, planned) => {
+    const sql = testFile(file);
+    expect(plan(sql)).toBe(planned);
+    expect(assertions(sql)).toBe(planned);
+  });
 
   it.each(SEEDED_TEST_FILES)(
     '%s runs in a transaction it rolls back',

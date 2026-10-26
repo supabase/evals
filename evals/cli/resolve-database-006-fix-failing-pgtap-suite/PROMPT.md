@@ -6,8 +6,8 @@ product:
 topic:
   - tests
   - migrations
-projectRunning: false
-needsDocker: false
+projectRunning: true
+needsDocker: true
 motivation: CLI-2733, https://linear.app/supabase/issue/CLI-2733/eval-fix-a-failing-pgtap-suite-by-iterating-db-reset-and-test-db
 area: tests-and-lint
 journeyPhase: resolve

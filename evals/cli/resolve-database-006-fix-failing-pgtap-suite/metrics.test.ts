@@ -42,6 +42,7 @@ const KEYS = [
   'dbPort',
   'testDbRuns',
   'testDbResults',
+  'testDbFailedFirst',
   'resetRuns',
   'migrationUpRuns',
   'pgProveDirect',
@@ -127,6 +128,7 @@ describe('checkMetrics', () => {
       dbPort: 54322,
       testDbRuns: 0,
       testDbResults: [],
+      testDbFailedFirst: null,
       resetRuns: 0,
       migrationUpRuns: 0,
       pgProveDirect: 0,
@@ -190,6 +192,39 @@ describe('checkMetrics', () => {
         ],
       });
       expect(metrics.testDbResults).toEqual([null]);
+    });
+
+    const FAIL_RUN: TestDbRun = {
+      commandIndex: 1,
+      summary: { result: 'FAIL', files: 2, tests: 6 },
+    };
+
+    it('records testDbFailedFirst as true when the first run with a summary printed FAIL', async () => {
+      const metrics = await metricsOf({
+        testDbRuns: [{ commandIndex: 0, summary: null }, FAIL_RUN, PASS_RUN],
+      });
+      expect(metrics.testDbFailedFirst).toBe(true);
+    });
+
+    it('records testDbFailedFirst as false when the first run with a summary printed PASS', async () => {
+      const metrics = await metricsOf({
+        testDbRuns: [PASS_RUN, { ...FAIL_RUN, commandIndex: 4 }],
+      });
+      expect(metrics.testDbFailedFirst).toBe(false);
+    });
+
+    it('records testDbFailedFirst as null when no run printed a summary or a result line', async () => {
+      expect(await metricsOf({ testDbRuns: [] })).toMatchObject({
+        testDbFailedFirst: null,
+      });
+      expect(
+        await metricsOf({
+          testDbRuns: [
+            { commandIndex: 0, summary: null, withPgProve: true },
+            { commandIndex: 1, summary: { result: null, files: 2, tests: 9 } },
+          ],
+        })
+      ).toMatchObject({ testDbFailedFirst: null });
     });
   });
 

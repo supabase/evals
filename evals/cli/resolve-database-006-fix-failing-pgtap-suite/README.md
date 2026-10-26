@@ -1,11 +1,12 @@
 # What this eval measures
 
 The agent is the subject under test. The prompt and agent stay fixed; the CLI
-version and whether Docker works vary across experiments. The questions, each
+version varies across the experiments that run the eval. The questions, each
 with the check that answers it:
 
-- Is there a local database to test against? (`local stack is running for this
-  project`)
+- Did the agent leave the local database running? (`local stack is running for
+  this project`) The harness starts the stack before the agent runs, so this is
+  a guard, not credit for work.
 - Did the agent run the whole suite with the CLI's own runner and end on a green
   run? (`the whole suite passed under supabase test db`) A `supabase test db`
   run has to print `Result: PASS` for the whole suite, with no failing run left
@@ -39,10 +40,11 @@ migration's own comment calls the discount optional. The second makes the
 function add up the amount taken off each line instead of what is left. The two
 bugs hide each other. The first run shows one test file stopping at an insert and
 the other failing three totals; fixing the default alone turns the insert error
-into a wrong total in the first file. The agent has to start a local database,
-run the tests, read the failures, fix the migration (by editing it and running a
-reset, or by adding a fix migration and applying it), and run the suite again
-until it is green. No stack is running when the agent starts.
+into a wrong total in the first file. The stack is pre-started with both seeded
+migrations applied, so the agent starts from a red suite on a running database.
+It has to fix the migration, apply it through the CLI (`db reset` after an
+in-place edit, or a new migration plus `migration up`) and re-run `test db`
+until it is green.
 
 Motivation: CLI-2733
 (https://linear.app/supabase/issue/CLI-2733/eval-fix-a-failing-pgtap-suite-by-iterating-db-reset-and-test-db)
@@ -71,14 +73,14 @@ whole word (a word touching a letter, digit, underscore or hyphen doesn't
 match), and must contain `discounts`, `database tests`, `passing` and
 `running`.
 
-Finding out that the CLI has a test runner, that the local database has to be
-running before it can be used, which change broke the suite and why, and that a
-fix has to reach the database through the migrations is part of what's measured.
+Finding out that the CLI has a test runner, which change broke the suite and
+why, and that a fix has to reach the database through the migrations is part of
+what's measured.
 The prompt says the tests passed before yesterday's change, but not which file
 changed, which tests fail, or that there are two bugs. Don't reintroduce command,
-column or function wording when editing it. The frontmatter has `projectRunning: false`,
-so the harness starts no stack, and `needsDocker: false`, so the Docker-less
-experiments run the eval.
+column or function wording when editing it. The frontmatter has
+`projectRunning: true` and `needsDocker: true`, so the harness starts the stack
+and the Docker-less experiments skip the eval.
 
 The prompt's last sentence asks the agent to leave the database running. Every
 database check probes the live local stack, so a run that stops it fails four
@@ -87,12 +89,14 @@ to run the tests.
 
 ## The seeded project
 
-`local/` is copied into the sandbox workspace before the agent starts:
+`local/` is copied into the sandbox workspace and the harness runs
+`supabase start` there before the agent starts, so both migrations are applied:
 
-- A minimal config, `supabase/config.toml`: `project_id = "invoices-app"`, a
-  Postgres 17 `[db]`, and `[db.migrations]` enabled. There is no `seed.sql`
-  (`fixtures.test.ts` asserts it), so a reset leaves the tables empty and each
-  test creates the rows it needs
+- A minimal config, `supabase/config.toml`: `project_id =
+  "sandbox-invoices-app"` (the prefix is there because the harness sweeps
+  leaked stacks by it), a Postgres 17 `[db]`, and `[db.migrations]` enabled.
+  There is no `seed.sql` (`fixtures.test.ts` asserts it), so a reset leaves the
+  tables empty and each test creates the rows it needs
 - The migration `supabase/migrations/20260101000000_create_invoices.sql`, which
   works. It creates `public.invoices` (`id`, `customer_name`, `issued_on`),
   `public.invoice_lines` (`invoice_id`, `description`, `quantity` above 0,
@@ -126,7 +130,7 @@ against `supabase/postgres` 17:
 
 | state | `invoice_totals` | `line_discounts` | summary |
 | --- | --- | --- | --- |
-| seeded | stops at its first insert with a not-null violation, 1 of 4 ran | tests 2 to 4 fail (have 300, 1000, 2100; want 2700, 4000, 0) | `Files=2, Tests=6`, `Result: FAIL` |
+| seeded (the agent's first run) | stops at its first insert with a not-null violation, 1 of 4 ran | tests 2 to 4 fail (have 300, 1000, 2100; want 2700, 4000, 0) | `Files=2, Tests=6`, `Result: FAIL` |
 | only the default fixed | test 2 fails (have 0, want 5500) | tests 2 to 4 still fail | `Files=2, Tests=9`, `Result: FAIL` |
 | both fixed | passes | passes | `Files=2, Tests=9`, `Result: PASS` |
 
@@ -153,19 +157,17 @@ beta 2.123.0-beta.1, next 3.0.0-next.23.
   records statements. `supabase migration up --local` applies the pending
   migrations and exists on every version, so a fix can arrive as a new
   migration without a reset.
-- Legacy `supabase start` and the legacy `test db` need Docker. The Docker-less
-  native path is the stack backend, behind `SUPABASE_EXPERIMENTAL_STACK=1`, and the pinned CLI has no `stack` command at
-  all. With no Docker, the nodaemon and absent experiments are red by design
-  unless the agent discovers the stack backend
-  ([CLI-2534](https://linear.app/supabase/issue/CLI-2534/bc-make-the-new-local-stack-the-default-backend-for-all-projects-opt)).
-- The scorer's own probes use `psql`, which the sandbox image installs in every
-  mode, so they run under every experiment.
+- The harness runs `supabase start` with the experiment's own CLI before the
+  agent starts. It applies every migration file and records each in
+  `supabase_migrations.schema_migrations`, so the agent starts with both bugs
+  live.
+- The scorer's own probes use `psql`, which the sandbox image installs.
 
 ## The checks
 
 | check | what it proves | how it's measured |
 | --- | --- | --- |
-| `local stack is running for this project` | There is a local database to probe | The workspace's own stack is resolved (the managed `stack status` first, then the legacy `status`), and `select 1` through its DB URL must return `1`. If the default home has no stack, the lookup repeats under each `SUPABASE_HOME`/`HOME` the agent set on a start command. The notes say the backend and runtime, or why none resolved |
+| `local stack is running for this project` | The agent left the stack running; a guard, not credit for work | The seeded state passes it, since the harness started the stack. The workspace's own stack is resolved (the managed `stack status` first, then the legacy `status`), and `select 1` through its DB URL must return `1`. If the default home has no stack, the lookup repeats under each `SUPABASE_HOME`/`HOME` the agent set on a start command. The notes say the backend and runtime, or why none resolved |
 | `the whole suite passed under supabase test db` | The agent verified with the CLI's runner and finished on a green run | Executed `supabase` invocations whose first two positionals are `test db` or the hidden alias `db test`, one run per tool call. The call's output (result and error) is read for the last `Result: PASS` or `Result: FAIL` line and the last `Files=N, Tests=M` line. Passes when some run printed `Result: PASS` for the whole suite. That means either `Files=N` with N at least the number of seeded test files (2) and `Tests` above 0, or no `Files=` line from a call where every `supabase test db` named no path and passed no `--db-url` (`supabase db reset && supabase test db 2>&1 \| grep -E 'Result\|not ok'`, `supabase test db \| tail -1`), since that runs every file under `supabase/tests` of the local project. Each later `FAIL` must be followed by a `PASS` that prints `Files=` and covers at least as many files, so an extra test file that fails alone and then passes alone is fine. A `FAIL` with no `Files=` line counts as the whole suite (2 files) when its call named no path and passed no `--db-url`, and as one file otherwise, so a filtered `supabase test db supabase/tests/x.test.sql \| grep Result` that printed only `Result: FAIL` is cleared by a later `PASS` printing `Files=1` or more. A later single-file `PASS` doesn't undo the whole-suite one, and a suite with an extra test file (`Files=3`) passes. Fails when `test db` was never run, no run printed a summary, only runs of fewer than two files passed, or a `FAIL` is still unresolved after the last whole-suite `PASS`. A `PASS` with no `Files=` line from a call that named a path or passed `--db-url`, as `--db-url URL` or `--db-url=URL` (`supabase test db supabase/tests/x.test.sql \| tail -1`), isn't credited, and the notes say it printed no `Files=` count. A call that also ran `pg_prove` by hand (`supabase test db; pg_prove …`) shows no summary, because it could have come from either command; when no run printed a summary, the notes name those command numbers |
 | `the seeded tests pass against the local database` | The running database behaves as the suite specifies | The scorer runs its own copies of the two seeded test files, not the workspace's, one at a time through `psql -X -A -t -q -v ON_ERROR_STOP=1 -f -` against the stack's DB URL, as pg_prove does. It creates `pgtap` in schema `extensions` first when the database lacks it and drops it afterwards. A file passes when psql exits 0, there is one plan, as many results as planned, and no `not ok` outside a TODO. Passes when both files pass. The notes give each file as `<file>: 4/4 passed`, or list the failures with pgTAP's diagnostics (`not ok 2 - a 10% discount takes 10% off the line (have 300, want 2700)`), or say `stopped after 1 of 4 tests:` with psql's error and its line |
 | `the seeded tests pass on a database rebuilt from the migrations` | The fix is in the migration files, so a reset gives a green suite | Drops (forced) and creates the scratch database `eval_replay` on the stack's Postgres, creates schema `extensions` in it, applies every `supabase/migrations/<digits>_<name>.sql` (`<name>` may be empty, as the CLI accepts) in version order with one `psql` call and `ON_ERROR_STOP`, runs the pristine suite there as above, and drops the database again whatever happened. Passes when every file applied and both seeded tests pass. A file that errors fails it with `replaying the migrations stopped: <file>:<line>: <error>`. With no migration files it fails without touching the database. A fix migration that sorts before `20260301000000_line_discounts.sql` fails here and on the live check, because the buggy file is applied after it |
@@ -176,7 +178,8 @@ beta 2.123.0-beta.1, next 3.0.0-next.23.
 | `final report is truthful about the tests and the fix` | The report matches what the harness observed | An LLM judge given the harness ground truth and the transcript, including tool outputs. See below |
 
 What each kind of run scores on the four checks that read the project's state,
-as run against a real `supabase/postgres` 17 container:
+as run against a real `supabase/postgres` 17 container (the first row is the
+state the agent starts from):
 
 | run | live database | rebuilt database | history | tests unchanged |
 | --- | --- | --- | --- | --- |
@@ -184,7 +187,13 @@ as run against a real `supabase/postgres` 17 container:
 | the seeded migration edited in place, then `db reset` | pass | pass | pass | pass |
 | a new fix migration, then `migration up` | pass | pass | pass | pass |
 | the live database patched with `psql`, files untouched | pass | fail | pass | pass |
-| the fixed file applied with `psql -f` | pass | pass | fail | pass |
+| a new fix migration applied with `psql -f` | pass | pass | fail | pass |
+
+No check credits the pre-started state. A run that does nothing passes the
+stack, history, tests-unchanged and detours checks as guards (the detours check
+makes no judge call when there are no commands), and can pass the report check.
+It fails `test db` (it needs the agent's own passing run), live and
+rebuilt-database.
 
 Any fix that makes the suite green and survives a rebuild passes: a default of 0
 on the column, or a nullable column with a `coalesce` in the function, in the
@@ -209,6 +218,10 @@ notes.
   (`none`, `none`, `null`, `null` when none resolved)
 - `testDbRuns` and `testDbResults`, the `PASS`, `FAIL` or `null` summary of each
   run in order
+- `testDbFailedFirst`: `true` when the first `supabase test db` run that printed
+  a `Result:` line printed `FAIL`, `false` when it printed `PASS`, `null` when no
+  run did. It shows whether a run iterated red, fix, green. Nothing asserts on
+  it, since fixing the bug by reading the migration is a valid way to the goal
 - `resetRuns` and `migrationUpRuns`: `supabase db reset` and
   `supabase migration up` invocations
 - `pgProveDirect`: commands that ran `pg_prove` by hand
@@ -257,25 +270,21 @@ the PR.
 
 | experiment | CLI version | container runtime | expected |
 | --- | --- | --- | --- |
-| `codex-gpt-6-luna-cli-pinned` | this repo's pin, 2.117.0 | Docker available | can pass: `supabase start`, `db reset`, `migration up` and the legacy `test db` run on Docker |
+| `codex-gpt-6-luna-cli-pinned` | this repo's pin, 2.117.0 | Docker available | can pass: `db reset`, `migration up` and the legacy `test db` run against the pre-started stack on Docker |
 | `codex-gpt-6-luna-cli-stable` | npm `latest` (2.122.0 when checked) | Docker available | can pass, as pinned |
 | `codex-gpt-6-luna-cli-beta` | npm `beta` (2.123.0-beta.1 when checked) | Docker available | can pass, as pinned |
 | `codex-gpt-6-luna-cli-next` | npm `next` (3.0.0-next.23 when checked) | Docker available | can pass, as pinned |
-| `codex-gpt-6-luna-cli-nodaemon` | `beta` | Docker client present, daemon unreachable | red by design ([CLI-2534](https://linear.app/supabase/issue/CLI-2534/bc-make-the-new-local-stack-the-default-backend-for-all-projects-opt)): legacy `start` and legacy `test db` need Docker, and the native runtime needs the stack backend switched on, which nothing in the seed does. The stack, `test db`, live, rebuilt-database and history checks fail; the tests-unchanged, detours and truthful-report checks can still pass, and the report check passes for an agent that reports its blocker honestly, since the judge sees the live, rebuilt-database and history probes as not run. A run passes only if the agent finds the stack backend |
-| `codex-gpt-6-luna-cli-absent` | `beta` | no Docker at all | as nodaemon |
+| `codex-gpt-6-luna-cli-nodaemon` | `beta` | Docker client present, daemon unreachable | skipped: the eval needs a pre-started stack, which the Docker-less arms can't provide |
+| `codex-gpt-6-luna-cli-absent` | `beta` | no Docker at all | skipped: the eval needs a pre-started stack, which the Docker-less arms can't provide |
 
-The four Docker arms can pass because every CLI can start a stack, run
-`test db` against it, and apply a fix with `db reset` or `migration up`. They
-are not guaranteed to: whether a run passes depends on the agent finding both
-bugs, getting the fix into the migration files and applying it through the CLI so
-the history matches, leaving the seeded tests alone, ending on a whole-suite
-`test db` run that passes, and leaving the stack running. The two Docker-less
-arms are red by design until CLI-2534.
-
-The frontmatter sets `needsDocker: false` and `projectRunning: false`, so all
-six experiments pick the eval up, as the Docker-less ones require. The scorer
-never reads which experiment it runs under; the backend and runtime the stack
-came up on are reported through `metrics`.
+The four Docker arms can pass because every CLI can run `test db` against the
+pre-started stack and apply a fix with `db reset` or `migration up`. They are not
+guaranteed to: whether a run passes depends on the agent finding both bugs,
+getting the fix into the migration files and applying it through the CLI so the
+history matches, leaving the seeded tests alone, ending on a whole-suite
+`test db` run that passes, and leaving the stack running. The scorer never reads
+which experiment it runs under; the backend and runtime the stack came up on are
+reported through `metrics`.
 
 ## Known limitations
 
@@ -287,9 +296,10 @@ came up on are reported through `metrics`.
 - The rebuild applies the files with `psql`, not the CLI's migration runner, so
   it checks that the files run in version order and give a green suite, not how
   the CLI would split or wrap them.
-- The history check compares statement text. An agent that edits the file,
-  applies it by hand with `psql`, and then runs `migration repair` to record it
-  passes the history check, and the end state is the same as a `db reset`'s.
+- The history check compares statement text. An agent that adds a fix
+  migration, applies it by hand with `psql`, and then runs `migration repair` to
+  record it passes the history check, and the end state is the same as a
+  `migration up`'s.
   The check can't tell how a recorded file reached the database, only that the
   record and the file agree. It also ignores comments, whitespace and
   semicolons, so two versions of a file that differ only in those compare equal.
@@ -343,3 +353,5 @@ came up on are reported through `metrics`.
   the prompt asks it not to, fails the stack, live, rebuilt-database and history
   checks with the stack's notes, and can still pass the `test db`,
   tests-unchanged, detours and report checks.
+- The harness's own `supabase start` must succeed for a run to be scored. If it
+  fails, the framework records a harness error, not a result.

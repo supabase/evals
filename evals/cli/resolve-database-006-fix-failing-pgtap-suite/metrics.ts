@@ -53,6 +53,13 @@ const countRuns = (
       invocationSubcommand(invocation) === subcommand
   ).length;
 
+function firstTestDbFailed(runs: readonly TestDbRun[]): boolean | null {
+  const first = runs
+    .map((run) => run.summary?.result ?? null)
+    .find((result) => result !== null);
+  return first === undefined ? null : first === 'FAIL';
+}
+
 function stackMetrics(stack: StackProbe) {
   return stack.ok
     ? {
@@ -102,6 +109,7 @@ export async function checkMetrics(
     ...stackMetrics(stack),
     testDbRuns: testDbRuns.length,
     testDbResults: testDbRuns.map((run) => run.summary?.result ?? null),
+    testDbFailedFirst: firstTestDbFailed(testDbRuns),
     resetRuns: await safely(() => countRuns(invocations, 'db', 'reset')),
     migrationUpRuns: await safely(() =>
       countRuns(invocations, 'migration', 'up')

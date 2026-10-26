@@ -775,15 +775,49 @@ select * from finish();`
     );
   });
 
-  it('passes when a failing supabase test db run came before the fix and a passing one after', async () => {
-    const { failed } = await score([
+  it('passes the agent that re-ran supabase start on the already running stack before an in-place fix and db reset', async () => {
+    const { failed, scored } = await score([
       START,
-      TEST_DB_FAIL,
       EDIT_MIGRATION,
       RESET,
       TEST_DB_PASS,
     ]);
     expect(failed).toEqual([]);
+    expect(scored.passed).toBe(true);
+  });
+
+  it('passes the agent that stopped with --no-backup and started again after an in-place edit, since the start rebuilds the database from the files', async () => {
+    const { failed, scored, check } = await score([
+      EDIT_MIGRATION,
+      call('supabase stop --no-backup'),
+      START,
+      TEST_DB_PASS,
+    ]);
+    expect(failed).toEqual([]);
+    expect(scored.passed).toBe(true);
+    expect(check(HISTORY)?.notes).toBe(
+      '2 migration files recorded as they are now'
+    );
+  });
+
+  it('passes the iterate-to-green loop on the pre-started stack: a red test db, an in-place fix, db reset and a green test db', async () => {
+    const { checks, scored, check } = await score([
+      TEST_DB_FAIL,
+      EDIT_MIGRATION,
+      RESET,
+      TEST_DB_PASS,
+    ]);
+    expect(checks.map(({ name }) => name)).toEqual(CHECK_NAMES);
+    expect(checks.filter(({ passed }) => !passed)).toEqual([]);
+    expect(scored.passed).toBe(true);
+    expect(check(TEST_DB)?.notes).toBe(
+      'command 4 printed Result: PASS (Files=2, Tests=9)'
+    );
+    expect(JSON.parse(check(METRICS)?.notes ?? '{}')).toMatchObject({
+      testDbResults: ['FAIL', 'PASS'],
+      testDbFailedFirst: true,
+      resetRuns: 1,
+    });
   });
 
   it('reports what the harness ran in the notes of each probed check', async () => {
@@ -872,21 +906,24 @@ describe('known-bad runs fail on the right check', () => {
     expect(check(REPLAY)?.passed).toBe(true);
   });
 
-  it('fails the agent that applied the fixed file with psql, skipping the CLI, on the history alone', async () => {
-    const { failed } = await score(
+  it('fails the agent that applied a new fix migration with psql, skipping the CLI, on the history alone', async () => {
+    const { failed, check } = await score(
       [
         START,
-        EDIT_MIGRATION,
-        call(`psql "$DB" -f supabase/migrations/${DISCOUNTS_FILE}`),
+        WRITE_FIX,
+        call(`psql "$DB" -f supabase/migrations/${FIX_FILE}`),
         TEST_DB_PASS,
       ],
       {
-        files: FIXED_IN_PLACE,
+        files: WITH_FIX_MIGRATION,
         applied: SEEDED_FILES,
         live: { insertOk: true, totalOk: true },
       }
     );
     expect(failed).toEqual([HISTORY]);
+    expect(check(HISTORY)?.notes).toContain(
+      `${FIX_FILE} is not in the migration history`
+    );
   });
 
   it('fails the agent that deleted a seeded test file, on the unchanged-tests check alone', async () => {
@@ -1018,6 +1055,37 @@ describe('known-bad runs fail on the right check', () => {
     );
   });
 
+  it('fails the agent that edited the seeded migration in place after a red test db and never reset or ran migration up, on the live database and the history', async () => {
+    const { failed, check } = await score([TEST_DB_FAIL, EDIT_MIGRATION], {
+      files: FIXED_IN_PLACE,
+      applied: SEEDED_FILES,
+    });
+    expect(failed).toEqual([TEST_DB, LIVE, HISTORY]);
+    expect(check(LIVE)?.notes).toContain('(have 300, want 2700)');
+    expect(check(HISTORY)?.notes).toBe(
+      `${DISCOUNTS_FILE} was recorded with different statements than the file now holds`
+    );
+    expect(check(REPLAY)?.passed).toBe(true);
+    expect(JSON.parse(check(METRICS)?.notes ?? '{}')).toMatchObject({
+      testDbFailedFirst: true,
+      resetRuns: 0,
+      migrationUpRuns: 0,
+    });
+  });
+
+  it('fails the agent that stopped and started again, keeping the volume, after an in-place edit, on the live database and the history', async () => {
+    const { failed, check } = await score(
+      [EDIT_MIGRATION, call('supabase stop'), START, TEST_DB_FAIL],
+      { files: FIXED_IN_PLACE, applied: SEEDED_FILES }
+    );
+    expect(failed).toEqual([TEST_DB, LIVE, HISTORY]);
+    expect(check(LIVE)?.notes).toContain('(have 300, want 2700)');
+    expect(check(HISTORY)?.notes).toBe(
+      `${DISCOUNTS_FILE} was recorded with different statements than the file now holds`
+    );
+    expect(check(REPLAY)?.passed).toBe(true);
+  });
+
   it('fails the agent whose only supabase test db run failed', async () => {
     const { failed, check } = await score([START, TEST_DB_FAIL], {
       files: SEEDED_FILES,
@@ -1045,9 +1113,19 @@ describe('known-bad runs fail on the right check', () => {
     );
   });
 
-  it('fails the agent that never ran anything past the stack: both seeded bugs show on the live database and the replay, while the untouched files still match their history', async () => {
-    const { failed, check } = await score([START], { files: SEEDED_FILES });
+  it('fails the agent that ran no commands on the pre-started stack: both seeded bugs show on the live database and the replay, while the stack, history, tests-unchanged, detours and report checks still pass', async () => {
+    const { failed, check, scored, judge } = await score([], {
+      files: SEEDED_FILES,
+    });
+    expect(scored.passed).toBe(false);
     expect(failed).toEqual([TEST_DB, LIVE, REPLAY]);
+    expect(check(STACK)?.passed).toBe(true);
+    expect(check(DETOURS)).toMatchObject({
+      passed: true,
+      notes: 'no commands executed',
+    });
+    expect(detourCall(judge)).toBeUndefined();
+    expect(check(REPORT)?.passed).toBe(true);
     expect(check(TEST_DB)?.notes).toBe('supabase test db was never run');
     expect(check(HISTORY)?.passed).toBe(true);
     expect(check(UNCHANGED)?.passed).toBe(true);
