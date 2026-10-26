@@ -169,6 +169,58 @@ describe('checkSuitePassedUnderTestDb', () => {
       expect(check([run(0, summary('PASS', null, 9))]).passed).toBe(false);
     });
 
+    it('says a PASS with no Files= count cannot be credited, naming the command', () => {
+      expect(check([run(2, summary('PASS', null, null))])).toEqual({
+        name: TEST_DB_CHECK,
+        passed: false,
+        notes:
+          "command 3 printed Result: PASS without a Files= count, so it can't be credited with the whole suite",
+      });
+    });
+
+    it('names the latest PASS without a Files= count, not an earlier failure', () => {
+      expect(
+        check([
+          run(0, FAIL_ALL),
+          run(1, summary('PASS', null, null)),
+          run(2, FAIL_ALL),
+        ]).notes
+      ).toBe(
+        "command 2 printed Result: PASS without a Files= count, so it can't be credited with the whole suite"
+      );
+    });
+
+    it('prefers the latest PASS with no Files= count over an earlier single-file PASS', () => {
+      expect(
+        check([run(0, PASS_ONE), run(1, summary('PASS', null, null))]).notes
+      ).toBe(
+        "command 2 printed Result: PASS without a Files= count, so it can't be credited with the whole suite"
+      );
+    });
+
+    it('keeps the last-summary note when a run with no Files= count printed a failure', () => {
+      expect(check([run(1, summary('FAIL', null, null))])).toEqual({
+        name: TEST_DB_CHECK,
+        passed: false,
+        notes:
+          'no supabase test db run passed the whole suite (last summary: FAIL, command 2)',
+      });
+    });
+
+    it('keeps the last-summary note when a PASS ran zero tests', () => {
+      expect(check([run(0, summary('PASS', 2, 0))]).notes).toBe(
+        'no supabase test db run passed the whole suite (last summary: PASS (Files=2, Tests=0), command 1)'
+      );
+    });
+
+    it('reports the single-file PASS when it came after a PASS with no Files= count', () => {
+      expect(
+        check([run(0, summary('PASS', null, null)), run(1, PASS_ONE)]).notes
+      ).toBe(
+        'command 2 printed Result: PASS for 1 file(s); the seeded suite has 2'
+      );
+    });
+
     it('fails on a summary with no Result line', () => {
       expect(check([run(0, summary(null, 2, 9))]).passed).toBe(false);
     });

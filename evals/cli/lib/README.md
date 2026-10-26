@@ -58,6 +58,9 @@ string literals and dollar-quoted bodies masked, `create [unlogged] table`
 accepted) in a project directory, and checks its version is in the stack's
 `supabase_migrations.schema_migrations`.
 
+`pgtap.ts` parses TAP output with the pg_prove pass rule, reads a `pg_prove`
+summary, and finds the `supabase test db` runs in a transcript.
+
 `redact.ts` replaces known secret values and secret-shaped text (URL passwords,
 keys, flags, JSON and YAML fields, and the cells of table columns under an
 upper-case `PASSWORD`, `SECRET`, `TOKEN` or `KEY` header) with `[redacted]`

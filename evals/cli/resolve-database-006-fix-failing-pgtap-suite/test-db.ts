@@ -48,6 +48,14 @@ export function checkSuitePassedUnderTestDb(
     .filter((run) => (run.summary.files ?? 0) >= seededFileCount)
     .at(-1);
   if (wholeSuite === undefined) {
+    const lastPass = summarised
+      .filter((run) => run.summary.result === 'PASS')
+      .at(-1);
+    if (lastPass?.summary.files === null) {
+      return fail(
+        `command ${lastPass.commandIndex + 1} printed Result: PASS without a Files= count, so it can't be credited with the whole suite`
+      );
+    }
     const partial = passing.at(-1);
     return fail(
       partial === undefined

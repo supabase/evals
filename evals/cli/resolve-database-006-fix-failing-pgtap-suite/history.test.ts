@@ -212,6 +212,45 @@ describe('readMigrationHistory', () => {
       'could not read the migration history'
     );
   });
+
+  it.each([
+    ['statements that are not a list', { version: '1', statements: 'oops' }],
+    [
+      'statements that hold a non-string',
+      { version: '1', statements: ['select 1', 2] },
+    ],
+    ['statements that are missing', { version: '1' }],
+    ['a numeric version', { version: 20260101000000, statements: [] }],
+    ['a row that is not an object', null],
+  ])(
+    'fails on a row with %s even when psql exited zero',
+    async (_label, row) => {
+      const { ctx } = fakeExec(result(JSON.stringify([row])));
+
+      expect(await readMigrationHistory(ctx, DB_URL)).toEqual({
+        ok: false,
+        notes: 'could not read the migration history: unexpected row shape',
+      });
+    }
+  );
+
+  it('fails when one row among valid ones has the wrong shape', async () => {
+    const { ctx } = fakeExec(
+      result(
+        JSON.stringify([
+          { version: '20260101000000', statements: ['select 1'] },
+          { version: '20260301000000', statements: 'oops' },
+        ])
+      )
+    );
+
+    const history = await readMigrationHistory(ctx, DB_URL);
+
+    expect(history.ok).toBe(false);
+    expect(!history.ok && history.notes).toMatch(
+      /^could not read the migration history:/
+    );
+  });
 });
 
 describe('the CLI-recorded rows the fixtures assume', () => {
@@ -364,6 +403,51 @@ describe('checkHistoryMatchesFiles', () => {
       });
     }
   );
+
+  it.each([
+    ['an empty file', ''],
+    ['a whitespace-only file', ' \n\n\t\n'],
+    ['a comment-only file', '-- fill me in\n'],
+  ])(
+    'passes %s whether the CLI recorded null or an empty list for it',
+    (_label, sql) => {
+      const empty = file('20260301120000_abandoned.sql', sql);
+
+      for (const statements of [null, []]) {
+        expect(
+          checkHistoryMatchesFiles(
+            [CREATE, FIXED_DISCOUNTS, empty],
+            probe(rowOf(CREATE), rowOf(FIXED_DISCOUNTS), {
+              version: empty.version,
+              statements,
+            })
+          )
+        ).toEqual({
+          name: HISTORY_CHECK,
+          passed: true,
+          notes: '3 migration files recorded as they are now',
+        });
+      }
+    }
+  );
+
+  it('fails an empty file that was recorded with statements', () => {
+    const empty = file('20260301120000_abandoned.sql', '');
+
+    expect(
+      checkHistoryMatchesFiles(
+        [CREATE, empty],
+        probe(rowOf(CREATE), {
+          version: empty.version,
+          statements: ['select 1'],
+        })
+      )
+    ).toEqual({
+      name: HISTORY_CHECK,
+      passed: false,
+      notes: `${empty.name} was recorded with different statements than the file now holds`,
+    });
+  });
 
   it('fails when a row has no migration file (a migration that was recorded and then deleted)', () => {
     expect(

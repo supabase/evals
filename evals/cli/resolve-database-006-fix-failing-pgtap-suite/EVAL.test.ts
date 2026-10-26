@@ -616,6 +616,25 @@ describe('valid fixes pass every check', () => {
     expect(scored.passed).toBe(true);
   });
 
+  it('passes an in-place fix beside an abandoned empty migration recorded with no statements', async () => {
+    const files = {
+      ...FIXED_IN_PLACE,
+      '20260301120000_abandoned.sql': '',
+    };
+    const { failed, check } = await score(
+      [
+        START,
+        call('supabase migration new abandoned'),
+        ...IN_PLACE_RUN.slice(1),
+      ],
+      { files }
+    );
+    expect(failed).toEqual([]);
+    expect(check(HISTORY)?.notes).toBe(
+      '3 migration files recorded as they are now'
+    );
+  });
+
   it('passes a fix that makes the column nullable and coalesces it in the function', async () => {
     const files = { ...SEEDED_FILES, [DISCOUNTS_FILE]: NULLABLE_DISCOUNTS };
     const { failed } = await score(IN_PLACE_RUN, { files });

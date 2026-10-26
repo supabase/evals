@@ -15,6 +15,17 @@ export type HistoryProbe =
 export const HISTORY_CHECK =
   'the migration history matches the migration files';
 
+const isHistoryRow = (row: unknown): row is HistoryRow => {
+  if (typeof row !== 'object' || row === null) return false;
+  const { version, statements } = row as Record<string, unknown>;
+  return (
+    typeof version === 'string' &&
+    (statements === null ||
+      (Array.isArray(statements) &&
+        statements.every((statement) => typeof statement === 'string')))
+  );
+};
+
 const READ_HISTORY = `-c "select coalesce(json_agg(json_build_object('version', version, 'statements', statements) order by version), '[]'::json) from supabase_migrations.schema_migrations"`;
 
 /** Reads each recorded migration's version and statements from the local database. */
@@ -31,7 +42,8 @@ export async function readMigrationHistory(
     if (!result.ok) return unreadable(describeFailure(result));
     const rows: unknown = JSON.parse(result.stdout.trim());
     if (!Array.isArray(rows)) return unreadable('the history is not a list');
-    return { ok: true, rows: rows as HistoryRow[] };
+    if (!rows.every(isHistoryRow)) return unreadable('unexpected row shape');
+    return { ok: true, rows };
   } catch (error) {
     return unreadable(errorMessage(error));
   }
@@ -56,15 +68,13 @@ export function checkHistoryMatchesFiles(
     const row = rows.get(file.version);
     if (row === undefined)
       return [`${file.name} is not in the migration history`];
-    if (row.statements === null || row.statements.length === 0) {
-      return [`${file.name} was recorded with no statements`];
-    }
-    return sqlFingerprint(row.statements.join('\n')) ===
-      sqlFingerprint(file.sql)
-      ? []
-      : [
-          `${file.name} was recorded with different statements than the file now holds`,
-        ];
+    const recorded = sqlFingerprint((row.statements ?? []).join('\n'));
+    if (recorded === sqlFingerprint(file.sql)) return [];
+    return [
+      recorded === ''
+        ? `${file.name} was recorded with no statements`
+        : `${file.name} was recorded with different statements than the file now holds`,
+    ];
   });
   const versions = new Set(migrations.map(({ version }) => version));
   for (const { version } of history.rows) {
