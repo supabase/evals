@@ -146,7 +146,7 @@ describe('readWorkspace', () => {
       ).toEqual([first, second]);
     });
 
-    it('returns each file exactly as cat printed it', async () => {
+    it('returns each file as cat printed it', async () => {
       const sql = '\n-- header\ncreate table a (id int);\n\n\n';
       const { ctx } = fakeWorkspace({ listing: A, migrations: { [A]: sql } });
 
@@ -666,7 +666,27 @@ select is(public.invoice_total_cents(900104), 500::bigint, 'a line without a dis
         ],
         [
           'an insert whose string mentions select and returning',
-          "insert into public.invoices (id, customer_name) values (900105, 'select returning todo(');",
+          "insert into public.invoices (id, customer_name) values (900105, 'select returning');",
+        ],
+        [
+          'an insert into a quoted, schema-qualified table',
+          `insert into "public"."invoices" (id, customer_name) values (900105, 'More Ltd');`,
+        ],
+        [
+          'an insert into a table that merely starts with t',
+          "insert into public.tags (id, label) values (1, 'late');",
+        ],
+        [
+          'an insert whose description holds a seeded id inside a longer number',
+          "insert into public.invoice_lines (invoice_id, description, quantity, unit_price_cents) values (900201, 'Order 9001010 and 1900101', 1, 500);",
+        ],
+        [
+          'an assertion that inserts data for a new invoice from a body',
+          "select lives_ok($$insert into public.invoices (id, customer_name) values (900201, 'New Ltd')$$, 'a new invoice can be added');",
+        ],
+        [
+          'an assertion that expects an insert to fail on a seeded invoice',
+          "select throws_ok($$insert into public.invoice_lines (invoice_id, description, quantity, unit_price_cents, discount_percent) values (900102, 'x', 1, 100, 101)$$, '23514', null, 'the check holds on every invoice');",
         ],
       ])('passes %s', (_label, statement) => {
         expect(checkSeededTestsUnchanged(addedAfterPlan(statement))).toEqual({
@@ -676,13 +696,13 @@ select is(public.invoice_total_cents(900104), 500::bigint, 'a line without a dis
         });
       });
 
-      it('passes an insert of test data together with an assertion that reads it', () => {
+      it('passes an insert of a new invoice and its lines together with an assertion that reads it', () => {
         const probe = addedAfterPlan(
-          `insert into public.invoice_lines (invoice_id, description, quantity, unit_price_cents, discount_percent) values (900101, 'Extra', 1, 1000, 50);\nselect is(public.invoice_total_cents(900101), 3200::bigint, 'the extra line counts');`
+          `insert into public.invoices (id, customer_name) values (900201, 'Extra Ltd');\ninsert into public.invoice_lines (invoice_id, description, quantity, unit_price_cents, discount_percent) values (900201, 'Extra', 1, 1000, 50), (900201, 'Second', 2, 500, 0);\nselect is(public.invoice_total_cents(900201), 1500::bigint, 'the extra lines count');`
         );
         expect(checkSeededTestsUnchanged(probe)).toMatchObject({
           passed: true,
-          notes: `2 seeded test files unchanged; added to ${SEEDED_TEST_FILES[1]}: 2 statements`,
+          notes: `2 seeded test files unchanged; added to ${SEEDED_TEST_FILES[1]}: 3 statements`,
         });
       });
 
@@ -733,6 +753,11 @@ select is(public.invoice_total_cents(900104), 500::bigint, 'a line without a dis
         ['a drop', 'drop function public.invoice_total_cents(bigint);'],
         ['a grant', 'grant all on public.invoices to anon;'],
         ['a set', 'set local search_path = public;'],
+        ['a bare set of search_path', 'set search_path to other;'],
+        [
+          'an assertion that sets search_path from a body',
+          "select lives_ok($$set search_path = other, public$$, 'x');",
+        ],
         [
           'a do block',
           "do $$ begin perform set_config('a', 'b', true); end $$;",
@@ -777,6 +802,74 @@ select is(public.invoice_total_cents(900104), 500::bigint, 'a line without a dis
           "select is(todo('later', 3), 3, 'x');",
         ],
         [
+          'an assertion that calls todo from a dollar-quoted body',
+          "select lives_ok($$select todo('discount maths under review', 4)$$, 'mark the discount totals pending');",
+        ],
+        [
+          'an assertion that calls todo from a single-quoted body',
+          "select lives_ok('select todo(''pending'', 4)', 'pending');",
+        ],
+        [
+          'an assertion that calls todo_start from a body',
+          "select lives_ok($$select todo_start('pending')$$, 'pending');",
+        ],
+        [
+          'an assertion that calls a quoted todo',
+          `select ok((select true from "todo"('pending', 4) limit 1), 'pending');`,
+        ],
+        [
+          'an assertion that calls a schema-qualified, quoted todo',
+          `select ok((select true from extensions."todo"('pending', 4) limit 1), 'pending');`,
+        ],
+        [
+          'an assertion that calls a quoted skip with a space before the parenthesis',
+          `select ok((select true from "skip" ('later', 2) limit 1), 'later');`,
+        ],
+        [
+          'an insert that writes the pgTAP todo cache',
+          "insert into __tcache__ (label, value, note) values ('todo', 3, 'pending');",
+        ],
+        [
+          'an insert into a pgTAP table in pg_temp',
+          "insert into pg_temp.__tresults__ (ok, aok, descr) values (true, true, 'x');",
+        ],
+        [
+          'an insert into a quoted pgTAP table',
+          `insert into "__tcache__" (label, value, note) values ('todo', 3, 'pending');`,
+        ],
+        [
+          'an insert into a pgTAP table qualified with public',
+          "insert into public.__tcache__ (label, value, note) values ('todo', 3, 'pending');",
+        ],
+        [
+          'an insert into the extensions schema',
+          'insert into extensions.notes (id) values (1);',
+        ],
+        [
+          'an insert into a quoted pg_catalog table',
+          `insert into "pg_catalog" . "pg_class" (relname) values ('x');`,
+        ],
+        [
+          'an insert that is missing its target',
+          'insert into (id) values (1);',
+        ],
+        [
+          'an insert of compensating lines for seeded invoices',
+          "insert into public.invoice_lines (invoice_id, description, quantity, unit_price_cents, discount_percent) values (900101, 'Adjustment', 1, 2400, 100), (900102, 'Adjustment', 1, 3000, 100);",
+        ],
+        [
+          'an insert of a seeded invoice from the other file',
+          "insert into public.invoice_lines (invoice_id, description, quantity, unit_price_cents) values (900001, 'Adjustment', 1, 100);",
+        ],
+        [
+          'an insert whose description holds a seeded id',
+          "insert into public.invoice_lines (invoice_id, description, quantity, unit_price_cents) values (900201, 'Copy of 900101', 1, 100);",
+        ],
+        [
+          'an assertion that inserts a line for a seeded invoice from a body',
+          "select lives_ok($$insert into public.invoice_lines (invoice_id, description, quantity, unit_price_cents, discount_percent) values (900101, 'Adjustment', 1, 2400, 100)$$, 'adjusted');",
+        ],
+        [
           'an insert that updates on conflict',
           "insert into public.invoice_lines (invoice_id, description, quantity, unit_price_cents) values (900101, 'x', 1, 1) on conflict (id) do update set quantity = 0;",
         ],
@@ -802,6 +895,46 @@ select is(public.invoice_total_cents(900104), 500::bigint, 'a line without a dis
         );
       });
 
+      it.each(['900001', '900002', '900101', '900102', '900103'])(
+        'fails an added insert that references seeded invoice %s',
+        (id) => {
+          const probe = addedAfterPlan(
+            `insert into public.invoice_lines (invoice_id, description, quantity, unit_price_cents) values (${id}, 'Adjustment', 1, 100);`,
+            5
+          );
+          expect(checkSeededTestsUnchanged(probe).passed).toBe(false);
+        }
+      );
+
+      it.each([
+        'todo',
+        'todo_start',
+        'todo_end',
+        'in_todo',
+        'skip',
+        'plan',
+        'no_plan',
+        'finish',
+      ])('fails an added assertion that calls %s from a body', (name) => {
+        const bodies = [
+          `select lives_ok($$select ${name}()$$);`,
+          `select lives_ok('select ${name}()');`,
+          `select ok((select true from "${name}"() limit 1));`,
+        ];
+        for (const statement of bodies) {
+          expect(
+            checkSeededTestsUnchanged(addedAfterPlan(statement)).passed
+          ).toBe(false);
+        }
+      });
+
+      it('names the raw statement when it is rejected for a quoted todo', () => {
+        const statement = `select ok((select true from "todo"('pending', 4) limit 1), 'pending');`;
+        expect(checkSeededTestsUnchanged(addedAfterPlan(statement))).toEqual(
+          rejection(statement.replace(/;$/, ''))
+        );
+      });
+
       it.each([
         'create',
         'alter',
@@ -814,6 +947,7 @@ select is(public.invoice_total_cents(900104), 500::bigint, 'a line without a dis
         'comment on',
         'set_config',
         'set role',
+        'set search_path',
         'set session',
         'set local',
         'reset',

@@ -38,6 +38,20 @@ const INSERT_RE = /^insert\s+into\s/i;
 const ON_CONFLICT_UPDATE_RE = /\bon\s+conflict\b[\s\S]*\bdo\s+update\b/i;
 const RETURNING_OR_SELECT_RE = /\b(?:returning|select)\b/i;
 const QUOTED_IDENTIFIER_RE = /"(?:[^"]|"")*"/g;
+const IDENTIFIER = String.raw`"(?:[^"]|"")*"|[^\s".(,;]+`;
+const INSERT_TARGET_RE = new RegExp(
+  `^insert\\s+into\\s+((?:${IDENTIFIER})(?:\\s*\\.\\s*(?:${IDENTIFIER}))*)`,
+  'i'
+);
+const IDENTIFIER_RE = new RegExp(IDENTIFIER, 'g');
+const PGTAP_INTERNAL_TABLE_PREFIX = '__t';
+const PGTAP_INTERNAL_SCHEMAS: ReadonlySet<string> = new Set([
+  'extensions',
+  'pg_catalog',
+]);
+const INSERT_ANYWHERE_RE = /\binsert\s+into\b/i;
+const INVOICE_ROW_ID_RE = /\(\s*(\d+)\s*,/g;
+const INVOICES_INSERT_RE = /^insert\s+into\s+public\s*\.\s*invoices\b/i;
 const MAX_NOTED_STATEMENT = 80;
 
 // The statements a seeded test file may gain besides comments and the plan: a pgTAP assertion call that spans the whole
@@ -95,6 +109,7 @@ const ASSERTION_PREFIXES: readonly string[] = [
   'tables_are',
   'columns_are',
 ];
+// Searched for in the raw text with double quotes removed, so `"todo"(...)` and calls inside strings and `$$` bodies count.
 const UNSAFE_CALL_RE =
   /\b(?:todo|todo_start|todo_end|in_todo|skip|plan|no_plan|finish|set_config)\s*\(/i;
 // An allowed assertion can run SQL from a string or `$$` body, so these are searched for in the raw text, literals included.
@@ -110,6 +125,7 @@ const STATE_CHANGING_KEYWORDS: readonly string[] = [
   'comment on',
   'set_config',
   'set role',
+  'set search_path',
   'set session',
   'set local',
   'reset',
@@ -199,6 +215,41 @@ const isKnownAssertion = (name: string) =>
   ASSERTION_NAMES.has(name) ||
   ASSERTION_PREFIXES.some((prefix) => name.startsWith(prefix));
 
+/** The ids the pristine seeded tests insert into `public.invoices`. */
+function seededInvoiceIds(): string[] {
+  const ids = SEEDED_TESTS.flatMap(({ sql }) =>
+    splitSqlStatements(sql)
+      .filter((statement) => INVOICES_INSERT_RE.test(statement))
+      .flatMap((statement) =>
+        Array.from(
+          maskSqlLiteralsAndComments(statement).matchAll(INVOICE_ROW_ID_RE),
+          (row) => row[1]
+        )
+      )
+  );
+  return Array.from(new Set(ids));
+}
+
+const SEEDED_INVOICE_IDS_RE = new RegExp(
+  `(?<![\\p{L}\\p{N}_])(?:${seededInvoiceIds().join('|')})(?![\\p{L}\\p{N}_])`,
+  'u'
+);
+
+/** Whether an insert's target is one of pgTAP's own tables or lives in a schema the extensions own. */
+function insertsIntoPgtapTable(statement: string): boolean {
+  const target = INSERT_TARGET_RE.exec(statement)?.[1];
+  if (target === undefined) return true;
+  const parts = Array.from(target.matchAll(IDENTIFIER_RE), ([name]) =>
+    name.replace(/^"|"$/g, '').replaceAll('""', '"').toLowerCase()
+  );
+  const table = parts[parts.length - 1];
+  const schema = parts[parts.length - 2];
+  return (
+    table.startsWith(PGTAP_INTERNAL_TABLE_PREFIX) ||
+    (schema !== undefined && PGTAP_INTERNAL_SCHEMAS.has(schema))
+  );
+}
+
 /** Whether the parenthesis opening at `open` closes at the last character of `text`. */
 function callSpans(text: string, open: number): boolean {
   let depth = 0;
@@ -212,21 +263,31 @@ function callSpans(text: string, open: number): boolean {
 /** Whether a statement added to a seeded test file is a pgTAP assertion call or a test-data insert, the only additions that can't change what the seeded assertions run against. */
 function isAllowedAddition(statement: string): boolean {
   if (STATE_CHANGING_RE.test(statement)) return false;
+  if (UNSAFE_CALL_RE.test(statement.replaceAll('"', ''))) return false;
   const masked = maskSqlLiteralsAndComments(statement)
     .replace(QUOTED_IDENTIFIER_RE, '""')
     .trim();
-  if (UNSAFE_CALL_RE.test(masked)) return false;
+  const touchesSeededInvoice = SEEDED_INVOICE_IDS_RE.test(statement);
   if (INSERT_RE.test(masked)) {
     return (
       !ON_CONFLICT_UPDATE_RE.test(masked) &&
-      !RETURNING_OR_SELECT_RE.test(masked)
+      !RETURNING_OR_SELECT_RE.test(masked) &&
+      !insertsIntoPgtapTable(statement) &&
+      !touchesSeededInvoice
     );
   }
   const call = ASSERTION_CALL_RE.exec(masked);
+  if (call === null) return false;
+  const name = call[1].toLowerCase();
+  // A throws_ assertion's insert is expected to fail, so it adds no rows.
+  const insertsSeededData =
+    touchesSeededInvoice &&
+    !name.startsWith('throws_') &&
+    INSERT_ANYWHERE_RE.test(statement);
   return (
-    call !== null &&
-    isKnownAssertion(call[1].toLowerCase()) &&
-    callSpans(masked, call[0].length - 1)
+    isKnownAssertion(name) &&
+    callSpans(masked, call[0].length - 1) &&
+    !insertsSeededData
   );
 }
 
