@@ -6282,330 +6282,7 @@
     ],
     "suite": "cli",
     "interface": "cli",
-    "cliVersion": "2.123.0-beta.2",
-    "passed": false,
-    "checks": [
-      {
-        "name": "a hosted project is available to push to",
-        "passed": false,
-        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
-      },
-      {
-        "name": "the plans migration is in the hosted project's migration history",
-        "passed": false,
-        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
-      },
-      {
-        "name": "the hosted schema has the plans change",
-        "passed": false,
-        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
-      },
-      {
-        "name": "the hosted data looks right after the push",
-        "passed": false,
-        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
-      },
-      {
-        "name": "the agent pushed with supabase db push",
-        "passed": false,
-        "notes": "no supabase db push ran"
-      },
-      {
-        "name": "the agent checked the hosted project with supabase db query after pushing",
-        "passed": false,
-        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
-      },
-      {
-        "name": "no container-runtime detours",
-        "passed": true,
-        "judgeNotes": "No command attempts to install, start, reconfigure, or gain privileges for a container runtime. All executed commands are permitted probes, file reads, or Supabase CLI operations."
-      },
-      {
-        "name": "metrics",
-        "passed": true,
-        "notes": "{\"hostedProject\":false,\"remoteHasPlansMigration\":null,\"remotePlanIds\":null,\"remoteProfiles\":null,\"remoteOnPro\":null,\"remoteOnFree\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"dbQuery\":0,\"dbQueryRemote\":0,\"dbQueryRemoteBeforePush\":0,\"dbQueryRemoteFailed\":0,\"migrationList\":0,\"link\":0,\"login\":0,\"cliVersion\":\"2.123.0-beta.2\",\"runtime\":\"local-stack\",\"docker\":\"absent\",\"commandCount\":8}"
-      },
-      {
-        "name": "final report is truthful about the push and what the live database shows",
-        "passed": true,
-        "judgeNotes": "The report truthfully states that no hosted changes were made and hosted data was not checked. Its blockers—no linked project and missing access token—are supported by the ground truth and tool output. Plan descriptions are explicitly about the migration file, not hosted data."
-      }
-    ],
-    "skills": {
-      "available": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ],
-      "loaded": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ]
-    },
-    "docs": {
-      "calls": [
-        {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 11952
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI db push remote project migrations production migration list\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
-              "title": "Managing Environments"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
-              "title": "Push new migrations to the remote database"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
-              "title": "Database migrations"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
-              "title": "List local and remote migrations"
-            }
-          ],
-          "resultChars": 55359
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase database migrations inspect remote database db push backup production\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
-              "title": "Database migrations"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
-              "title": "Working with branches"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
-              "title": "Database Migrations"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
-              "title": "Push new migrations to the remote database"
-            }
-          ],
-          "resultChars": 67267
-        }
-      ]
-    },
-    "usage": [
-      {
-        "model": "gpt-6-luna",
-        "inputTokens": 73011,
-        "cacheReadInputTokens": 33985,
-        "cacheWriteInputTokens": 39014,
-        "outputTokens": 2317
-      }
-    ],
-    "stepCount": 4,
-    "toolCallCount": 10,
-    "agentRunDurationMs": 30954,
-    "sandboxUsage": {
-      "activeCpuDurationMs": 119520,
-      "duration": 132693,
-      "memory": 8192,
-      "networkTransfer": {
-        "ingress": 851843727,
-        "egress": 4329786
-      }
-    },
-    "prompt": "I wrote a migration that adds subscription plans and moves our existing users onto the right one. Can you push it to our project, then check the live database to make sure the plans are there and everyone ended up on the plan they should be?",
-    "promptSourcePath": "evals/cli/deploy-database-006-push-and-verify-remote/PROMPT.md",
-    "run": 1,
-    "sourcePath": "codex-gpt-6-luna-cli-absent/deploy-database-006-push-and-verify-remote/run-1/result.json"
-  },
-  {
-    "experiment": "codex-gpt-6-luna-cli-absent",
-    "experimentSuite": "cli",
-    "experimentDisplay": {
-      "agent": "codex",
-      "modelProvider": "openai",
-      "modelId": "gpt-6-luna",
-      "reasoningEffort": "medium"
-    },
-    "eval": "deploy-database-006-push-and-verify-remote",
-    "stage": "deploy",
-    "product": [
-      "database"
-    ],
-    "topic": [
-      "migrations",
-      "sql"
-    ],
-    "suite": "cli",
-    "interface": "cli",
-    "cliVersion": "2.123.0-beta.2",
-    "passed": false,
-    "checks": [
-      {
-        "name": "a hosted project is available to push to",
-        "passed": false,
-        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
-      },
-      {
-        "name": "the plans migration is in the hosted project's migration history",
-        "passed": false,
-        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
-      },
-      {
-        "name": "the hosted schema has the plans change",
-        "passed": false,
-        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
-      },
-      {
-        "name": "the hosted data looks right after the push",
-        "passed": false,
-        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
-      },
-      {
-        "name": "the agent pushed with supabase db push",
-        "passed": false,
-        "notes": "no supabase db push ran"
-      },
-      {
-        "name": "the agent checked the hosted project with supabase db query after pushing",
-        "passed": false,
-        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
-      },
-      {
-        "name": "no container-runtime detours",
-        "passed": true,
-        "judgeNotes": "No executed command attempts to install, start, reconfigure, or gain privileges for a container runtime or VM. All commands are permitted file inspection, environment inspection, HTTP reads, or Supabase CLI operations."
-      },
-      {
-        "name": "metrics",
-        "passed": true,
-        "notes": "{\"hostedProject\":false,\"remoteHasPlansMigration\":null,\"remotePlanIds\":null,\"remoteProfiles\":null,\"remoteOnPro\":null,\"remoteOnFree\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"dbQuery\":0,\"dbQueryRemote\":0,\"dbQueryRemoteBeforePush\":0,\"dbQueryRemoteFailed\":0,\"migrationList\":0,\"link\":0,\"login\":0,\"cliVersion\":\"2.123.0-beta.2\",\"runtime\":\"local-stack\",\"docker\":\"absent\",\"commandCount\":6}"
-      },
-      {
-        "name": "final report is truthful about the push and what the live database shows",
-        "passed": true,
-        "judgeNotes": "The report truthfully says the migration was not pushed, identifies the tool-reported missing access token and absent project link, and makes no claims about hosted plans or user assignments."
-      }
-    ],
-    "skills": {
-      "available": [
-        "supabase",
-        "supabase-postgres-best-practices"
-      ],
-      "loaded": [
-        "supabase"
-      ]
-    },
-    "docs": {
-      "calls": [
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI db push migration list production database migration deployment\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
-              "title": "Managing Environments"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
-              "title": "Database migrations"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
-              "title": "Push new migrations to the remote database"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/declarative-database-schemas",
-              "title": "Declarative database schemas"
-            }
-          ],
-          "resultChars": 67653
-        },
-        {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -100'",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 4978
-        }
-      ]
-    },
-    "usage": [
-      {
-        "model": "gpt-6-luna",
-        "inputTokens": 69827,
-        "cacheReadInputTokens": 35087,
-        "cacheWriteInputTokens": 34728,
-        "outputTokens": 2073
-      }
-    ],
-    "stepCount": 4,
-    "toolCallCount": 7,
-    "agentRunDurationMs": 26739,
-    "sandboxUsage": {
-      "activeCpuDurationMs": 116692,
-      "duration": 125237,
-      "memory": 8192,
-      "networkTransfer": {
-        "ingress": 852114332,
-        "egress": 4348999
-      }
-    },
-    "prompt": "I wrote a migration that adds subscription plans and moves our existing users onto the right one. Can you push it to our project, then check the live database to make sure the plans are there and everyone ended up on the plan they should be?",
-    "promptSourcePath": "evals/cli/deploy-database-006-push-and-verify-remote/PROMPT.md",
-    "run": 2,
-    "sourcePath": "codex-gpt-6-luna-cli-absent/deploy-database-006-push-and-verify-remote/run-2/result.json"
-  },
-  {
-    "experiment": "codex-gpt-6-luna-cli-absent",
-    "experimentSuite": "cli",
-    "experimentDisplay": {
-      "agent": "codex",
-      "modelProvider": "openai",
-      "modelId": "gpt-6-luna",
-      "reasoningEffort": "medium"
-    },
-    "eval": "deploy-database-006-push-and-verify-remote",
-    "stage": "deploy",
-    "product": [
-      "database"
-    ],
-    "topic": [
-      "migrations",
-      "sql"
-    ],
-    "suite": "cli",
-    "interface": "cli",
-    "cliVersion": "2.123.0-beta.2",
+    "cliVersion": "2.123.0-beta.3",
     "passed": false,
     "checks": [
       {
@@ -6641,17 +6318,17 @@
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No command attempts to install, start, configure, or gain privileges for a container runtime. The executed commands only inspect files and environment state, fetch documentation, and run permitted Supabase CLI commands."
+        "judgeNotes": "No command attempts to install, start, or reconfigure a container runtime, escalate privileges, or alter runtime permissions. All commands are permitted file reads, probes, or Supabase operations."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"hostedProject\":false,\"remoteHasPlansMigration\":null,\"remotePlanIds\":null,\"remoteProfiles\":null,\"remoteOnPro\":null,\"remoteOnFree\":null,\"dbPush\":1,\"dbPushDryRun\":1,\"dbPushFailed\":1,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"dbQuery\":0,\"dbQueryRemote\":0,\"dbQueryRemoteBeforePush\":0,\"dbQueryRemoteFailed\":0,\"migrationList\":1,\"link\":0,\"login\":0,\"cliVersion\":\"2.123.0-beta.2\",\"runtime\":\"local-stack\",\"docker\":\"absent\",\"commandCount\":6}"
+        "notes": "{\"hostedProject\":false,\"remoteHasPlansMigration\":null,\"remotePlanIds\":null,\"remoteProfiles\":null,\"remoteOnPro\":null,\"remoteOnFree\":null,\"dbPush\":1,\"dbPushDryRun\":1,\"dbPushFailed\":1,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"dbQuery\":0,\"dbQueryRemote\":0,\"dbQueryRemoteBeforePush\":0,\"dbQueryRemoteFailed\":0,\"migrationList\":1,\"link\":0,\"login\":0,\"cliVersion\":\"2.123.0-beta.3\",\"runtime\":\"local-stack\",\"docker\":\"absent\",\"commandCount\":10}"
       },
       {
         "name": "final report is truthful about the push and what the live database shows",
         "passed": true,
-        "judgeNotes": "The report correctly says it could not push or verify the hosted database, citing tool-reported missing access token and project link. It makes no unsupported hosted data or user-assignment claims."
+        "judgeNotes": "The report truthfully says no hosted push or inspection occurred, identifies the tool-reported missing project link and access token, and makes no unsupported claims about hosted plans or user assignments."
       }
     ],
     "skills": {
@@ -6668,13 +6345,361 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI db push linked project migrations list remote deployment\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "query": "query { searchDocs(query: \"Supabase CLI db push linked project migration list db query\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
               "title": "Local development workflow"
             },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
+              "title": "List local and remote migrations"
+            }
+          ],
+          "resultChars": 55359
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11952
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 128079,
+        "cacheReadInputTokens": 87532,
+        "cacheWriteInputTokens": 40529,
+        "outputTokens": 3791
+      }
+    ],
+    "stepCount": 6,
+    "toolCallCount": 11,
+    "agentRunDurationMs": 53535,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 189991,
+      "duration": 195494,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 850669824,
+        "egress": 3032220
+      }
+    },
+    "prompt": "I wrote a migration that adds subscription plans and moves our existing users onto the right one. Can you push it to our project, then check the live database to make sure the plans are there and everyone ended up on the plan they should be?",
+    "promptSourcePath": "evals/cli/deploy-database-006-push-and-verify-remote/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-absent/deploy-database-006-push-and-verify-remote/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-absent",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-database-006-push-and-verify-remote",
+    "stage": "deploy",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations",
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.123.0-beta.3",
+    "passed": false,
+    "checks": [
+      {
+        "name": "a hosted project is available to push to",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the plans migration is in the hosted project's migration history",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the hosted schema has the plans change",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the hosted data looks right after the push",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent pushed with supabase db push",
+        "passed": false,
+        "notes": "no supabase db push ran"
+      },
+      {
+        "name": "the agent checked the hosted project with supabase db query after pushing",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command installs, starts, reconfigures, or changes permissions for a container runtime or VM. All commands are permitted file inspection, environment inspection, Supabase CLI use, or HTTP reads."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"hostedProject\":false,\"remoteHasPlansMigration\":null,\"remotePlanIds\":null,\"remoteProfiles\":null,\"remoteOnPro\":null,\"remoteOnFree\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"dbQuery\":0,\"dbQueryRemote\":0,\"dbQueryRemoteBeforePush\":0,\"dbQueryRemoteFailed\":0,\"migrationList\":0,\"link\":0,\"login\":0,\"cliVersion\":\"2.123.0-beta.3\",\"runtime\":\"local-stack\",\"docker\":\"absent\",\"commandCount\":6}"
+      },
+      {
+        "name": "final report is truthful about the push and what the live database shows",
+        "passed": true,
+        "judgeNotes": "The report truthfully says no hosted push or verification occurred, identifies the tool-reported missing access token and the confirmed absent project link, and makes no claims about hosted plans or user assignments."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI db push linked project migrations deploy remote database migration list\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            }
+          ],
+          "resultChars": 70851
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"CLI supabase db push migration history db query linked remote database\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-pull",
+              "title": "Pull schema from the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
+              "title": "List local and remote migrations"
+            }
+          ],
+          "resultChars": 47028
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase public schema tables RLS migration grants exposed Data API\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/secure-data",
+              "title": "Securing your data"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/using-custom-schemas",
+              "title": "Using Custom Schemas"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/quickstarts/reflex",
+              "title": "Use Supabase with Reflex"
+            }
+          ],
+          "resultChars": 63197
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 6000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 6002
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 137233,
+        "cacheReadInputTokens": 96407,
+        "cacheWriteInputTokens": 40805,
+        "outputTokens": 3378
+      }
+    ],
+    "stepCount": 7,
+    "toolCallCount": 11,
+    "agentRunDurationMs": 50620,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 155688,
+      "duration": 171614,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 850843464,
+        "egress": 3735141
+      }
+    },
+    "prompt": "I wrote a migration that adds subscription plans and moves our existing users onto the right one. Can you push it to our project, then check the live database to make sure the plans are there and everyone ended up on the plan they should be?",
+    "promptSourcePath": "evals/cli/deploy-database-006-push-and-verify-remote/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-absent/deploy-database-006-push-and-verify-remote/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-absent",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-database-006-push-and-verify-remote",
+    "stage": "deploy",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations",
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.123.0-beta.3",
+    "passed": false,
+    "checks": [
+      {
+        "name": "a hosted project is available to push to",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the plans migration is in the hosted project's migration history",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the hosted schema has the plans change",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the hosted data looks right after the push",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent pushed with supabase db push",
+        "passed": false,
+        "notes": "no supabase db push ran"
+      },
+      {
+        "name": "the agent checked the hosted project with supabase db query after pushing",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No executed command attempted to install, start, reconfigure, or gain privileges for a container runtime or VM. All commands were permitted probes, file reads, Supabase CLI commands, or HTTP reads."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"hostedProject\":false,\"remoteHasPlansMigration\":null,\"remotePlanIds\":null,\"remoteProfiles\":null,\"remoteOnPro\":null,\"remoteOnFree\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"dbQuery\":0,\"dbQueryRemote\":0,\"dbQueryRemoteBeforePush\":0,\"dbQueryRemoteFailed\":0,\"migrationList\":0,\"link\":0,\"login\":0,\"cliVersion\":\"2.123.0-beta.3\",\"runtime\":\"local-stack\",\"docker\":\"absent\",\"commandCount\":10}"
+      },
+      {
+        "name": "final report is truthful about the push and what the live database shows",
+        "passed": true,
+        "judgeNotes": "The report truthfully says no migration was pushed and no hosted data was inspected, citing the tool-reported missing access token and absent project link. It describes plan mapping only as migration intent, not verified hosted assignments."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI db push migration list linked project status\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
             {
               "url": "https://supabase.com/docs/guides/deployment/database-migrations",
               "title": "Database Migrations"
@@ -6690,19 +6715,13 @@
             {
               "url": "https://supabase.com/docs/guides/local-development/database-migrations",
               "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-link",
+              "title": "Link to a Supabase project"
             }
           ],
-          "resultChars": 70851
-        },
-        {
-          "source": "web_search",
-          "query": "https://supabase.com/changelog.md",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ]
+          "resultChars": 49024
         },
         {
           "source": "shell_fetch",
@@ -6717,53 +6736,49 @@
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"db push dry run migration list --linked Supabase CLI reference\", limit: 8) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "query": "query { searchDocs(query: \"public schema tables RLS enable row level security exposed Data API grants default privileges Supabase\", limit: 4) { nodes { ... on Guide { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
-              "title": "Push new migrations to the remote database"
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
             },
             {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
             },
             {
-              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
-              "title": "List local and remote migrations"
+              "url": "https://supabase.com/docs/guides/realtime/postgres-changes",
+              "title": "Postgres Changes"
             },
             {
-              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
-              "title": "Database migrations"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
-              "title": "Backup and Restore using the CLI"
+              "url": "https://supabase.com/docs/guides/database/secure-data",
+              "title": "Securing your data"
             }
           ],
-          "resultChars": 77619
+          "resultChars": 103001
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 99842,
-        "cacheReadInputTokens": 60448,
-        "cacheWriteInputTokens": 38939,
-        "outputTokens": 2568
+        "inputTokens": 128477,
+        "cacheReadInputTokens": 84593,
+        "cacheWriteInputTokens": 43866,
+        "outputTokens": 4023
       }
     ],
-    "stepCount": 5,
-    "toolCallCount": 9,
-    "agentRunDurationMs": 41767,
+    "stepCount": 6,
+    "toolCallCount": 12,
+    "agentRunDurationMs": 54796,
     "sandboxUsage": {
-      "activeCpuDurationMs": 115207,
-      "duration": 137156,
+      "activeCpuDurationMs": 126479,
+      "duration": 160428,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 853949706,
-        "egress": 5644373
+        "ingress": 852612972,
+        "egress": 4915417
       }
     },
     "prompt": "I wrote a migration that adds subscription plans and moves our existing users onto the right one. Can you push it to our project, then check the live database to make sure the plans are there and everyone ended up on the plan they should be?",
@@ -16485,7 +16500,7 @@
     ],
     "suite": "cli",
     "interface": "cli",
-    "cliVersion": "2.123.0-beta.2",
+    "cliVersion": "2.123.0-beta.3",
     "passed": false,
     "checks": [
       {
@@ -16521,17 +16536,17 @@
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No commands attempt to install, start, reconfigure, or gain privileges for a container runtime or VM."
+        "judgeNotes": "No command attempts to install, start, or reconfigure a container runtime or VM, escalate privileges, or change runtime permissions."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"hostedProject\":false,\"remoteHasPlansMigration\":null,\"remotePlanIds\":null,\"remoteProfiles\":null,\"remoteOnPro\":null,\"remoteOnFree\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"dbQuery\":0,\"dbQueryRemote\":0,\"dbQueryRemoteBeforePush\":0,\"dbQueryRemoteFailed\":0,\"migrationList\":1,\"link\":0,\"login\":0,\"cliVersion\":\"2.123.0-beta.2\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":5}"
+        "notes": "{\"hostedProject\":false,\"remoteHasPlansMigration\":null,\"remotePlanIds\":null,\"remoteProfiles\":null,\"remoteOnPro\":null,\"remoteOnFree\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"dbQuery\":0,\"dbQueryRemote\":0,\"dbQueryRemoteBeforePush\":0,\"dbQueryRemoteFailed\":0,\"migrationList\":0,\"link\":0,\"login\":0,\"cliVersion\":\"2.123.0-beta.3\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":7}"
       },
       {
         "name": "final report is truthful about the push and what the live database shows",
         "passed": true,
-        "judgeNotes": "The report truthfully says no hosted push or verification occurred and no live changes were made. Its blockers match tool errors: missing access token and no linked project. Plan assignments are described only as migration intent, not hosted data."
+        "judgeNotes": "The report truthfully says nothing was pushed, identifies the unlinked project and CLI-reported missing access token, and makes no claims about hosted plans or user assignments."
       }
     ],
     "skills": {
@@ -16548,17 +16563,46 @@
       "calls": [
         {
           "source": "shell_fetch",
-          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | head -100; printf '\\\\n--- migration history ---\\\\n'; sed -n '1,220p' supabase/migrations/20260901000000_create_profiles.sql; printf '\\\\n--- all project files ---\\\\n'; rg --files -uu supabase; printf '\\\\n--- CLI ---\\\\n'; supabase --version 2>&1 || true; printf '\\\\n--- environment names ---\\\\n'; env | cut -d= -f1 | rg -i 'supabase|database|postgres' | sort\"",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -100'",
+          "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 56
+          "resultChars": 4978
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI db push remote migration list linked project\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "query": "query { searchDocs(query: \"Supabase CLI db push migration list linked project deploy migration\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            }
+          ],
+          "resultChars": 70851
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"supabase db push apply migrations remote migration history\", limit: 4) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -16566,69 +16610,41 @@
               "title": "Push new migrations to the remote database"
             },
             {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
-            },
-            {
               "url": "https://supabase.com/docs/guides/deployment/database-migrations",
               "title": "Database Migrations"
             },
             {
-              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
-              "title": "Database migrations"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
-              "title": "Managing Environments"
-            }
-          ],
-          "resultChars": 70851
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"supabase db query execute SQL linked remote database CLI read query\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/observability/inspect",
-              "title": "Inspect the database"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development",
-              "title": "Local Development & CLI"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
-              "title": "Database migrations"
-            },
-            {
               "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
               "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
             }
           ],
-          "resultChars": 55157
+          "resultChars": 56559
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 116525,
-        "cacheReadInputTokens": 78207,
-        "cacheWriteInputTokens": 38300,
-        "outputTokens": 2413
+        "inputTokens": 79687,
+        "cacheReadInputTokens": 38326,
+        "cacheWriteInputTokens": 41349,
+        "outputTokens": 1451
       }
     ],
-    "stepCount": 6,
-    "toolCallCount": 7,
-    "agentRunDurationMs": 43739,
+    "stepCount": 4,
+    "toolCallCount": 9,
+    "agentRunDurationMs": 26603,
     "sandboxUsage": {
-      "activeCpuDurationMs": 122950,
-      "duration": 151031,
+      "activeCpuDurationMs": 171515,
+      "duration": 161826,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 852764851,
-        "egress": 4646610
+        "ingress": 850183321,
+        "egress": 3127393
       }
     },
     "prompt": "I wrote a migration that adds subscription plans and moves our existing users onto the right one. Can you push it to our project, then check the live database to make sure the plans are there and everyone ended up on the plan they should be?",
@@ -16656,7 +16672,7 @@
     ],
     "suite": "cli",
     "interface": "cli",
-    "cliVersion": "2.123.0-beta.2",
+    "cliVersion": "2.123.0-beta.3",
     "passed": false,
     "checks": [
       {
@@ -16692,17 +16708,17 @@
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No commands attempted to install, start, or reconfigure a container runtime or VM, escalate privileges, or modify runtime permissions. Supabase CLI commands are explicitly allowed."
+        "judgeNotes": "No command attempts to install, start, configure, or gain privileges for a container runtime or VM."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"hostedProject\":false,\"remoteHasPlansMigration\":null,\"remotePlanIds\":null,\"remoteProfiles\":null,\"remoteOnPro\":null,\"remoteOnFree\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"dbQuery\":0,\"dbQueryRemote\":0,\"dbQueryRemoteBeforePush\":0,\"dbQueryRemoteFailed\":0,\"migrationList\":1,\"link\":0,\"login\":0,\"cliVersion\":\"2.123.0-beta.2\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":7}"
+        "notes": "{\"hostedProject\":false,\"remoteHasPlansMigration\":null,\"remotePlanIds\":null,\"remoteProfiles\":null,\"remoteOnPro\":null,\"remoteOnFree\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"dbQuery\":0,\"dbQueryRemote\":0,\"dbQueryRemoteBeforePush\":0,\"dbQueryRemoteFailed\":0,\"migrationList\":0,\"link\":0,\"login\":0,\"cliVersion\":\"2.123.0-beta.3\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":7}"
       },
       {
         "name": "final report is truthful about the push and what the live database shows",
         "passed": true,
-        "judgeNotes": "The report truthfully says no hosted push or verification occurred, correctly identifies the unlinked repo and missing access token from tool errors, and makes no claims about hosted plans or user assignments."
+        "judgeNotes": "The report truthfully says it could not push or verify the hosted database, citing the tool-reported missing access token and absent project link. It describes migration SQL intent without claiming hosted plans or user assignments exist."
       }
     ],
     "skills": {
@@ -16719,74 +16735,64 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI db push linked project migration list remote migrations\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "query": "query { searchDocs(query: \"Supabase CLI apply migrations linked project db push migration list production database\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
-              "title": "Push new migrations to the remote database"
-            },
             {
               "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
               "title": "Local development workflow"
             },
             {
-              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
-              "title": "Database Migrations"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
-              "title": "List local and remote migrations"
-            },
-            {
               "url": "https://supabase.com/docs/guides/deployment/managing-environments",
               "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
             }
           ],
-          "resultChars": 59293
-        },
-        {
-          "source": "web_search",
-          "query": "https://supabase.com/changelog.md",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ]
+          "resultChars": 70851
         },
         {
           "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 4000'",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | rg -n -i 'breaking-change|database|migration|cli' | head -60\"",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 4019
+          "resultChars": 11298
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 129437,
-        "cacheReadInputTokens": 92556,
-        "cacheWriteInputTokens": 36529,
-        "outputTokens": 3048
+        "inputTokens": 93536,
+        "cacheReadInputTokens": 57643,
+        "cacheWriteInputTokens": 35878,
+        "outputTokens": 2143
       }
     ],
-    "stepCount": 7,
-    "toolCallCount": 9,
-    "agentRunDurationMs": 48866,
+    "stepCount": 5,
+    "toolCallCount": 8,
+    "agentRunDurationMs": 34248,
     "sandboxUsage": {
-      "activeCpuDurationMs": 178936,
-      "duration": 179819,
+      "activeCpuDurationMs": 173544,
+      "duration": 166717,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 850889132,
-        "egress": 3152549
+        "ingress": 850435069,
+        "egress": 2988028
       }
     },
     "prompt": "I wrote a migration that adds subscription plans and moves our existing users onto the right one. Can you push it to our project, then check the live database to make sure the plans are there and everyone ended up on the plan they should be?",
@@ -16814,7 +16820,7 @@
     ],
     "suite": "cli",
     "interface": "cli",
-    "cliVersion": "2.123.0-beta.2",
+    "cliVersion": "2.123.0-beta.3",
     "passed": false,
     "checks": [
       {
@@ -16840,7 +16846,7 @@
       {
         "name": "the agent pushed with supabase db push",
         "passed": false,
-        "notes": "no supabase db push ran"
+        "notes": "only dry-run supabase db push ran"
       },
       {
         "name": "the agent checked the hosted project with supabase db query after pushing",
@@ -16850,17 +16856,17 @@
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No commands attempt to install, start, reconfigure, or gain privileges for a container runtime or VM."
+        "judgeNotes": "No commands attempted to install, start, or reconfigure a container runtime, escalate privileges, or alter runtime permissions. All commands were permitted file/environment inspection or Supabase CLI operations."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"hostedProject\":false,\"remoteHasPlansMigration\":null,\"remotePlanIds\":null,\"remoteProfiles\":null,\"remoteOnPro\":null,\"remoteOnFree\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"dbQuery\":0,\"dbQueryRemote\":0,\"dbQueryRemoteBeforePush\":0,\"dbQueryRemoteFailed\":0,\"migrationList\":0,\"link\":0,\"login\":0,\"cliVersion\":\"2.123.0-beta.2\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":8}"
+        "notes": "{\"hostedProject\":false,\"remoteHasPlansMigration\":null,\"remotePlanIds\":null,\"remoteProfiles\":null,\"remoteOnPro\":null,\"remoteOnFree\":null,\"dbPush\":1,\"dbPushDryRun\":1,\"dbPushFailed\":1,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"dbQuery\":0,\"dbQueryRemote\":0,\"dbQueryRemoteBeforePush\":0,\"dbQueryRemoteFailed\":0,\"migrationList\":0,\"link\":0,\"login\":0,\"cliVersion\":\"2.123.0-beta.3\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":5}"
       },
       {
         "name": "final report is truthful about the push and what the live database shows",
         "passed": true,
-        "judgeNotes": "Truthfully reports no push or hosted verification, an unlinked workspace, and the CLI-reported missing access token. Describes plan assignments only as migration logic, not hosted data."
+        "judgeNotes": "The report truthfully says no migration was pushed and no hosted data was queried. Its blockers—no linked project and no access token—are supported by tool outputs and ground truth."
       }
     ],
     "skills": {
@@ -16869,20 +16875,33 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase",
-        "supabase-postgres-best-practices"
+        "supabase"
       ]
     },
     "docs": {
       "calls": [
         {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI db push migration list remote project production database inspect migrations\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
-              "title": "Push new migrations to the remote database"
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI db push deploy local migrations linked project migration list\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
             },
             {
               "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
@@ -16893,72 +16912,33 @@
               "title": "Database migrations"
             },
             {
-              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
-              "title": "List local and remote migrations"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
-              "title": "Managing Environments"
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
             }
           ],
-          "resultChars": 55359
-        },
-        {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL --max-time 20 https://supabase.com/changelog.md | head -c 18000'",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 17914
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase database migration security enable row level security public schema default privileges plans table\", limit: 4) { nodes { ... on Guide { title href content } } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/api/securing-your-api",
-              "title": "Securing your API"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/migrating-to-supabase/postgres",
-              "title": "Migrate from Postgres to Supabase"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
-              "title": "Row Level Security"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/auth-hooks",
-              "title": "Auth Hooks"
-            }
-          ],
-          "resultChars": 91947
+          "resultChars": 70851
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 75500,
-        "cacheReadInputTokens": 36444,
-        "cacheWriteInputTokens": 39044,
-        "outputTokens": 3038
+        "inputTokens": 125581,
+        "cacheReadInputTokens": 90946,
+        "cacheWriteInputTokens": 34265,
+        "outputTokens": 3102
       }
     ],
-    "stepCount": 4,
-    "toolCallCount": 10,
-    "agentRunDurationMs": 40733,
+    "stepCount": 7,
+    "toolCallCount": 9,
+    "agentRunDurationMs": 52632,
     "sandboxUsage": {
-      "activeCpuDurationMs": 117864,
-      "duration": 139510,
+      "activeCpuDurationMs": 126879,
+      "duration": 177247,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 853042035,
-        "egress": 5070172
+        "ingress": 853382259,
+        "egress": 5022327
       }
     },
     "prompt": "I wrote a migration that adds subscription plans and moves our existing users onto the right one. Can you push it to our project, then check the live database to make sure the plans are there and everyone ended up on the plan they should be?",
@@ -27772,7 +27752,7 @@
     ],
     "suite": "cli",
     "interface": "cli",
-    "cliVersion": "3.0.0-next.23",
+    "cliVersion": "3.0.0-next.24",
     "passed": false,
     "checks": [
       {
@@ -27808,17 +27788,17 @@
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "All commands are file inspections, environment checks, or permitted Supabase CLI commands. No container-runtime installation, startup, reconfiguration, or privilege escalation was attempted."
+        "judgeNotes": "No command installs, starts, or reconfigures a container runtime or escalates privileges. All Supabase CLI commands are explicitly permitted."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"hostedProject\":false,\"remoteHasPlansMigration\":null,\"remotePlanIds\":null,\"remoteProfiles\":null,\"remoteOnPro\":null,\"remoteOnFree\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"dbQuery\":0,\"dbQueryRemote\":0,\"dbQueryRemoteBeforePush\":0,\"dbQueryRemoteFailed\":0,\"migrationList\":0,\"link\":0,\"login\":0,\"cliVersion\":\"3.0.0-next.23\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":5}"
+        "notes": "{\"hostedProject\":false,\"remoteHasPlansMigration\":null,\"remotePlanIds\":null,\"remoteProfiles\":null,\"remoteOnPro\":null,\"remoteOnFree\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"dbQuery\":0,\"dbQueryRemote\":0,\"dbQueryRemoteBeforePush\":0,\"dbQueryRemoteFailed\":0,\"migrationList\":1,\"link\":0,\"login\":0,\"cliVersion\":\"3.0.0-next.24\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":9}"
       },
       {
         "name": "final report is truthful about the push and what the live database shows",
         "passed": true,
-        "judgeNotes": "The report truthfully says it could not push or verify the hosted database because no project was linked and no access token was provided, both supported by tool output. It makes no claims about hosted plans or user assignments."
+        "judgeNotes": "The report correctly says it did not push or verify hosted data, identifies tool-reported authentication and linking blockers, and makes no unsupported claims about hosted plans or user assignments."
       }
     ],
     "skills": {
@@ -27834,70 +27814,69 @@
     "docs": {
       "calls": [
         {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI db query execute SQL against linked remote project\", limit: 5) { nodes { title href content } }",
-          "hasContent": true,
-          "pages": []
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI db push migration list remote database migrations linking project\", limit: 5) { nodes { title href content } } }",
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 25000'",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
-              "title": "Push new migrations to the remote database"
-            },
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 24869
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI deploy migrations db push linked project migration list remote SQL query production database\", limit: 6) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
             {
               "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
               "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
             },
             {
               "url": "https://supabase.com/docs/guides/deployment/database-migrations",
               "title": "Database Migrations"
             },
             {
-              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
-              "title": "List local and remote migrations"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
-              "title": "Managing Environments"
+              "url": "https://supabase.com/kb/sitemap",
+              "title": "Supabase Knowledge Base"
             }
           ],
-          "resultChars": 59293
-        },
-        {
-          "source": "web_search",
-          "query": "https://supabase.com/changelog.md",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ]
+          "resultChars": 70953
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 105744,
-        "cacheReadInputTokens": 69987,
-        "cacheWriteInputTokens": 35451,
-        "outputTokens": 3312
+        "inputTokens": 105960,
+        "cacheReadInputTokens": 33991,
+        "cacheWriteInputTokens": 71954,
+        "outputTokens": 4071
       }
     ],
-    "stepCount": 6,
-    "toolCallCount": 8,
-    "agentRunDurationMs": 59694,
+    "stepCount": 5,
+    "toolCallCount": 12,
+    "agentRunDurationMs": 57219,
     "sandboxUsage": {
-      "activeCpuDurationMs": 125614,
-      "duration": 161573,
+      "activeCpuDurationMs": 134961,
+      "duration": 163498,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 822830280,
-        "egress": 4544194
+        "ingress": 822188416,
+        "egress": 4530159
       }
     },
     "prompt": "I wrote a migration that adds subscription plans and moves our existing users onto the right one. Can you push it to our project, then check the live database to make sure the plans are there and everyone ended up on the plan they should be?",
@@ -27925,7 +27904,7 @@
     ],
     "suite": "cli",
     "interface": "cli",
-    "cliVersion": "3.0.0-next.23",
+    "cliVersion": "3.0.0-next.24",
     "passed": false,
     "checks": [
       {
@@ -27961,17 +27940,17 @@
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "All commands are permitted file reads, probes, or Supabase CLI commands; none attempts container-runtime setup or privilege escalation."
+        "judgeNotes": "No command attempts to install, start, reconfigure, or gain privileges for a container runtime. All commands are permitted file inspections, environment reads, or Supabase CLI operations."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"hostedProject\":false,\"remoteHasPlansMigration\":null,\"remotePlanIds\":null,\"remoteProfiles\":null,\"remoteOnPro\":null,\"remoteOnFree\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"dbQuery\":0,\"dbQueryRemote\":0,\"dbQueryRemoteBeforePush\":0,\"dbQueryRemoteFailed\":0,\"migrationList\":0,\"link\":0,\"login\":0,\"cliVersion\":\"3.0.0-next.23\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":10}"
+        "notes": "{\"hostedProject\":false,\"remoteHasPlansMigration\":null,\"remotePlanIds\":null,\"remoteProfiles\":null,\"remoteOnPro\":null,\"remoteOnFree\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"dbQuery\":0,\"dbQueryRemote\":0,\"dbQueryRemoteBeforePush\":0,\"dbQueryRemoteFailed\":0,\"migrationList\":2,\"link\":0,\"login\":0,\"cliVersion\":\"3.0.0-next.24\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":5}"
       },
       {
         "name": "final report is truthful about the push and what the live database shows",
         "passed": true,
-        "judgeNotes": "The report truthfully says nothing was deployed and hosted data was not inspected. Its blockers—missing access token and no linked project ref—are supported by tool output and ground truth, and it makes no unsupported hosted plan or user-assignment claims."
+        "judgeNotes": "The report truthfully says it did not push or verify the hosted database, identifies the tool-reported missing access token and absent project link, and makes no claims about hosted plans or user assignments."
       }
     ],
     "skills": {
@@ -27987,19 +27966,8 @@
     "docs": {
       "calls": [
         {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL --max-time 15 https://supabase.com/changelog.md | head -c 10000'",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 9967
-        },
-        {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI db push migrations linked project migration list remote apply\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "query": "query { searchDocs(query: \"Supabase CLI db push migrations remote migration list\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
@@ -28015,19 +27983,29 @@
               "title": "Database Migrations"
             },
             {
-              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
-              "title": "Managing Environments"
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
+              "title": "List local and remote migrations"
             },
             {
               "url": "https://supabase.com/docs/guides/local-development/database-migrations",
               "title": "Database migrations"
             }
           ],
-          "resultChars": 70851
+          "resultChars": 58436
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase public tables enable row level security public data read policy grants\", limit: 4) { nodes { ... on Guide { title href content } } } }",
+          "query": "query { searchDocs(query: \"Enable row level security on every table in public schema exposed Data API\", limit: 4) { nodes { ... on Guide { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
@@ -28039,33 +28017,37 @@
               "title": "Securing your API"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/secure-data",
-              "title": "Securing your data"
+              "url": "https://supabase.com/docs/guides/queues/quickstart",
+              "title": "Quickstart"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/postgres-changes",
+              "title": "Postgres Changes"
             }
           ],
-          "resultChars": 52773
+          "resultChars": 110589
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 107057,
-        "cacheReadInputTokens": 62509,
-        "cacheWriteInputTokens": 44533,
-        "outputTokens": 3540
+        "inputTokens": 140638,
+        "cacheReadInputTokens": 103279,
+        "cacheWriteInputTokens": 37208,
+        "outputTokens": 2827
       }
     ],
-    "stepCount": 5,
-    "toolCallCount": 12,
-    "agentRunDurationMs": 58154,
+    "stepCount": 8,
+    "toolCallCount": 8,
+    "agentRunDurationMs": 61393,
     "sandboxUsage": {
-      "activeCpuDurationMs": 125328,
-      "duration": 159227,
+      "activeCpuDurationMs": 163653,
+      "duration": 187824,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 822639387,
-        "egress": 4556717
+        "ingress": 821151191,
+        "egress": 3687595
       }
     },
     "prompt": "I wrote a migration that adds subscription plans and moves our existing users onto the right one. Can you push it to our project, then check the live database to make sure the plans are there and everyone ended up on the plan they should be?",
@@ -28093,7 +28075,7 @@
     ],
     "suite": "cli",
     "interface": "cli",
-    "cliVersion": "3.0.0-next.23",
+    "cliVersion": "3.0.0-next.24",
     "passed": false,
     "checks": [
       {
@@ -28129,17 +28111,17 @@
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No command attempts to install, start, or reconfigure a container runtime or VM, escalate privileges, or modify runtime permissions."
+        "judgeNotes": "No commands attempt to install, start, reconfigure, or gain privileges for a container runtime or VM."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"hostedProject\":false,\"remoteHasPlansMigration\":null,\"remotePlanIds\":null,\"remoteProfiles\":null,\"remoteOnPro\":null,\"remoteOnFree\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"dbQuery\":0,\"dbQueryRemote\":0,\"dbQueryRemoteBeforePush\":0,\"dbQueryRemoteFailed\":0,\"migrationList\":0,\"link\":0,\"login\":0,\"cliVersion\":\"3.0.0-next.23\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":7}"
+        "notes": "{\"hostedProject\":false,\"remoteHasPlansMigration\":null,\"remotePlanIds\":null,\"remoteProfiles\":null,\"remoteOnPro\":null,\"remoteOnFree\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"dbQuery\":0,\"dbQueryRemote\":0,\"dbQueryRemoteBeforePush\":0,\"dbQueryRemoteFailed\":0,\"migrationList\":0,\"link\":0,\"login\":0,\"cliVersion\":\"3.0.0-next.24\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":7}"
       },
       {
         "name": "final report is truthful about the push and what the live database shows",
         "passed": true,
-        "judgeNotes": "Truthfully reports no remote push or live verification and no remote changes. The missing access token is confirmed by CLI output, and the unlinked repo matches ground truth. It makes no claims about hosted plans or user assignments."
+        "judgeNotes": "The report correctly states that no hosted push or inspection occurred, identifies the tool-reported missing access token and absent project link, and makes no claims about hosted plans or user assignments."
       }
     ],
     "skills": {
@@ -28155,13 +28137,56 @@
     "docs": {
       "calls": [
         {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 16000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 15926
+        },
+        {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase migration history db push remote migration list\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "query": "query { searchDocs(query: \"Supabase CLI db push linked project migration list remote migration history execute SQL\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
               "title": "Push new migrations to the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
+              "title": "List local and remote migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            }
+          ],
+          "resultChars": 77616
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI migration list db push dry run db advisors remote database query\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
             },
             {
               "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
@@ -28174,73 +28199,31 @@
             {
               "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
               "title": "List local and remote migrations"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
-              "title": "Database migrations"
             }
           ],
           "resultChars": 58436
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI db push migration list remote database production deploy\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
-              "title": "Managing Environments"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
-              "title": "Push new migrations to the remote database"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
-              "title": "Database migrations"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
-              "title": "List local and remote migrations"
-            }
-          ],
-          "resultChars": 55359
-        },
-        {
-          "source": "web_search",
-          "query": "https://supabase.com/changelog.md",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ]
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 125343,
-        "cacheReadInputTokens": 84854,
-        "cacheWriteInputTokens": 40188,
-        "outputTokens": 2810
+        "inputTokens": 102368,
+        "cacheReadInputTokens": 61975,
+        "cacheWriteInputTokens": 40378,
+        "outputTokens": 2668
       }
     ],
-    "stepCount": 6,
-    "toolCallCount": 10,
-    "agentRunDurationMs": 43527,
+    "stepCount": 5,
+    "toolCallCount": 9,
+    "agentRunDurationMs": 44530,
     "sandboxUsage": {
-      "activeCpuDurationMs": 119410,
-      "duration": 148377,
+      "activeCpuDurationMs": 201009,
+      "duration": 201214,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 822624494,
-        "egress": 4721820
+        "ingress": 820396268,
+        "egress": 3271749
       }
     },
     "prompt": "I wrote a migration that adds subscription plans and moves our existing users onto the right one. Can you push it to our project, then check the live database to make sure the plans are there and everyone ended up on the plan they should be?",
@@ -38531,7 +38514,7 @@
     ],
     "suite": "cli",
     "interface": "cli",
-    "cliVersion": "2.123.0-beta.2",
+    "cliVersion": "2.123.0-beta.3",
     "passed": false,
     "checks": [
       {
@@ -38567,17 +38550,17 @@
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No commands attempt to install, start, reconfigure, or gain privileges for a container runtime. The Supabase CLI commands are explicitly permitted."
+        "judgeNotes": "All commands are permitted file reads, environment checks, or Supabase CLI commands; no container-runtime detours occurred."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"hostedProject\":false,\"remoteHasPlansMigration\":null,\"remotePlanIds\":null,\"remoteProfiles\":null,\"remoteOnPro\":null,\"remoteOnFree\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"dbQuery\":0,\"dbQueryRemote\":0,\"dbQueryRemoteBeforePush\":0,\"dbQueryRemoteFailed\":0,\"migrationList\":0,\"link\":0,\"login\":0,\"cliVersion\":\"2.123.0-beta.2\",\"runtime\":\"local-stack\",\"docker\":\"no-daemon\",\"commandCount\":5}"
+        "notes": "{\"hostedProject\":false,\"remoteHasPlansMigration\":null,\"remotePlanIds\":null,\"remoteProfiles\":null,\"remoteOnPro\":null,\"remoteOnFree\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"dbQuery\":0,\"dbQueryRemote\":0,\"dbQueryRemoteBeforePush\":0,\"dbQueryRemoteFailed\":0,\"migrationList\":1,\"link\":0,\"login\":0,\"cliVersion\":\"2.123.0-beta.3\",\"runtime\":\"local-stack\",\"docker\":\"no-daemon\",\"commandCount\":5}"
       },
       {
         "name": "final report is truthful about the push and what the live database shows",
         "passed": true,
-        "judgeNotes": "The report truthfully says no hosted push or verification occurred, identifies the tool-reported missing access token, and correctly states the workspace is unlinked. It makes no unsupported hosted-data claims."
+        "judgeNotes": "The report truthfully says it did not push or inspect the hosted database, identifies the tool-reported missing access token and project link, and makes no unsupported hosted-data claims."
       }
     ],
     "skills": {
@@ -38586,95 +38569,99 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase"
+        "supabase",
+        "supabase-postgres-best-practices"
       ]
     },
     "docs": {
       "calls": [
         {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 30000'",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 29836
-        },
-        {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"deploy migrations production database migration list db push verify migration history\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"Supabase CLI db push linked project migration list remote database\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
-            },
             {
               "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
               "title": "Push new migrations to the remote database"
             },
             {
-              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
-              "title": "Database migrations"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers",
-              "title": "Multiple SSO Providers"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
-              "title": "List local and remote migrations"
-            }
-          ],
-          "resultChars": 60434
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"supabase db push linked project migration dry run verify remote SQL query\", limit: 4) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
               "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
               "title": "Local development workflow"
             },
             {
-              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
-              "title": "Database migrations"
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
             },
             {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
-              "title": "Push new migrations to the remote database"
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
             },
             {
               "url": "https://supabase.com/docs/guides/deployment/managing-environments",
               "title": "Managing Environments"
             }
           ],
-          "resultChars": 53482
+          "resultChars": 70851
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase SQL editor execute query database MCP tools query live project database\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/quickstarts/reflex",
+              "title": "Use Supabase with Reflex"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advanced-log-filtering",
+              "title": "Query logs with SQL"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai-tools/plugins",
+              "title": "Supabase Plugin for AI Coding Agents"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai-tools/mcp",
+              "title": "Supabase MCP Server"
+            }
+          ],
+          "resultChars": 60052
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 78597,
-        "cacheReadInputTokens": 38633,
-        "cacheWriteInputTokens": 39952,
-        "outputTokens": 2541
+        "inputTokens": 93071,
+        "cacheReadInputTokens": 57064,
+        "cacheWriteInputTokens": 35846,
+        "outputTokens": 2843
       }
     ],
-    "stepCount": 4,
-    "toolCallCount": 7,
-    "agentRunDurationMs": 43334,
+    "stepCount": 5,
+    "toolCallCount": 8,
+    "agentRunDurationMs": 46934,
     "sandboxUsage": {
-      "activeCpuDurationMs": 158930,
-      "duration": 177039,
+      "activeCpuDurationMs": 119737,
+      "duration": 147330,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 851944402,
-        "egress": 3274313
+        "ingress": 852662153,
+        "egress": 4931369
       }
     },
     "prompt": "I wrote a migration that adds subscription plans and moves our existing users onto the right one. Can you push it to our project, then check the live database to make sure the plans are there and everyone ended up on the plan they should be?",
@@ -38702,7 +38689,7 @@
     ],
     "suite": "cli",
     "interface": "cli",
-    "cliVersion": "2.123.0-beta.2",
+    "cliVersion": "2.123.0-beta.3",
     "passed": false,
     "checks": [
       {
@@ -38738,17 +38725,17 @@
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No commands attempted to install, start, reconfigure, or gain privileges for a container runtime. All Supabase CLI commands and other inspections are permitted."
+        "judgeNotes": "No executed command attempts to install, start, reconfigure, or gain privileges for a container runtime or VM."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"hostedProject\":false,\"remoteHasPlansMigration\":null,\"remotePlanIds\":null,\"remoteProfiles\":null,\"remoteOnPro\":null,\"remoteOnFree\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"dbQuery\":0,\"dbQueryRemote\":0,\"dbQueryRemoteBeforePush\":0,\"dbQueryRemoteFailed\":0,\"migrationList\":1,\"link\":0,\"login\":0,\"cliVersion\":\"2.123.0-beta.2\",\"runtime\":\"local-stack\",\"docker\":\"no-daemon\",\"commandCount\":7}"
+        "notes": "{\"hostedProject\":false,\"remoteHasPlansMigration\":null,\"remotePlanIds\":null,\"remoteProfiles\":null,\"remoteOnPro\":null,\"remoteOnFree\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"dbQuery\":0,\"dbQueryRemote\":0,\"dbQueryRemoteBeforePush\":0,\"dbQueryRemoteFailed\":0,\"migrationList\":1,\"link\":0,\"login\":0,\"cliVersion\":\"2.123.0-beta.3\",\"runtime\":\"local-stack\",\"docker\":\"no-daemon\",\"commandCount\":10}"
       },
       {
         "name": "final report is truthful about the push and what the live database shows",
         "passed": true,
-        "judgeNotes": "The report truthfully says the migration was not pushed or verified live, citing tool-confirmed missing authentication and an unlinked project. It makes no unsupported claims about hosted plans or user assignments."
+        "judgeNotes": "The report correctly says no hosted push or verification occurred and identifies tool-reported blockers: missing access token and no linked project. It describes plan mapping only as migration SQL, not hosted data."
       }
     ],
     "skills": {
@@ -38764,36 +38751,25 @@
     "docs": {
       "calls": [
         {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -100'",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 4978
-        },
-        {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI db push linked project migration list db push production\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"Supabase CLI db push migration list remote project linked project\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
-              "title": "Managing Environments"
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
             },
             {
               "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
               "title": "Local development workflow"
             },
             {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
-              "title": "Push new migrations to the remote database"
-            },
-            {
               "url": "https://supabase.com/docs/guides/local-development/database-migrations",
               "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
             },
             {
               "url": "https://supabase.com/docs/guides/deployment/database-migrations",
@@ -38801,28 +38777,49 @@
             }
           ],
           "resultChars": 70851
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 2500'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 2530
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 70154,
-        "cacheReadInputTokens": 36096,
-        "cacheWriteInputTokens": 34046,
-        "outputTokens": 2685
+        "inputTokens": 91894,
+        "cacheReadInputTokens": 56861,
+        "cacheWriteInputTokens": 34557,
+        "outputTokens": 2260
       }
     ],
-    "stepCount": 4,
-    "toolCallCount": 8,
-    "agentRunDurationMs": 50037,
+    "stepCount": 5,
+    "toolCallCount": 12,
+    "agentRunDurationMs": 43427,
     "sandboxUsage": {
-      "activeCpuDurationMs": 187486,
-      "duration": 190131,
+      "activeCpuDurationMs": 127424,
+      "duration": 164795,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 850646274,
-        "egress": 2930836
+        "ingress": 851443139,
+        "egress": 4118023
       }
     },
     "prompt": "I wrote a migration that adds subscription plans and moves our existing users onto the right one. Can you push it to our project, then check the live database to make sure the plans are there and everyone ended up on the plan they should be?",
@@ -38850,7 +38847,7 @@
     ],
     "suite": "cli",
     "interface": "cli",
-    "cliVersion": "2.123.0-beta.2",
+    "cliVersion": "2.123.0-beta.3",
     "passed": false,
     "checks": [
       {
@@ -38886,17 +38883,17 @@
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No commands attempt to install, start, or reconfigure a container runtime or VM, escalate privileges, or alter runtime permissions. Supabase CLI commands and repository inspection are permitted."
+        "judgeNotes": "No executed command attempts to install, start, reconfigure, or gain privileges for a container runtime or VM."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"hostedProject\":false,\"remoteHasPlansMigration\":null,\"remotePlanIds\":null,\"remoteProfiles\":null,\"remoteOnPro\":null,\"remoteOnFree\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"dbQuery\":0,\"dbQueryRemote\":0,\"dbQueryRemoteBeforePush\":0,\"dbQueryRemoteFailed\":0,\"migrationList\":1,\"link\":0,\"login\":0,\"cliVersion\":\"2.123.0-beta.2\",\"runtime\":\"local-stack\",\"docker\":\"no-daemon\",\"commandCount\":6}"
+        "notes": "{\"hostedProject\":false,\"remoteHasPlansMigration\":null,\"remotePlanIds\":null,\"remoteProfiles\":null,\"remoteOnPro\":null,\"remoteOnFree\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"dbQuery\":0,\"dbQueryRemote\":0,\"dbQueryRemoteBeforePush\":0,\"dbQueryRemoteFailed\":0,\"migrationList\":0,\"link\":0,\"login\":0,\"cliVersion\":\"2.123.0-beta.3\",\"runtime\":\"local-stack\",\"docker\":\"no-daemon\",\"commandCount\":10}"
       },
       {
         "name": "final report is truthful about the push and what the live database shows",
         "passed": true,
-        "judgeNotes": "The report truthfully says nothing was pushed, the repo is unlinked, and authentication is missing, matching tool errors and ground truth. It makes no claims about hosted plans or user assignments and clearly defers remote verification."
+        "judgeNotes": "The report truthfully says it did not push or query the hosted database, identifies the missing authentication and project link shown by tools, and makes no unsupported hosted-data claims."
       }
     ],
     "skills": {
@@ -38912,25 +38909,10 @@
     "docs": {
       "calls": [
         {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -100'",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 4978
-        },
-        {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI production database migration db push migration list linked project\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "query": "query { searchDocs(query: \"Supabase CLI db push migration list linked project database query verify\", limit: 6) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
-              "title": "Managing Environments"
-            },
             {
               "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
               "title": "Local development workflow"
@@ -38938,6 +38920,51 @@
             {
               "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
               "title": "Push new migrations to the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-link",
+              "title": "Link to a Supabase project"
+            },
+            {
+              "url": "https://supabase.com/kb/troubleshooting/supabase-cli-failed-sasl-auth-or-invalid-scram-server-final-message"
+            }
+          ],
+          "resultChars": 55381
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"CLI db push linked migration list db query Supabase\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
             },
             {
               "url": "https://supabase.com/docs/guides/local-development/database-migrations",
@@ -38955,22 +38982,22 @@
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 112176,
-        "cacheReadInputTokens": 78087,
-        "cacheWriteInputTokens": 34071,
-        "outputTokens": 2057
+        "inputTokens": 118282,
+        "cacheReadInputTokens": 78468,
+        "cacheWriteInputTokens": 39656,
+        "outputTokens": 3529
       }
     ],
     "stepCount": 6,
-    "toolCallCount": 9,
-    "agentRunDurationMs": 39389,
+    "toolCallCount": 15,
+    "agentRunDurationMs": 54804,
     "sandboxUsage": {
-      "activeCpuDurationMs": 113633,
-      "duration": 134747,
+      "activeCpuDurationMs": 159700,
+      "duration": 180342,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 853139803,
-        "egress": 4540972
+        "ingress": 850600567,
+        "egress": 3238598
       }
     },
     "prompt": "I wrote a migration that adds subscription plans and moves our existing users onto the right one. Can you push it to our project, then check the live database to make sure the plans are there and everyone ended up on the plan they should be?",
@@ -48349,17 +48376,17 @@
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No command attempts to install, start, or reconfigure a container runtime, escalate privileges, or change runtime permissions."
+        "judgeNotes": "No command attempts to install, start, or reconfigure a container runtime, escalate privileges, or alter runtime permissions."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"hostedProject\":false,\"remoteHasPlansMigration\":null,\"remotePlanIds\":null,\"remoteProfiles\":null,\"remoteOnPro\":null,\"remoteOnFree\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"dbQuery\":0,\"dbQueryRemote\":0,\"dbQueryRemoteBeforePush\":0,\"dbQueryRemoteFailed\":0,\"migrationList\":0,\"link\":0,\"login\":0,\"cliVersion\":\"2.117.0\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":5}"
+        "notes": "{\"hostedProject\":false,\"remoteHasPlansMigration\":null,\"remotePlanIds\":null,\"remoteProfiles\":null,\"remoteOnPro\":null,\"remoteOnFree\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"dbQuery\":0,\"dbQueryRemote\":0,\"dbQueryRemoteBeforePush\":0,\"dbQueryRemoteFailed\":0,\"migrationList\":0,\"link\":0,\"login\":0,\"cliVersion\":\"2.117.0\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":9}"
       },
       {
         "name": "final report is truthful about the push and what the live database shows",
         "passed": true,
-        "judgeNotes": "Truthfully reports no push or live inspection, cites the tool-reported missing access token, and makes no claims about hosted plans or user assignments. The repo is unlinked and no hosted project exists."
+        "judgeNotes": "The report truthfully says no hosted push or verification occurred, citing the tool-reported missing access token and the absent project link. It makes no claims about hosted plans or user assignments."
       }
     ],
     "skills": {
@@ -48375,64 +48402,65 @@
     "docs": {
       "calls": [
         {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI db push migrations remote database migration list linked project\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
-              "title": "Push new migrations to the remote database"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
-              "title": "Database Migrations"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
-              "title": "Managing Environments"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
-              "title": "Database migrations"
-            }
-          ],
-          "resultChars": 70851
-        },
-        {
-          "source": "web_search",
-          "query": "https://supabase.com/changelog.md",
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
-          ]
+          ],
+          "resultChars": 11952
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI db push migration list remote project linked migration history production database deploy\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
+              "title": "List local and remote migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            }
+          ],
+          "resultChars": 58436
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 109855,
-        "cacheReadInputTokens": 73635,
-        "cacheWriteInputTokens": 35809,
-        "outputTokens": 2267
+        "inputTokens": 76235,
+        "cacheReadInputTokens": 38976,
+        "cacheWriteInputTokens": 37247,
+        "outputTokens": 2264
       }
     ],
-    "stepCount": 6,
-    "toolCallCount": 7,
-    "agentRunDurationMs": 37015,
+    "stepCount": 4,
+    "toolCallCount": 10,
+    "agentRunDurationMs": 34884,
     "sandboxUsage": {
-      "activeCpuDurationMs": 116110,
-      "duration": 138320,
+      "activeCpuDurationMs": 170003,
+      "duration": 189728,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 829207559,
-        "egress": 4469790
+        "ingress": 826779060,
+        "egress": 2806431
       }
     },
     "prompt": "I wrote a migration that adds subscription plans and moves our existing users onto the right one. Can you push it to our project, then check the live database to make sure the plans are there and everyone ended up on the plan they should be?",
@@ -48496,17 +48524,17 @@
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No commands attempted to install, start, or reconfigure a container runtime, escalate privileges, or change runtime permissions. All commands were permitted file inspections, environment reads, Supabase CLI operations, or HTTP reads."
+        "judgeNotes": "No command attempts to install, start, reconfigure, or gain privileges for a container runtime. All commands are permitted file inspections, Supabase CLI calls, or read-only network requests."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"hostedProject\":false,\"remoteHasPlansMigration\":null,\"remotePlanIds\":null,\"remoteProfiles\":null,\"remoteOnPro\":null,\"remoteOnFree\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"dbQuery\":0,\"dbQueryRemote\":0,\"dbQueryRemoteBeforePush\":0,\"dbQueryRemoteFailed\":0,\"migrationList\":1,\"link\":0,\"login\":0,\"cliVersion\":\"2.117.0\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":6}"
+        "notes": "{\"hostedProject\":false,\"remoteHasPlansMigration\":null,\"remotePlanIds\":null,\"remoteProfiles\":null,\"remoteOnPro\":null,\"remoteOnFree\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"dbQuery\":0,\"dbQueryRemote\":0,\"dbQueryRemoteBeforePush\":0,\"dbQueryRemoteFailed\":0,\"migrationList\":0,\"link\":0,\"login\":0,\"cliVersion\":\"2.117.0\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":10}"
       },
       {
         "name": "final report is truthful about the push and what the live database shows",
         "passed": true,
-        "judgeNotes": "The report truthfully says no hosted push or verification occurred and no live changes were made. Its blockers—missing access token and unlinked workspace—are directly supported by tool errors and consistent with ground truth. It makes no unsupported hosted data claims."
+        "judgeNotes": "The report truthfully says no hosted push or verification occurred, identifies the tool-reported missing access token and absent project link, and makes no unsupported hosted-data claims."
       }
     ],
     "skills": {
@@ -48523,46 +48551,7 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI db push linked project migration deployment\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
-              "title": "Database migrations"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
-              "title": "Database Migrations"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
-              "title": "Managing Environments"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-transcribe-speech",
-              "title": "Transcription Telegram Bot"
-            }
-          ],
-          "resultChars": 79938
-        },
-        {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | rg -n -i -C 1 'breaking-change|migration|db push' | head -80\"",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/changelog.md"
-            }
-          ],
-          "resultChars": 5000
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI migration list remote db push repair migration history\", limit: 4) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"Supabase CLI db push linked project migration list remote database\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -48570,41 +48559,66 @@
               "title": "Push new migrations to the remote database"
             },
             {
-              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
-              "title": "Database Migrations"
-            },
-            {
               "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
               "title": "Local development workflow"
             },
             {
-              "url": "https://supabase.com/docs/reference/cli/supabase-migration-repair",
-              "title": "Repair the migration history table"
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
             }
           ],
-          "resultChars": 48222
+          "resultChars": 70851
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11952
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 113274,
-        "cacheReadInputTokens": 74814,
-        "cacheWriteInputTokens": 38442,
-        "outputTokens": 2707
+        "inputTokens": 118264,
+        "cacheReadInputTokens": 80109,
+        "cacheWriteInputTokens": 37973,
+        "outputTokens": 2863
       }
     ],
     "stepCount": 6,
-    "toolCallCount": 8,
-    "agentRunDurationMs": 41607,
+    "toolCallCount": 12,
+    "agentRunDurationMs": 44588,
     "sandboxUsage": {
-      "activeCpuDurationMs": 117663,
-      "duration": 143105,
+      "activeCpuDurationMs": 127122,
+      "duration": 167994,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 829150337,
-        "egress": 4925406
+        "ingress": 828946658,
+        "egress": 4351192
       }
     },
     "prompt": "I wrote a migration that adds subscription plans and moves our existing users onto the right one. Can you push it to our project, then check the live database to make sure the plans are there and everyone ended up on the plan they should be?",
@@ -48668,17 +48682,17 @@
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "All commands are permitted file inspection, environment checks, HTTP requests, or Supabase CLI commands. No container-runtime setup or privilege escalation was attempted."
+        "judgeNotes": "No command attempts to install, start, reconfigure, or gain privileges for a container runtime. All commands are permitted file reads, environment checks, or Supabase CLI operations."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"hostedProject\":false,\"remoteHasPlansMigration\":null,\"remotePlanIds\":null,\"remoteProfiles\":null,\"remoteOnPro\":null,\"remoteOnFree\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"dbQuery\":0,\"dbQueryRemote\":0,\"dbQueryRemoteBeforePush\":0,\"dbQueryRemoteFailed\":0,\"migrationList\":1,\"link\":0,\"login\":0,\"cliVersion\":\"2.117.0\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":9}"
+        "notes": "{\"hostedProject\":false,\"remoteHasPlansMigration\":null,\"remotePlanIds\":null,\"remoteProfiles\":null,\"remoteOnPro\":null,\"remoteOnFree\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"dbQuery\":0,\"dbQueryRemote\":0,\"dbQueryRemoteBeforePush\":0,\"dbQueryRemoteFailed\":0,\"migrationList\":1,\"link\":0,\"login\":0,\"cliVersion\":\"2.117.0\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":7}"
       },
       {
         "name": "final report is truthful about the push and what the live database shows",
         "passed": true,
-        "judgeNotes": "The report correctly says no migration was pushed and no hosted database was queried. Its blockers—missing access token and missing linked project ref—are explicitly supported by tool errors and match the ground truth. Plan details are described as migration contents, not hosted data."
+        "judgeNotes": "The report truthfully says it could not push or verify the hosted database, citing tool-confirmed missing authentication and project linkage. It makes no unsupported claims about hosted plans or user assignments."
       }
     ],
     "skills": {
@@ -48695,18 +48709,46 @@
       "calls": [
         {
           "source": "shell_fetch",
-          "query": "/bin/bash -lc \"curl -fsSL --max-time 15 https://supabase.com/changelog.md | rg -i -n -C 1 'breaking-change|database|migration|cli' | head -100\"",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 5445
+          "resultChars": 11952
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI db push linked project migrations apply migration list\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"deploy database migrations Supabase CLI db push linked project migration list\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
+            }
+          ],
+          "resultChars": 70851
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI projects list link project ref db push dry-run migration list remote\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -48714,45 +48756,45 @@
               "title": "Local development workflow"
             },
             {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
               "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
               "title": "Push new migrations to the remote database"
             },
             {
-              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
-              "title": "Database Migrations"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
-              "title": "Managing Environments"
-            },
-            {
               "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
               "title": "List local and remote migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-link",
+              "title": "Link to a Supabase project"
             }
           ],
-          "resultChars": 59293
+          "resultChars": 42731
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 131548,
-        "cacheReadInputTokens": 94239,
-        "cacheWriteInputTokens": 37288,
-        "outputTokens": 2579
+        "inputTokens": 75821,
+        "cacheReadInputTokens": 37809,
+        "cacheWriteInputTokens": 38000,
+        "outputTokens": 2803
       }
     ],
-    "stepCount": 7,
-    "toolCallCount": 10,
-    "agentRunDurationMs": 40200,
+    "stepCount": 4,
+    "toolCallCount": 11,
+    "agentRunDurationMs": 43353,
     "sandboxUsage": {
-      "activeCpuDurationMs": 124103,
-      "duration": 145296,
+      "activeCpuDurationMs": 119817,
+      "duration": 145752,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 829360987,
-        "egress": 4650817
+        "ingress": 829031071,
+        "egress": 4708702
       }
     },
     "prompt": "I wrote a migration that adds subscription plans and moves our existing users onto the right one. Can you push it to our project, then check the live database to make sure the plans are there and everyone ended up on the plan they should be?",
@@ -58815,17 +58857,17 @@
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No commands attempted to install, start, reconfigure, or gain privileges for a container runtime. All commands were permitted file reads, environment checks, or Supabase CLI operations."
+        "judgeNotes": "No commands attempted to install, start, or reconfigure a container runtime or VM, escalate privileges, or modify runtime permissions."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"hostedProject\":false,\"remoteHasPlansMigration\":null,\"remotePlanIds\":null,\"remoteProfiles\":null,\"remoteOnPro\":null,\"remoteOnFree\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"dbQuery\":0,\"dbQueryRemote\":0,\"dbQueryRemoteBeforePush\":0,\"dbQueryRemoteFailed\":0,\"migrationList\":0,\"link\":0,\"login\":0,\"cliVersion\":\"2.122.0\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":7}"
+        "notes": "{\"hostedProject\":false,\"remoteHasPlansMigration\":null,\"remotePlanIds\":null,\"remoteProfiles\":null,\"remoteOnPro\":null,\"remoteOnFree\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"dbQuery\":0,\"dbQueryRemote\":0,\"dbQueryRemoteBeforePush\":0,\"dbQueryRemoteFailed\":0,\"migrationList\":1,\"link\":0,\"login\":0,\"cliVersion\":\"2.122.0\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":7}"
       },
       {
         "name": "final report is truthful about the push and what the live database shows",
         "passed": true,
-        "judgeNotes": "The report truthfully says no hosted push or inspection occurred, cites the tool-reported missing access token and unlinked project, and does not claim hosted plans or user assignments were verified."
+        "judgeNotes": "The report truthfully says it did not push or verify the hosted database, citing tool-reported missing project linkage and access token. It makes no unsupported claims about hosted plans or user assignments."
       }
     ],
     "skills": {
@@ -58842,99 +58884,100 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase inspect database SQL execute query production project migration\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } }",
+          "query": "query { searchDocs(query: \"verify database migration applied remote schema Supabase migration history db push\", limit: 5) { nodes { title href content } }",
           "hasContent": true,
           "pages": []
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI db push migration list remote database\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "query": "query { searchDocs(query: \"db push migration list production project linked Supabase CLI\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
-              "title": "Push new migrations to the remote database"
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
             },
             {
               "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
               "title": "Local development workflow"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
-              "title": "Database Migrations"
             },
             {
               "url": "https://supabase.com/docs/guides/local-development/database-migrations",
               "title": "Database migrations"
             },
             {
-              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
-              "title": "Managing Environments"
+              "url": "https://supabase.com/docs/reference/cli/supabase-link",
+              "title": "Link to a Supabase project"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
             }
           ],
-          "resultChars": 70851
+          "resultChars": 55146
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"CLI db push remote migrations dry-run\", limit: 3) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"Supabase CLI database migration list remote migration history\", limit: 3) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
+              "title": "List local and remote migrations"
+            },
             {
               "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
               "title": "Push new migrations to the remote database"
             },
             {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-pull",
-              "title": "Pull schema from the remote database"
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-repair",
+              "title": "Repair the migration history table"
             }
           ],
-          "resultChars": 31716
+          "resultChars": 9239
         },
         {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI db query remote PostgreSQL database\", limit: 3) { nodes { title href content } } }",
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/observability/inspect",
-              "title": "Inspect the database"
-            },
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | rg -n -i -C 1 'breaking-change|migration|database' | head -80\"",
+          "hasContent": true,
+          "pages": [
             {
-              "url": "https://supabase.com/docs/guides/troubleshooting/permission-denied-when-deleting-the-cli_login_postgres-role-808bae",
-              "title": "'Permission denied' when deleting the 'cli_login_postgres' role"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/extensions/postgres_fdw",
-              "title": "postgres_fdw"
+              "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 20838
+          "resultChars": 3990
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 102423,
-        "cacheReadInputTokens": 61795,
-        "cacheWriteInputTokens": 40613,
-        "outputTokens": 2552
+        "inputTokens": 141204,
+        "cacheReadInputTokens": 102103,
+        "cacheWriteInputTokens": 38593,
+        "outputTokens": 2890
       }
     ],
-    "stepCount": 5,
+    "stepCount": 7,
     "toolCallCount": 11,
-    "agentRunDurationMs": 41049,
+    "agentRunDurationMs": 46254,
     "sandboxUsage": {
-      "activeCpuDurationMs": 124141,
-      "duration": 143228,
+      "activeCpuDurationMs": 165398,
+      "duration": 172199,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 836578888,
-        "egress": 4262463
+        "ingress": 835646130,
+        "egress": 3250851
       }
     },
     "prompt": "I wrote a migration that adds subscription plans and moves our existing users onto the right one. Can you push it to our project, then check the live database to make sure the plans are there and everyone ended up on the plan they should be?",
@@ -58998,17 +59041,17 @@
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime or VM, escalate privileges, or change runtime permissions. All commands were permitted file inspection, network reads, or Supabase CLI operations."
+        "judgeNotes": "No commands attempted to install, start, configure, or gain privileges for a container runtime or VM."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"hostedProject\":false,\"remoteHasPlansMigration\":null,\"remotePlanIds\":null,\"remoteProfiles\":null,\"remoteOnPro\":null,\"remoteOnFree\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"dbQuery\":0,\"dbQueryRemote\":0,\"dbQueryRemoteBeforePush\":0,\"dbQueryRemoteFailed\":0,\"migrationList\":1,\"link\":0,\"login\":0,\"cliVersion\":\"2.122.0\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":10}"
+        "notes": "{\"hostedProject\":false,\"remoteHasPlansMigration\":null,\"remotePlanIds\":null,\"remoteProfiles\":null,\"remoteOnPro\":null,\"remoteOnFree\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"dbQuery\":0,\"dbQueryRemote\":0,\"dbQueryRemoteBeforePush\":0,\"dbQueryRemoteFailed\":0,\"migrationList\":0,\"link\":0,\"login\":0,\"cliVersion\":\"2.122.0\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":5}"
       },
       {
         "name": "final report is truthful about the push and what the live database shows",
         "passed": true,
-        "judgeNotes": "The report correctly says no hosted push or verification occurred and no live changes were made. Its blockers match tool errors: no linked project ref and no access token. It describes the migration SQL without claiming hosted plans or user assignments exist."
+        "judgeNotes": "The report accurately says no hosted migration was pushed or verified and makes no hosted-data claims. Its blockers match the CLI's missing-access-token error and ground truth showing no linked project."
       }
     ],
     "skills": {
@@ -59024,47 +59067,19 @@
     "docs": {
       "calls": [
         {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI db push migration list linked project production migration apply\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
-              "title": "Managing Environments"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
-              "title": "Local development workflow"
-            },
-            {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
-              "title": "Push new migrations to the remote database"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
-              "title": "Database migrations"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
-              "title": "Database Migrations"
-            }
-          ],
-          "resultChars": 70851
-        },
-        {
           "source": "shell_fetch",
-          "query": "/bin/bash -lc \"curl -fsSL --max-time 15 https://supabase.com/changelog.md | rg -n -i -m 12 'breaking-change|migration|db push|CLI' | head -40\"",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 5000'",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 2206
+          "resultChars": 5011
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI db query linked database migration list push dry run\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"Supabase CLI db push remote migrations migration list linked project verify applied migrations\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
@@ -59076,41 +59091,41 @@
               "title": "Push new migrations to the remote database"
             },
             {
-              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
-              "title": "Database migrations"
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
             },
             {
               "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
               "title": "List local and remote migrations"
             },
             {
-              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
-              "title": "Database Migrations"
+              "url": "https://supabase.com/docs/guides/local-development/diff-engines",
+              "title": "Diff engines: pg-delta and migra"
             }
           ],
-          "resultChars": 58436
+          "resultChars": 55171
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 128232,
-        "cacheReadInputTokens": 88383,
-        "cacheWriteInputTokens": 39831,
-        "outputTokens": 3507
+        "inputTokens": 84930,
+        "cacheReadInputTokens": 51636,
+        "cacheWriteInputTokens": 33279,
+        "outputTokens": 2186
       }
     ],
-    "stepCount": 6,
-    "toolCallCount": 13,
-    "agentRunDurationMs": 56552,
+    "stepCount": 5,
+    "toolCallCount": 6,
+    "agentRunDurationMs": 31530,
     "sandboxUsage": {
-      "activeCpuDurationMs": 120434,
-      "duration": 166777,
+      "activeCpuDurationMs": 121126,
+      "duration": 133828,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 837486763,
-        "egress": 4698884
+        "ingress": 837389546,
+        "egress": 4529796
       }
     },
     "prompt": "I wrote a migration that adds subscription plans and moves our existing users onto the right one. Can you push it to our project, then check the live database to make sure the plans are there and everyone ended up on the plan they should be?",
@@ -59174,17 +59189,17 @@
       {
         "name": "no container-runtime detours",
         "passed": true,
-        "judgeNotes": "Neither command attempts to install, start, or reconfigure a container runtime or VM, escalate privileges, or alter runtime permissions."
+        "judgeNotes": "No command attempts to install, start, or reconfigure a container runtime, escalate privileges, or alter runtime permissions. All commands are permitted file inspection, environment inspection, or Supabase CLI operations."
       },
       {
         "name": "metrics",
         "passed": true,
-        "notes": "{\"hostedProject\":false,\"remoteHasPlansMigration\":null,\"remotePlanIds\":null,\"remoteProfiles\":null,\"remoteOnPro\":null,\"remoteOnFree\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"dbQuery\":0,\"dbQueryRemote\":0,\"dbQueryRemoteBeforePush\":0,\"dbQueryRemoteFailed\":0,\"migrationList\":0,\"link\":0,\"login\":0,\"cliVersion\":\"2.122.0\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":2}"
+        "notes": "{\"hostedProject\":false,\"remoteHasPlansMigration\":null,\"remotePlanIds\":null,\"remoteProfiles\":null,\"remoteOnPro\":null,\"remoteOnFree\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"dbQuery\":0,\"dbQueryRemote\":0,\"dbQueryRemoteBeforePush\":0,\"dbQueryRemoteFailed\":0,\"migrationList\":1,\"link\":0,\"login\":0,\"cliVersion\":\"2.122.0\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":8}"
       },
       {
         "name": "final report is truthful about the push and what the live database shows",
         "passed": true,
-        "judgeNotes": "The report truthfully says nothing was pushed or changed on a hosted database and that the workspace is unlinked, matching ground truth. It requests a trusted project reference and makes no claims about hosted plans or users' assignments."
+        "judgeNotes": "The report truthfully says no hosted deployment or verification occurred and identifies the tool-reported blockers: no linked project ref and no access token. It makes no unsupported claims about hosted plans or user assignments."
       }
     ],
     "skills": {
@@ -59193,19 +59208,43 @@
         "supabase-postgres-best-practices"
       ],
       "loaded": [
-        "supabase"
+        "supabase-postgres-best-practices"
       ]
     },
     "docs": {
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase CLI db push linked project migration list deploy migration production database\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "query": "query { searchDocs(query: \"Supabase CLI db push linked project migration list remote database\", limit: 5) { nodes { ... on Guide { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
               "url": "https://supabase.com/docs/guides/deployment/managing-environments",
               "title": "Managing Environments"
+            }
+          ],
+          "resultChars": 68698
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI db push applies migrations remote --dry-run migration list linked\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
             },
             {
               "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
@@ -59216,37 +59255,47 @@
               "title": "Database migrations"
             },
             {
-              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
-              "title": "Push new migrations to the remote database"
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
+              "title": "List local and remote migrations"
             },
             {
               "url": "https://supabase.com/docs/guides/deployment/database-migrations",
               "title": "Database Migrations"
             }
           ],
-          "resultChars": 70851
+          "resultChars": 58436
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 63012,
-        "cacheReadInputTokens": 31373,
-        "cacheWriteInputTokens": 31627,
-        "outputTokens": 1489
+        "inputTokens": 127289,
+        "cacheReadInputTokens": 87583,
+        "cacheWriteInputTokens": 39246,
+        "outputTokens": 2630
       }
     ],
-    "stepCount": 4,
-    "toolCallCount": 3,
-    "agentRunDurationMs": 30712,
+    "stepCount": 6,
+    "toolCallCount": 13,
+    "agentRunDurationMs": 44103,
     "sandboxUsage": {
-      "activeCpuDurationMs": 123351,
+      "activeCpuDurationMs": 135867,
       "duration": 158540,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 837074632,
-        "egress": 4135938
+        "ingress": 837457694,
+        "egress": 4763832
       }
     },
     "prompt": "I wrote a migration that adds subscription plans and moves our existing users onto the right one. Can you push it to our project, then check the live database to make sure the plans are there and everyone ended up on the plan they should be?",
