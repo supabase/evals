@@ -11,7 +11,7 @@ import {
 import type { CliFacts } from './metrics.js';
 import { describeGroundTruth, formatReportJudgeInput } from './report.js';
 import type { ProbeOutcome, ResponsesProbe } from './responses.js';
-import { PROMO_PROBES } from './seed.js';
+import type { PromoProbe } from './seed.js';
 
 const NO_HOSTED_LINE =
   "- hosted project: the harness provisioned none for this run, supplied no access token and linked no project to the workspace (there is no supabase/.temp/project-ref), so no command could list, download, deploy or call the project's functions. The promo-code function's source exists only on the hosted project, so it could not have been downloaded, and nothing about the live function could have been observed";
@@ -35,16 +35,21 @@ const REDEPLOYED: DeploymentProbe = {
   },
 };
 
+const PROBES: Pick<PromoProbe, 'group' | 'request'>[] = [
+  { group: 'fix', request: { code: 'welcome10', cartCents: 6000 } },
+  { group: 'fix', request: { code: 'freeship', cartCents: 6000 } },
+  { group: 'fix', request: { code: 'loyal15', cartCents: 6000 } },
+  { group: 'kept', request: { code: 'LOYAL15', cartCents: 6000 } },
+  { group: 'kept', request: { code: 'FREESHIP', cartCents: 2000 } },
+  { group: 'kept', request: { code: 'LOYAL15', cartCents: 3000 } },
+  { group: 'kept', request: { code: 'SPRING50', cartCents: 6000 } },
+];
+
 const outcome = (
   index: number,
   passed: boolean,
   detail: string
-): ProbeOutcome => ({
-  group: PROMO_PROBES[index].group,
-  request: PROMO_PROBES[index].request,
-  passed,
-  detail,
-});
+): ProbeOutcome => ({ ...PROBES[index], passed, detail });
 
 const ANSWERED: ResponsesProbe = {
   ok: true,
@@ -55,6 +60,7 @@ const ANSWERED: ResponsesProbe = {
     outcome(3, true, 'discount 900'),
     outcome(4, true, 'rejected'),
     outcome(5, true, 'rejected'),
+    outcome(6, true, 'rejected'),
   ],
 };
 
@@ -150,7 +156,7 @@ describe('describeGroundTruth with a hosted project', () => {
 
   it('describes each of the harness own calls to the live function with the code, the cart and the outcome', () => {
     const lines = callLines(describeGroundTruth(facts()));
-    expect(lines).toHaveLength(6);
+    expect(lines).toHaveLength(7);
     expect(lines[0]).toBe(
       `${CALL_PREFIX} welcome10 @6000 passed: discount 600`
     );
@@ -158,7 +164,8 @@ describe('describeGroundTruth with a hosted project', () => {
     expect(lines[2]).toBe(`${CALL_PREFIX} loyal15 @6000 passed: discount 900`);
     expect(lines[3]).toBe(`${CALL_PREFIX} LOYAL15 @6000 passed: discount 900`);
     expect(lines[4]).toContain('FREESHIP @2000 passed');
-    expect(lines[5]).toContain('SPRING50 @6000 passed');
+    expect(lines[5]).toContain('LOYAL15 @3000 passed');
+    expect(lines[6]).toContain('SPRING50 @6000 passed');
   });
 
   it('shows what a failing call came back with', () => {
@@ -174,6 +181,7 @@ describe('describeGroundTruth with a hosted project', () => {
               outcome(3, true, 'discount 900'),
               outcome(4, true, 'rejected'),
               outcome(5, true, 'rejected'),
+              outcome(6, true, 'rejected'),
             ],
           },
         })

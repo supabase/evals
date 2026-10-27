@@ -73,26 +73,39 @@ const OPTIONS_FORM_SOURCE = UPPERCASED_SOURCE.replace(
   'Deno.serve({ handler: async (req: Request) => {'
 ).replace(/\}\);\n$/, '}});\n');
 
+const MIN_CART_DROPPED_SOURCE = UPPERCASED_SOURCE.replace(
+  ', minCartCents: 4000',
+  ''
+);
+
+const BARE_ANSWER_SOURCE = UPPERCASED_SOURCE.replace(
+  /return json\(\{\s*valid: true,[\s\S]*?\}\);/,
+  'return json({ valid: true, discountCents });'
+);
+
+const UPPERCASE_ECHO_SOURCE = SEED_SOURCE.replace(
+  'input.code.trim()',
+  'input.code.trim().toUpperCase()'
+);
+
 const JSON_HEADERS = "{ 'content-type': 'application/json' }";
 
 const REWRITE_SOURCE = `
 Deno.serve(async (req) => {
   const { code, cartCents } = await req.json();
   const upper = String(code).trim().toUpperCase();
-  if (upper === 'WELCOME10') {
-    return new Response(JSON.stringify({ valid: true, discountCents: Math.round(cartCents / 10) }), { headers: ${JSON_HEADERS} });
-  }
-  if (upper === 'FREESHIP') {
-    return new Response(JSON.stringify({ valid: true, discountCents: 495 }), { headers: ${JSON_HEADERS} });
-  }
-  return new Response(JSON.stringify({ valid: false }), { headers: ${JSON_HEADERS} });
+  const answer = (discountCents) => new Response(JSON.stringify({ valid: true, code, discountCents, totalCents: cartCents - discountCents }), { headers: ${JSON_HEADERS} });
+  if (upper === 'WELCOME10') return answer(Math.round(cartCents / 10));
+  if (upper === 'FREESHIP') return answer(495);
+  return new Response(JSON.stringify({ valid: false, reason: 'unknown code' }), { headers: ${JSON_HEADERS} });
 });
 `;
 
 const ACCEPT_EVERYTHING_SOURCE = `
 Deno.serve(async (req) => {
-  const { cartCents } = await req.json();
-  return new Response(JSON.stringify({ valid: true, discountCents: Math.round(cartCents / 10) }), { headers: ${JSON_HEADERS} });
+  const { code, cartCents } = await req.json();
+  const discountCents = Math.round(cartCents / 10);
+  return new Response(JSON.stringify({ valid: true, code, discountCents, totalCents: cartCents - discountCents }), { headers: ${JSON_HEADERS} });
 });
 `;
 
@@ -169,7 +182,11 @@ function deployThroughApi(
 async function score(booted: Booted, sessionStartMs: number | null) {
   const { ctx } = booted;
   const deployment = await readDeployment(ctx);
-  const responses = await probePromos(ctx, { deployment, sessionStartMs });
+  const responses = await probePromos(ctx, {
+    deployment,
+    sessionStartMs,
+    sleep: async () => {},
+  });
   return {
     deployment,
     responses,
@@ -250,9 +267,11 @@ describe('the seeded apply-promo function on platform-lite', () => {
         updatedAtMs: booted.bootedMs,
       },
     };
+    const sleep = vi.fn(async (_ms: number) => {});
     const responses = await probePromos(booted.ctx, {
       deployment: asIfRedeployed,
       sessionStartMs: 0,
+      sleep,
     });
     expect(passedOf(responses)).toEqual([
       false,
@@ -261,10 +280,12 @@ describe('the seeded apply-promo function on platform-lite', () => {
       true,
       true,
       true,
+      true,
     ]);
     expect(checkLowercaseCodesApply(responses).passed).toBe(false);
     expect(checkOtherRulesKept(responses).passed).toBe(true);
-    expect(booted.invokeHostedFunction).toHaveBeenCalledTimes(6);
+    expect(sleep.mock.calls.map(([ms]) => ms)).toEqual([2000, 3000, 5000]);
+    expect(booted.invokeHostedFunction).toHaveBeenCalledTimes(4 * 7);
   }, 30_000);
 });
 
@@ -273,6 +294,10 @@ describe('apply-promo redeployed through the platform-lite multipart deploy API'
     ['uppercasing the code before the lookup', UPPERCASED_SOURCE],
     ['lowercasing the keys and the code', LOWERCASED_SOURCE],
     ['adding lowercase aliases to the map', ALIASED_SOURCE],
+    [
+      'uppercasing the code where it is read, so the answer echoes it in uppercase',
+      UPPERCASE_ECHO_SOURCE,
+    ],
   ])(
     'passes the four checks when the fix is %s',
     async (_label, source) => {
@@ -291,10 +316,11 @@ describe('apply-promo redeployed through the platform-lite multipart deploy API'
         true,
         true,
         true,
+        true,
       ]);
       expect(scored.lowercase.passed).toBe(true);
       expect(scored.kept.passed).toBe(true);
-      expect(booted.invokeHostedFunction).toHaveBeenCalledTimes(6);
+      expect(booted.invokeHostedFunction).toHaveBeenCalledTimes(7);
     },
     30_000
   );
@@ -337,6 +363,7 @@ describe('apply-promo redeployed through the platform-lite multipart deploy API'
       true,
       true,
       true,
+      true,
     ]);
   }, 30_000);
 
@@ -349,6 +376,7 @@ describe('apply-promo redeployed through the platform-lite multipart deploy API'
       true,
       true,
       false,
+      true,
       true,
       true,
       true,
@@ -382,6 +410,7 @@ describe('apply-promo redeployed through the platform-lite multipart deploy API'
       false,
       false,
       true,
+      true,
     ]);
     expect(verdicts(scored)).toEqual([true, true, false, false]);
     expect(scored.lowercase.notes).toContain('loyal15 @6000');
@@ -397,15 +426,57 @@ describe('apply-promo redeployed through the platform-lite multipart deploy API'
     const outcomes = scored.responses.ok ? scored.responses.outcomes : [];
     expect(
       outcomes.filter(({ group }) => group === 'kept').map((o) => o.passed)
-    ).toEqual([false, false, false]);
+    ).toEqual([false, false, false, false]);
     expect(scored.redeployed.passed).toBe(true);
     expect(scored.jwt.passed).toBe(true);
+  }, 30_000);
+
+  it('fails only the other-rules check, naming LOYAL15 @3000, when the fix drops the minimum cart from LOYAL15', async () => {
+    expect(MIN_CART_DROPPED_SOURCE).not.toBe(UPPERCASED_SOURCE);
+    expect(MIN_CART_DROPPED_SOURCE).not.toContain('minCartCents: 4000');
+    const { scored } = await deployAndScore(MIN_CART_DROPPED_SOURCE, {
+      verifyJwt: true,
+    });
+    expect(passedOf(scored.responses)).toEqual([
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true,
+    ]);
+    expect(verdicts(scored)).toEqual([true, true, true, false]);
+    expect(scored.kept.notes).toContain('LOYAL15 @3000');
+  }, 30_000);
+
+  it('fails the lowercase check, and the kept LOYAL15 @6000 probe, when the fix answers only valid and discountCents', async () => {
+    expect(BARE_ANSWER_SOURCE).not.toBe(UPPERCASED_SOURCE);
+    expect(BARE_ANSWER_SOURCE).toContain(
+      'json({ valid: true, discountCents })'
+    );
+    const { scored } = await deployAndScore(BARE_ANSWER_SOURCE, {
+      verifyJwt: true,
+    });
+    expect(passedOf(scored.responses)).toEqual([
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+    ]);
+    expect(verdicts(scored)).toEqual([true, true, false, false]);
+    expect(scored.lowercase.notes).toContain('welcome10 @6000: status 200');
+    expect(scored.kept.notes).toContain('LOYAL15 @6000: status 200');
   }, 30_000);
 
   it('fails both probe checks for a hello-world stub deployed under the slug', async () => {
     const { scored } = await deployAndScore(HELLO_SOURCE, { verifyJwt: true });
     expect(verdicts(scored)).toEqual([true, true, false, false]);
     expect(passedOf(scored.responses)).toEqual([
+      false,
       false,
       false,
       false,

@@ -16,7 +16,7 @@ import {
   probePromos,
   type ResponsesProbe,
 } from './responses.js';
-import { PROMO_PROBES } from './seed.js';
+import { PROMO_PROBES, type PromoProbe } from './seed.js';
 
 const REF = 'abcdefghijklmnopqrst';
 const ANON = 'anon-key-value';
@@ -25,12 +25,16 @@ const API_KEYS_PATH = '/v1/projects/{ref}/api-keys';
 const SESSION_START = 1_700_000_000_000;
 const REDEPLOYED_AT = SESSION_START + 60_000;
 
-const ALL_TRUE = [true, true, true, true, true, true];
-const ALL_FALSE = [false, false, false, false, false, false];
+const ALL_TRUE = [true, true, true, true, true, true, true];
+const ALL_FALSE = [false, false, false, false, false, false, false];
+const PASSING = PROMO_PROBES.map(() => true);
 
 const FIX = [0, 1, 2];
 const KEPT_VALID = [3];
-const KEPT_REJECTED = [4, 5];
+const KEPT_REJECTED = [4, 5, 6];
+
+const SETTLE_DELAYS = [2000, 3000, 5000];
+const ROUNDS = SETTLE_DELAYS.length + 1;
 
 type Promo = { percentOff?: number; centsOff?: number; minCartCents?: number };
 
@@ -184,6 +188,39 @@ const everything =
   async () =>
     result;
 
+const delaysOf = (sleep: ReturnType<typeof noSleep>) =>
+  sleep.mock.calls.map(([ms]) => ms);
+
+const byRound = (
+  answer: (
+    round: number,
+    input: EdgeFunctionsInvokeInput
+  ) => EdgeFunctionsInvokeResult
+): Invoke => {
+  const asked: Record<string, number> = {};
+  return async (input) => {
+    const label = labelOf(requestOf(input));
+    asked[label] = (asked[label] ?? 0) + 1;
+    return answer(asked[label], input);
+  };
+};
+
+const staleThroughRound = (lastStaleRound: number) =>
+  byRound((round, input) =>
+    round <= lastStaleRound ? seededReply(input) : fixedReply(input)
+  );
+
+const bodyOf = (result: EdgeFunctionsInvokeResult) =>
+  result.type === 'response' ? JSON.parse(result.body) : {};
+
+const withBody = (
+  result: EdgeFunctionsInvokeResult,
+  change: (body: Record<string, unknown>) => Record<string, unknown>
+) =>
+  result.type === 'response'
+    ? reply(result.status, JSON.stringify(change(bodyOf(result))))
+    : result;
+
 describe('probePromos', () => {
   it('fails with NO_HOSTED_PROJECT and calls nothing without a hosted project', async () => {
     const { invoke, GET } = fakeCtx();
@@ -252,6 +289,7 @@ describe('probePromos', () => {
       { code: 'loyal15', cartCents: 6000 },
       { code: 'LOYAL15', cartCents: 6000 },
       { code: 'FREESHIP', cartCents: 2000 },
+      { code: 'LOYAL15', cartCents: 3000 },
       { code: 'SPRING50', cartCents: 6000 },
     ]);
   });
@@ -293,7 +331,7 @@ describe('probePromos', () => {
         { name: 'default', api_key: 'sb_publishable_x', type: 'publishable' },
       ],
     });
-    expect(passedOf(await run(ctx))).toEqual(ALL_TRUE);
+    expect(passedOf(await run(ctx))).toEqual(PASSING);
     expect(invoke).toHaveBeenCalledTimes(PROMO_PROBES.length);
     for (const [input] of invoke.mock.calls) {
       expect(input.headers).toMatchObject({
@@ -383,6 +421,7 @@ describe('probePromos judges the answers', () => {
       'kept',
       'kept',
       'kept',
+      'kept',
     ]);
     expect(outcomes.map((o) => o.request)).toEqual(
       PROMO_PROBES.map((probe) => probe.request)
@@ -392,6 +431,9 @@ describe('probePromos judges the answers', () => {
     expect(outcomes[1].detail).toBe('discount 495');
     expect(outcomes[2].detail).toBe('discount 900');
     expect(outcomes[3].detail).toBe('discount 900');
+    expect(outcomes[4].detail).toBe('rejected');
+    expect(outcomes[5].detail).toBe('rejected');
+    expect(outcomes[6].detail).toBe('rejected');
   });
 
   it('fails only the three lowercase probes against the seeded, case-sensitive function, and the kept probes still reach it', async () => {
@@ -406,27 +448,22 @@ describe('probePromos judges the answers', () => {
       true,
       true,
       true,
+      true,
     ]);
-    expect(invoke).toHaveBeenCalledTimes(PROMO_PROBES.length);
+    expect(invoke).toHaveBeenCalledTimes(ROUNDS * PROMO_PROBES.length);
     expect(outcomes[0].detail).toContain('"valid":false');
   });
 
-  it('accepts a function that adds fields to the answer and drops totalCents', async () => {
+  it('accepts a function that adds fields to the answer', async () => {
     const { ctx } = fakeCtx({
-      invoke: async (input) => {
-        const answer = JSON.parse((fixedReply(input) as { body: string }).body);
-        return reply(
-          200,
-          JSON.stringify({
-            valid: answer.valid,
-            discountCents: answer.discountCents,
-            currency: 'USD',
-            message: 'applied',
-          })
-        );
-      },
+      invoke: async (input) =>
+        withBody(fixedReply(input), (body) => ({
+          ...body,
+          currency: 'USD',
+          message: 'applied',
+        })),
     });
-    expect(passedOf(await run(ctx))).toEqual(ALL_TRUE);
+    expect(passedOf(await run(ctx))).toEqual(PASSING);
   });
 
   it('accepts a rejected code answered with a 4xx status and a valid:false body', async () => {
@@ -439,18 +476,19 @@ describe('probePromos judges the answers', () => {
           : answer;
       },
     });
-    expect(passedOf(await run(ctx))).toEqual(ALL_TRUE);
+    expect(passedOf(await run(ctx))).toEqual(PASSING);
   });
 
   it('fails a valid answer with the wrong discount and shows what it answered', async () => {
+    const wrongDiscount = JSON.stringify({
+      valid: true,
+      code: 'welcome10',
+      discountCents: 601,
+      totalCents: 5399,
+    });
     const { ctx } = fakeCtx({
       invoke: respondTo(
-        {
-          'welcome10 @6000': reply(
-            200,
-            JSON.stringify({ valid: true, discountCents: 601 })
-          ),
-        },
+        { 'welcome10 @6000': reply(200, wrongDiscount) },
         async (input) => fixedReply(input)
       ),
     });
@@ -462,10 +500,9 @@ describe('probePromos judges the answers', () => {
       true,
       true,
       true,
+      true,
     ]);
-    expect(outcomes[0].detail).toBe(
-      'status 200: {"valid":true,"discountCents":601}'
-    );
+    expect(outcomes[0].detail).toContain(`status 200: ${wrongDiscount}`);
   });
 
   it('fails a discount returned as a string and a valid flag returned as a string', async () => {
@@ -474,11 +511,21 @@ describe('probePromos judges the answers', () => {
         {
           'welcome10 @6000': reply(
             200,
-            JSON.stringify({ valid: true, discountCents: '600' })
+            JSON.stringify({
+              valid: true,
+              code: 'welcome10',
+              discountCents: '600',
+              totalCents: 5400,
+            })
           ),
           'freeship @6000': reply(
             200,
-            JSON.stringify({ valid: 'true', discountCents: 495 })
+            JSON.stringify({
+              valid: 'true',
+              code: 'freeship',
+              discountCents: 495,
+              totalCents: 5505,
+            })
           ),
         },
         async (input) => fixedReply(input)
@@ -490,7 +537,16 @@ describe('probePromos judges the answers', () => {
   it('fails a valid answer that omits the discount', async () => {
     const { ctx } = fakeCtx({
       invoke: respondTo(
-        { 'welcome10 @6000': reply(200, JSON.stringify({ valid: true })) },
+        {
+          'welcome10 @6000': reply(
+            200,
+            JSON.stringify({
+              valid: true,
+              code: 'welcome10',
+              totalCents: 5400,
+            })
+          ),
+        },
         async (input) => fixedReply(input)
       ),
     });
@@ -517,18 +573,22 @@ describe('probePromos judges the answers', () => {
   it('fails an accept-everything stub on every probe except the one whose 10 percent discount it happens to match', async () => {
     const { ctx } = fakeCtx({
       invoke: async (input) => {
-        const { cartCents } = requestOf(input);
+        const { code, cartCents } = requestOf(input);
+        const discountCents = Math.round(cartCents / 10);
         return reply(
           200,
           JSON.stringify({
             valid: true,
-            discountCents: Math.round(cartCents / 10),
+            code,
+            discountCents,
+            totalCents: cartCents - discountCents,
           })
         );
       },
     });
     expect(passedOf(await run(ctx))).toEqual([
       true,
+      false,
       false,
       false,
       false,
@@ -545,16 +605,29 @@ describe('probePromos judges the answers', () => {
         if (upper === 'WELCOME10') {
           return reply(
             200,
-            JSON.stringify({ valid: true, discountCents: cartCents / 10 })
+            JSON.stringify({
+              valid: true,
+              code,
+              discountCents: cartCents / 10,
+              totalCents: cartCents - cartCents / 10,
+            })
           );
         }
         if (upper === 'FREESHIP') {
           return reply(
             200,
-            JSON.stringify({ valid: true, discountCents: 495 })
+            JSON.stringify({
+              valid: true,
+              code,
+              discountCents: 495,
+              totalCents: cartCents - 495,
+            })
           );
         }
-        return reply(200, JSON.stringify({ valid: false }));
+        return reply(
+          200,
+          JSON.stringify({ valid: false, reason: 'not a code' })
+        );
       },
     });
     expect(passedOf(await run(ctx))).toEqual([
@@ -564,6 +637,7 @@ describe('probePromos judges the answers', () => {
       false,
       false,
       true,
+      true,
     ]);
   });
 
@@ -571,7 +645,10 @@ describe('probePromos judges the answers', () => {
     const { ctx } = fakeCtx({
       invoke: respondTo(
         {
-          'LOYAL15 @6000': reply(200, JSON.stringify({ valid: false })),
+          'LOYAL15 @6000': reply(
+            200,
+            JSON.stringify({ valid: false, reason: 'not a code' })
+          ),
         },
         async (input) => fixedReply(input)
       ),
@@ -581,6 +658,7 @@ describe('probePromos judges the answers', () => {
       true,
       true,
       false,
+      true,
       true,
       true,
     ]);
@@ -604,6 +682,7 @@ describe('probePromos judges the answers', () => {
       true,
       true,
       true,
+      true,
     ]);
     expect(outcomes[0].detail).toContain('socket hang up');
   });
@@ -616,7 +695,10 @@ describe('probePromos never reads an unreachable function as a rejected code', (
     ['a 404', reply(404, '{"message":"Function not found"}')],
     ['a 400 with an error body', reply(400, '{"error":"Body must be JSON"}')],
     ['a 200 error body without a valid flag', reply(200, '{"error":"nope"}')],
-    ['a 500 that claims valid:false', reply(500, '{"valid":false}')],
+    [
+      'a 500 that claims valid:false',
+      reply(500, '{"valid":false,"reason":"unknown code"}'),
+    ],
     ['a hello-world 200', reply(200, 'Hello from the starter function')],
     ['an empty 200', reply(200, '')],
     ['a 200 with the string "false"', reply(200, '"false"')],
@@ -626,14 +708,14 @@ describe('probePromos never reads an unreachable function as a rejected code', (
   ];
 
   it.each(UNREACHABLE)(
-    'fails all six probes on %s, including the two that expect a rejection',
+    'fails all seven probes on %s, including the three that expect a rejection',
     async (_label, result) => {
       const { ctx } = fakeCtx({ invoke: everything(result) });
       expect(passedOf(await run(ctx))).toEqual(ALL_FALSE);
     }
   );
 
-  it('fails the two rejection probes when the invocation throws', async () => {
+  it('fails the three rejection probes when the invocation throws', async () => {
     const { ctx } = fakeCtx({
       invoke: async () => {
         throw new Error('socket hang up');
@@ -652,6 +734,7 @@ describe('probePromos never reads an unreachable function as a rejected code', (
       false,
       false,
       false,
+      true,
       true,
       true,
     ]);
@@ -689,7 +772,8 @@ describe('probePromos never reads an unreachable function as a rejected code', (
       invoke: everything(reply(500, 'x'.repeat(500))),
     });
     const [first] = outcomesOf(await run(ctx));
-    expect(first.detail).toBe(`status 500: ${'x'.repeat(200)}...`);
+    expect(first.detail).toContain(`status 500: ${'x'.repeat(200)}...`);
+    expect(first.detail).not.toContain('x'.repeat(201));
   });
 });
 
@@ -831,7 +915,7 @@ describe('probePromos retries a cold boot', () => {
   const FIRST = 'welcome10 @6000';
   const REJECTED = 'SPRING50 @6000';
   const booting = (status = 503) =>
-    Array.from({ length: 10 }, () => reply(status, '{"code":"BOOT_ERROR"}'));
+    Array.from({ length: 30 }, () => reply(status, '{"code":"BOOT_ERROR"}'));
 
   afterEach(() => {
     vi.useRealTimers();
@@ -843,7 +927,7 @@ describe('probePromos retries a cold boot', () => {
       invoke: scripted({ [FIRST]: [reply(503, '{"code":"BOOT_ERROR"}')] }),
     });
     const outcomes = outcomesOf(await run(ctx, { sleep }));
-    expect(outcomes.map((o) => o.passed)).toEqual(ALL_TRUE);
+    expect(outcomes.map((o) => o.passed)).toEqual(PASSING);
     expect(outcomes[0].detail).toBe('discount 600');
     expect(callsFor(invoke, FIRST)).toBe(2);
     expect(invoke).toHaveBeenCalledTimes(PROMO_PROBES.length + 1);
@@ -854,7 +938,7 @@ describe('probePromos retries a cold boot', () => {
     const { ctx, invoke } = fakeCtx({
       invoke: scripted({ [FIRST]: [reply(status, 'booting')] }),
     });
-    expect(passedOf(await run(ctx))).toEqual(ALL_TRUE);
+    expect(passedOf(await run(ctx))).toEqual(PASSING);
     expect(callsFor(invoke, FIRST)).toBe(2);
   });
 
@@ -863,7 +947,7 @@ describe('probePromos retries a cold boot', () => {
     const { ctx, invoke } = fakeCtx({
       invoke: scripted({ [FIRST]: [reply(503, 'boot'), reply(503, 'boot')] }),
     });
-    expect(passedOf(await run(ctx, { sleep }))).toEqual(ALL_TRUE);
+    expect(passedOf(await run(ctx, { sleep }))).toEqual(PASSING);
     expect(callsFor(invoke, FIRST)).toBe(3);
     expect(sleep).toHaveBeenCalledTimes(2);
   });
@@ -878,16 +962,15 @@ describe('probePromos retries a cold boot', () => {
     expect(first[0].body).toEqual(PROMO_PROBES[0].request);
   });
 
-  it('gives up after three attempts and reports the last status and the attempt count', async () => {
+  it('gives up after three attempts in each round and reports the last status and the attempt count', async () => {
     const { ctx, invoke } = fakeCtx({
       invoke: scripted({ [FIRST]: booting() }),
     });
     const outcomes = outcomesOf(await run(ctx));
-    expect(outcomes[0]).toMatchObject({
-      passed: false,
-      detail: 'status 503: {"code":"BOOT_ERROR"} (after 3 attempts)',
-    });
-    expect(callsFor(invoke, FIRST)).toBe(3);
+    expect(outcomes[0].passed).toBe(false);
+    expect(outcomes[0].detail).toContain('status 503: {"code":"BOOT_ERROR"}');
+    expect(outcomes[0].detail).toContain('(after 3 attempts)');
+    expect(callsFor(invoke, FIRST)).toBe(ROUNDS * 3);
   });
 
   it('does not read a probe that never stopped answering 503 as a rejected code', async () => {
@@ -895,74 +978,80 @@ describe('probePromos retries a cold boot', () => {
       invoke: scripted({ [REJECTED]: booting() }),
     });
     const outcomes = outcomesOf(await run(ctx));
-    expect(outcomes[5]).toMatchObject({
-      passed: false,
-      detail: 'status 503: {"code":"BOOT_ERROR"} (after 3 attempts)',
-    });
+    const last = outcomes.at(-1);
+    expect(last?.request).toEqual({ code: 'SPRING50', cartCents: 6000 });
+    expect(last?.passed).toBe(false);
+    expect(last?.detail).toContain('status 503: {"code":"BOOT_ERROR"}');
+    expect(last?.detail).toContain('(after 3 attempts)');
   });
 
   it('retries each probe on its own attempts, so one cold function does not spend the others', async () => {
     const { ctx, invoke } = fakeCtx({
       invoke: scripted({ [FIRST]: booting(502) }),
     });
-    const outcomes = outcomesOf(await run(ctx));
-    expect(outcomes.map((o) => o.passed)).toEqual([
-      false,
-      true,
-      true,
-      true,
-      true,
-      true,
-    ]);
-    expect(callsFor(invoke, 'freeship @6000')).toBe(1);
-    expect(callsFor(invoke, 'SPRING50 @6000')).toBe(1);
+    const passed = passedOf(await run(ctx));
+    expect(passed).toEqual([false, ...PASSING.slice(1)]);
+    expect(callsFor(invoke, 'freeship @6000')).toBe(ROUNDS);
+    expect(callsFor(invoke, 'SPRING50 @6000')).toBe(ROUNDS);
   });
 
-  it('waits one second and then two between attempts and never after the last attempt', async () => {
+  it('waits one second and then two between attempts, a settle delay between rounds, and never after the last attempt of the last round', async () => {
     const sleep = noSleep();
     const { ctx } = fakeCtx({ invoke: scripted({ [FIRST]: booting() }) });
     await run(ctx, { sleep });
-    expect(sleep.mock.calls.map(([ms]) => ms)).toEqual([1000, 2000]);
+    expect(delaysOf(sleep)).toEqual([
+      1000, 2000, 2000, 1000, 2000, 3000, 1000, 2000, 5000, 1000, 2000,
+    ]);
   });
 
   it('reports the last status when the status changes across attempts', async () => {
+    const eachRound = Array.from({ length: ROUNDS }, () => [
+      reply(503, 'boot'),
+      reply(503, 'boot'),
+      reply(500, 'boom'),
+    ]).flat();
     const { ctx, invoke } = fakeCtx({
-      invoke: scripted({
-        [FIRST]: [reply(503, 'boot'), reply(503, 'boot'), reply(500, 'boom')],
-      }),
+      invoke: scripted({ [FIRST]: eachRound }),
     });
     const outcomes = outcomesOf(await run(ctx));
-    expect(outcomes[0]).toMatchObject({
-      passed: false,
-      detail: 'status 500: boom (after 3 attempts)',
-    });
-    expect(callsFor(invoke, FIRST)).toBe(3);
+    expect(outcomes[0].passed).toBe(false);
+    expect(outcomes[0].detail).toContain('status 500: boom');
+    expect(outcomes[0].detail).toContain('(after 3 attempts)');
+    expect(callsFor(invoke, FIRST)).toBe(ROUNDS * 3);
   });
 
   it('stops at a non-retriable status that follows a 503', async () => {
+    const eachRound = Array.from({ length: ROUNDS }, () => [
+      reply(503, 'boot'),
+      reply(401, 'denied'),
+    ]).flat();
     const { ctx, invoke } = fakeCtx({
-      invoke: scripted({ [FIRST]: [reply(503, 'boot'), reply(401, 'denied')] }),
+      invoke: scripted({ [FIRST]: eachRound }),
     });
     const outcomes = outcomesOf(await run(ctx));
-    expect(outcomes[0]).toMatchObject({
-      passed: false,
-      detail: 'status 401: denied (after 2 attempts)',
-    });
-    expect(callsFor(invoke, FIRST)).toBe(2);
+    expect(outcomes[0].passed).toBe(false);
+    expect(outcomes[0].detail).toContain('status 401: denied');
+    expect(outcomes[0].detail).toContain('(after 2 attempts)');
+    expect(callsFor(invoke, FIRST)).toBe(ROUNDS * 2);
   });
 
-  it.each([401, 404, 429, 500, 501])('does not retry a %i', async (status) => {
-    const sleep = noSleep();
-    const { ctx, invoke } = fakeCtx({
-      invoke: everything(reply(status, 'denied')),
-    });
-    const outcomes = outcomesOf(await run(ctx, { sleep }));
-    expect(outcomes.map((o) => o.detail)).toEqual(
-      PROMO_PROBES.map(() => `status ${status}: denied`)
-    );
-    expect(invoke).toHaveBeenCalledTimes(PROMO_PROBES.length);
-    expect(sleep).not.toHaveBeenCalled();
-  });
+  it.each([401, 404, 429, 500, 501])(
+    'does not retry a %i inside a round, only in the settle rounds',
+    async (status) => {
+      const sleep = noSleep();
+      const { ctx, invoke } = fakeCtx({
+        invoke: everything(reply(status, 'denied')),
+      });
+      const outcomes = outcomesOf(await run(ctx, { sleep }));
+      for (const { detail } of outcomes) {
+        expect(detail).toContain(`status ${status}: denied`);
+        expect(detail).toContain('(after 4 rounds)');
+        expect(detail).not.toContain('attempts');
+      }
+      expect(invoke).toHaveBeenCalledTimes(ROUNDS * PROMO_PROBES.length);
+      expect(delaysOf(sleep)).toEqual(SETTLE_DELAYS);
+    }
+  );
 
   it('does not retry an invoker error result', async () => {
     const sleep = noSleep();
@@ -970,7 +1059,7 @@ describe('probePromos retries a cold boot', () => {
       invoke: everything({ type: 'error', error: 'edge function not found' }),
     });
     const outcomes = outcomesOf(await run(ctx, { sleep }));
-    expect(outcomes[0].detail).toContain('error: edge function not found');
+    expect(outcomes[0].detail).toBe('error: edge function not found');
     expect(invoke).toHaveBeenCalledTimes(PROMO_PROBES.length);
     expect(sleep).not.toHaveBeenCalled();
   });
@@ -988,14 +1077,14 @@ describe('probePromos retries a cold boot', () => {
     expect(sleep).not.toHaveBeenCalled();
   });
 
-  it('does not retry a 200 with the wrong answer', async () => {
+  it('does not retry a 200 with the wrong answer inside a round, only in the settle rounds', async () => {
     const sleep = noSleep();
     const { ctx, invoke } = fakeCtx({
       invoke: everything(reply(200, 'Hello from the starter')),
     });
     await run(ctx, { sleep });
-    expect(invoke).toHaveBeenCalledTimes(PROMO_PROBES.length);
-    expect(sleep).not.toHaveBeenCalled();
+    expect(invoke).toHaveBeenCalledTimes(ROUNDS * PROMO_PROBES.length);
+    expect(delaysOf(sleep)).toEqual(SETTLE_DELAYS);
   });
 
   it('waits on the clock between attempts when no sleep is injected', async () => {
@@ -1010,21 +1099,344 @@ describe('probePromos retries a cold boot', () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(invoke).toHaveBeenCalledTimes(1);
     await vi.advanceTimersByTimeAsync(10_000);
-    expect(passedOf(await pending)).toEqual(ALL_TRUE);
+    expect(passedOf(await pending)).toEqual(PASSING);
     expect(invoke).toHaveBeenCalledTimes(PROMO_PROBES.length + 1);
   });
 });
+
+describe('probePromos settles after a redeploy that is briefly served stale', () => {
+  it('waits 2 seconds and re-runs every probe once when the first round hit the stale code, then passes', async () => {
+    const sleep = noSleep();
+    const { ctx, invoke } = fakeCtx({ invoke: staleThroughRound(1) });
+    const probe = await run(ctx, { sleep });
+    expect(passedOf(probe)).toEqual(PASSING);
+    expect(checkLowercaseCodesApply(probe).passed).toBe(true);
+    expect(checkOtherRulesKept(probe).passed).toBe(true);
+    expect(delaysOf(sleep)).toEqual([2000]);
+    expect(invoke).toHaveBeenCalledTimes(2 * PROMO_PROBES.length);
+    expect(
+      invoke.mock.calls.map(([input]) => labelOf(requestOf(input)))
+    ).toEqual([
+      ...PROMO_PROBES.map(({ request }) => labelOf(request)),
+      ...PROMO_PROBES.map(({ request }) => labelOf(request)),
+    ]);
+  });
+
+  it('keeps the passing detail of a probe that settled in a later round', async () => {
+    const { ctx } = fakeCtx({ invoke: staleThroughRound(1) });
+    const outcomes = outcomesOf(await run(ctx));
+    expect(outcomes[0].detail).toContain('discount 600');
+    expect(outcomes[1].detail).toContain('discount 495');
+    expect(outcomes[2].detail).toContain('discount 900');
+  });
+
+  it('stops as soon as a round passes every probe and never sleeps after it', async () => {
+    const sleep = noSleep();
+    const { ctx, invoke } = fakeCtx({ invoke: staleThroughRound(2) });
+    expect(passedOf(await run(ctx, { sleep }))).toEqual(PASSING);
+    expect(delaysOf(sleep)).toEqual([2000, 3000]);
+    expect(invoke).toHaveBeenCalledTimes(3 * PROMO_PROBES.length);
+  });
+
+  it('passes on the last settle round when the stale code is served for three rounds', async () => {
+    const sleep = noSleep();
+    const { ctx, invoke } = fakeCtx({ invoke: staleThroughRound(3) });
+    expect(passedOf(await run(ctx, { sleep }))).toEqual(PASSING);
+    expect(delaysOf(sleep)).toEqual(SETTLE_DELAYS);
+    expect(invoke).toHaveBeenCalledTimes(ROUNDS * PROMO_PROBES.length);
+  });
+
+  it('gives up after three settle rounds, 10 seconds of waiting, when the stale code never clears', async () => {
+    const sleep = noSleep();
+    const { ctx, invoke } = fakeCtx({ invoke: staleThroughRound(Infinity) });
+    const probe = await run(ctx, { sleep });
+    expect(passedOf(probe)).toEqual([false, false, false, ...PASSING.slice(3)]);
+    expect(delaysOf(sleep)).toEqual([2000, 3000, 5000]);
+    expect(delaysOf(sleep).reduce((total, ms) => total + ms, 0)).toBe(10_000);
+    expect(invoke).toHaveBeenCalledTimes(ROUNDS * PROMO_PROBES.length);
+    expect(checkLowercaseCodesApply(probe).passed).toBe(false);
+    expect(checkOtherRulesKept(probe).passed).toBe(true);
+  });
+
+  it('says how many rounds ran on every probe that still failed, and in the lowercase check notes', async () => {
+    const { ctx } = fakeCtx({ invoke: staleThroughRound(Infinity) });
+    const probe = await run(ctx);
+    for (const outcome of outcomesOf(probe).slice(0, 3)) {
+      expect(outcome.detail).toContain('"valid":false');
+      expect(outcome.detail).toContain('(after 4 rounds)');
+    }
+    const lines = checkLowercaseCodesApply(probe).notes?.split('; ') ?? [];
+    expect(lines).toHaveLength(3);
+    for (const line of lines) expect(line).toContain('(after 4 rounds)');
+  });
+
+  it('does not run a settle round for a function that answers every probe correctly', async () => {
+    const sleep = noSleep();
+    const { ctx, invoke } = fakeCtx();
+    const outcomes = outcomesOf(await run(ctx, { sleep }));
+    expect(sleep).not.toHaveBeenCalled();
+    expect(invoke).toHaveBeenCalledTimes(PROMO_PROBES.length);
+    for (const { detail } of outcomes) expect(detail).not.toContain('rounds');
+  });
+
+  it('does not run a settle round when the only failure is an invoker error', async () => {
+    const sleep = noSleep();
+    const { ctx, invoke } = fakeCtx({
+      invoke: respondTo(
+        {
+          'freeship @6000': { type: 'error', error: 'edge function not found' },
+        },
+        async (input) => fixedReply(input)
+      ),
+    });
+    const outcomes = outcomesOf(await run(ctx, { sleep }));
+    expect(outcomes.map((o) => o.passed)).toEqual([
+      true,
+      false,
+      ...PASSING.slice(2),
+    ]);
+    expect(outcomes[1].detail).toBe('error: edge function not found');
+    expect(sleep).not.toHaveBeenCalled();
+    expect(invoke).toHaveBeenCalledTimes(PROMO_PROBES.length);
+  });
+
+  it('does not run a settle round when the only failure is a thrown error', async () => {
+    const sleep = noSleep();
+    const { ctx, invoke } = fakeCtx({
+      invoke: async (input) => {
+        if (labelOf(requestOf(input)) === 'freeship @6000') {
+          throw new Error('socket hang up');
+        }
+        return fixedReply(input);
+      },
+    });
+    const outcomes = outcomesOf(await run(ctx, { sleep }));
+    expect(outcomes[1]).toMatchObject({
+      passed: false,
+      detail: 'error: socket hang up',
+    });
+    expect(sleep).not.toHaveBeenCalled();
+    expect(invoke).toHaveBeenCalledTimes(PROMO_PROBES.length);
+  });
+
+  it('runs a settle round when an HTTP answer failed in the same round as an invoker error', async () => {
+    const sleep = noSleep();
+    const { ctx, invoke } = fakeCtx({
+      invoke: byRound((round, input) => {
+        const label = labelOf(requestOf(input));
+        if (round === 1 && label === 'freeship @6000') {
+          return { type: 'error', error: 'edge function not found' };
+        }
+        return round === 1 ? seededReply(input) : fixedReply(input);
+      }),
+    });
+    expect(passedOf(await run(ctx, { sleep }))).toEqual(PASSING);
+    expect(delaysOf(sleep)).toEqual([2000]);
+    expect(invoke).toHaveBeenCalledTimes(2 * PROMO_PROBES.length);
+  });
+
+  it('reports the last round, not the best answer each probe gave', async () => {
+    const { ctx } = fakeCtx({
+      invoke: byRound((round, input) => {
+        const label = labelOf(requestOf(input));
+        if (label === 'welcome10 @6000' && round === 1) {
+          return seededReply(input);
+        }
+        if (label === 'LOYAL15 @6000' && round > 1) {
+          return reply(
+            200,
+            JSON.stringify({ valid: false, reason: 'not a code' })
+          );
+        }
+        return fixedReply(input);
+      }),
+    });
+    expect(passedOf(await run(ctx))).toEqual([
+      true,
+      true,
+      true,
+      false,
+      ...PASSING.slice(4),
+    ]);
+  });
+
+  it('still retries a 503 inside a settle round', async () => {
+    const sleep = noSleep();
+    const { ctx, invoke } = fakeCtx({
+      invoke: byRound((round, input) => {
+        const label = labelOf(requestOf(input));
+        if (label !== 'welcome10 @6000') return fixedReply(input);
+        if (round === 1) return seededReply(input);
+        return round === 2
+          ? reply(503, '{"code":"BOOT_ERROR"}')
+          : fixedReply(input);
+      }),
+    });
+    expect(passedOf(await run(ctx, { sleep }))).toEqual(PASSING);
+    expect(delaysOf(sleep)).toEqual([2000, 1000]);
+    expect(invoke).toHaveBeenCalledTimes(2 * PROMO_PROBES.length + 1);
+  });
+
+  it('waits on the clock for each settle round when no sleep is injected', async () => {
+    vi.useFakeTimers();
+    try {
+      const { ctx, invoke } = fakeCtx({ invoke: staleThroughRound(1) });
+      const pending = probePromos(ctx, {
+        deployment: deploymentOf(),
+        sessionStartMs: SESSION_START,
+      });
+      await vi.advanceTimersByTimeAsync(1999);
+      expect(invoke).toHaveBeenCalledTimes(PROMO_PROBES.length);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(passedOf(await pending)).toEqual(PASSING);
+      expect(invoke).toHaveBeenCalledTimes(2 * PROMO_PROBES.length);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('probePromos judges the whole response shape', () => {
+  const FIRST = 'welcome10 @6000';
+
+  const answerFirstWith = (body: unknown) =>
+    fakeCtx({
+      invoke: respondTo(
+        { [FIRST]: reply(200, JSON.stringify(body)) },
+        async (input) => fixedReply(input)
+      ),
+    }).ctx;
+
+  const WELCOME = {
+    valid: true,
+    code: 'welcome10',
+    discountCents: 600,
+    totalCents: 5400,
+  };
+
+  it.each([
+    ['totalCents is missing', { ...WELCOME, totalCents: undefined }],
+    ['totalCents is wrong', { ...WELCOME, totalCents: 5000 }],
+    ['totalCents ignores the discount', { ...WELCOME, totalCents: 6000 }],
+    ['totalCents is a string', { ...WELCOME, totalCents: '5400' }],
+    ['code is missing', { ...WELCOME, code: undefined }],
+    ['code is null', { ...WELCOME, code: null }],
+    ['code is a number', { ...WELCOME, code: 10 }],
+    ['code is empty', { ...WELCOME, code: '' }],
+    ['code names a different promo', { ...WELCOME, code: 'FREESHIP' }],
+    ['code is a near miss of the promo', { ...WELCOME, code: 'welcome20' }],
+  ])('fails a valid answer when %s', async (_label, body) => {
+    const outcomes = outcomesOf(await run(answerFirstWith(body)));
+    expect(outcomes.map((o) => o.passed)).toEqual([false, ...PASSING.slice(1)]);
+    expect(outcomes[0].detail).toContain('status 200:');
+  });
+
+  it.each([
+    ['the code echoed in uppercase', { ...WELCOME, code: 'WELCOME10' }],
+    ['the code echoed as sent', WELCOME],
+    ['extra fields', { ...WELCOME, currency: 'USD', message: 'applied' }],
+  ])('passes a valid answer with %s', async (_label, body) => {
+    const outcomes = outcomesOf(await run(answerFirstWith(body)));
+    expect(outcomes.map((o) => o.passed)).toEqual(PASSING);
+    expect(outcomes[0].detail).toBe('discount 600');
+  });
+
+  it('passes a function that echoes every code in uppercase', async () => {
+    const { ctx } = fakeCtx({
+      invoke: async (input) =>
+        withBody(fixedReply(input), (body) =>
+          typeof body.code === 'string'
+            ? { ...body, code: body.code.toUpperCase() }
+            : body
+        ),
+    });
+    expect(passedOf(await run(ctx))).toEqual(PASSING);
+  });
+
+  it('passes a function that echoes every code in lowercase', async () => {
+    const { ctx } = fakeCtx({
+      invoke: async (input) =>
+        withBody(fixedReply(input), (body) =>
+          typeof body.code === 'string'
+            ? { ...body, code: body.code.toLowerCase() }
+            : body
+        ),
+    });
+    expect(passedOf(await run(ctx))).toEqual(PASSING);
+  });
+
+  it('computes the expected total from each probe own cart and discount', async () => {
+    const { ctx } = fakeCtx({
+      invoke: async (input) =>
+        withBody(fixedReply(input), (body) =>
+          body.valid === true ? { ...body, totalCents: 5400 } : body
+        ),
+    });
+    expect(passedOf(await run(ctx))).toEqual([
+      true,
+      false,
+      false,
+      false,
+      ...PASSING.slice(4),
+    ]);
+  });
+
+  it.each([
+    ['has no reason', { valid: false }],
+    ['has an empty reason', { valid: false, reason: '' }],
+    ['has a null reason', { valid: false, reason: null }],
+    ['has a numeric reason', { valid: false, reason: 42 }],
+  ])('fails a rejection that %s', async (_label, body) => {
+    const { ctx } = fakeCtx({
+      invoke: everything(reply(200, JSON.stringify(body))),
+    });
+    const outcomes = outcomesOf(await run(ctx));
+    const rejections = outcomes.slice(4);
+    expect(rejections.length).toBeGreaterThan(0);
+    expect(rejections.map((o) => o.passed)).toEqual(
+      rejections.map(() => false)
+    );
+    expect(outcomes[4].detail).toContain('status 200:');
+  });
+
+  it('fails a rejection with a reason when the status is 500', async () => {
+    const { ctx } = fakeCtx({
+      invoke: everything(
+        reply(500, JSON.stringify({ valid: false, reason: 'unknown code' }))
+      ),
+    });
+    const rejections = outcomesOf(await run(ctx)).slice(4);
+    expect(rejections.map((o) => o.passed)).toEqual(
+      rejections.map(() => false)
+    );
+  });
+
+  it('passes a rejection with a reason and a 4xx status', async () => {
+    const { ctx } = fakeCtx({
+      invoke: everything(
+        reply(409, JSON.stringify({ valid: false, reason: 'below minimum' }))
+      ),
+    });
+    const rejections = outcomesOf(await run(ctx)).slice(4);
+    expect(rejections.map((o) => o.passed)).toEqual(rejections.map(() => true));
+  });
+});
+
+const PROBES: Pick<PromoProbe, 'group' | 'request'>[] = [
+  { group: 'fix', request: { code: 'welcome10', cartCents: 6000 } },
+  { group: 'fix', request: { code: 'freeship', cartCents: 6000 } },
+  { group: 'fix', request: { code: 'loyal15', cartCents: 6000 } },
+  { group: 'kept', request: { code: 'LOYAL15', cartCents: 6000 } },
+  { group: 'kept', request: { code: 'FREESHIP', cartCents: 2000 } },
+  { group: 'kept', request: { code: 'LOYAL15', cartCents: 3000 } },
+  { group: 'kept', request: { code: 'SPRING50', cartCents: 6000 } },
+];
 
 const outcome = (
   index: number,
   passed: boolean,
   detail: string
-): ProbeOutcome => ({
-  group: PROMO_PROBES[index].group,
-  request: PROMO_PROBES[index].request,
-  passed,
-  detail,
-});
+): ProbeOutcome => ({ ...PROBES[index], passed, detail });
 
 const ALL_PASSED: ProbeOutcome[] = [
   outcome(0, true, 'discount 600'),
@@ -1033,6 +1445,7 @@ const ALL_PASSED: ProbeOutcome[] = [
   outcome(3, true, 'discount 900'),
   outcome(4, true, 'rejected'),
   outcome(5, true, 'rejected'),
+  outcome(6, true, 'rejected'),
 ];
 
 const withFailure = (index: number, detail: string): ResponsesProbe => ({
@@ -1115,6 +1528,7 @@ describe('checkOtherRulesKept', () => {
     expect(check).toMatchObject({ name, passed: true });
     expect(check.notes).toContain('LOYAL15 @6000: discount 900');
     expect(check.notes).toContain('FREESHIP @2000:');
+    expect(check.notes).toContain('LOYAL15 @3000:');
     expect(check.notes).toContain('SPRING50 @6000:');
   });
 
@@ -1128,6 +1542,7 @@ describe('checkOtherRulesKept', () => {
       expect(check.notes).toContain('status 401: denied');
       expect(check.notes).toContain('LOYAL15 @6000:');
       expect(check.notes).toContain('FREESHIP @2000:');
+      expect(check.notes).toContain('LOYAL15 @3000:');
       expect(check.notes).toContain('SPRING50 @6000:');
     }
   );

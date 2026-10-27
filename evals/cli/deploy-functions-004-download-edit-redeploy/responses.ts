@@ -48,7 +48,7 @@ async function readClientKey(
 function judgeAnswer(
   status: number,
   body: string,
-  { expected }: PromoProbe
+  { request, expected }: PromoProbe
 ): Pick<ProbeOutcome, 'passed' | 'detail'> {
   let answer: unknown;
   try {
@@ -56,31 +56,39 @@ function judgeAnswer(
   } catch {
     answer = undefined;
   }
-  const { valid, discountCents } = (answer ?? {}) as Record<string, unknown>;
-  if (expected.valid) {
-    return status === 200 &&
+  const { valid, code, discountCents, totalCents, reason } = (answer ??
+    {}) as Record<string, unknown>;
+  const passed = expected.valid
+    ? status === 200 &&
       valid === true &&
-      discountCents === expected.discountCents
-      ? { passed: true, detail: `discount ${discountCents}` }
-      : {
-          passed: false,
-          detail: `status ${status}: ${truncate(body, 200)}`,
-        };
+      discountCents === expected.discountCents &&
+      totalCents === request.cartCents - expected.discountCents &&
+      typeof code === 'string' &&
+      code.toLowerCase() === request.code.toLowerCase()
+    : status < 500 &&
+      valid === false &&
+      typeof reason === 'string' &&
+      reason.trim() !== '';
+  if (passed) {
+    return {
+      passed,
+      detail: expected.valid ? `discount ${discountCents}` : 'rejected',
+    };
   }
-  return status < 500 && valid === false
-    ? { passed: true, detail: 'rejected' }
-    : {
-        passed: false,
-        detail: `status ${status}: ${truncate(body, 200)}`,
-      };
+  return { passed, detail: `status ${status}: ${truncate(body, 200)}` };
 }
 
 const RETRIED_STATUSES = new Set([502, 503, 504]);
 const BACKOFF_MS = [1000, 2000];
+const SETTLE_DELAYS_MS = [2000, 3000, 5000];
 type Sleep = (ms: number) => Promise<void>;
 const realSleep: Sleep = (ms) =>
   new Promise((resolve) => setTimeout(resolve, ms));
-type Attempt = Pick<ProbeOutcome, 'passed' | 'detail'> & { retry: boolean };
+type Attempt = Pick<ProbeOutcome, 'passed' | 'detail'> & {
+  retry: boolean;
+  wrongAnswer: boolean;
+};
+type Ran = { outcome: ProbeOutcome; wrongAnswer: boolean };
 
 async function sendProbe(
   invoke: Invoke,
@@ -99,17 +107,25 @@ async function sendProbe(
       body: probe.request,
     });
     if (result.type === 'error') {
-      return { passed: false, detail: `error: ${result.error}`, retry: false };
+      return {
+        passed: false,
+        detail: `error: ${result.error}`,
+        retry: false,
+        wrongAnswer: false,
+      };
     }
+    const judged = judgeAnswer(result.status, result.body, probe);
     return {
-      ...judgeAnswer(result.status, result.body, probe),
+      ...judged,
       retry: RETRIED_STATUSES.has(result.status),
+      wrongAnswer: !judged.passed,
     };
   } catch (error) {
     return {
       passed: false,
       detail: `error: ${errorMessage(error)}`,
       retry: false,
+      wrongAnswer: false,
     };
   }
 }
@@ -119,7 +135,7 @@ async function runProbe(
   key: string,
   probe: PromoProbe,
   sleep: Sleep
-): Promise<ProbeOutcome> {
+): Promise<Ran> {
   let attempts = 1;
   let last = await sendProbe(invoke, key, probe);
   while (last.retry && attempts <= BACKOFF_MS.length) {
@@ -128,17 +144,20 @@ async function runProbe(
     last = await sendProbe(invoke, key, probe);
   }
   return {
-    group: probe.group,
-    request: probe.request,
-    passed: last.passed,
-    detail:
-      last.passed || attempts === 1
-        ? last.detail
-        : `${last.detail} (after ${attempts} attempts)`,
+    outcome: {
+      group: probe.group,
+      request: probe.request,
+      passed: last.passed,
+      detail:
+        last.passed || attempts === 1
+          ? last.detail
+          : `${last.detail} (after ${attempts} attempts)`,
+    },
+    wrongAnswer: last.wrongAnswer,
   };
 }
 
-/** Calls the live function with the project's anon key, else its publishable key, for each probe, once it is this run's redeploy. */
+/** Calls the live function with the project's anon key, else its publishable key, for each probe, once it is this run's redeploy, re-running the whole set while any HTTP answer is wrong. */
 export async function probePromos(
   ctx: InvokeContext,
   {
@@ -181,13 +200,33 @@ export async function probePromos(
     return { ok: false, notes: errorMessage(error) };
   }
   if ('notes' in clientKey) return { ok: false, notes: clientKey.notes };
-  const outcomes: ProbeOutcome[] = [];
-  for (const probe of PROMO_PROBES) {
-    outcomes.push(
-      await runProbe(invokeHostedFunction, clientKey.key, probe, sleep)
-    );
+  const runRound = async () => {
+    const ran: Ran[] = [];
+    for (const probe of PROMO_PROBES) {
+      ran.push(
+        await runProbe(invokeHostedFunction, clientKey.key, probe, sleep)
+      );
+    }
+    return ran;
+  };
+  let rounds = 1;
+  let ran = await runRound();
+  while (
+    ran.some(({ wrongAnswer }) => wrongAnswer) &&
+    rounds <= SETTLE_DELAYS_MS.length
+  ) {
+    await sleep(SETTLE_DELAYS_MS[rounds - 1]);
+    rounds++;
+    ran = await runRound();
   }
-  return { ok: true, outcomes };
+  return {
+    ok: true,
+    outcomes: ran.map(({ outcome }) =>
+      rounds === 1 || outcome.passed
+        ? outcome
+        : { ...outcome, detail: `${outcome.detail} (after ${rounds} rounds)` }
+    ),
+  };
 }
 
 function checkGroup(

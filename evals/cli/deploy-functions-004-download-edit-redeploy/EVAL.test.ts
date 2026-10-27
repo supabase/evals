@@ -17,6 +17,15 @@ import { DETOUR_CHECK_NAME, formatDetourJudgeInput } from '../lib/detours.js';
 import scorer from './EVAL.js';
 import { NO_HOSTED_PROJECT } from './hosted.js';
 
+vi.mock('./responses.js', async (importOriginal) => {
+  const original = await importOriginal<typeof import('./responses.js')>();
+  return {
+    ...original,
+    probePromos: (...[ctx, options]: Parameters<typeof original.probePromos>) =>
+      original.probePromos(ctx, { sleep: async () => {}, ...options }),
+  };
+});
+
 const REF = 'abcdefghijklmnopqrst';
 const ANON = 'anon-key-value';
 const SERVICE_ROLE = 'service-role-key-value';
@@ -135,6 +144,17 @@ function promoReply(
 
 const fixedInvoke: Invoke = async (input) =>
   promoReply(input, { caseInsensitive: true });
+
+const staleThroughRound = (lastStaleRound: number): Invoke => {
+  const asked: Record<string, number> = {};
+  return async (input) => {
+    const label = labelOf(requestOf(input));
+    asked[label] = (asked[label] ?? 0) + 1;
+    return promoReply(input, {
+      caseInsensitive: asked[label] > lastStaleRound,
+    });
+  };
+};
 
 const seededInvoke: Invoke = async (input) =>
   promoReply(input, { caseInsensitive: false });
@@ -565,8 +585,16 @@ describe('scorer with a hosted project', () => {
         hosted: { invoke: seededInvoke },
       });
       expect(await failedNames(ctx)).toEqual([nameOf(4)]);
-      expect(invoke).toHaveBeenCalledTimes(6);
+      expect(invoke).toHaveBeenCalledTimes(4 * 7);
       expect(await checkNamed(ctx, nameOf(5))).toMatchObject({ passed: true });
+    });
+
+    it('passes every check for a redeploy that the platform serves stale for the first round of probes', async () => {
+      const { ctx, invoke } = fakeCtx(SETUP, {
+        hosted: { invoke: staleThroughRound(1) },
+      });
+      expect(await failedNames(ctx)).toEqual([]);
+      expect(invoke).toHaveBeenCalledTimes(2 * 7);
     });
 
     it.each([
@@ -599,19 +627,24 @@ describe('scorer with a hosted project', () => {
   });
 
   describe('row 5: the live function keeps its other promo rules', () => {
+    const accepted = (code: string, cartCents: number, discountCents: number) =>
+      reply(
+        200,
+        JSON.stringify({
+          valid: true,
+          code,
+          discountCents,
+          totalCents: cartCents - discountCents,
+        })
+      );
+
     const rewrite: Invoke = async (input) => {
       const { code, cartCents } = requestOf(input);
       const upper = code.toUpperCase();
-      if (upper === 'WELCOME10') {
-        return reply(
-          200,
-          JSON.stringify({ valid: true, discountCents: cartCents / 10 })
-        );
-      }
-      if (upper === 'FREESHIP') {
-        return reply(200, JSON.stringify({ valid: true, discountCents: 495 }));
-      }
-      return reply(200, JSON.stringify({ valid: false }));
+      if (upper === 'WELCOME10')
+        return accepted(code, cartCents, cartCents / 10);
+      if (upper === 'FREESHIP') return accepted(code, cartCents, 495);
+      return reply(200, JSON.stringify({ valid: false, reason: 'not a code' }));
     };
 
     it('fails both probe checks for a rewrite that forgot the loyalty code and the minimum cart', async () => {
@@ -628,14 +661,10 @@ describe('scorer with a hosted project', () => {
     it('fails the other-rules check for an accept-everything stub', async () => {
       const { ctx } = fakeCtx(SETUP, {
         hosted: {
-          invoke: async (input) =>
-            reply(
-              200,
-              JSON.stringify({
-                valid: true,
-                discountCents: requestOf(input).cartCents / 10,
-              })
-            ),
+          invoke: async (input) => {
+            const { code, cartCents } = requestOf(input);
+            return accepted(code, cartCents, cartCents / 10);
+          },
         },
       });
       expect(await failedNames(ctx)).toContain(nameOf(5));
@@ -681,10 +710,7 @@ describe('scorer with a hosted project', () => {
             const { code, cartCents } = requestOf(input);
             const upper = code.toUpperCase();
             if (upper === 'LOYAL15' && cartCents >= 4000) {
-              return reply(
-                200,
-                JSON.stringify({ valid: true, discountCents: cartCents * 0.15 })
-              );
+              return accepted(code, cartCents, cartCents * 0.15);
             }
             return fixedInvoke(input);
           },
@@ -705,6 +731,7 @@ describe('scorer with a hosted project', () => {
         { code: 'loyal15', cartCents: 6000 },
         { code: 'LOYAL15', cartCents: 6000 },
         { code: 'FREESHIP', cartCents: 2000 },
+        { code: 'LOYAL15', cartCents: 3000 },
         { code: 'SPRING50', cartCents: 6000 },
       ]);
       for (const [input] of invoke.mock.calls) {
@@ -756,7 +783,7 @@ describe('scorer with a hosted project', () => {
         },
       });
       expect(await failedNames(ctx)).toEqual([]);
-      expect(invoke).toHaveBeenCalledTimes(6);
+      expect(invoke).toHaveBeenCalledTimes(7);
       for (const [input] of invoke.mock.calls) {
         expect(input.headers).toMatchObject({
           authorization: `Bearer ${PUBLISHABLE}`,

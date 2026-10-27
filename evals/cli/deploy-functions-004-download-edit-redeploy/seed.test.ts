@@ -52,7 +52,39 @@ const FIXED_SOURCE = SEED_SOURCE.replace(
   'PROMOS.get(code.toUpperCase())'
 );
 
+const labelOf = ({ request }: (typeof PROMO_PROBES)[number]) =>
+  `${request.code} @${request.cartCents}`;
+
 describe('probe table', () => {
+  it('lists seven probes: the three lowercase fixes, then the kept rules ending with the unknown code', () => {
+    expect(PROMO_PROBES.map(labelOf)).toEqual([
+      'welcome10 @6000',
+      'freeship @6000',
+      'loyal15 @6000',
+      'LOYAL15 @6000',
+      'FREESHIP @2000',
+      'LOYAL15 @3000',
+      'SPRING50 @6000',
+    ]);
+    expect(PROMO_PROBES.map(({ group }) => group)).toEqual([
+      'fix',
+      'fix',
+      'fix',
+      'kept',
+      'kept',
+      'kept',
+      'kept',
+    ]);
+  });
+
+  it('expects LOYAL15 below its 4000 cent minimum to be rejected, right after FREESHIP @2000', () => {
+    expect(PROMO_PROBES[5]).toEqual({
+      group: 'kept',
+      request: { code: 'LOYAL15', cartCents: 3000 },
+      expected: { valid: false },
+    });
+  });
+
   it('sends the fix probes in lowercase and the kept probes in the exact case the seed already accepts', () => {
     for (const { group, request } of PROMO_PROBES) {
       if (group === 'fix')
@@ -109,10 +141,38 @@ describe('seeded apply-promo function against the probe table', () => {
     }
   );
 
+  it.each(PROMO_PROBES.map((probe) => [labelOf(probe), probe]))(
+    'answers %s with the whole shape the scorer requires once the lookup uppercases the code',
+    async (_label, probe) => {
+      const { body } = await answer(FIXED_SOURCE, probe.request);
+      if (probe.expected.valid) {
+        expect(body.code.toLowerCase()).toBe(probe.request.code.toLowerCase());
+        expect(body.totalCents).toBe(
+          probe.request.cartCents - probe.expected.discountCents
+        );
+      } else {
+        expect(body.reason).toEqual(expect.any(String));
+        expect(body.reason).not.toBe('');
+      }
+    }
+  );
+
   it('holds the loyalty code and the minimum-cart rule that exist only in the deployed source', () => {
     expect(SEED_SOURCE).toContain("['LOYAL15', { percentOff: 15");
     expect(SEED_SOURCE).toContain('minCartCents: 3000');
     expect(SEED_SOURCE).toContain('minCartCents: 4000');
+  });
+
+  it('rejects LOYAL15 below its minimum cart with a reason, which the probe table expects', async () => {
+    const probe = PROMO_PROBES.find((p) => labelOf(p) === 'LOYAL15 @3000');
+    expect(probe).toMatchObject({ expected: { valid: false } });
+    const { status, body } = await answer(
+      SEED_SOURCE,
+      probe?.request ?? { code: '', cartCents: 0 }
+    );
+    expect(status).toBe(200);
+    expect(body.valid).toBe(false);
+    expect(body.reason).toEqual(expect.any(String));
   });
 
   it('rejects a GET with 405', async () => {
