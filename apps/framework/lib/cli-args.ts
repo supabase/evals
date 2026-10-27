@@ -88,9 +88,7 @@ export function readExperimentFilters(rawArgs: string[]): ExperimentRef[] {
     const [suite, name, ...rest] = normalizeExperimentName(value).split('/');
     const parsed = evalSuiteSchema.safeParse(suite);
     if (!parsed.success || !name || rest.length > 0) {
-      throw new Error(
-        `invalid experiment "${value}". Expected <suite>/<name>`
-      );
+      throw new Error(`invalid experiment "${value}". Expected <suite>/<name>`);
     }
     return { suite: parsed.data, name };
   });
