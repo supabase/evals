@@ -122,14 +122,17 @@ query --help` and the CLI source: pinned 2.117.0, stable 2.122.0, beta
   every version. The SQL comes from the positional argument, from `--file`/`-f`,
   or from stdin. On 2.x (pinned, stable, beta) the flags are `--db-url`,
   `--linked`, `--local`, `--project-ref` and `--file`/`-f`. On 3.0.0-next.25
-  they are `--remote[=<ref|branch|url>]`, `--file`/`-f` and `--read-only`. The
-  local database is the default target on every version, so a plain
-  `supabase db query "<sql>"` works without a flag.
+  they are `--remote[=<ref|branch|url>]`, `--file`/`-f` and `--read-only`;
+  `--local` is still accepted there, with a warning that it isn't needed and
+  will be removed in v4. The local database is the default target on every
+  version, so a plain `supabase db query "<sql>"` works without a flag.
 - A table is printed for humans. In agent mode (the CLI detects AI tools from
   the environment, or takes `--agent yes`) the output is JSON,
   `{advisory?, boundary, rows, warning}`, where `boundary` is a random string
   that marks the rows as untrusted data. `-o json|table|csv` overrides either.
-  The `advisory` appears only when a public table has RLS off.
+  `--output-format` is a different, global flag that takes only `text`, `json`
+  or `stream-json`, so `--output-format table` errors. The `advisory` appears
+  only when a public table has RLS off.
 - psql (`postgresql-client`) is installed in the sandbox image, `supabase
   status` prints the database URL, and the `docker` CLI is present, so psql, a
   driver script and `docker exec` are real options the agent can take instead of
@@ -239,7 +242,7 @@ the PR.
 | `codex-gpt-6-luna-cli-pinned` | this repo's pin, 2.117.0 | Docker available | green: `db query` exists and targets the local database by default |
 | `codex-gpt-6-luna-cli-stable` | npm `latest` (2.122.0 when checked) | Docker available | green, as pinned |
 | `codex-gpt-6-luna-cli-beta` | npm `beta` (2.123.0-beta.3 when checked) | Docker available | green, as pinned |
-| `codex-gpt-6-luna-cli-next` | npm `next` (3.0.0-next.25 when checked) | Docker available | green, as pinned; the flags are `--remote` and `--read-only` instead of `--linked`, `--local` and `--db-url`, which a plain local `db query` never needs |
+| `codex-gpt-6-luna-cli-next` | npm `next` (3.0.0-next.25 when checked) | Docker available | green, as pinned; the flags are `--remote` and `--read-only` instead of `--linked` and `--db-url`, and `--local` only warns, none of which a plain local `db query` needs |
 
 The eval needs Docker and a pre-started stack (`needsDocker: true`,
 `projectRunning: true`), so the nodaemon and absent experiments skip it and only
