@@ -59,6 +59,8 @@ const SHELL_WRAPPERS = new Set(['bash', 'sh', 'zsh']);
 const WRAPPER_FLAG_RE = /^-\S*c\S*$/;
 const MAX_UNWRAP_DEPTH = 3;
 const FILE_REDIRECTS = new Set(['>', '>>']);
+const DATABASE_CLIENTS = new Set(['psql', 'pgcli', 'usql', 'pg_dump']);
+const LINE_CONTINUATION_RE = /\\\r?\n/g;
 // The segmenter drops its delimiters, so a pipe is read from the text between two segments.
 const PIPE_GAP_RE = /^\s*\|&?\s*$/;
 
@@ -201,26 +203,35 @@ function writtenFiles({ segment, tokens }: Stage): string[] {
 const isDbQuerySegment = (segment: string): boolean =>
   findSupabaseInvocations([segment]).some(isDbQueryInvocation);
 
-/** The files the `supabase db query` segment of `command`, and the pipeline stages after it, write with `>`, `>>`, `&>` or `tee`, in the order written; fd duplications such as `2>&1`, `/dev/null` and other commands' redirects are not. */
+const isDatabaseClientSegment = (segment: string): boolean =>
+  DATABASE_CLIENTS.has(leadingWord(segment) ?? '');
+
+/** The files the `supabase db query` segment of `command`, and the pipeline stages after it up to a database client, write with `>`, `>>`, `&>` or `tee`, in the order written; fd duplications such as `2>&1`, `/dev/null` and other commands' redirects are not. */
 export function savedOutputPaths(command: string): string[] {
-  const stages = commandStages(command);
+  const stages = commandStages(command.replace(LINE_CONTINUATION_RE, ' '));
   if (stages === undefined) return [];
   const paths: string[] = [];
   let downstream = false;
   for (const stage of stages) {
     if (!stage.piped) downstream = false;
     if (isDbQuerySegment(stage.segment)) downstream = true;
+    else if (isDatabaseClientSegment(stage.segment)) downstream = false;
     if (downstream) paths.push(...writtenFiles(stage));
   }
   return [...new Set(paths.map(withoutDotSlash).filter(isOutputPath))];
 }
 
-/** Whether `command` names `path` as a whole token, as written or by its basename since the reader may `cd` first. */
+/** Whether `command` names `path` as a whole token, as written, by its basename since the reader may `cd` first, or, for a relative `path`, behind any directory prefix (`/workspace/`, `$PWD/`, `supabase/`). */
 function mentionsPath(command: string, path: string): boolean {
   const tokens = new Set(
     unescapeQuotes(command).split(PATH_SEPARATORS_RE).map(withoutDotSlash)
   );
-  return tokens.has(path) || tokens.has(basename(path));
+  return (
+    tokens.has(path) ||
+    tokens.has(basename(path)) ||
+    (!path.startsWith('/') &&
+      [...tokens].some((token) => token.endsWith(`/${path}`)))
+  );
 }
 
 /** The later tool calls that name a file a `db query` run saved, one per call, credited to the latest run that wrote it. */

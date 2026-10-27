@@ -508,6 +508,33 @@ describe('savedOutputPaths', () => {
       'echo "=> customers" > /tmp/note.txt; supabase db query "select 1" > out.json',
       ['out.json'],
     ],
+    [
+      'a redirect after backslash line continuations',
+      `supabase db query \\\n  "${COUNT_SQL}" \\\n  -o json > /tmp/never.json`,
+      ['/tmp/never.json'],
+    ],
+    [
+      'a redirect after backslash line continuations in a bash -lc wrapper',
+      bashLc(
+        `supabase db query \\\n  "${COUNT_SQL}" \\\n  -o json > /tmp/never.json`
+      ),
+      ['/tmp/never.json'],
+    ],
+    [
+      'a tee on a continued line',
+      `supabase db query \\\n  "${COUNT_SQL}" \\\n  -o json \\\n  | tee /tmp/never.json`,
+      ['/tmp/never.json'],
+    ],
+    [
+      'a redirect after CRLF line continuations',
+      `supabase db query \\\r\n  "${COUNT_SQL}" \\\r\n  -o json > /tmp/never.json`,
+      ['/tmp/never.json'],
+    ],
+    [
+      'a tee after a jq stage',
+      `supabase db query "select 1" | jq '.rows' | tee /tmp/never.json`,
+      ['/tmp/never.json'],
+    ],
   ])('finds the file written by %s', (_label, command, paths) => {
     expect(savedOutputPaths(command)).toEqual(paths);
   });
@@ -529,6 +556,38 @@ describe('savedOutputPaths', () => {
     ['a number after >', 'supabase db query "select 1 where 1 > 0"'],
     ['a comparison operator', 'supabase db query "select 1 where a >= b"'],
     ['a jq filter', 'supabase db query "select 1" | jq \'.rows[0].count\''],
+    [
+      'a jq filter holding a > comparison',
+      `supabase db query "${COUNT_SQL}" -o json | jq '.rows[] | select(.n > .m)'`,
+    ],
+    [
+      'a psql stage that redirects',
+      `supabase db query "select 1" | psql "$DB_URL" -tAc "${COUNT_SQL}" > /tmp/n.txt`,
+    ],
+    [
+      'a pgcli stage that redirects',
+      'supabase db query "select 1" | pgcli "$DB_URL" > /tmp/n.txt',
+    ],
+    [
+      'a usql stage that redirects',
+      'supabase db query "select 1" | usql "$DB_URL" > /tmp/n.txt',
+    ],
+    [
+      'a pg_dump stage that redirects',
+      'supabase db query "select 1" | pg_dump "$DB_URL" > /tmp/n.txt',
+    ],
+    [
+      'a path-qualified psql stage that redirects',
+      'supabase db query "select 1" | /usr/bin/psql "$DB_URL" -tAc "select 2" >> /tmp/n.txt',
+    ],
+    [
+      'a tee after a psql stage',
+      'supabase db query "select 1" | psql "$DB_URL" -tAc "select 2" | tee /tmp/n.txt',
+    ],
+    [
+      'a redirect after a jq stage that follows a psql stage',
+      `supabase db query "select 1" | psql "$DB_URL" -tAc "select 2" | jq . > /tmp/n.txt`,
+    ],
   ])('finds no file for %s', (_label, command) => {
     expect(savedOutputPaths(command)).toEqual([]);
   });
@@ -711,6 +770,45 @@ describe('findSavedOutputReads', () => {
   });
 
   it.each([
+    ['an absolute path under the working directory', '/workspace/never.json'],
+    ['$PWD', '"$PWD/never.json"'],
+    ['${PWD}', '"${PWD}/never.json"'],
+    ['a directory prefix', 'supabase/never.json'],
+  ])(
+    'finds a read of a relative file that the reader spells with %s',
+    (_label, spelling) => {
+      const [found] = readsOf([
+        call(`supabase db query "${COUNT_SQL}" -o json > never.json`),
+        call(`jq '.rows | length' ${spelling}`, { result: '263\n' }),
+      ]);
+      expect(found).toMatchObject({
+        commandIndex: 1,
+        path: 'never.json',
+        savedBy: 0,
+        showsAnswer: true,
+      });
+    }
+  );
+
+  it('finds a read of a relative file in a directory by its absolute spelling', () => {
+    const [found] = readsOf([
+      call(`supabase db query "${COUNT_SQL}" > out/never.json`),
+      call('jq .rows /workspace/out/never.json', { result: '263\n' }),
+    ]);
+    expect(found).toMatchObject({ commandIndex: 1, path: 'out/never.json' });
+  });
+
+  it('finds a read of a file saved after a cd by the directory-qualified path', () => {
+    const [found] = readsOf([
+      call(
+        `cd supabase && supabase db query "${COUNT_SQL}" -o json > never.json`
+      ),
+      call("jq '.rows | length' supabase/never.json", { result: '263\n' }),
+    ]);
+    expect(found).toMatchObject({ commandIndex: 1, path: 'never.json' });
+  });
+
+  it.each([
     ['tee', `supabase db query "${COUNT_SQL}" | tee /tmp/never.json`],
     ['tee -a', `supabase db query "${COUNT_SQL}" | tee -a /tmp/never.json`],
     ['an append', `supabase db query "${COUNT_SQL}" >> /tmp/never.json`],
@@ -754,6 +852,27 @@ describe('findSavedOutputReads', () => {
       readsOf([
         call(SAVE),
         call('jq .rows /var/other/never.json', { result: '263\n' }),
+      ])
+    ).toEqual([]);
+  });
+
+  it('does not take another absolute path for an absolute saved file', () => {
+    expect(
+      readsOf([
+        call(SAVE),
+        call('jq .rows /other/never.json', { result: '263\n' }),
+        call('jq .rows "$PWD/never.json"', { result: '263\n' }),
+      ])
+    ).toEqual([]);
+  });
+
+  it('does not take a path whose last component only ends in the saved relative name', () => {
+    expect(
+      readsOf([
+        call(`supabase db query "${COUNT_SQL}" > out`),
+        call('cat /tmp/layout /tmp/about /srv/output.json', {
+          result: '263\n',
+        }),
       ])
     ).toEqual([]);
   });
@@ -936,6 +1055,16 @@ describe('known-bad runs that only look like they saved a file', () => {
           { result: env([{ '?column?': 1 }]) }
         ),
         call('cat /tmp/out.txt', { result: '263\n' }),
+      ],
+    ],
+    [
+      'a psql stage downstream of the db query, then a cat of its target',
+      [
+        call(
+          `supabase db query "select 1" | psql "${DB_URL}" -tAc "${COUNT_SQL}" > /tmp/n.txt`,
+          { result: '' }
+        ),
+        call('cat /tmp/n.txt', { result: '263\n' }),
       ],
     ],
     [

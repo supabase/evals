@@ -663,6 +663,19 @@ describe('a later call that processes the output a db query saved', () => {
     expect(check(ANSWER_SOURCE_CHECK)?.notes).toContain('tool call 1');
   });
 
+  it('credits a redirect on a backslash-continued db query line in a bash -lc wrapper without asking the answer judge', async () => {
+    const { failed, check, judge } = await score([
+      call(
+        `bash -lc 'supabase db query \\\n  "${NEVER_SQL}" \\\n  -o json > /tmp/never.json'`,
+        { result: '' }
+      ),
+      JQ_COUNT,
+    ]);
+    expect(failed).toEqual([]);
+    expect(answerCalls(judge)).toEqual([]);
+    expect(check(ANSWER_SOURCE_CHECK)?.notes).toContain('/tmp/never.json');
+  });
+
   it('credits a redirect to a relative path read by its basename after a cd', async () => {
     const { failed, judge } = await score([
       call(`supabase db query "${NEVER_SQL}" -o json > never.json`),
