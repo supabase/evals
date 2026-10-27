@@ -6,6 +6,8 @@ import { NO_HOSTED_PROJECT } from './hosted.js';
 
 export const DENIAL_CHECK_NAME = 'the CLI denied the request on plan grounds';
 export const LINK_CHECK_NAME = 'the agent passed on the upgrade link';
+export const NO_TRANSCRIPT_ANCHOR =
+  "the denial's tool call is not in the transcript";
 
 export type PlanGateDenial = {
   /** Index into the tool calls, which is also the ordinal of its `tool_call` transcript part. */
@@ -21,16 +23,26 @@ export type PlanGateDenial = {
 
 const DENIAL_SIGNAL =
   /entitlement_required|does not have access to this feature/i;
-const HINT_URL = /Upgrade your plan:\s*(https?:\/\/[^\s"'\\<>]+)/gi;
+// RFC 3986 URL characters minus quotes, brackets, parentheses and `*`, so text around a link isn't read as part of it.
+const URL_CHARS = String.raw`A-Za-z0-9\-._~:?#@!$&+,;=%`;
+const HINT_URL = new RegExp(
+  String.raw`Upgrade your plan:\s*(https?://[${URL_CHARS}/]+)`,
+  'gi'
+);
 // Agent runs default to `--output-format json`, which prints no text hint: the link then survives only as the escaped `upgrade_url` in `error.message`.
-const UPGRADE_URL_FIELD =
-  /\\?"upgrade_url\\?"\s*:\s*\\?"(https?:\/\/[^"\\\s]+)/g;
-const BILLING_URL = /https?:\/\/[^\s"'\\<>]*\/org\/[^/\s"'\\<>]+\/billing/g;
+const UPGRADE_URL_FIELD = new RegExp(
+  String.raw`\\?"upgrade_url\\?"\s*:\s*\\?"(https?://[${URL_CHARS}/]+)`,
+  'g'
+);
+const BILLING_URL = new RegExp(
+  String.raw`https?://[${URL_CHARS}/]*/org/[${URL_CHARS}]+/billing`,
+  'g'
+);
 const FEATURE = /\\?"feature\\?"\s*:\s*\\?"([^"\\]+)/;
 // A backslash before the quote marks the field as escaped text inside `error.message`.
 const STRUCTURED_ENTITLEMENT = /(?<!\\)"entitlement"\s*:\s*\{/;
 const MACHINE_ERROR = /"_tag"\s*:\s*"Error"/;
-const URL_IN_TEXT = /https?:\/\/[^\s<>`"'*)\]}]+/gi;
+const URL_IN_TEXT = new RegExp(String.raw`https?://[${URL_CHARS}/]+`, 'gi');
 
 const unique = <T>(values: Iterable<T>) => [...new Set(values)];
 
@@ -49,7 +61,8 @@ export function toolOutputText(record: ToolCallRecord): string {
   );
 }
 
-export function readUpgradeUrls(text: string): string[] {
+export function readUpgradeUrls(output: string): string[] {
+  const text = output.replaceAll('\\/', '/');
   const named = unique(
     [HINT_URL, UPGRADE_URL_FIELD].flatMap((pattern) =>
       [...text.matchAll(pattern)].map((match) => match[1])
@@ -108,10 +121,11 @@ export function checkPlanGateDenied(
       ? []
       : [`upgrade link ${first.upgradeUrls.join(', ')}`]),
   ];
+  const found = `\`${first.command}\` was denied${details.length > 0 ? ` (${details.join(', ')})` : ''}`;
   return {
     name: DENIAL_CHECK_NAME,
-    passed: true,
-    notes: `\`${first.command}\` was denied${details.length > 0 ? ` (${details.join(', ')})` : ''}`,
+    passed: hosted,
+    notes: hosted ? found : `${found}; ${NO_HOSTED_PROJECT}`,
   };
 }
 
@@ -126,12 +140,16 @@ export function normaliseUrl(url: string): string {
 
 export function checkUpgradeLinkPassedOn(
   denial: PlanGateDenial | undefined,
-  messages: readonly string[],
+  messages: readonly string[] | null,
   hosted: boolean
 ): CheckResult {
   const name = LINK_CHECK_NAME;
   if (denial === undefined) {
     return { name, passed: false, notes: noDenialNote(hosted) };
+  }
+  if (!hosted) return { name, passed: false, notes: NO_HOSTED_PROJECT };
+  if (messages === null) {
+    return { name, passed: false, notes: NO_TRANSCRIPT_ANCHOR };
   }
   if (denial.upgradeUrls.length === 0) {
     return { name, passed: false, notes: 'the denial carried no upgrade link' };

@@ -201,6 +201,37 @@ describe('readUpgradeUrls', () => {
     expect(readUpgradeUrls(AUTH_FAILURE)).toEqual([]);
     expect(readUpgradeUrls('')).toEqual([]);
   });
+
+  it('reads an upgrade_url whose slashes are escaped', () => {
+    expect(
+      readUpgradeUrls(
+        '{"upgrade_url":"https:\\/\\/supabase.com\\/dashboard\\/org\\/acme\\/billing"}'
+      )
+    ).toEqual([BILLING_URL]);
+  });
+
+  it('reads an escaped-slash link from a billing URL with no hint and no upgrade_url', () => {
+    expect(
+      readUpgradeUrls(
+        'entitlement_required at https:\\/\\/supabase.com\\/dashboard\\/org\\/acme\\/billing'
+      )
+    ).toEqual([BILLING_URL]);
+  });
+
+  it.each([
+    ['an em dash', '\u2014then rerun'],
+    ['full-width punctuation and CJK text', '\uff0c\u7136\u540e\u91cd\u8bd5'],
+  ])('stops the hint link at %s', (_label, tail) => {
+    expect(
+      readUpgradeUrls(`${HINT} Upgrade your plan: ${BILLING_URL}${tail}`)
+    ).toEqual([BILLING_URL]);
+  });
+
+  it('stops a bare billing link at non-ASCII text', () => {
+    expect(
+      readUpgradeUrls(`entitlement_required: ${BILLING_URL}\u2014then rerun`)
+    ).toEqual([BILLING_URL]);
+  });
 });
 
 describe('findPlanGateDenials', () => {
@@ -313,6 +344,12 @@ describe('findPlanGateDenials', () => {
       machineOutput: true,
       feature: FEATURE,
     });
+  });
+
+  it('reads the link from a denial whose body escapes its slashes', () => {
+    const escaped = BETA_JSON_DENIAL.replaceAll('/', '\\/');
+    const [found] = denialsOf([deniedCall(CREATE_COMMAND, escaped)]);
+    expect(found.upgradeUrls).toEqual([BILLING_URL]);
   });
 
   it('finds the denial on branches list as well as branches create', () => {
@@ -468,6 +505,15 @@ describe('checkPlanGateDenied', () => {
       notes: `${NO_DENIAL}; ${NO_HOSTED_PROJECT}`,
     });
   });
+
+  it('fails, saying what it found and then the missing hosted project, when a denial appeared without a hosted project', () => {
+    const check = checkPlanGateDenied([denial()], false);
+    expect(check).toMatchObject({ name: DENIAL_CHECK_NAME, passed: false });
+    expect(check.notes).toContain(CREATE_COMMAND);
+    expect(check.notes).toContain(FEATURE);
+    expect(check.notes).toContain(BILLING_URL);
+    expect(check.notes?.endsWith(`; ${NO_HOSTED_PROJECT}`)).toBe(true);
+  });
 });
 
 describe('normaliseUrl', () => {
@@ -622,6 +668,19 @@ describe('checkUpgradeLinkPassedOn', () => {
     expect(check.notes).toContain(BILLING_PATH);
   });
 
+  it.each([
+    ['an em dash', '\u2014then rerun'],
+    ['full-width punctuation and CJK text', '\uff0c\u7136\u540e\u91cd\u8bd5'],
+  ])('passes when the link is followed directly by %s', (_label, tail) => {
+    expect(passes([`Upgrade at ${BILLING_URL}${tail}`]).passed).toBe(true);
+  });
+
+  it('still fails for a different path when non-ASCII text follows it', () => {
+    expect(
+      passes([`Upgrade at ${BILLING_URL}-old\u2014then rerun`]).passed
+    ).toBe(false);
+  });
+
   it('fails when there are no messages after the denial, even though the denial output holds the link', () => {
     const check = passes([]);
     expect(check.passed).toBe(false);
@@ -649,6 +708,24 @@ describe('checkUpgradeLinkPassedOn', () => {
       name: LINK_CHECK_NAME,
       passed: false,
       notes: `${NO_DENIAL}; ${NO_HOSTED_PROJECT}`,
+    });
+  });
+
+  it('fails with the missing hosted project, even when the message gives the link, when a denial appeared without one', () => {
+    expect(
+      checkUpgradeLinkPassedOn(denial(), [`Upgrade at ${BILLING_URL}`], false)
+    ).toEqual({
+      name: LINK_CHECK_NAME,
+      passed: false,
+      notes: NO_HOSTED_PROJECT,
+    });
+  });
+
+  it('fails saying the denial is not in the transcript when there are no messages to read', () => {
+    expect(checkUpgradeLinkPassedOn(denial(), null, true)).toEqual({
+      name: LINK_CHECK_NAME,
+      passed: false,
+      notes: "the denial's tool call is not in the transcript",
     });
   });
 

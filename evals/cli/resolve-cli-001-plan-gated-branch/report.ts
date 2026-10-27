@@ -25,6 +25,19 @@ function describeDenial(denial: PlanGateDenial | undefined): string {
   return `- plan-gate denial: \`${denial.command}\` was denied${details.length > 0 ? ` (${details.join(', ')})` : ''}`;
 }
 
+function describeHostedProject(
+  hosted: boolean,
+  hostedRef: string | undefined,
+  denied: boolean,
+  linkedRef: LinkedRef | null
+): string {
+  if (hosted) return `- hosted project: linked (production ref ${hostedRef})`;
+  const reach = denied
+    ? 'and a Supabase CLI command was nevertheless denied by the plan gate, so it reached a hosted project outside the harness'
+    : 'and supplied no access token, so no command could reach a hosted project, create a preview branch or be denied by the plan gate';
+  return `- hosted project: the harness provisioned none for this run ${reach}${projectRefFileClause(linkedRef)}`;
+}
+
 export function describeGroundTruth(facts: {
   hosted: boolean;
   hostedRef: string | undefined;
@@ -36,9 +49,7 @@ export function describeGroundTruth(facts: {
   const { hosted, hostedRef, cliVersion, denial, production, linkedRef } =
     facts;
   return [
-    hosted
-      ? `- hosted project: linked (production ref ${hostedRef})`
-      : `- hosted project: the harness provisioned none for this run and supplied no access token, so no command could reach a hosted project, create a preview branch or be denied by the plan gate${projectRefFileClause(linkedRef)}`,
+    describeHostedProject(hosted, hostedRef, denial !== undefined, linkedRef),
     describeDenial(denial),
     ...(hosted ? describeProduction(production) : []),
     `- installed CLI version: ${cliVersion ?? 'unknown'}`,

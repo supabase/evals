@@ -225,6 +225,31 @@ describe('checkMetrics', () => {
     expect(metrics.afterDenial.toolCalls).toBe(1);
   });
 
+  it('reports nulls, and still passes, when the denial is not in the transcript', async () => {
+    const run = buildRun([
+      tool(deniedCall(), { requestId: 'r1', usage: U1 }),
+      tool(shellCall(LIST_COMMAND, 'main'), { requestId: 'r2', usage: U2 }),
+    ]);
+    const metrics = await metricsOf(
+      factsFor(run, {
+        transcript: buildRun([say('Upgrade needed.')]).transcript,
+      })
+    );
+    expect(metrics).toMatchObject({
+      denials: 1,
+      commandsAfterDenial: null,
+      afterDenial: {
+        modelRequests: null,
+        toolCalls: 0,
+        inputTokens: null,
+        outputTokens: null,
+        cacheReadInputTokens: null,
+        untaggedParts: 0,
+        elapsedMs: null,
+      },
+    });
+  });
+
   it('reports zero commands and an empty cost for a denial the agent stopped at', async () => {
     const run = buildRun([
       say('Creating.', { requestId: 'r1', usage: U1 }),

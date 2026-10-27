@@ -122,13 +122,35 @@ describe('describeGroundTruth with a hosted project', () => {
 });
 
 describe('describeGroundTruth without a hosted project', () => {
-  it('starts by saying none was provisioned, no token was supplied and nothing could be denied by the plan gate', () => {
+  it('starts by saying none was provisioned, no token was supplied and nothing could be denied by the plan gate, when there was no denial', () => {
     const lines = describeGroundTruth(
       facts({ hosted: false, linkedRef: null, denial: undefined })
     );
     expect(lines[0]).toContain(NO_HOSTED_LINE);
     expect(text(lines)).not.toContain('linked (production ref');
   });
+
+  it('does not say no command could be denied when one was, but that it reached a project outside the harness', () => {
+    const [line] = describeGroundTruth(
+      facts({ hosted: false, linkedRef: null })
+    );
+    expect(line).toContain('the harness provisioned none for this run');
+    expect(line).toContain(
+      'a Supabase CLI command was nevertheless denied by the plan gate'
+    );
+    expect(line).toContain('reached a hosted project outside the harness');
+    expect(line).not.toContain('no command could reach');
+    expect(line).not.toContain('project-ref');
+  });
+
+  it.each(['none', 'production', 'other'] as const)(
+    'keeps the project-ref clause on the denied variant when the workspace ended %s',
+    (linkedRef) => {
+      const [line] = describeGroundTruth(facts({ hosted: false, linkedRef }));
+      expect(line).toContain('supabase/.temp/project-ref');
+      expect(line).toContain('nevertheless denied');
+    }
+  );
 
   it('says nothing about production even when a probe is present', () => {
     const lines = describeGroundTruth(

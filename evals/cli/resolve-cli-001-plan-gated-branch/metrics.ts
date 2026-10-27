@@ -109,7 +109,8 @@ export async function checkMetrics(
     ),
     commandsAfterDenial: await fromFirstDenial(
       ({ toolCallIndex }) =>
-        commandsAfterDenial(toolCalls, transcript, toolCallIndex).length
+        commandsAfterDenial(toolCalls, transcript, toolCallIndex)?.length ??
+        null
     ),
     branchCreateAttempts: await safely(
       () =>

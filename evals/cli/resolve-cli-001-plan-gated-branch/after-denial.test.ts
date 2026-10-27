@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   assistantMessagesAfter,
   commandsAfterDenial,
+  formatWorkaroundJudgeInput,
   measureAfterDenial,
   transcriptIndexOfToolCall,
 } from './after-denial.js';
@@ -12,10 +13,12 @@ import {
   buildRun,
   CREATE_COMMAND,
   deniedCall,
+  denial,
   failedCall,
   JSON_DENIAL,
   LIST_COMMAND,
   readCall,
+  REF,
   say,
   shellCall,
   tool,
@@ -119,12 +122,13 @@ describe('assistantMessagesAfter', () => {
     expect(assistantMessagesAfter(transcript, 0)).toEqual([]);
   });
 
-  it('returns nothing, not the whole transcript, when the tool call is not in it', () => {
+  it('returns null, not the whole transcript and not an empty list, when the tool call is not in it', () => {
     const { transcript } = buildRun([
       say(`Earlier mention of ${BILLING_URL}`),
       say('Another message.'),
     ]);
-    expect(assistantMessagesAfter(transcript, 0)).toEqual([]);
+    expect(assistantMessagesAfter(transcript, 0)).toBeNull();
+    expect(assistantMessagesAfter([], 0)).toBeNull();
   });
 });
 
@@ -228,6 +232,47 @@ describe('measureAfterDenial', () => {
       cacheReadInputTokens: U1.cacheReadInputTokens,
       untaggedParts: 2,
       elapsedMs: 600 - 200,
+    });
+  });
+
+  it('measures nothing, as unknowns, when the tool call is not in the transcript', () => {
+    const { transcript } = buildRun([
+      say('Trying.', { requestId: 'r1', usage: U1, ts: 1 }),
+      say('Later.', { requestId: 'r2', usage: U2, ts: 2 }),
+    ]);
+    expect(measureAfterDenial(transcript, 0)).toEqual(EMPTY_COST);
+    expect(measureAfterDenial([], 0)).toEqual(EMPTY_COST);
+  });
+
+  it('reports the tokens as unknown, not zero, when the requests after the denial carry no usage', () => {
+    const { transcript } = buildRun([
+      tool(deniedCall(), { requestId: 'r1' }),
+      say('a', { requestId: 'r2' }),
+      tool(shellCall(LIST_COMMAND, 'main'), { requestId: 'r2' }),
+      say('b', { requestId: 'r3' }),
+    ]);
+    expect(measureAfterDenial(transcript, 0)).toEqual({
+      modelRequests: 2,
+      toolCalls: 1,
+      inputTokens: null,
+      outputTokens: null,
+      cacheReadInputTokens: null,
+      untaggedParts: 0,
+      elapsedMs: null,
+    });
+  });
+
+  it('sums the usage that is there when only some requests after the denial carry it', () => {
+    const { transcript } = buildRun([
+      tool(deniedCall(), { requestId: 'r1' }),
+      say('a', { requestId: 'r2', usage: U2 }),
+      say('b', { requestId: 'r3' }),
+    ]);
+    expect(measureAfterDenial(transcript, 0)).toMatchObject({
+      modelRequests: 2,
+      inputTokens: U2.inputTokens,
+      outputTokens: U2.outputTokens,
+      cacheReadInputTokens: U2.cacheReadInputTokens,
     });
   });
 
@@ -372,6 +417,15 @@ describe('commandsAfterDenial', () => {
     ]);
   });
 
+  it('is null, not empty, when the tool call is not in the transcript', () => {
+    const { toolCalls } = buildRun([
+      tool(deniedCall()),
+      tool(shellCall('supabase db push --linked', 'Applying...')),
+    ]);
+    const { transcript } = buildRun([say('Upgrade needed.')]);
+    expect(commandsAfterDenial(toolCalls, transcript, 0)).toBeNull();
+  });
+
   it('is empty when no command follows the denial', () => {
     const { toolCalls, transcript } = buildRun([
       tool(shellCall('supabase orgs list', 'acme')),
@@ -417,7 +471,7 @@ describe('commandsAfterDenial', () => {
       tool(deniedCall()),
       tool(shellCall(LIST_COMMAND, '\u001b[1mNAME\u001b[22m  main')),
     ]);
-    expect(commandsAfterDenial(toolCalls, transcript, 0)[0].output).toBe(
+    expect(commandsAfterDenial(toolCalls, transcript, 0)?.[0].output).toBe(
       'NAME  main'
     );
   });
@@ -432,5 +486,24 @@ describe('commandsAfterDenial', () => {
     expect(commandsAfterDenial(toolCalls, transcript, 0)).toEqual([
       { number: 1, command, output },
     ]);
+  });
+});
+
+describe('formatWorkaroundJudgeInput', () => {
+  const format = (hostedRef: string | undefined) =>
+    formatWorkaroundJudgeInput(
+      { hostedRef, denial: denial() },
+      [{ number: 1, command: LIST_COMMAND, output: 'main' }],
+      []
+    );
+
+  it('names the production project ref', () => {
+    expect(format(REF)).toContain(`- production project ref: ${REF}`);
+  });
+
+  it('says the production project ref is unknown, not undefined, when there is none', () => {
+    const input = format(undefined);
+    expect(input).toContain('- production project ref: unknown');
+    expect(input).not.toContain('undefined');
   });
 });
