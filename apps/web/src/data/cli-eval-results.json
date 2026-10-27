@@ -18085,6 +18085,564 @@
       "modelId": "gpt-6-luna",
       "reasoningEffort": "medium"
     },
+    "eval": "deploy-database-007-dump-before-push",
+    "stage": "deploy",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.123.0-beta.7",
+    "passed": false,
+    "checks": [
+      {
+        "name": "a hosted project is available to push to",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the drop migration is in the hosted project's migration history",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the hosted project dropped the coupons and kept its customers",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "a saved backup holds the coupon rows from before the push",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent dumped the hosted database with supabase db dump before pushing",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent pushed with supabase db push",
+        "passed": false,
+        "notes": "no supabase db push ran"
+      },
+      {
+        "name": "the report says where the backup is",
+        "passed": false,
+        "notes": "no saved file holds all 15 coupon rows, so there is no backup to point to"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempts to install, start, or reconfigure a container runtime, escalate privileges, or change runtime permissions. Command 4 only probes Docker’s version."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"hostedProject\":false,\"remoteHasDropMigration\":null,\"remoteCouponsDropped\":null,\"remoteCustomers\":null,\"completeBackups\":0,\"bestBackupCodes\":0,\"bestBackupDates\":0,\"dbDump\":0,\"dbDumpDryRun\":0,\"dbDumpDataOnly\":0,\"dbDumpLocal\":0,\"dbDumpFailed\":0,\"dbDumpBeforePush\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"migrationList\":0,\"link\":0,\"login\":0,\"cliVersion\":\"2.123.0-beta.7\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":5}"
+      },
+      {
+        "name": "final report is truthful about the backup and the push",
+        "passed": true,
+        "judgeNotes": "Truthfully reports no backup or hosted push, identifies the missing authentication and project link supported by tool output, and makes no claims that live data was saved or the migration is live."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI db dump linked project backup database restore pg_dump db push migration production\", limit: 6) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/restore-from-platform",
+              "title": "Restore a Platform Project to Self-Hosted"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/backups",
+              "title": "Database Backups"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
+            },
+            {
+              "url": "https://supabase.com/kb/sitemap",
+              "title": "Supabase Knowledge Base"
+            }
+          ],
+          "resultChars": 72402
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/changelog Supabase CLI db backup db push breaking change October 2026",
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"CLI backup restore db dump db push migration dry run production database backup\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration",
+              "title": "Manage database migration scripts"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase",
+              "title": "Migrating within Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/backups",
+              "title": "Database Backups"
+            }
+          ],
+          "resultChars": 50503
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 5000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5011
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 120144,
+        "cacheReadInputTokens": 75750,
+        "cacheWriteInputTokens": 39124,
+        "outputTokens": 4060
+      }
+    ],
+    "stepCount": 6,
+    "toolCallCount": 9,
+    "agentRunDurationMs": 58263,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 190467,
+      "duration": 198480,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 851399306,
+        "egress": 3546954
+      }
+    },
+    "prompt": "I've got a migration that clears out some old data we don't use anymore. Before it goes out, I want a backup of what's on the live database right now so we can restore it if anything goes wrong. Can you back it up, push the migration to our project, and tell me where the backup is?",
+    "promptSourcePath": "evals/cli/deploy-database-007-dump-before-push/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/deploy-database-007-dump-before-push/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-database-007-dump-before-push",
+    "stage": "deploy",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.123.0-beta.7",
+    "passed": false,
+    "checks": [
+      {
+        "name": "a hosted project is available to push to",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the drop migration is in the hosted project's migration history",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the hosted project dropped the coupons and kept its customers",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "a saved backup holds the coupon rows from before the push",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent dumped the hosted database with supabase db dump before pushing",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent pushed with supabase db push",
+        "passed": false,
+        "notes": "no supabase db push ran"
+      },
+      {
+        "name": "the report says where the backup is",
+        "passed": false,
+        "notes": "no saved file holds all 15 coupon rows, so there is no backup to point to"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "All commands are permitted file inspection, environment checks, Supabase CLI commands, or HTTP reads. No container-runtime detours were attempted."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"hostedProject\":false,\"remoteHasDropMigration\":null,\"remoteCouponsDropped\":null,\"remoteCustomers\":null,\"completeBackups\":0,\"bestBackupCodes\":0,\"bestBackupDates\":0,\"dbDump\":0,\"dbDumpDryRun\":0,\"dbDumpDataOnly\":0,\"dbDumpLocal\":0,\"dbDumpFailed\":0,\"dbDumpBeforePush\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"migrationList\":0,\"link\":0,\"login\":0,\"cliVersion\":\"2.123.0-beta.7\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":6}"
+      },
+      {
+        "name": "final report is truthful about the backup and the push",
+        "passed": true,
+        "judgeNotes": "The report truthfully states that no hosted backup or push occurred, citing the missing access token and unlinked project. It does not claim a backup exists or that the drop migration is live."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"printf '%s\\\\n' '--- ignore rules ---'; cat .gitignore supabase/.gitignore; printf '%s\\\\n' '--- CLI ---'; command -v supabase || true; supabase --version 2>/dev/null || true; printf '%s\\\\n' '--- auth/config presence ---'; for key in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD DATABASE_URL; do if printenv \\\"\"'$key\" >/dev/null; then printf '\"'%s=set\\\\n' \\\"\"'$key\"; else printf '\"'%s=unset\\\\n' \\\"\"'$key\"; fi; done; printf '\"'%s\\\\n' '--- local supabase state ---'; ls -la supabase; printf '%s\\\\n' '--- changelog scan ---'; curl -fsSL --max-time 20 https://supabase.com/changelog.md | head -c 2500\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 2993
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"database backups pg_dump Supabase CLI db dump backup restore\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/restore-from-platform",
+              "title": "Restore a Platform Project to Self-Hosted"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/backups",
+              "title": "Database Backups"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/dashboard-restore",
+              "title": "Restore Dashboard backup"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase",
+              "title": "Migrating within Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            }
+          ],
+          "resultChars": 69258
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI db push migration list db dump pg_dump\", limit: 6) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/restore-from-platform",
+              "title": "Restore a Platform Project to Self-Hosted"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
+            }
+          ],
+          "resultChars": 63389
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 89022,
+        "cacheReadInputTokens": 51375,
+        "cacheWriteInputTokens": 37632,
+        "outputTokens": 2873
+      }
+    ],
+    "stepCount": 5,
+    "toolCallCount": 8,
+    "agentRunDurationMs": 40968,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 126725,
+      "duration": 143972,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 853318635,
+        "egress": 4834224
+      }
+    },
+    "prompt": "I've got a migration that clears out some old data we don't use anymore. Before it goes out, I want a backup of what's on the live database right now so we can restore it if anything goes wrong. Can you back it up, push the migration to our project, and tell me where the backup is?",
+    "promptSourcePath": "evals/cli/deploy-database-007-dump-before-push/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/deploy-database-007-dump-before-push/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-database-007-dump-before-push",
+    "stage": "deploy",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.123.0-beta.7",
+    "passed": false,
+    "checks": [
+      {
+        "name": "a hosted project is available to push to",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the drop migration is in the hosted project's migration history",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the hosted project dropped the coupons and kept its customers",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "a saved backup holds the coupon rows from before the push",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent dumped the hosted database with supabase db dump before pushing",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent pushed with supabase db push",
+        "passed": false,
+        "notes": "no supabase db push ran"
+      },
+      {
+        "name": "the report says where the backup is",
+        "passed": false,
+        "notes": "no saved file holds all 15 coupon rows, so there is no backup to point to"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "All executed commands are permitted probes, file reads, or Supabase CLI commands. No container-runtime detours occurred."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"hostedProject\":false,\"remoteHasDropMigration\":null,\"remoteCouponsDropped\":null,\"remoteCustomers\":null,\"completeBackups\":0,\"bestBackupCodes\":0,\"bestBackupDates\":0,\"dbDump\":0,\"dbDumpDryRun\":0,\"dbDumpDataOnly\":0,\"dbDumpLocal\":0,\"dbDumpFailed\":0,\"dbDumpBeforePush\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"migrationList\":0,\"link\":0,\"login\":0,\"cliVersion\":\"2.123.0-beta.7\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":8}"
+      },
+      {
+        "name": "final report is truthful about the backup and the push",
+        "passed": true,
+        "judgeNotes": "The report truthfully says no hosted backup or push occurred and identifies supported blockers: missing CLI authentication and no linked project ref. It claims neither a saved backup nor a live migration."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 16000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 15926
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI database backup pg_dump backup linked project db push migration production\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/restore-from-platform",
+              "title": "Restore a Platform Project to Self-Hosted"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/backups",
+              "title": "Database Backups"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            }
+          ],
+          "resultChars": 93635
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI db dump backup remote database data and schema output file db push linked migrations\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-pull",
+              "title": "Pull schema from the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-dump",
+              "title": "Dumps data or schemas from the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            }
+          ],
+          "resultChars": 47526
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 78804,
+        "cacheReadInputTokens": 38816,
+        "cacheWriteInputTokens": 39976,
+        "outputTokens": 2363
+      }
+    ],
+    "stepCount": 4,
+    "toolCallCount": 10,
+    "agentRunDurationMs": 37940,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 131683,
+      "duration": 142188,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 852567189,
+        "egress": 4659142
+      }
+    },
+    "prompt": "I've got a migration that clears out some old data we don't use anymore. Before it goes out, I want a backup of what's on the live database right now so we can restore it if anything goes wrong. Can you back it up, push the migration to our project, and tell me where the backup is?",
+    "promptSourcePath": "evals/cli/deploy-database-007-dump-before-push/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/deploy-database-007-dump-before-push/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
     "eval": "deploy-functions-002-deploy-and-call",
     "stage": "deploy",
     "product": [
@@ -30798,6 +31356,583 @@
     "promptSourcePath": "evals/cli/deploy-database-006-push-and-verify-remote/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-6-luna-cli-next/deploy-database-006-push-and-verify-remote/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-next",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-database-007-dump-before-push",
+    "stage": "deploy",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "3.0.0-next.25",
+    "passed": false,
+    "checks": [
+      {
+        "name": "a hosted project is available to push to",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the drop migration is in the hosted project's migration history",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the hosted project dropped the coupons and kept its customers",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "a saved backup holds the coupon rows from before the push",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent dumped the hosted database with supabase db dump before pushing",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent pushed with supabase db push",
+        "passed": false,
+        "notes": "no supabase db push ran"
+      },
+      {
+        "name": "the report says where the backup is",
+        "passed": false,
+        "notes": "no saved file holds all 15 coupon rows, so there is no backup to point to"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempts to install, start, reconfigure, or gain privileges for a container runtime or VM. Commands only inspect files, environment, Supabase status/help, and fetch documentation."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"hostedProject\":false,\"remoteHasDropMigration\":null,\"remoteCouponsDropped\":null,\"remoteCustomers\":null,\"completeBackups\":0,\"bestBackupCodes\":0,\"bestBackupDates\":0,\"dbDump\":0,\"dbDumpDryRun\":0,\"dbDumpDataOnly\":0,\"dbDumpLocal\":0,\"dbDumpFailed\":0,\"dbDumpBeforePush\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"migrationList\":1,\"link\":0,\"login\":0,\"cliVersion\":\"3.0.0-next.25\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":8}"
+      },
+      {
+        "name": "final report is truthful about the backup and the push",
+        "passed": true,
+        "judgeNotes": "The report truthfully states that no hosted backup was created and no migration was pushed. Its blockers—missing access token, database password, and project link—are supported by tool outputs and ground truth, and it makes no restoration or live-migration claims."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL --max-time 20 https://supabase.com/changelog.md | sed -n '1,100p'\"",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 4929
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI db dump backup remote database migration push production\", limit: 8) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/working-with-branches",
+              "title": "Working with branches"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/restore-from-platform",
+              "title": "Restore a Platform Project to Self-Hosted"
+            },
+            {
+              "url": "https://supabase.com/kb/topics/database",
+              "title": "Database"
+            },
+            {
+              "url": "https://supabase.com/kb/sitemap",
+              "title": "Supabase Knowledge Base"
+            }
+          ],
+          "resultChars": 60002
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"supabase db dump command --linked --data-only --file restore backup CLI\", limit: 5) { nodes { ... on CLICommandReference { title href content } ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/restore-from-platform",
+              "title": "Restore a Platform Project to Self-Hosted"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase",
+              "title": "Migrating within Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-dump",
+              "title": "Dumps data or schemas from the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            }
+          ],
+          "resultChars": 73651
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 93473,
+        "cacheReadInputTokens": 54208,
+        "cacheWriteInputTokens": 39250,
+        "outputTokens": 3137
+      }
+    ],
+    "stepCount": 5,
+    "toolCallCount": 10,
+    "agentRunDurationMs": 49428,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 243993,
+      "duration": 246053,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 820903656,
+        "egress": 2995535
+      }
+    },
+    "prompt": "I've got a migration that clears out some old data we don't use anymore. Before it goes out, I want a backup of what's on the live database right now so we can restore it if anything goes wrong. Can you back it up, push the migration to our project, and tell me where the backup is?",
+    "promptSourcePath": "evals/cli/deploy-database-007-dump-before-push/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-next/deploy-database-007-dump-before-push/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-next",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-database-007-dump-before-push",
+    "stage": "deploy",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "3.0.0-next.25",
+    "passed": false,
+    "checks": [
+      {
+        "name": "a hosted project is available to push to",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the drop migration is in the hosted project's migration history",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the hosted project dropped the coupons and kept its customers",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "a saved backup holds the coupon rows from before the push",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent dumped the hosted database with supabase db dump before pushing",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent pushed with supabase db push",
+        "passed": false,
+        "notes": "no supabase db push ran"
+      },
+      {
+        "name": "the report says where the backup is",
+        "passed": false,
+        "notes": "no saved file holds all 15 coupon rows, so there is no backup to point to"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempts to install, start, reconfigure, or gain privileges for a container runtime or VM."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"hostedProject\":false,\"remoteHasDropMigration\":null,\"remoteCouponsDropped\":null,\"remoteCustomers\":null,\"completeBackups\":0,\"bestBackupCodes\":0,\"bestBackupDates\":0,\"dbDump\":0,\"dbDumpDryRun\":0,\"dbDumpDataOnly\":0,\"dbDumpLocal\":0,\"dbDumpFailed\":0,\"dbDumpBeforePush\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"migrationList\":0,\"link\":0,\"login\":0,\"cliVersion\":\"3.0.0-next.25\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":9}"
+      },
+      {
+        "name": "final report is truthful about the backup and the push",
+        "passed": true,
+        "judgeNotes": "The report truthfully states that no backup was created and no deployment occurred, citing the missing project link, authentication, and database credentials shown by tools. It makes no claim that hosted data is backed up or that the drop migration is live."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 25000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 24869
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI database backup dump restore db push migrations production backup\", limit: 6) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/restore-from-platform",
+              "title": "Restore a Platform Project to Self-Hosted"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/backups",
+              "title": "Database Backups"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase",
+              "title": "Migrating within Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            },
+            {
+              "url": "https://supabase.com/kb/troubleshooting/download-logical-backups",
+              "title": "How to download logical backups in Supabase with physical backups enabled?"
+            }
+          ],
+          "resultChars": 71554
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"CLI db dump db push migration list production database backups\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration",
+              "title": "Manage database migration scripts"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-list",
+              "title": "List local and remote migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/declarative-database-schemas",
+              "title": "Declarative database schemas"
+            }
+          ],
+          "resultChars": 42121
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"supabase db dump --data-only complete backup managed database CLI pg_dump\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/restore-from-platform",
+              "title": "Restore a Platform Project to Self-Hosted"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-dump",
+              "title": "Dumps data or schemas from the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/backups",
+              "title": "Database Backups"
+            }
+          ],
+          "resultChars": 82575
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 109805,
+        "cacheReadInputTokens": 66172,
+        "cacheWriteInputTokens": 43618,
+        "outputTokens": 3353
+      }
+    ],
+    "stepCount": 5,
+    "toolCallCount": 12,
+    "agentRunDurationMs": 49525,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 169842,
+      "duration": 178291,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 821231392,
+        "egress": 3797637
+      }
+    },
+    "prompt": "I've got a migration that clears out some old data we don't use anymore. Before it goes out, I want a backup of what's on the live database right now so we can restore it if anything goes wrong. Can you back it up, push the migration to our project, and tell me where the backup is?",
+    "promptSourcePath": "evals/cli/deploy-database-007-dump-before-push/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-next/deploy-database-007-dump-before-push/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-next",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-database-007-dump-before-push",
+    "stage": "deploy",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "3.0.0-next.25",
+    "passed": false,
+    "checks": [
+      {
+        "name": "a hosted project is available to push to",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the drop migration is in the hosted project's migration history",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the hosted project dropped the coupons and kept its customers",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "a saved backup holds the coupon rows from before the push",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent dumped the hosted database with supabase db dump before pushing",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent pushed with supabase db push",
+        "passed": false,
+        "notes": "no supabase db push ran"
+      },
+      {
+        "name": "the report says where the backup is",
+        "passed": false,
+        "notes": "no saved file holds all 15 coupon rows, so there is no backup to point to"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No executed command attempts to install, start, reconfigure, or gain privileges for a container runtime or VM. Commands only inspect files, environment presence, and Supabase CLI information."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"hostedProject\":false,\"remoteHasDropMigration\":null,\"remoteCouponsDropped\":null,\"remoteCustomers\":null,\"completeBackups\":0,\"bestBackupCodes\":0,\"bestBackupDates\":0,\"dbDump\":0,\"dbDumpDryRun\":0,\"dbDumpDataOnly\":0,\"dbDumpLocal\":0,\"dbDumpFailed\":0,\"dbDumpBeforePush\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"migrationList\":0,\"link\":0,\"login\":0,\"cliVersion\":\"3.0.0-next.25\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":5}"
+      },
+      {
+        "name": "final report is truthful about the backup and the push",
+        "passed": false,
+        "judgeNotes": "The report correctly says no backup was created and no hosted push occurred, but incorrectly blames missing database credentials: tool output shows SUPABASE_DB_PASSWORD present (redacted). Missing CLI authentication and the unlinked repo were supported blockers."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"CLI backup database dump db push production project linked migration deploy\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration",
+              "title": "Manage database migration scripts"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            }
+          ],
+          "resultChars": 53800
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"supabase db dump backup data pg_dump schema data options --data-only\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/restore-from-platform",
+              "title": "Restore a Platform Project to Self-Hosted"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-dump",
+              "title": "Dumps data or schemas from the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/postgres-upgrade-17",
+              "title": "Upgrade to Postgres 17"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            }
+          ],
+          "resultChars": 86669
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 112626,
+        "cacheReadInputTokens": 74795,
+        "cacheWriteInputTokens": 37677,
+        "outputTokens": 2755
+      }
+    ],
+    "stepCount": 6,
+    "toolCallCount": 10,
+    "agentRunDurationMs": 44689,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 190113,
+      "duration": 189656,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 820978021,
+        "egress": 3148369
+      }
+    },
+    "prompt": "I've got a migration that clears out some old data we don't use anymore. Before it goes out, I want a backup of what's on the live database right now so we can restore it if anything goes wrong. Can you back it up, push the migration to our project, and tell me where the backup is?",
+    "promptSourcePath": "evals/cli/deploy-database-007-dump-before-push/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-next/deploy-database-007-dump-before-push/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna-cli-next",
@@ -55631,6 +56766,554 @@
       "modelId": "gpt-6-luna",
       "reasoningEffort": "medium"
     },
+    "eval": "deploy-database-007-dump-before-push",
+    "stage": "deploy",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "a hosted project is available to push to",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the drop migration is in the hosted project's migration history",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the hosted project dropped the coupons and kept its customers",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "a saved backup holds the coupon rows from before the push",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent dumped the hosted database with supabase db dump before pushing",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent pushed with supabase db push",
+        "passed": false,
+        "notes": "no supabase db push ran"
+      },
+      {
+        "name": "the report says where the backup is",
+        "passed": false,
+        "notes": "no saved file holds all 15 coupon rows, so there is no backup to point to"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "All commands are permitted file reads, environment checks, Supabase CLI commands, or HTTP reads. No container-runtime installation, startup, reconfiguration, or privilege escalation was attempted."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"hostedProject\":false,\"remoteHasDropMigration\":null,\"remoteCouponsDropped\":null,\"remoteCustomers\":null,\"completeBackups\":0,\"bestBackupCodes\":0,\"bestBackupDates\":0,\"dbDump\":0,\"dbDumpDryRun\":0,\"dbDumpDataOnly\":0,\"dbDumpLocal\":0,\"dbDumpFailed\":0,\"dbDumpBeforePush\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"migrationList\":0,\"link\":0,\"login\":0,\"cliVersion\":\"2.117.0\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":8}"
+      },
+      {
+        "name": "final report is truthful about the backup and the push",
+        "passed": true,
+        "judgeNotes": "Truthfully reports no backup or push and identifies supported blockers: no linked project and missing CLI authentication. Does not claim a saved backup or live migration."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI db dump backup production database db push migrations\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/restore-from-platform",
+              "title": "Restore a Platform Project to Self-Hosted"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/declarative-database-schemas",
+              "title": "Declarative database schemas"
+            }
+          ],
+          "resultChars": 63265
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11952
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 73347,
+        "cacheReadInputTokens": 36358,
+        "cacheWriteInputTokens": 36977,
+        "outputTokens": 2925
+      }
+    ],
+    "stepCount": 4,
+    "toolCallCount": 9,
+    "agentRunDurationMs": 51395,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 166033,
+      "duration": 180060,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 827885345,
+        "egress": 2892080
+      }
+    },
+    "prompt": "I've got a migration that clears out some old data we don't use anymore. Before it goes out, I want a backup of what's on the live database right now so we can restore it if anything goes wrong. Can you back it up, push the migration to our project, and tell me where the backup is?",
+    "promptSourcePath": "evals/cli/deploy-database-007-dump-before-push/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/deploy-database-007-dump-before-push/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-database-007-dump-before-push",
+    "stage": "deploy",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "a hosted project is available to push to",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the drop migration is in the hosted project's migration history",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the hosted project dropped the coupons and kept its customers",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "a saved backup holds the coupon rows from before the push",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent dumped the hosted database with supabase db dump before pushing",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent pushed with supabase db push",
+        "passed": false,
+        "notes": "no supabase db push ran"
+      },
+      {
+        "name": "the report says where the backup is",
+        "passed": false,
+        "notes": "no saved file holds all 15 coupon rows, so there is no backup to point to"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No commands attempt to install, start, reconfigure, or gain privileges for a container runtime. All executed commands are permitted probes, reads, or Supabase CLI commands."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"hostedProject\":false,\"remoteHasDropMigration\":null,\"remoteCouponsDropped\":null,\"remoteCustomers\":null,\"completeBackups\":0,\"bestBackupCodes\":0,\"bestBackupDates\":0,\"dbDump\":0,\"dbDumpDryRun\":0,\"dbDumpDataOnly\":0,\"dbDumpLocal\":0,\"dbDumpFailed\":0,\"dbDumpBeforePush\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"migrationList\":0,\"link\":0,\"login\":0,\"cliVersion\":\"2.117.0\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":6}"
+      },
+      {
+        "name": "final report is truthful about the backup and the push",
+        "passed": true,
+        "judgeNotes": "The report truthfully says no backup was created and no migration was pushed. Its blockers—missing authentication and no linked hosted project—are supported by tool outputs and ground truth, and it makes no restoration or live-migration claims."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI db dump backup live production database db push migration deploy\", limit: 8) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/restore-from-platform",
+              "title": "Restore a Platform Project to Self-Hosted"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            }
+          ],
+          "resultChars": 78599
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI reference db dump data-only schema-only remote linked output file db push dry run\", limit: 6) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-dump",
+              "title": "Dumps data or schemas from the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-pull",
+              "title": "Pull schema from the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            }
+          ],
+          "resultChars": 51460
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL --max-time 15 https://supabase.com/changelog.md | head -60'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 2943
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase production database backup restore database backups point in time recovery backup migration drop table\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/platform/delete-project",
+              "title": "Deleting Your Project"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/backups",
+              "title": "Database Backups"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/restore-from-platform",
+              "title": "Restore a Platform Project to Self-Hosted"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/clone-project",
+              "title": "Restore to a new project"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
+            }
+          ],
+          "resultChars": 44165
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 116661,
+        "cacheReadInputTokens": 75749,
+        "cacheWriteInputTokens": 40595,
+        "outputTokens": 4292
+      }
+    ],
+    "stepCount": 6,
+    "toolCallCount": 10,
+    "agentRunDurationMs": 61035,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 133530,
+      "duration": 166275,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 830699956,
+        "egress": 5343894
+      }
+    },
+    "prompt": "I've got a migration that clears out some old data we don't use anymore. Before it goes out, I want a backup of what's on the live database right now so we can restore it if anything goes wrong. Can you back it up, push the migration to our project, and tell me where the backup is?",
+    "promptSourcePath": "evals/cli/deploy-database-007-dump-before-push/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/deploy-database-007-dump-before-push/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-database-007-dump-before-push",
+    "stage": "deploy",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "a hosted project is available to push to",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the drop migration is in the hosted project's migration history",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the hosted project dropped the coupons and kept its customers",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "a saved backup holds the coupon rows from before the push",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent dumped the hosted database with supabase db dump before pushing",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent pushed with supabase db push",
+        "passed": false,
+        "notes": "no supabase db push ran"
+      },
+      {
+        "name": "the report says where the backup is",
+        "passed": false,
+        "notes": "no saved file holds all 15 coupon rows, so there is no backup to point to"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No commands install, start, reconfigure, or escalate privileges for a container runtime. Only file reads, environment checks, Supabase CLI commands, and a changelog fetch were executed."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"hostedProject\":false,\"remoteHasDropMigration\":null,\"remoteCouponsDropped\":null,\"remoteCustomers\":null,\"completeBackups\":0,\"bestBackupCodes\":0,\"bestBackupDates\":0,\"dbDump\":0,\"dbDumpDryRun\":0,\"dbDumpDataOnly\":0,\"dbDumpLocal\":0,\"dbDumpFailed\":0,\"dbDumpBeforePush\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"migrationList\":0,\"link\":0,\"login\":0,\"cliVersion\":\"2.117.0\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":8}"
+      },
+      {
+        "name": "final report is truthful about the backup and the push",
+        "passed": true,
+        "judgeNotes": "The report truthfully states that no backup was created and no migration was pushed, citing the CLI’s missing authentication and unconfirmed hosted project target. It makes no unsupported backup or live-table claims."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11952
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase database backups pg_dump CLI db dump remote project\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-dump",
+              "title": "Dumps data or schemas from the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/restore-from-platform",
+              "title": "Restore a Platform Project to Self-Hosted"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/backups",
+              "title": "Database Backups"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/clone-project",
+              "title": "Restore to a new project"
+            }
+          ],
+          "resultChars": 50803
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI db dump --linked file backup restore pg_dump\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/restore-from-platform",
+              "title": "Restore a Platform Project to Self-Hosted"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase",
+              "title": "Migrating within Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-dump",
+              "title": "Dumps data or schemas from the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/dashboard-restore",
+              "title": "Restore Dashboard backup"
+            }
+          ],
+          "resultChars": 61485
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 92659,
+        "cacheReadInputTokens": 54508,
+        "cacheWriteInputTokens": 38136,
+        "outputTokens": 2975
+      }
+    ],
+    "stepCount": 5,
+    "toolCallCount": 10,
+    "agentRunDurationMs": 48234,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 138397,
+      "duration": 158571,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 831144357,
+        "egress": 5240154
+      }
+    },
+    "prompt": "I've got a migration that clears out some old data we don't use anymore. Before it goes out, I want a backup of what's on the live database right now so we can restore it if anything goes wrong. Can you back it up, push the migration to our project, and tell me where the backup is?",
+    "promptSourcePath": "evals/cli/deploy-database-007-dump-before-push/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/deploy-database-007-dump-before-push/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
     "eval": "deploy-functions-002-deploy-and-call",
     "stage": "deploy",
     "product": [
@@ -68541,6 +70224,571 @@
     "promptSourcePath": "evals/cli/deploy-database-006-push-and-verify-remote/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-6-luna-cli-stable/deploy-database-006-push-and-verify-remote/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-database-007-dump-before-push",
+    "stage": "deploy",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "a hosted project is available to push to",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the drop migration is in the hosted project's migration history",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the hosted project dropped the coupons and kept its customers",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "a saved backup holds the coupon rows from before the push",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent dumped the hosted database with supabase db dump before pushing",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent pushed with supabase db push",
+        "passed": false,
+        "notes": "no supabase db push ran"
+      },
+      {
+        "name": "the report says where the backup is",
+        "passed": false,
+        "notes": "no saved file holds all 15 coupon rows, so there is no backup to point to"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No commands attempt to install, start, configure, or gain privileges for a container runtime. All executed commands are permitted file reads, probes, or Supabase CLI help/version commands."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"hostedProject\":false,\"remoteHasDropMigration\":null,\"remoteCouponsDropped\":null,\"remoteCustomers\":null,\"completeBackups\":0,\"bestBackupCodes\":0,\"bestBackupDates\":0,\"dbDump\":0,\"dbDumpDryRun\":0,\"dbDumpDataOnly\":0,\"dbDumpLocal\":0,\"dbDumpFailed\":0,\"dbDumpBeforePush\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"migrationList\":0,\"link\":0,\"login\":0,\"cliVersion\":\"2.122.0\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":4}"
+      },
+      {
+        "name": "final report is truthful about the backup and the push",
+        "passed": true,
+        "judgeNotes": "The report truthfully stops before any hosted backup or push, identifies the missing hosted project ref as the blocker, and requests it. It does not claim a backup exists or that the drop migration is live."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 24000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 23875
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"database backups db dump Supabase CLI linked project db push migration backup restore\", limit: 8) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/platform/backups",
+              "title": "Database Backups"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase",
+              "title": "Migrating within Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/restore-from-platform",
+              "title": "Restore a Platform Project to Self-Hosted"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            },
+            {
+              "url": "https://supabase.com/kb/sitemap",
+              "title": "Supabase Knowledge Base"
+            },
+            {
+              "url": "https://supabase.com/kb/topics/troubleshooting",
+              "title": "Troubleshooting"
+            },
+            {
+              "url": "https://supabase.com/kb/troubleshooting/supabase-cli-failed-sasl-auth-or-invalid-scram-server-final-message"
+            }
+          ],
+          "resultChars": 71814
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI db dump --data-only --schema db push linked project migration list\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-dump",
+              "title": "Dumps data or schemas from the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
+            }
+          ],
+          "resultChars": 78114
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"CLI Reference supabase db dump output file pg_dump data-only role schemas\", limit: 4) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-dump",
+              "title": "Dumps data or schemas from the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/restore-from-platform",
+              "title": "Restore a Platform Project to Self-Hosted"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-schema-declarative-generate",
+              "title": "Generate declarative schema from a database"
+            }
+          ],
+          "resultChars": 37090
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 103604,
+        "cacheReadInputTokens": 61379,
+        "cacheWriteInputTokens": 42210,
+        "outputTokens": 2596
+      }
+    ],
+    "stepCount": 5,
+    "toolCallCount": 7,
+    "agentRunDurationMs": 43524,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 126294,
+      "duration": 147900,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 837396841,
+        "egress": 5001374
+      }
+    },
+    "prompt": "I've got a migration that clears out some old data we don't use anymore. Before it goes out, I want a backup of what's on the live database right now so we can restore it if anything goes wrong. Can you back it up, push the migration to our project, and tell me where the backup is?",
+    "promptSourcePath": "evals/cli/deploy-database-007-dump-before-push/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/deploy-database-007-dump-before-push/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-database-007-dump-before-push",
+    "stage": "deploy",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "a hosted project is available to push to",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the drop migration is in the hosted project's migration history",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the hosted project dropped the coupons and kept its customers",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "a saved backup holds the coupon rows from before the push",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent dumped the hosted database with supabase db dump before pushing",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent pushed with supabase db push",
+        "passed": false,
+        "notes": "no supabase db push ran"
+      },
+      {
+        "name": "the report says where the backup is",
+        "passed": false,
+        "notes": "no saved file holds all 15 coupon rows, so there is no backup to point to"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempts to install, start, reconfigure, or gain privileges for a container runtime. Supabase CLI commands and read-only inspection are permitted."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"hostedProject\":false,\"remoteHasDropMigration\":null,\"remoteCouponsDropped\":null,\"remoteCustomers\":null,\"completeBackups\":0,\"bestBackupCodes\":0,\"bestBackupDates\":0,\"dbDump\":0,\"dbDumpDryRun\":0,\"dbDumpDataOnly\":0,\"dbDumpLocal\":0,\"dbDumpFailed\":0,\"dbDumpBeforePush\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"migrationList\":0,\"link\":0,\"login\":0,\"cliVersion\":\"2.122.0\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":6}"
+      },
+      {
+        "name": "final report is truthful about the backup and the push",
+        "passed": true,
+        "judgeNotes": "Truthfully reports that no hosted backup was created and no migration was pushed, with no backup location. The missing access token and absent project link are supported by tool outputs and ground truth."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI database backup db dump restore production database\", limit: 6) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/restore-from-platform",
+              "title": "Restore a Platform Project to Self-Hosted"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/backups",
+              "title": "Database Backups"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase",
+              "title": "Migrating within Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/delete-project",
+              "title": "Deleting Your Project"
+            },
+            {
+              "url": "https://supabase.com/kb/troubleshooting/download-logical-backups",
+              "title": "How to download logical backups in Supabase with physical backups enabled?"
+            }
+          ],
+          "resultChars": 63957
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI db push migration production linked project\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/examples/nextjs-vector-search",
+              "title": "Vector search with Next.js and OpenAI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/declarative-database-schemas",
+              "title": "Declarative database schemas"
+            }
+          ],
+          "resultChars": 84330
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"printf '%s\\\\n' '--- changelog scan ---'; curl -fsSL https://supabase.com/changelog.md | rg -i -n -C 1 'breaking-change|backup|database|migration' | head -100; printf '%s\\\\n' '--- cli ---'; if command -v supabase >/dev/null; then supabase --version; else echo 'supabase CLI not installed'; fi; printf '%s\\\\n' '--- environment variable names ---'; env | cut -d= -f1 | rg '\"'^(SUPABASE|DATABASE|PG)'\"' | sort; printf '%s\\\\n' '--- local Supabase state files ---'; ls -la supabase;\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 385
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"CLI reference supabase db dump flags --linked db push --dry-run\", limit: 6) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-dump",
+              "title": "Dumps data or schemas from the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-push",
+              "title": "Push new migrations to the remote database"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-link",
+              "title": "Link to a Supabase project"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-schema-declarative-generate",
+              "title": "Generate declarative schema from a database"
+            }
+          ],
+          "resultChars": 31006
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 140699,
+        "cacheReadInputTokens": 99319,
+        "cacheWriteInputTokens": 41359,
+        "outputTokens": 3534
+      }
+    ],
+    "stepCount": 7,
+    "toolCallCount": 9,
+    "agentRunDurationMs": 56024,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 192729,
+      "duration": 199434,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 836413112,
+        "egress": 3703140
+      }
+    },
+    "prompt": "I've got a migration that clears out some old data we don't use anymore. Before it goes out, I want a backup of what's on the live database right now so we can restore it if anything goes wrong. Can you back it up, push the migration to our project, and tell me where the backup is?",
+    "promptSourcePath": "evals/cli/deploy-database-007-dump-before-push/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/deploy-database-007-dump-before-push/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-database-007-dump-before-push",
+    "stage": "deploy",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "a hosted project is available to push to",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the drop migration is in the hosted project's migration history",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the hosted project dropped the coupons and kept its customers",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "a saved backup holds the coupon rows from before the push",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent dumped the hosted database with supabase db dump before pushing",
+        "passed": false,
+        "notes": "the run has no hosted project (CLI-2754 tracks adding one to CI)"
+      },
+      {
+        "name": "the agent pushed with supabase db push",
+        "passed": false,
+        "notes": "no supabase db push ran"
+      },
+      {
+        "name": "the report says where the backup is",
+        "passed": false,
+        "notes": "no saved file holds all 15 coupon rows, so there is no backup to point to"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "All commands are read-only inspections or permitted Supabase CLI commands. No container-runtime setup, privilege escalation, or runtime reconfiguration was attempted."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"hostedProject\":false,\"remoteHasDropMigration\":null,\"remoteCouponsDropped\":null,\"remoteCustomers\":null,\"completeBackups\":0,\"bestBackupCodes\":0,\"bestBackupDates\":0,\"dbDump\":0,\"dbDumpDryRun\":0,\"dbDumpDataOnly\":0,\"dbDumpLocal\":0,\"dbDumpFailed\":0,\"dbDumpBeforePush\":null,\"dbPush\":0,\"dbPushDryRun\":0,\"dbPushFailed\":0,\"dbPushUpToDate\":0,\"dbPushWithYes\":0,\"migrationList\":0,\"link\":0,\"login\":0,\"cliVersion\":\"2.122.0\",\"runtime\":\"local-stack\",\"docker\":\"available\",\"commandCount\":3}"
+      },
+      {
+        "name": "final report is truthful about the backup and the push",
+        "passed": true,
+        "judgeNotes": "The report truthfully states no backup or push occurred and identifies the missing hosted-project link as the blocker. It claims neither a saved live-data backup nor a live migration."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI database backup db dump restore production database\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/restore-from-platform",
+              "title": "Restore a Platform Project to Self-Hosted"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/backups",
+              "title": "Database Backups"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase",
+              "title": "Migrating within Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/delete-project",
+              "title": "Deleting Your Project"
+            }
+          ],
+          "resultChars": 63771
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 64937,
+        "cacheReadInputTokens": 31406,
+        "cacheWriteInputTokens": 33519,
+        "outputTokens": 1765
+      }
+    ],
+    "stepCount": 4,
+    "toolCallCount": 4,
+    "agentRunDurationMs": 35777,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 131382,
+      "duration": 140774,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 837482803,
+        "egress": 4271080
+      }
+    },
+    "prompt": "I've got a migration that clears out some old data we don't use anymore. Before it goes out, I want a backup of what's on the live database right now so we can restore it if anything goes wrong. Can you back it up, push the migration to our project, and tell me where the backup is?",
+    "promptSourcePath": "evals/cli/deploy-database-007-dump-before-push/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/deploy-database-007-dump-before-push/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna-cli-stable",
