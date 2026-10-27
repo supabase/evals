@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       experiments:
-        description: "Comma-separated experiment names to run (overrides experiment_suite)"
+        description: "Comma-separated experiment names to run within each selected eval suite"
         required: false
         default: ""
       eval:
@@ -12,11 +12,7 @@ on:
         required: false
         default: ""
       suite:
-        description: "Comma-separated eval suites to run"
-        required: false
-        default: ""
-      experiment_suite:
-        description: "Comma-separated experiment suites to run"
+        description: "Comma-separated suites to run (evals/<suite> with experiments/<suite>)"
         required: false
         default: ""
       runs:
@@ -108,7 +104,6 @@ jobs:
             experiments_override="${{ inputs.experiments }}"
             eval_id="${{ inputs.eval }}"
             suite="${{ inputs.suite }}"
-            experiment_suite="${{ inputs.experiment_suite }}"
             runs="${{ inputs.runs }}"
             timeout_sec="${{ inputs.timeout_sec }}"
             sandbox_concurrency="${{ inputs.sandbox_concurrency }}"
@@ -120,15 +115,10 @@ jobs:
               echo "::error::Set suite or eval to choose which evals to run."
               exit 1
             fi
-            if [ -z "$experiment_suite" ] && [ -z "$experiments_override" ]; then
-              echo "::error::Set experiment_suite or experiments to choose which experiments to run."
-              exit 1
-            fi
           elif [ "${{ github.event_name }}" = "schedule" ]; then
             experiments_override=""
             eval_id=""
             suite="regression,cli"
-            experiment_suite="regression,cli"
             runs="3"
             timeout_sec="720"
             sandbox_concurrency="250"
@@ -139,7 +129,6 @@ jobs:
             experiments_override=""
             eval_id=""
             suite="benchmark,regression,docs,cli"
-            experiment_suite="benchmark,no-skills,regression,docs,cli"
             runs="3"
             timeout_sec="720"
             sandbox_concurrency="250"
@@ -149,7 +138,6 @@ jobs:
           fi
 
           suite_json="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$suite")"
-          experiment_suite_json="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$experiment_suite")"
 
           # run-evals takes priority; run-evals-changed only filters when run-evals is absent.
           # filter_changed drives the changed-eval filter (PR-only, needs a PR diff).
@@ -171,7 +159,6 @@ jobs:
             echo "experiments_override=$experiments_override"
             echo "eval=$eval_id"
             echo "suite=$suite_json"
-            echo "experiment_suite=$experiment_suite_json"
             echo "runs=$runs"
             echo "timeout_sec=$timeout_sec"
             echo "sandbox_concurrency=$sandbox_concurrency"
@@ -256,46 +243,38 @@ jobs:
 
           pairs='[]'
           experiments_override="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "${{ steps.inputs.outputs.experiments_override }}")"
+          checked_suites=" "
           for id in "${matching[@]}"; do
             eval_suite=$(basename "$(dirname "$(compgen -G "evals/*/$id")")")
-            case "$eval_suite" in
-              benchmark) experiment_suites=(benchmark no-skills) ;;
-              regression) experiment_suites=(regression) ;;
-              docs) experiment_suites=(docs) ;;
-              cli) experiment_suites=(cli) ;;
-              docs-nav) experiment_suites=(docs-nav) ;;
-              *) continue ;;
-            esac
-
-            for experiment_suite in "${experiment_suites[@]}"; do
-              # experiment_suite only narrows auto-discovery. An explicit list
-              # runs each experiment in whichever of these suites it belongs to.
-              if [ "$experiments_override" = "[]" ] && ! jq -e --arg suite "$experiment_suite" 'index($suite) != null' \
-                <<< '${{ steps.inputs.outputs.experiment_suite }}' > /dev/null; then
-                continue
+            if [ "$experiments_override" != "[]" ] && [[ "$checked_suites" != *" $eval_suite "* ]]; then
+              available="$(pnpm --silent eval -- list --suite "$eval_suite" | jq -c 'map(split("/")[1])')"
+              missing="$(jq -r --argjson available "$available" '. - $available | join(",")' <<< "$experiments_override")"
+              if [ -n "$missing" ]; then
+                echo "Experiments not found in $eval_suite: $missing" >&2
+                exit 1
               fi
-
-              experiments_json="$(pnpm --silent eval -- list --experiment-suite "$experiment_suite" --eval "$id")"
-              if [ "$experiments_override" != "[]" ]; then
-                experiments_json="$(jq -c --argjson want "$experiments_override" 'map(select(IN($want[])))' <<< "$experiments_json")"
-              fi
-
-              while IFS= read -r experiment; do
-                pairs="$(jq -c \
-                  --arg eval_id "$id" \
-                  --arg experiment "$experiment" \
-                  --arg experiment_suite "$experiment_suite" \
-                  --arg eval_suite "$eval_suite" \
-                  '. + [{eval_id: $eval_id, experiment: $experiment, experiment_suite: $experiment_suite, eval_suite: $eval_suite}]' \
-                  <<< "$pairs")"
-              done < <(jq -r '.[]' <<< "$experiments_json")
-            done
+              checked_suites+="$eval_suite "
+            fi
+            experiments_json="$(pnpm --silent eval -- list --suite "$eval_suite" --eval "$id" | jq -c --argjson want "$experiments_override" 'map(split("/")[1]) | if $want == [] then . else map(select(IN($want[]))) end')"
+            while IFS= read -r experiment; do
+              pairs="$(jq -c \
+                --arg eval_id "$id" \
+                --arg experiment "$experiment" \
+                --arg eval_suite "$eval_suite" \
+                '. + [{eval_id: $eval_id, experiment: $experiment, eval_suite: $eval_suite}]' \
+                <<< "$pairs")"
+            done < <(jq -r '.[]' <<< "$experiments_json")
           done
 
-          unmatched="$(jq -r --argjson pairs "$pairs" '. - ($pairs | map(.experiment)) | join(",")' <<< "$experiments_override")"
-          if [ -n "$unmatched" ]; then
-            echo "Experiments not in any suite for the selected evals: $unmatched" >&2
-            exit 1
+          if [ "$experiments_override" != "[]" ]; then
+            for suite in $checked_suites; do
+              matched="$(jq -c --arg suite "$suite" '[.[] | select(.eval_suite == $suite) | .experiment] | unique' <<< "$pairs")"
+              unmatched="$(jq -r --argjson matched "$matched" '. - $matched | join(",")' <<< "$experiments_override")"
+              if [ -n "$unmatched" ]; then
+                echo "Experiments that match no selected evals in $suite: $unmatched" >&2
+                exit 1
+              fi
+            done
           fi
 
           if [ "$(jq 'length' <<< "$pairs")" -eq 0 ]; then
@@ -463,7 +442,7 @@ jobs:
             fi
             found="$(jq 'length' <<< "$actual")"
             [ "$actual" = "$required" ] || missing+=("$key ($found/$expected runs)")
-          done < <(jq -r '.[] | "\(.experiment)__\(.eval_id)"' <<< "$pairs")
+          done < <(jq -r '.[] | "\(.eval_suite)__\(.experiment)__\(.eval_id)"' <<< "$pairs")
 
           echo "count=${#missing[@]}" >> "$GITHUB_OUTPUT"
 
@@ -500,12 +479,14 @@ jobs:
 
           mkdir -p results
           pairs='${{ needs.prepare.outputs.pairs }}'
-          while IFS= read -r experiment; do
-            mkdir -p "results/$experiment"
-            for artifact_dir in "results/downloaded/raw-results-${experiment}__"*/; do
-              [ -d "$artifact_dir" ] && cp -R "$artifact_dir"/. "results/$experiment"/
+          while IFS= read -r ref; do
+            folder="${ref%%/*}"
+            experiment="${ref#*/}"
+            mkdir -p "results/$folder/$experiment"
+            for artifact_dir in "results/downloaded/raw-results-${folder}__${experiment}__"*/; do
+              [ -d "$artifact_dir" ] && cp -R "$artifact_dir"/. "results/$folder/$experiment"/
             done
-          done < <(jq -r '.[].experiment' <<< "$pairs" | sort -u)
+          done < <(jq -r '.[] | "\(.eval_suite)/\(.experiment)"' <<< "$pairs" | sort -u)
 
           if jq -e 'any(.[]; .eval_suite == "benchmark")' <<< "$pairs" > /dev/null; then
             export_args=(--suite benchmark --runs "${{ needs.prepare.outputs.runs }}" --output apps/web/src/data/eval-results.json)

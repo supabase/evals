@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import { makeResult } from "@/lib/eval-results.fixture"
 import {
   EXPERIMENT_SUITES,
+  getSuiteResults,
   JOURNEY_STAGES,
   UNASSIGNED_PRODUCT,
   getEvalIds,
@@ -182,14 +183,13 @@ describe("the exported results", () => {
     expect(Array.from(new Set(unknown))).toEqual([])
   })
 
-  it("only carries suites the suite control can select", () => {
-    const suites = new Set(
-      sortedResults.map((result) => result.experimentSuite)
+  it("splits runs into with and without skills", () => {
+    const counts = EXPERIMENT_SUITES.map(
+      (suite) => getSuiteResults(suite).length
     )
 
-    expect(Array.from(suites).sort()).toEqual(
-      [...EXPERIMENT_SUITES].sort((a, b) => a.localeCompare(b))
-    )
+    expect(counts.every((count) => count > 0)).toBe(true)
+    expect(counts.reduce((a, b) => a + b, 0)).toBe(sortedResults.length)
   })
 
   it("is in canonical order", () => {

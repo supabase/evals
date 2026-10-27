@@ -4,15 +4,10 @@ import { existsSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { rawEvalResultSchema } from '@supabase-evals/core/eval-metadata';
-import type {
-  EvalResult,
-  EvalSuite,
-  ExperimentSuite,
-} from '@supabase-evals/core/eval-metadata';
+import type { EvalResult, EvalSuite } from '@supabase-evals/core/eval-metadata';
 import {
   normalizeExperimentName,
   positiveInteger,
-  readExperimentSuiteFilters,
   readFlag,
   readRepeatedFlag,
   readSuiteFilters,
@@ -45,7 +40,6 @@ const EXPERIMENT_FILTERS = readRepeatedFlag(rawArgs, 'experiment').map(
 );
 const EVAL_FILTERS = readRepeatedFlag(rawArgs, 'eval');
 const SUITE_FILTERS = readSuiteFilters(rawArgs);
-const EXPERIMENT_SUITE_FILTERS = readExperimentSuiteFilters(rawArgs);
 const MERGE = rawArgs.includes('--merge');
 // Opt-in completeness guard. Off by default so ad-hoc single-run exports still
 // work; pass the same `--runs` the harness ran with to skip partial pairs.
@@ -60,14 +54,8 @@ export function toEvalResult(
   promptData: PromptData,
   experimentData: ExperimentMetadata | undefined
 ): EvalResult {
-  const experimentSuite =
-    parsedResult.experimentSuite ??
-    parsedResult.profile ??
-    experimentData?.suites[0];
-
   return {
     experiment: parsedResult.experiment,
-    experimentSuite,
     experimentDisplay:
       parsedResult.experimentDisplay ?? experimentData?.display,
     eval: parsedResult.eval,
@@ -101,7 +89,9 @@ function shouldIncludeExperiment(experiment: string): boolean {
     return true;
   }
 
-  return EXPERIMENT_FILTERS.includes(normalizeExperimentName(experiment));
+  return EXPERIMENT_FILTERS.includes(
+    normalizeExperimentName(experiment.split('/').at(-1) ?? '')
+  );
 }
 
 function shouldIncludeEval(evalId: string): boolean {
@@ -118,19 +108,6 @@ function shouldIncludeSuite(suite: EvalSuite | undefined): boolean {
   }
 
   return suite !== undefined && SUITE_FILTERS.includes(suite);
-}
-
-function shouldIncludeExperimentSuite(
-  experimentSuite: ExperimentSuite | undefined
-): boolean {
-  if (EXPERIMENT_SUITE_FILTERS.length === 0) {
-    return true;
-  }
-
-  return (
-    experimentSuite !== undefined &&
-    EXPERIMENT_SUITE_FILTERS.includes(experimentSuite)
-  );
 }
 
 async function loadEvalResults(): Promise<EvalResult[]> {
@@ -152,10 +129,7 @@ async function loadEvalResults(): Promise<EvalResult[]> {
       promptCache.get(file.result.eval),
       experimentMetadata.get(file.result.experiment)
     );
-    if (
-      shouldIncludeSuite(result.suite) &&
-      shouldIncludeExperimentSuite(result.experimentSuite)
-    ) {
+    if (shouldIncludeSuite(result.suite)) {
       results.push(result);
     }
   }
@@ -173,8 +147,7 @@ async function main() {
   const hasFilters =
     EXPERIMENT_FILTERS.length > 0 ||
     EVAL_FILTERS.length > 0 ||
-    SUITE_FILTERS.length > 0 ||
-    EXPERIMENT_SUITE_FILTERS.length > 0;
+    SUITE_FILTERS.length > 0;
 
   if (hasFilters && newResults.length === 0) {
     throw new Error('no result files matched the requested export filters');
@@ -205,8 +178,17 @@ async function main() {
     const replaced = new Set(
       exportable.map((r) => `${r.experiment}::${r.eval}`)
     );
+    const normalizedExisting = existing.map((row) => ({
+      ...row,
+      experiment:
+        row.experiment.includes('/') || !row.suite
+          ? row.experiment
+          : `${row.suite}/${row.experiment}`,
+    }));
     results = [
-      ...existing.filter((r) => !replaced.has(`${r.experiment}::${r.eval}`)),
+      ...normalizedExisting.filter(
+        (r) => !replaced.has(`${r.experiment}::${r.eval}`)
+      ),
       ...exportable,
     ].sort(
       (a, b) =>

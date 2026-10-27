@@ -12,7 +12,6 @@ export function makeResult(
   return {
     eval: evalId,
     experiment: "claude-code-sonnet-5",
-    experimentSuite: "benchmark",
     passed: true,
     sourcePath: `claude-code-sonnet-5/${evalId}.json`,
     category: "build",
