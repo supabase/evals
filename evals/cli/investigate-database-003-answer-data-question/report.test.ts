@@ -15,12 +15,15 @@ const STACK: StackProbe = {
   runtime: 'native',
 };
 
+const EDITED_CUSTOMER_MD5 = 'f21df03dc6959a9d06d992e80dc20757';
+const REASSIGNED_ORDER_MD5 = '2630f9a0232fa76f6a40ef767f6ca793';
+
 const SEEDED_PROBE: SeededDataProbe = {
   ok: true,
   customers: SEEDED.customers,
   orders: SEEDED.orders,
-  orderTotalCents: SEEDED.orderTotalCents,
-  neverOrdered: SEEDED.neverOrdered,
+  customerRowsMd5: SEEDED.customerRowsMd5,
+  orderRowsMd5: SEEDED.orderRowsMd5,
 };
 
 const run = (overrides: Partial<DbQueryRun> = {}): DbQueryRun => ({
@@ -152,9 +155,9 @@ describe('describeGroundTruth', () => {
   });
 
   describe('the seeded data', () => {
-    it('says yes when every count is the seeded one', () => {
-      expect(line(lines(), DATA_LINE)).toMatch(
-        /^- seeded data unchanged: yes\b/
+    it('says yes, with the counts, when the counts and both checksums are the seeded ones', () => {
+      expect(line(lines(), DATA_LINE)).toBe(
+        '- seeded data unchanged: yes (1200 customers, 1800 orders)'
       );
     });
 
@@ -162,27 +165,27 @@ describe('describeGroundTruth', () => {
       [
         'a customer was deleted',
         { customers: SEEDED.customers - 1 },
-        ['1199', '1200'],
-      ],
-      ['an order was added', { orders: SEEDED.orders + 1 }, ['1801', '1800']],
-      [
-        'an order total changed',
-        { orderTotalCents: SEEDED.orderTotalCents + 1 },
-        ['17713301', '17713300'],
+        ['customers 1199 (seeded 1200)'],
       ],
       [
-        'the never-ordered count changed',
-        { neverOrdered: SEEDED.neverOrdered - 1 },
-        ['262', '263'],
+        'an order was added',
+        { orders: SEEDED.orders + 1 },
+        ['orders 1801 (seeded 1800)'],
       ],
-    ])('says no, with the counts, when %s', (_label, overrides, numbers) => {
-      const text =
-        line(lines({ data: { ...SEEDED_PROBE, ...overrides } }), DATA_LINE) ??
-        '';
-      expect(text).toMatch(/^- seeded data unchanged: no\b/);
-      for (const number of numbers) {
-        expect(text).toContain(number);
-      }
+      [
+        'a customer name was edited',
+        { customerRowsMd5: EDITED_CUSTOMER_MD5 },
+        ['customer rows differ from the seed'],
+      ],
+      [
+        'an order was reassigned to another customer',
+        { orderRowsMd5: REASSIGNED_ORDER_MD5 },
+        ['order rows differ from the seed'],
+      ],
+    ])('says no, with the difference, when %s', (_label, overrides, notes) => {
+      expect(
+        line(lines({ data: { ...SEEDED_PROBE, ...overrides } }), DATA_LINE)
+      ).toBe(`- seeded data unchanged: no (${notes.join('; ')})`);
     });
 
     it('says unknown, with the reason, when the probe failed', () => {

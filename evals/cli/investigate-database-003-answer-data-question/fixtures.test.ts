@@ -138,6 +138,8 @@ describe('fixture constants', () => {
       orderTotalCents: 17_713_300,
       customersWithOrders: 937,
       neverOrdered: 263,
+      customerRowsMd5: '3c6f39b6c129b02f75c591f4d9241008',
+      orderRowsMd5: '990777a6ca755d87935959997d3d1165',
     });
   });
 });
@@ -171,22 +173,20 @@ describe('the facts recomputed from the seed formulas', () => {
   });
 });
 
+const asUuid = (hex: string) =>
+  [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    hex.slice(12, 16),
+    hex.slice(16, 20),
+    hex.slice(20),
+  ].join('-');
+
+const [firstNames, lastNames] = [
+  ...read(`local/${SEED_FILE}`).matchAll(/array\[([^\]]*)\]/g),
+].map(([, items]) => [...items.matchAll(/'([^']*)'/g)].map(([, item]) => item));
+
 describe('the seeded customers as a listing shows them', () => {
-  const [firstNames, lastNames] = [
-    ...read(`local/${SEED_FILE}`).matchAll(/array\[([^\]]*)\]/g),
-  ].map(([, items]) =>
-    [...items.matchAll(/'([^']*)'/g)].map(([, item]) => item)
-  );
-
-  const asUuid = (hex: string) =>
-    [
-      hex.slice(0, 8),
-      hex.slice(8, 12),
-      hex.slice(12, 16),
-      hex.slice(16, 20),
-      hex.slice(20),
-    ].join('-');
-
   const customerRows = Array.from({ length: SEEDED.customers }, (_, i) => {
     const n = i + 1;
     const first = firstNames[n % firstNames.length];
@@ -226,6 +226,77 @@ describe('the seeded customers as a listing shows them', () => {
 
   it('would print it for the old customer-263 style rows, so the guard can fail', () => {
     expect(showsAnswerValue('{"full_name":"Customer 263"}')).toBe(true);
+  });
+});
+
+describe('the checksums of the seeded rows, rebuilt from the seed model', () => {
+  const START = {
+    customers: { epoch: Date.UTC(2025, 0, 1) / 1000, hours: 6 },
+    orders: { epoch: Date.UTC(2025, 1, 1) / 1000, hours: 4 },
+  };
+
+  const field = (value: string | number) => {
+    const text = String(value);
+    return /[\s,"\\()]/.test(text)
+      ? `"${text.replaceAll('\\', '\\\\').replaceAll('"', '""')}"`
+      : text;
+  };
+
+  const record = (...fields: Array<string | number>) =>
+    `(${fields.map(field).join(',')})`;
+
+  const customerRecords = Array.from({ length: SEEDED.customers }, (_, i) => {
+    const n = i + 1;
+    const id = asUuid(md5(`customer-${n}`));
+    const first = firstNames[n % firstNames.length];
+    const last = lastNames[n % lastNames.length];
+    const epoch = START.customers.epoch + n * START.customers.hours * 3600;
+    return {
+      id,
+      text: record(
+        id,
+        `${first}.${last}${n}@example.com`.toLowerCase(),
+        `${first} ${last}`,
+        epoch
+      ),
+    };
+  }).sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+
+  const orderRecords = orderNumbers
+    .map((n) => {
+      const epoch = START.orders.epoch + n * START.orders.hours * 3600;
+      return {
+        epoch,
+        text: record(
+          asUuid(md5(`customer-${customerNumberOfOrder(n)}`)),
+          500 + ((n * 37) % 20000),
+          epoch
+        ),
+      };
+    })
+    .sort((a, b) => a.epoch - b.epoch);
+
+  it('prints a customer row as a Postgres record, quoting the name and writing the time as epoch seconds', () => {
+    expect(customerRecords[0].text).toBe(
+      '(0028786a-d34e-724a-eb88-9e5745fff9e0,ada.reyes948@example.com,"Ada Reyes",1756166400)'
+    );
+  });
+
+  it('hashes the customer rows, ordered by id, to the seeded customer checksum', () => {
+    expect(md5(customerRecords.map(({ text }) => text).join(','))).toBe(
+      SEEDED.customerRowsMd5
+    );
+  });
+
+  it('hashes the order rows, ordered by creation time and without the order id, to the seeded order checksum', () => {
+    expect(md5(orderRecords.map(({ text }) => text).join(','))).toBe(
+      SEEDED.orderRowsMd5
+    );
+  });
+
+  it('gives the seeded checksums as 32 lowercase hex digits', () => {
+    expect(SEEDED.customerRowsMd5).toMatch(/^[0-9a-f]{32}$/);
+    expect(SEEDED.orderRowsMd5).toMatch(/^[0-9a-f]{32}$/);
   });
 });
 

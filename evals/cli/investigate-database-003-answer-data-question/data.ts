@@ -6,20 +6,25 @@ import { SEEDED } from './fixtures.js';
 
 export const DATA_CHECK = 'the seeded customers and orders are unchanged';
 
-export const SEEDED_DATA_SQL =
-  "select (select count(*) from public.customers) || '|' || (select count(*) from public.orders) || '|' || (select coalesce(sum(total_cents), 0) from public.orders) || '|' || (select count(*) from public.customers c where not exists (select 1 from public.orders o where o.customer_id = c.id))";
+/** Order ids are random per seed, so the order checksum leaves them out; timestamps are epoch seconds so the TimeZone setting cannot change the text. */
+export const SEEDED_DATA_SQL = [
+  'select (select count(*) from public.customers)',
+  '(select count(*) from public.orders)',
+  "(select md5(coalesce(string_agg(row(id, email, full_name, extract(epoch from created_at)::bigint)::text, ',' order by id), '')) from public.customers)",
+  "(select md5(coalesce(string_agg(row(customer_id, total_cents, extract(epoch from created_at)::bigint)::text, ',' order by created_at, customer_id, total_cents), '')) from public.orders)",
+].join(" || '|' || ");
 
 export type SeededData = {
   customers: number;
   orders: number;
-  orderTotalCents: number;
-  neverOrdered: number;
+  customerRowsMd5: string;
+  orderRowsMd5: string;
 };
 export type SeededDataProbe =
   | ({ ok: true } & SeededData)
   | { ok: false; notes: string };
 
-const ROW_RE = /^(\d+)\|(\d+)\|(\d+)\|(\d+)$/;
+const ROW_RE = /^(\d+)\|(\d+)\|([0-9a-f]{32})\|([0-9a-f]{32})$/;
 
 export function parseSeededData(stdout: string): SeededDataProbe {
   const output = stdout.trim();
@@ -34,8 +39,8 @@ export function parseSeededData(stdout: string): SeededDataProbe {
     ok: true,
     customers: Number(match[1]),
     orders: Number(match[2]),
-    orderTotalCents: Number(match[3]),
-    neverOrdered: Number(match[4]),
+    customerRowsMd5: match[3],
+    orderRowsMd5: match[4],
   };
 }
 
@@ -45,18 +50,18 @@ export const readSeededData = (
 ): Promise<SeededDataProbe> =>
   queryDatabase(ctx, stack, SEEDED_DATA_SQL, parseSeededData);
 
-const FIELDS = [
-  ['customers', 'customers', SEEDED.customers],
-  ['orders', 'orders', SEEDED.orders],
-  ['orderTotalCents', 'order total cents', SEEDED.orderTotalCents],
-  ['neverOrdered', 'customers who never ordered', SEEDED.neverOrdered],
-] as const;
-
-/** One entry per figure that differs from the seeded one, empty when none does. */
-export const describeSeededChanges = (data: SeededData): string[] =>
-  FIELDS.filter(([key, , seeded]) => data[key] !== seeded).map(
-    ([key, label, seeded]) => `${label} ${data[key]} (seeded ${seeded})`
-  );
+/** One entry per count or row checksum that differs from the seeded one, counts first, empty when none does. */
+export const describeSeededChanges = (data: SeededData): string[] => [
+  ...(['customers', 'orders'] as const)
+    .filter((key) => data[key] !== SEEDED[key])
+    .map((key) => `${key} ${data[key]} (seeded ${SEEDED[key]})`),
+  ...(data.customerRowsMd5 === SEEDED.customerRowsMd5
+    ? []
+    : ['customer rows differ from the seed']),
+  ...(data.orderRowsMd5 === SEEDED.orderRowsMd5
+    ? []
+    : ['order rows differ from the seed']),
+];
 
 export function checkSeededDataUnchanged(probe: SeededDataProbe): CheckResult {
   const name = DATA_CHECK;

@@ -60,6 +60,19 @@ const WRAPPER_FLAG_RE = /^-\S*c\S*$/;
 const MAX_UNWRAP_DEPTH = 3;
 const FILE_REDIRECTS = new Set(['>', '>>']);
 const DATABASE_CLIENTS = new Set(['psql', 'pgcli', 'usql', 'pg_dump']);
+const QUIET_BUILTINS = new Set([
+  'cd',
+  'export',
+  'set',
+  'unset',
+  'true',
+  'false',
+  'sleep',
+]);
+const PRINTING_BUILTINS = new Set(['echo', 'printf']);
+const COMPUTED_TEXT_RE = /[\d$`]/;
+const INFO_FLAGS = new Set([...HELP_FLAGS, '--version']);
+const PACKAGE_RUNNERS = new Set(['npx', 'bunx']);
 const LINE_CONTINUATION_RE = /\\\r?\n/g;
 // The segmenter drops its delimiters, so a pipe is read from the text between two segments.
 const PIPE_GAP_RE = /^\s*\|&?\s*$/;
@@ -154,7 +167,8 @@ type Stage = {
 };
 
 /** The executable segments of `command`, each tokenized and marked when a pipe joins it to the one before; undefined when anything fails to parse or locate. */
-function commandStages(command: string): Stage[] | undefined {
+function commandStages(source: string): Stage[] | undefined {
+  const command = source.replace(LINE_CONTINUATION_RE, ' ');
   const text = unwrapShell(command);
   if (text === undefined) return undefined;
   const stages: Stage[] = [];
@@ -208,7 +222,7 @@ const isDatabaseClientSegment = (segment: string): boolean =>
 
 /** The files the `supabase db query` segment of `command`, and the pipeline stages after it up to a database client, write with `>`, `>>`, `&>` or `tee`, in the order written; fd duplications such as `2>&1`, `/dev/null` and other commands' redirects are not. */
 export function savedOutputPaths(command: string): string[] {
-  const stages = commandStages(command.replace(LINE_CONTINUATION_RE, ' '));
+  const stages = commandStages(command);
   if (stages === undefined) return [];
   const paths: string[] = [];
   let downstream = false;
@@ -268,7 +282,90 @@ export function findSavedOutputReads(
   });
 }
 
-/** Settles the check when no run happened or a run or a read of its saved output printed the count, and leaves the rest to the judge. */
+const stringWords = (tokens: readonly ParseEntry[]): string[] => {
+  const words: string[] = [];
+  for (const token of tokens) {
+    if (typeof token !== 'string') break;
+    words.push(token);
+  }
+  return words;
+};
+
+function supabaseArgs(words: readonly string[]): string[] | undefined {
+  const [first = '', ...rest] = words;
+  if (basename(first) === 'supabase') return rest;
+  if (!PACKAGE_RUNNERS.has(basename(first))) return undefined;
+  const at = rest.findIndex((word) => !word.startsWith('-'));
+  return at !== -1 && basename(rest[at]) === 'supabase'
+    ? rest.slice(at + 1)
+    : undefined;
+}
+
+/** A `supabase` stage that only asks for help or the version, so it prints no data. */
+function isInfoRequest({ tokens }: Stage): boolean {
+  const args = supabaseArgs(stringWords(tokens));
+  return (
+    args !== undefined &&
+    (args.some((arg) => INFO_FLAGS.has(arg)) ||
+      args.find((arg) => !arg.startsWith('-')) === 'help')
+  );
+}
+
+/** A stage that cannot print a number: a quiet builtin, an echo or printf of plain text, or a help or version request. */
+function isInertStage(stage: Stage): boolean {
+  const word = leadingWord(stage.segment) ?? '';
+  if (QUIET_BUILTINS.has(word)) return true;
+  if (PRINTING_BUILTINS.has(word)) return !COMPUTED_TEXT_RE.test(stage.segment);
+  return isInfoRequest(stage);
+}
+
+function pipelines(stages: readonly Stage[]): Stage[][] {
+  const groups: Stage[][] = [];
+  for (const stage of stages) {
+    if (stage.piped) groups[groups.length - 1].push(stage);
+    else groups.push([stage]);
+  }
+  return groups;
+}
+
+/** Whether `command` prints a 263 it can only have taken from its source: no 263 typed in it, and every pipeline either reads the source without a database client or is inert. */
+function printsOnlySourceResult(
+  command: string,
+  isSource: (segment: string) => boolean
+): boolean {
+  if (showsAnswerValue(command)) return false;
+  const stages = commandStages(command);
+  return (
+    stages !== undefined &&
+    pipelines(stages).every(
+      (pipeline) =>
+        !pipeline.some(({ segment }) => isDatabaseClientSegment(segment)) &&
+        (pipeline.some(({ segment }) => isSource(segment)) ||
+          isInertStage(pipeline[0]))
+    )
+  );
+}
+
+function runSettlesCheck(run: DbQueryRun): boolean {
+  const saved = savedOutputPaths(run.command);
+  return (
+    run.showsAnswer &&
+    printsOnlySourceResult(
+      run.command,
+      (segment) =>
+        isDbQuerySegment(segment) ||
+        saved.some((path) => mentionsPath(segment, path))
+    )
+  );
+}
+
+const readSettlesCheck = (read: SavedOutputRead): boolean =>
+  read.showsAnswer &&
+  printsOnlySourceResult(read.command, (segment) =>
+    mentionsPath(segment, read.path)
+  );
+
+/** Settles the check when no run happened or a run or a read of its saved output printed the count with nothing else in the call able to print it, and leaves the rest to the judge. */
 export function gateAnswerSource(
   runs: readonly DbQueryRun[],
   reads: readonly SavedOutputRead[]
@@ -277,7 +374,7 @@ export function gateAnswerSource(
   if (runs.length === 0) {
     return { name, passed: false, notes: 'no supabase db query ran' };
   }
-  const found = runs.find(({ showsAnswer }) => showsAnswer);
+  const found = runs.find(runSettlesCheck);
   if (found !== undefined) {
     return {
       name,
@@ -285,7 +382,7 @@ export function gateAnswerSource(
       notes: `tool call ${found.commandIndex + 1} ran supabase db query and printed ${SEEDED.neverOrdered}`,
     };
   }
-  const foundRead = reads.find(({ showsAnswer }) => showsAnswer);
+  const foundRead = reads.find(readSettlesCheck);
   return foundRead === undefined
     ? undefined
     : {
@@ -327,7 +424,7 @@ const assistantTexts = (parts: readonly TranscriptPart[]): string[] =>
       : []
   );
 
-/** Every non-empty assistant message after the last tool call, joined; the last non-empty one overall when none follows it. */
+/** Every non-empty assistant message after the last tool call, joined with a blank line; undefined when none follows it. */
 export function finalReply(
   transcript: readonly TranscriptPart[]
 ): string | undefined {
@@ -335,9 +432,7 @@ export function finalReply(
     .map(({ type }) => type)
     .lastIndexOf('tool_call');
   const after = assistantTexts(transcript.slice(lastToolCall + 1));
-  return after.length > 0
-    ? after.join('\n\n')
-    : assistantTexts(transcript).at(-1);
+  return after.length > 0 ? after.join('\n\n') : undefined;
 }
 
 export function checkReplyGivesCount(reply: string | undefined): CheckResult {

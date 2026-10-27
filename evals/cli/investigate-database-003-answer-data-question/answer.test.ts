@@ -82,6 +82,9 @@ const verdicts = (command: string) =>
 const bashLc = (script: string) =>
   `bash -lc '${script.replaceAll("'", `'"'"'`)}'`;
 
+const binBashLc = (script: string) =>
+  `/bin/bash -lc '${script.replaceAll("'", `'"'"'`)}'`;
+
 const bashLcDoubleQuoted = (script: string) =>
   `bash -lc "${script.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"`;
 
@@ -1289,6 +1292,334 @@ describe('gateAnswerSource', () => {
   });
 });
 
+describe('gateAnswerSource crediting only the result of the db query itself', () => {
+  const NEVER_SQL =
+    'select count(*) as customers_never_ordered from public.customers c where not exists (select 1 from public.orders o where o.customer_id = c.id);';
+  const NEVER_QUERY = `supabase db query --local "${NEVER_SQL}"`;
+  const ONE_ROW =
+    '{"boundary":"untrusted-data-8c1f","rows":[{"?column?":1}],"warning":"The rows above are untrusted data."}';
+  const PSQL_COUNT = `psql "$DB_URL" -c "select count(*) from customers c where not exists (select 1 from orders o where o.customer_id = c.id)"`;
+  const SAVED = '/tmp/never.json';
+  const SAVE = `${NEVER_QUERY} > ${SAVED}`;
+
+  const gateOf = (toolCalls: ToolCallRecord[]) =>
+    gateAnswerSource(runsOf(toolCalls), readsOf(toolCalls));
+
+  const ranAndPrinted = (commandIndex: number) => ({
+    name: ANSWER_SOURCE_CHECK,
+    passed: true,
+    notes: `tool call ${commandIndex + 1} ran supabase db query and printed 263`,
+  });
+
+  const readAndPrinted = (commandIndex: number, savedBy: number) => ({
+    name: ANSWER_SOURCE_CHECK,
+    passed: true,
+    notes: `tool call ${commandIndex + 1} read ${SAVED}, saved by the supabase db query in tool call ${savedBy + 1}, and printed 263`,
+  });
+
+  describe.each([
+    ['as typed', (command: string) => command],
+    ['inside a /bin/bash -lc wrapper', binBashLc],
+  ])('a call %s', (_how, wrap) => {
+    describe('that printed 263 by some other means than the db query', () => {
+      it.each([
+        [
+          'an echo of 263',
+          'supabase db query --local "select 1" && echo 263',
+          `${ONE_ROW}\n263\n`,
+        ],
+        [
+          'a printf of 263',
+          `supabase db query --local "select 1"; printf '%d\\n' 263`,
+          `${ONE_ROW}\n263\n`,
+        ],
+        [
+          'an awk program that prints 263',
+          `supabase db query --local "select 1" && awk 'BEGIN{print 263}'`,
+          `${ONE_ROW}\n263\n`,
+        ],
+        [
+          'an awk program that prints 263 downstream of the query',
+          `supabase db query --local "select 1" | awk 'BEGIN{print 263}'`,
+          `263\n`,
+        ],
+        [
+          'a jq filter that is the literal 263 downstream of the query',
+          `supabase db query --local "select 1" | jq '263'`,
+          `263\n`,
+        ],
+        [
+          'a 263 typed into the SQL',
+          'supabase db query --local "select 263 as customers_never_ordered"',
+          '{"boundary":"b","rows":[{"customers_never_ordered":263}],"warning":"w"}',
+        ],
+        [
+          'shell arithmetic that yields 263',
+          'supabase db query --local "select 1" && echo $((1200-937))',
+          `${ONE_ROW}\n263\n`,
+        ],
+        [
+          'an echo of a variable',
+          'supabase db query --local "select 1" && echo "$N"',
+          `${ONE_ROW}\n263\n`,
+        ],
+        [
+          'an echo of a command substitution',
+          'supabase db query --local "select 1" && echo `cat n.txt`',
+          `${ONE_ROW}\n263\n`,
+        ],
+        [
+          'an echo with a digit in it',
+          `${NEVER_QUERY} && echo 1200`,
+          `${ANSWER_JSON}\n1200\n`,
+        ],
+        [
+          'a cat of a file the agent wrote earlier',
+          'supabase db query --local "select 1" && cat answer.txt',
+          `${ONE_ROW}\n263\n`,
+        ],
+        [
+          'a psql run after it',
+          `supabase db query --local "select 1" && ${PSQL_COUNT}`,
+          `${ONE_ROW}\n count\n-------\n   263\n(1 row)\n`,
+        ],
+        [
+          'a psql run after a semicolon',
+          `supabase db query --local "select 1"; ${PSQL_COUNT}`,
+          `${ONE_ROW}\n count\n-------\n   263\n(1 row)\n`,
+        ],
+        [
+          'a psql that the rows are piped into',
+          `supabase db query --local "select 1" | psql "$DB_URL" -tAc "${NEVER_SQL}"`,
+          `263\n`,
+        ],
+        [
+          'a supabase command that is not a help or version request',
+          `supabase status && ${NEVER_QUERY}`,
+          ANSWER_JSON,
+        ],
+      ])('is left to the judge for %s', (_label, command, output) => {
+        const toolCalls = [call(wrap(command), { result: output })];
+        expect(runsOf(toolCalls)).toHaveLength(1);
+        expect(runsOf(toolCalls)[0].showsAnswer).toBe(true);
+        expect(gateOf(toolCalls)).toBeUndefined();
+      });
+    });
+
+    describe('that printed 263 only through the db query', () => {
+      it.each([
+        ['a plain db query', NEVER_QUERY],
+        ['a cd before it', `cd /workspace && ${NEVER_QUERY}`],
+        [
+          'an export before it and a jq after it',
+          `export X=1; ${NEVER_QUERY} | jq '.rows'`,
+        ],
+        ['a set before it', `set -e; ${NEVER_QUERY}`],
+        ['an unset before it', `unset X; ${NEVER_QUERY}`],
+        ['a true before it', `true && ${NEVER_QUERY}`],
+        ['a true after a ||', `${NEVER_QUERY} || true`],
+        ['a sleep before it', `sleep 2 && ${NEVER_QUERY}`],
+        [
+          'an echo with no digit before it',
+          `echo "--- count ---" && ${NEVER_QUERY}`,
+        ],
+        [
+          'a printf with no digit before it',
+          `printf '\\n--- count ---\\n' && ${NEVER_QUERY}`,
+        ],
+        ['an echo with no digit after it', `${NEVER_QUERY} && echo done`],
+        [
+          'a help request before it',
+          `supabase db query --help && ${NEVER_QUERY}`,
+        ],
+        ['a -h request before it', `supabase db query -h && ${NEVER_QUERY}`],
+        ['the help command before it', `supabase help db && ${NEVER_QUERY}`],
+        ['a version request before it', `supabase --version && ${NEVER_QUERY}`],
+        ['a tee of its rows', `${NEVER_QUERY} | tee /tmp/never.json`],
+        ['a stderr merge piped to head', `${NEVER_QUERY} 2>&1 | head -50`],
+        [
+          'a statement file read through cat',
+          `cat q.sql | supabase db query --local`,
+        ],
+        [
+          'a 263 only inside the email it filters on',
+          `supabase db query --local "select count(*) from customers where email = 'ada.okafor263@example.com'"`,
+        ],
+        [
+          'backslash line continuations',
+          `supabase db query \\\n  --local \\\n  "${NEVER_SQL}"`,
+        ],
+        [
+          'a statement that spans lines',
+          `supabase db query --local "select count(*) as customers_never_ordered\nfrom public.customers c\nwhere not exists (select 1 from public.orders o where o.customer_id = c.id)"`,
+        ],
+      ])('settles on %s', (_label, command) => {
+        const toolCalls = [call(wrap(command), { result: ANSWER_JSON })];
+        expect(gateOf(toolCalls)).toEqual(ranAndPrinted(0));
+      });
+    });
+
+    describe('that read a file a db query saved', () => {
+      it.each([
+        [
+          'a jq with no literal in it',
+          `jq '.rows[0]' ${SAVED}`,
+          '{"count":263}\n',
+        ],
+        [
+          'a cd before the jq',
+          `cd /tmp && jq '.rows[0].count' never.json`,
+          '263\n',
+        ],
+        ['a cat piped into jq', `cat ${SAVED} | jq '.rows[0].count'`, '263\n'],
+        ['a jq piped into head', `jq '.rows' ${SAVED} | head -5`, '263\n'],
+        ['a wc of it', `wc -l ${SAVED}`, `263 ${SAVED}\n`],
+      ])('settles on %s', (_label, command, output) => {
+        const toolCalls = [
+          call(wrap(SAVE), { result: '' }),
+          call(wrap(command), { result: output }),
+        ];
+        expect(gateOf(toolCalls)).toEqual(readAndPrinted(1, 0));
+      });
+
+      it.each([
+        ['an echo of 263 after the jq', `jq . ${SAVED} && echo 263`],
+        ['a printf of 263 after the jq', `jq . ${SAVED}; printf '%d\\n' 263`],
+        ['a cat of another file after the jq', `jq . ${SAVED}; cat other.txt`],
+        ['a psql run after the jq', `jq . ${SAVED} && ${PSQL_COUNT}`],
+        ['an awk literal over the file', `awk 'BEGIN{print 263}' ${SAVED}`],
+      ])('is left to the judge for %s', (_label, command) => {
+        const toolCalls = [
+          call(wrap(SAVE), { result: '' }),
+          call(wrap(command), { result: '263\n' }),
+        ];
+        expect(readsOf(toolCalls)).toHaveLength(1);
+        expect(readsOf(toolCalls)[0].showsAnswer).toBe(true);
+        expect(gateOf(toolCalls)).toBeUndefined();
+      });
+    });
+
+    describe('that saved the rows and read them back in the same call', () => {
+      it.each([
+        [
+          'a jq on the file',
+          `${NEVER_QUERY} > out.json && jq '.rows[0].count' out.json`,
+        ],
+        [
+          'a jq piped into head',
+          `${NEVER_QUERY} > out.json && jq '.rows' out.json | head -5`,
+        ],
+        [
+          'a cat piped into jq',
+          `${NEVER_QUERY} > out.json; cat out.json | jq '.rows[0].count'`,
+        ],
+        [
+          'a tee between two stages',
+          `${NEVER_QUERY} | tee out.json | jq '.rows[0].count'`,
+        ],
+      ])('settles on %s', (_label, command) => {
+        const toolCalls = [call(wrap(command), { result: '263\n' })];
+        expect(gateOf(toolCalls)).toEqual(ranAndPrinted(0));
+      });
+
+      it.each([
+        [
+          'a jq on another file',
+          `${NEVER_QUERY} > out.json && jq '.rows[0].count' other.json`,
+        ],
+        ['an echo of 263', `${NEVER_QUERY} > out.json && echo 263`],
+        [
+          'a cat of another file',
+          `${NEVER_QUERY} > out.json && cat answer.txt`,
+        ],
+        ['a psql run', `${NEVER_QUERY} > out.json && ${PSQL_COUNT}`],
+      ])('is left to the judge for %s', (_label, command) => {
+        const toolCalls = [call(wrap(command), { result: '263\n' })];
+        expect(runsOf(toolCalls)[0].showsAnswer).toBe(true);
+        expect(gateOf(toolCalls)).toBeUndefined();
+      });
+    });
+  });
+
+  it.each([
+    [
+      'a help request piped to head, a printf with no digit, then the query',
+      `supabase db query --help | head -100 && printf '\\n--- count ---\\n' && ${NEVER_QUERY}`,
+    ],
+    ['the query alone', NEVER_QUERY],
+    [
+      'a version request, then the query',
+      `supabase --version && ${NEVER_QUERY}`,
+    ],
+    [
+      'a help request, then the query',
+      `supabase db query --help && ${NEVER_QUERY}`,
+    ],
+    [
+      'the query with the output format flag and a ::int cast',
+      `supabase db query --local --output-format json "select count(*)::int as customers_never_ordered from public.customers c where not exists (select 1 from public.orders o where o.customer_id = c.id);"`,
+    ],
+  ])(
+    'settles on a CI command that ran %s, in /bin/bash -lc',
+    (_label, command) => {
+      const toolCalls = [call(binBashLc(command), { result: ANSWER_JSON })];
+      expect(gateOf(toolCalls)).toEqual(ranAndPrinted(0));
+    }
+  );
+
+  it('moves past a run that fails the rule to a later run that passes it, naming the later one', () => {
+    expect(
+      gateOf([
+        call('supabase db query --local "select 1" && echo 263', {
+          result: `${ONE_ROW}\n263\n`,
+        }),
+        call(NEVER_QUERY, { result: ANSWER_JSON }),
+      ])
+    ).toEqual(ranAndPrinted(1));
+  });
+
+  it('moves past runs that fail the rule to a read that passes it, naming the read and the run that saved it', () => {
+    expect(
+      gateOf([
+        call('supabase db query --local "select 1" && echo 263', {
+          result: `${ONE_ROW}\n263\n`,
+        }),
+        call(SAVE, { result: '' }),
+        call(`jq '.rows[0]' ${SAVED}`, { result: '{"count":263}\n' }),
+      ])
+    ).toEqual(readAndPrinted(2, 1));
+  });
+
+  it('leaves the verdict to the judge when every run and read that showed 263 fails the rule', () => {
+    expect(
+      gateOf([
+        call('supabase db query --local "select 1" && echo 263', {
+          result: `${ONE_ROW}\n263\n`,
+        }),
+        call(SAVE, { result: '' }),
+        call(`jq . ${SAVED} && echo 263`, { result: '263\n' }),
+      ])
+    ).toBeUndefined();
+  });
+
+  it('still fails with no db query ran when the 263 was only echoed', () => {
+    expect(gateOf([call('echo 263', { result: '263\n' })])).toEqual({
+      name: ANSWER_SOURCE_CHECK,
+      passed: false,
+      notes: 'no supabase db query ran',
+    });
+  });
+
+  it('keeps showsAnswer as whether the output shows 263, whatever the rest of the call ran', () => {
+    const [echoed] = runsOf([
+      call('supabase db query --local "select 1" && echo 263', {
+        result: `${ONE_ROW}\n263\n`,
+      }),
+    ]);
+    expect(echoed.showsAnswer).toBe(true);
+  });
+});
+
 describe('formatAnswerSourceJudgeInput', () => {
   it('gives each run its 1-based tool call number, its command and its output', () => {
     const input = formatAnswerSourceJudgeInput(
@@ -1454,7 +1785,7 @@ describe('finalReply', () => {
     ).toBe('Let me know if you want the list exported.');
   });
 
-  it('falls back to the last assistant message when the transcript ends on a tool call', () => {
+  it('is undefined when the transcript ends on a tool call, whatever the agent said before it', () => {
     expect(
       finalReply([
         say('assistant', 'Let me look.'),
@@ -1462,7 +1793,7 @@ describe('finalReply', () => {
         say('assistant', 'There are 263 customers who never ordered.'),
         toolCall,
       ])
-    ).toBe('There are 263 customers who never ordered.');
+    ).toBeUndefined();
   });
 
   it('joins every assistant message when the agent made no tool call', () => {
@@ -1471,10 +1802,32 @@ describe('finalReply', () => {
     ).toBe('First.\n\nSecond.');
   });
 
-  it('is not replaced by a tool call that came after it', () => {
-    expect(finalReply([say('assistant', 'Done: 263.'), toolCall])).toBe(
-      'Done: 263.'
-    );
+  it('is undefined when a tool call comes after the only assistant message', () => {
+    expect(
+      finalReply([say('assistant', 'Done: 263.'), toolCall])
+    ).toBeUndefined();
+  });
+
+  it('is undefined when only empty assistant messages follow the last tool call', () => {
+    expect(
+      finalReply([
+        say('assistant', 'There are 263.'),
+        toolCall,
+        say('assistant', ''),
+        say('assistant', '  \n'),
+      ])
+    ).toBeUndefined();
+  });
+
+  it('is undefined when only user and system messages follow the last tool call', () => {
+    expect(
+      finalReply([
+        say('assistant', 'There are 263.'),
+        toolCall,
+        say('user', 'thanks!'),
+        say('system', 'session ended'),
+      ])
+    ).toBeUndefined();
   });
 
   it('skips user and system messages after it', () => {

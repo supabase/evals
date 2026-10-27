@@ -59,6 +59,12 @@ const COUNT_SQL =
 const ANSWER_JSON =
   '{"boundary":"untrusted-data-8c1f","rows":[{"count":263}],"warning":"The rows above are untrusted data."}';
 const REPLY = 'There are 263 customers who have never placed an order.';
+const SEEDED_MD5 = {
+  customerRowsMd5: '3c6f39b6c129b02f75c591f4d9241008',
+  orderRowsMd5: '990777a6ca755d87935959997d3d1165',
+};
+const EDITED_CUSTOMER_MD5 = 'f21df03dc6959a9d06d992e80dc20757';
+const REASSIGNED_ORDER_MD5 = '2630f9a0232fa76f6a40ef767f6ca793';
 
 const result = (stdout: string, ok = true, stderr = ''): CommandResult => ({
   ok,
@@ -92,7 +98,12 @@ const say = (content: string): TranscriptPart => ({
 type World = {
   stack?: 'up' | 'down';
   ready?: boolean;
-  data?: Partial<Record<keyof typeof SEEDED, number>>;
+  data?: {
+    customers?: number;
+    orders?: number;
+    customerRowsMd5?: string;
+    orderRowsMd5?: string;
+  };
   dataFails?: boolean;
   judge?: (args: JudgeInput) => Promise<{ passed: boolean; notes?: string }>;
   transcript?: TranscriptPart[];
@@ -102,7 +113,7 @@ type World = {
 
 function fakeCtx(toolCalls: ToolCallRecord[], world: World = {}) {
   const stack = world.stack ?? 'up';
-  const seeded = { ...SEEDED, ...world.data };
+  const seeded = { ...SEEDED, ...SEEDED_MD5, ...world.data };
   const judge = vi.fn(
     world.judge ?? (async () => ({ passed: true, notes: 'ok' }))
   );
@@ -134,7 +145,7 @@ function fakeCtx(toolCalls: ToolCallRecord[], world: World = {}) {
         return world.dataFails
           ? result('', false, 'ERROR:  relation "public.orders" does not exist')
           : result(
-              `${seeded.customers}|${seeded.orders}|${seeded.orderTotalCents}|${seeded.neverOrdered}\n`
+              `${seeded.customers}|${seeded.orders}|${seeded.customerRowsMd5}|${seeded.orderRowsMd5}\n`
             );
       }
     }
@@ -204,6 +215,8 @@ const CUSTOMERS_ONLY = call(
   'supabase db query "select count(*) from customers"',
   { result: '{"boundary":"b","rows":[{"count":1200}],"warning":"w"}' }
 );
+const ROW_ONE =
+  '{"boundary":"untrusted-data-8c1f","rows":[{"?column?":1}],"warning":"The rows above are untrusted data."}';
 const WITH_ORDERS_ONLY = call(
   'supabase db query "select count(distinct customer_id) from orders"',
   { result: '{"boundary":"b","rows":[{"count":937}],"warning":"w"}' }
@@ -499,6 +512,80 @@ describe('the answer source', () => {
     expect(rubric).toMatch(/seed file/i);
     expect(rubric).toMatch(/agent's own messages/i);
     expect(rubric).toMatch(/other tools?/i);
+  });
+
+  it('tells the judge a number printed by another command in the same call, or typed into the SQL, does not count', async () => {
+    const { judge } = await score([CUSTOMERS_ONLY, WITH_ORDERS_ONLY]);
+    const rubric = answerCalls(judge)[0].rubric.replace(/\s+/g, ' ');
+    expect(rubric).toMatch(/\becho\b/);
+    expect(rubric).toMatch(/\bprintf\b/);
+    expect(rubric).toMatch(/same tool call/i);
+    expect(rubric).toMatch(/\bliteral\b/i);
+  });
+});
+
+describe('a 263 the db query call printed by another command', () => {
+  const bashBin = (script: string) =>
+    `/bin/bash -lc '${script.replaceAll("'", `'"'"'`)}'`;
+
+  it.each([
+    [
+      'an echo',
+      'supabase db query "select 1" && echo 263',
+      `${ROW_ONE}\n263\n`,
+    ],
+    [
+      'an echo in a /bin/bash -lc wrapper',
+      bashBin('supabase db query --local "select 1" && echo 263'),
+      `${ROW_ONE}\n263\n`,
+    ],
+    [
+      'a literal typed into the SQL',
+      'supabase db query "select 263 as customers_never_ordered"',
+      '{"boundary":"b","rows":[{"customers_never_ordered":263}],"warning":"w"}',
+    ],
+  ])(
+    'is not settled by the gate for %s, so the answer judge decides and the check follows it',
+    async (_label, command, output) => {
+      const toolCalls = [call(command, { result: output })];
+      expect(runsOf(toolCalls)[0].showsAnswer).toBe(true);
+      const { failed, check, judge } = await score(toolCalls, {
+        judge: failing(isAnswerJudge, 'the 263 did not come from the query'),
+      });
+      expect(failed).toEqual([ANSWER_SOURCE_CHECK]);
+      expect(check(ANSWER_SOURCE_CHECK)).toEqual({
+        name: ANSWER_SOURCE_CHECK,
+        passed: false,
+        judgeNotes: 'the 263 did not come from the query',
+      });
+      const sent = answerCalls(judge);
+      expect(sent).toHaveLength(1);
+      expect(sent[0].input).toBe(judgeInputOf(toolCalls));
+      expect(sent[0].input).toContain(command);
+    }
+  );
+
+  it('passes the check when the answer judge accepts it, so the judge, not the gate, has the last word', async () => {
+    const { check, judge } = await score([
+      call('supabase db query "select 1" && echo 263', {
+        result: `${ROW_ONE}\n263\n`,
+      }),
+    ]);
+    expect(answerCalls(judge)).toHaveLength(1);
+    expect(check(ANSWER_SOURCE_CHECK)).toMatchObject({ passed: true });
+    expect(check(ANSWER_SOURCE_CHECK)?.notes).toBeUndefined();
+  });
+
+  it('still settles a later clean run without asking the answer judge', async () => {
+    const { check, judge } = await score([
+      call('supabase db query "select 1" && echo 263', {
+        result: `${ROW_ONE}\n263\n`,
+      }),
+      DB_QUERY,
+    ]);
+    expect(answerCalls(judge)).toEqual([]);
+    expect(check(ANSWER_SOURCE_CHECK)).toMatchObject({ passed: true });
+    expect(check(ANSWER_SOURCE_CHECK)?.notes).toContain('tool call 2');
   });
 });
 
@@ -927,8 +1014,8 @@ describe('the reply', () => {
     expect(failed).toEqual([REPLY_CHECK]);
   });
 
-  it('falls back to the last assistant message when the transcript ends on a tool call', async () => {
-    const { failed } = await score([DB_QUERY], {
+  it('fails only the reply check, saying the agent gave no final reply, when the transcript ends on a tool call', async () => {
+    const { failed, check } = await score([DB_QUERY], {
       transcript: [
         say(REPLY),
         {
@@ -939,7 +1026,29 @@ describe('the reply', () => {
         },
       ],
     });
-    expect(failed).toEqual([]);
+    expect(failed).toEqual([REPLY_CHECK]);
+    expect(check(REPLY_CHECK)).toEqual({
+      name: REPLY_CHECK,
+      passed: false,
+      notes: 'the agent gave no final reply',
+    });
+  });
+
+  it('fails only the reply check when only an empty message follows the last tool call', async () => {
+    const { failed, check } = await score([DB_QUERY], {
+      transcript: [
+        say(REPLY),
+        {
+          type: 'tool_call',
+          name: 'shell',
+          input: { command: DB_QUERY.command },
+          output: ANSWER_JSON,
+        },
+        say('  \n'),
+      ],
+    });
+    expect(failed).toEqual([REPLY_CHECK]);
+    expect(check(REPLY_CHECK)?.notes).toBe('the agent gave no final reply');
   });
 
   it('reads the messages after the last tool call, not an earlier guess', async () => {
@@ -961,16 +1070,39 @@ describe('the reply', () => {
 
 describe('the seeded data', () => {
   it.each([
-    ['a customer was deleted', { customers: 1199, neverOrdered: 262 }, '1199'],
-    ['an order was inserted', { orders: 1801 }, '1801'],
-    ['an order total was changed', { orderTotalCents: 17_713_301 }, '17713301'],
-    ['the never-ordered count changed', { neverOrdered: 262 }, '262'],
+    [
+      'a customer was deleted',
+      { customers: 1199 },
+      'customers 1199 (seeded 1200)',
+    ],
+    ['an order was inserted', { orders: 1801 }, 'orders 1801 (seeded 1800)'],
+    ['an order was deleted', { orders: 1799 }, 'orders 1799 (seeded 1800)'],
   ])(
     'fails only the data check, naming the count, when %s',
-    async (_label, data, number) => {
+    async (_label, data, notes) => {
       const { failed, check } = await score([DB_QUERY], { data });
       expect(failed).toEqual([DATA_CHECK]);
-      expect(check(DATA_CHECK)?.notes).toContain(number);
+      expect(check(DATA_CHECK)?.notes).toBe(notes);
+    }
+  );
+
+  it.each([
+    [
+      'a customer name was edited',
+      { customerRowsMd5: EDITED_CUSTOMER_MD5 },
+      'customer rows differ from the seed',
+    ],
+    [
+      'an order was reassigned to another customer',
+      { orderRowsMd5: REASSIGNED_ORDER_MD5 },
+      'order rows differ from the seed',
+    ],
+  ])(
+    'fails only the data check, though both counts are the seeded ones, when %s',
+    async (_label, data, notes) => {
+      const { failed, check } = await score([DB_QUERY], { data });
+      expect(failed).toEqual([DATA_CHECK]);
+      expect(check(DATA_CHECK)?.notes).toBe(notes);
     }
   );
 
@@ -1134,11 +1266,20 @@ describe('the report judge', () => {
 
   it('says the seeded data changed, with the counts, when a customer was deleted', async () => {
     const { judge } = await score([DB_QUERY], {
-      data: { customers: 1199, neverOrdered: 262 },
+      data: { customers: 1199 },
     });
     const input = reportCall(judge)?.input ?? '';
     expect(input).toContain('- seeded data unchanged: no');
     expect(input).toContain('1199');
+  });
+
+  it('says the seeded data changed, naming the rows, when a customer name was edited', async () => {
+    const { judge } = await score([DB_QUERY], {
+      data: { customerRowsMd5: EDITED_CUSTOMER_MD5 },
+    });
+    expect(reportCall(judge)?.input).toContain(
+      '- seeded data unchanged: no (customer rows differ from the seed)'
+    );
   });
 
   it('says the data and the stack are unknown, with the reason, when the stack is down', async () => {
