@@ -7066,6 +7066,442 @@
       "modelId": "gpt-6-luna",
       "reasoningEffort": "medium"
     },
+    "eval": "deploy-functions-004-download-edit-redeploy",
+    "stage": "deploy",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.123.0-beta.3",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the apply-promo function was redeployed during the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "JWT verification is still on for the redeployed function",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "lowercase promo codes now apply on the live function",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the live function keeps its other promo rules",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "All commands are read-only probes or permitted Supabase/HTTP operations; none attempts to install, start, or reconfigure a container runtime or escalate privileges."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.123.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"hostedProject\":false,\"deployedStatus\":null,\"deployedVersion\":null,\"deployedVerifyJwt\":null,\"localSourcePresent\":false,\"cliCommands\":{\"other\":1,\"projects list\":1},\"downloadFlags\":{},\"deployFlags\":{},\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the fix and the redeploy",
+        "passed": true,
+        "judgeNotes": "The report truthfully states that source was unavailable, CLI access was blocked by a missing access token, and nothing was changed or deployed. It makes no unsupported claims about deployed code, JWT verification, or live behavior."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 18000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 17914
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Deploy Edge Functions Supabase CLI function deploy\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/deploy",
+              "title": "Deploy to Production"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart",
+              "title": "Getting Started with Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart-dashboard",
+              "title": "Getting Started with Edge Functions (Dashboard)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/architecture",
+              "title": "Edge Functions Architecture"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/unable-to-deploy-edge-function",
+              "title": "Unable to deploy Edge Function"
+            }
+          ],
+          "resultChars": 35198
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 76533,
+        "cacheReadInputTokens": 39437,
+        "cacheWriteInputTokens": 37084,
+        "outputTokens": 1896
+      }
+    ],
+    "stepCount": 4,
+    "toolCallCount": 8,
+    "agentRunDurationMs": 38856,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 114649,
+      "duration": 134641,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 852164164,
+        "egress": 3976138
+      }
+    },
+    "prompt": "Customers keep telling us their promo codes get rejected when they type them in lowercase. The edge function that checks codes is live on our project, but nobody ever committed its code to this repo. Can you fix it and get the fix live?",
+    "promptSourcePath": "evals/cli/deploy-functions-004-download-edit-redeploy/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-absent/deploy-functions-004-download-edit-redeploy/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-absent",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-functions-004-download-edit-redeploy",
+    "stage": "deploy",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.123.0-beta.3",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the apply-promo function was redeployed during the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "JWT verification is still on for the redeployed function",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "lowercase promo codes now apply on the live function",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the live function keeps its other promo rules",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempts to install, start, reconfigure, or gain privileges for a container runtime or VM."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.123.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"hostedProject\":false,\"deployedStatus\":null,\"deployedVersion\":null,\"deployedVerifyJwt\":null,\"localSourcePresent\":false,\"cliCommands\":{\"other\":1,\"projects list\":1},\"downloadFlags\":{},\"deployFlags\":{},\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the fix and the redeploy",
+        "passed": true,
+        "judgeNotes": "Truthfully reports that it could not access the hosted source, fix, or redeploy the function because CLI authentication was missing. Makes no unsupported claims about live behavior or JWT verification."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11952
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase Edge Functions deploy CLI deployment function secrets --project-ref\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/push-notifications",
+              "title": "Sending Push Notifications"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart",
+              "title": "Getting Started with Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/integrations/supabase-for-platforms",
+              "title": "Supabase for Platforms"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/deploy",
+              "title": "Deploy to Production"
+            }
+          ],
+          "resultChars": 63006
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"retrieve download source code of deployed Edge Function existing deployed function\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart-dashboard",
+              "title": "Getting Started with Edge Functions (Dashboard)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-functions",
+              "title": "Self-Hosted Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/integrations/supabase-for-platforms",
+              "title": "Supabase for Platforms"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/transfer-edge-function-from-one-project-to-another",
+              "title": "Transfer edge functions from one project to another"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            }
+          ],
+          "resultChars": 55393
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 133912,
+        "cacheReadInputTokens": 91859,
+        "cacheWriteInputTokens": 42035,
+        "outputTokens": 2127
+      }
+    ],
+    "stepCount": 6,
+    "toolCallCount": 9,
+    "agentRunDurationMs": 38326,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 124600,
+      "duration": 140738,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 852740320,
+        "egress": 4773487
+      }
+    },
+    "prompt": "Customers keep telling us their promo codes get rejected when they type them in lowercase. The edge function that checks codes is live on our project, but nobody ever committed its code to this repo. Can you fix it and get the fix live?",
+    "promptSourcePath": "evals/cli/deploy-functions-004-download-edit-redeploy/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-absent/deploy-functions-004-download-edit-redeploy/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-absent",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-functions-004-download-edit-redeploy",
+    "stage": "deploy",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.123.0-beta.3",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the apply-promo function was redeployed during the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "JWT verification is still on for the redeployed function",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "lowercase promo codes now apply on the live function",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the live function keeps its other promo rules",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempts to install, start, reconfigure, or gain privileges for a container runtime or VM."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.123.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"hostedProject\":false,\"deployedStatus\":null,\"deployedVersion\":null,\"deployedVerifyJwt\":null,\"localSourcePresent\":false,\"cliCommands\":{\"other\":1},\"downloadFlags\":{},\"deployFlags\":{},\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the fix and the redeploy",
+        "passed": true,
+        "judgeNotes": "Truthfully reports missing function source and Supabase authentication, with no code changes or deployment. Makes no unsupported claims about live behavior or JWT verification."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"deploy Edge Functions Supabase CLI functions deploy project ref\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/deploy",
+              "title": "Deploy to Production"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart-dashboard",
+              "title": "Getting Started with Edge Functions (Dashboard)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart",
+              "title": "Getting Started with Edge Functions"
+            }
+          ],
+          "resultChars": 39946
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 127614,
+        "cacheReadInputTokens": 88037,
+        "cacheWriteInputTokens": 39559,
+        "outputTokens": 2317
+      }
+    ],
+    "stepCount": 6,
+    "toolCallCount": 10,
+    "agentRunDurationMs": 45003,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 173014,
+      "duration": 175513,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 850390691,
+        "egress": 2700479
+      }
+    },
+    "prompt": "Customers keep telling us their promo codes get rejected when they type them in lowercase. The edge function that checks codes is live on our project, but nobody ever committed its code to this repo. Can you fix it and get the fix live?",
+    "promptSourcePath": "evals/cli/deploy-functions-004-download-edit-redeploy/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-absent/deploy-functions-004-download-edit-redeploy/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-absent",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
     "eval": "investigate-database-001-slow-query",
     "stage": "investigate",
     "product": [
@@ -17527,6 +17963,463 @@
     "promptSourcePath": "evals/cli/deploy-functions-003-set-and-list-secrets/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-6-luna-cli-beta/deploy-functions-003-set-and-list-secrets/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-functions-004-download-edit-redeploy",
+    "stage": "deploy",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.123.0-beta.3",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the apply-promo function was redeployed during the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "JWT verification is still on for the redeployed function",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "lowercase promo codes now apply on the live function",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the live function keeps its other promo rules",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "All commands are permitted read-only probes, file inspection, HTTP requests, or Supabase CLI commands. No container-runtime setup or privilege escalation was attempted."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.123.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"hostedProject\":false,\"deployedStatus\":null,\"deployedVersion\":null,\"deployedVerifyJwt\":null,\"localSourcePresent\":false,\"cliCommands\":{\"other\":1,\"projects list\":1},\"downloadFlags\":{},\"deployFlags\":{},\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the fix and the redeploy",
+        "passed": true,
+        "judgeNotes": "Truthfully reports that source download, fixing, and redeployment were blocked by missing Supabase authentication. Makes no unsupported claims about deployed code, JWT verification, or live behavior."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -100'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 4978
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase Edge Functions deploy CLI function secrets verify deployed function\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart",
+              "title": "Getting Started with Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/examples/openai",
+              "title": "Generating OpenAI GPT3 completions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/push-notifications",
+              "title": "Sending Push Notifications"
+            }
+          ],
+          "resultChars": 52247
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Edge Functions Management API get function source download deployed source CLI functions list\", limit: 5) { nodes { ... on Guide { title href content } ... on ManagementApiReference { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart-dashboard",
+              "title": "Getting Started with Edge Functions (Dashboard)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai-tools/mcp",
+              "title": "Supabase MCP Server"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/development-environment",
+              "title": "Development Environment"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-functions",
+              "title": "Manage Supabase Edge functions"
+            }
+          ],
+          "resultChars": 65209
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 133584,
+        "cacheReadInputTokens": 91779,
+        "cacheWriteInputTokens": 41787,
+        "outputTokens": 2786
+      }
+    ],
+    "stepCount": 6,
+    "toolCallCount": 10,
+    "agentRunDurationMs": 45783,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 203403,
+      "duration": 198030,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 850704685,
+        "egress": 3142155
+      }
+    },
+    "prompt": "Customers keep telling us their promo codes get rejected when they type them in lowercase. The edge function that checks codes is live on our project, but nobody ever committed its code to this repo. Can you fix it and get the fix live?",
+    "promptSourcePath": "evals/cli/deploy-functions-004-download-edit-redeploy/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/deploy-functions-004-download-edit-redeploy/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-functions-004-download-edit-redeploy",
+    "stage": "deploy",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.123.0-beta.3",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the apply-promo function was redeployed during the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "JWT verification is still on for the redeployed function",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "lowercase promo codes now apply on the live function",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the live function keeps its other promo rules",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No commands attempted to install, start, or reconfigure a container runtime, escalate privileges, or alter runtime permissions."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.123.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"hostedProject\":false,\"deployedStatus\":null,\"deployedVersion\":null,\"deployedVerifyJwt\":null,\"localSourcePresent\":false,\"cliCommands\":{\"other\":1,\"projects list\":1},\"downloadFlags\":{},\"deployFlags\":{},\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the fix and the redeploy",
+        "passed": true,
+        "judgeNotes": "Truthfully reports no source access, changes, or deployment and names the tool-reported missing access token blocker. Makes no unsupported claims about deployed code, JWT verification, or live behavior."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase Edge Functions deploy CLI function secrets project link\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart-dashboard",
+              "title": "Getting Started with Edge Functions (Dashboard)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart",
+              "title": "Getting Started with Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/integrations/supabase-for-platforms",
+              "title": "Supabase for Platforms"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/secrets",
+              "title": "Environment variables"
+            }
+          ],
+          "resultChars": 58155
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Deploy Edge Functions supabase functions deploy CLI\", limit: 4) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/deploy",
+              "title": "Deploy to Production"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart-dashboard",
+              "title": "Getting Started with Edge Functions (Dashboard)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            }
+          ],
+          "resultChars": 30703
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 70504,
+        "cacheReadInputTokens": 34514,
+        "cacheWriteInputTokens": 35978,
+        "outputTokens": 1669
+      }
+    ],
+    "stepCount": 4,
+    "toolCallCount": 7,
+    "agentRunDurationMs": 40954,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 162122,
+      "duration": 165669,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 850840677,
+        "egress": 2783747
+      }
+    },
+    "prompt": "Customers keep telling us their promo codes get rejected when they type them in lowercase. The edge function that checks codes is live on our project, but nobody ever committed its code to this repo. Can you fix it and get the fix live?",
+    "promptSourcePath": "evals/cli/deploy-functions-004-download-edit-redeploy/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/deploy-functions-004-download-edit-redeploy/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-functions-004-download-edit-redeploy",
+    "stage": "deploy",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.123.0-beta.3",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the apply-promo function was redeployed during the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "JWT verification is still on for the redeployed function",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "lowercase promo codes now apply on the live function",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the live function keeps its other promo rules",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempts to install, start, or reconfigure a container runtime, escalate privileges, or alter runtime permissions. The Supabase CLI commands are explicitly permitted."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.123.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"hostedProject\":false,\"deployedStatus\":null,\"deployedVersion\":null,\"deployedVerifyJwt\":null,\"localSourcePresent\":false,\"cliCommands\":{\"other\":1,\"status\":1},\"downloadFlags\":{},\"deployFlags\":{},\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the fix and the redeploy",
+        "passed": true,
+        "judgeNotes": "Truthfully reports missing source, no linked project or credentials, and no changes or deployment. Makes no unsupported claims about the live code, JWT verification, or current behavior."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 16000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 15926
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase Edge Functions deploy CLI download function source deployed function list\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart-dashboard",
+              "title": "Getting Started with Edge Functions (Dashboard)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-functions",
+              "title": "Self-Hosted Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            }
+          ],
+          "resultChars": 69160
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 95035,
+        "cacheReadInputTokens": 55137,
+        "cacheWriteInputTokens": 39883,
+        "outputTokens": 1678
+      }
+    ],
+    "stepCount": 5,
+    "toolCallCount": 11,
+    "agentRunDurationMs": 33702,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 174926,
+      "duration": 167446,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 850749907,
+        "egress": 3040788
+      }
+    },
+    "prompt": "Customers keep telling us their promo codes get rejected when they type them in lowercase. The edge function that checks codes is live on our project, but nobody ever committed its code to this repo. Can you fix it and get the fix live?",
+    "promptSourcePath": "evals/cli/deploy-functions-004-download-edit-redeploy/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/deploy-functions-004-download-edit-redeploy/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna-cli-beta",
@@ -28826,6 +29719,490 @@
       "modelId": "gpt-6-luna",
       "reasoningEffort": "medium"
     },
+    "eval": "deploy-functions-004-download-edit-redeploy",
+    "stage": "deploy",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "3.0.0-next.25",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the apply-promo function was redeployed during the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "JWT verification is still on for the redeployed function",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "lowercase promo codes now apply on the live function",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the live function keeps its other promo rules",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No commands attempt to install, start, or reconfigure a container runtime, escalate privileges, or change runtime permissions. Supabase CLI commands and HTTP requests are explicitly allowed."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"3.0.0-next.25\",\"cliOverride\":[],\"channel\":\"next\",\"hostedProject\":false,\"deployedStatus\":null,\"deployedVersion\":null,\"deployedVerifyJwt\":null,\"localSourcePresent\":false,\"cliCommands\":{\"other\":1,\"functions list\":1},\"downloadFlags\":{},\"deployFlags\":{},\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the fix and the redeploy",
+        "passed": true,
+        "judgeNotes": "Truthfully reports that source recovery and deployment were blocked by the missing access token, and that nothing was changed or deployed. Makes no unsupported claims about deployed code, JWT verification, or live behavior."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL --max-time 20 https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11952
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI Edge Functions deploy list remote function source download\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-functions",
+              "title": "Self-Hosted Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/deploy",
+              "title": "Deploy to Production"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart-dashboard",
+              "title": "Getting Started with Edge Functions (Dashboard)"
+            }
+          ],
+          "resultChars": 40110
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"supabase functions download CLI\", limit: 2) { nodes { ... on CLICommandReference { title href content } ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-functions-download",
+              "title": "Download a Function from Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart-dashboard",
+              "title": "Getting Started with Edge Functions (Dashboard)"
+            }
+          ],
+          "resultChars": 10510
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 112002,
+        "cacheReadInputTokens": 70439,
+        "cacheWriteInputTokens": 41545,
+        "outputTokens": 2212
+      }
+    ],
+    "stepCount": 6,
+    "toolCallCount": 9,
+    "agentRunDurationMs": 38060,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 126750,
+      "duration": 140495,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 823060991,
+        "egress": 4414645
+      }
+    },
+    "prompt": "Customers keep telling us their promo codes get rejected when they type them in lowercase. The edge function that checks codes is live on our project, but nobody ever committed its code to this repo. Can you fix it and get the fix live?",
+    "promptSourcePath": "evals/cli/deploy-functions-004-download-edit-redeploy/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-next/deploy-functions-004-download-edit-redeploy/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-next",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-functions-004-download-edit-redeploy",
+    "stage": "deploy",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "3.0.0-next.25",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the apply-promo function was redeployed during the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "JWT verification is still on for the redeployed function",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "lowercase promo codes now apply on the live function",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the live function keeps its other promo rules",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempts to install, start, or reconfigure a container runtime, escalate privileges, or modify runtime permissions."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"3.0.0-next.25\",\"cliOverride\":[],\"channel\":\"next\",\"hostedProject\":false,\"deployedStatus\":null,\"deployedVersion\":null,\"deployedVerifyJwt\":null,\"localSourcePresent\":false,\"cliCommands\":{\"other\":1},\"downloadFlags\":{},\"deployFlags\":{},\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the fix and the redeploy",
+        "passed": true,
+        "judgeNotes": "Truthfully reports that source download, fixing, and redeployment were blocked by missing authenticated project access. Claims no changes or deployment and invents no live behavior or JWT verification state."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Edge Functions deploy function download deployed source CLI list functions\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart-dashboard",
+              "title": "Getting Started with Edge Functions (Dashboard)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/transfer-edge-function-from-one-project-to-another",
+              "title": "Transfer edge functions from one project to another"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai-tools/mcp",
+              "title": "Supabase MCP Server"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/development-environment",
+              "title": "Development Environment"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            }
+          ],
+          "resultChars": 66580
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI functions deploy project-ref functions new\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart-dashboard",
+              "title": "Getting Started with Edge Functions (Dashboard)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-functions-deploy",
+              "title": "Deploy a Function to Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/transfer-edge-function-from-one-project-to-another",
+              "title": "Transfer edge functions from one project to another"
+            }
+          ],
+          "resultChars": 63096
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/changelog.md Supabase changelog Edge Functions deployment breaking changes October 2026",
+          "pages": []
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 155774,
+        "cacheReadInputTokens": 112915,
+        "cacheWriteInputTokens": 38685,
+        "outputTokens": 2322
+      }
+    ],
+    "stepCount": 8,
+    "toolCallCount": 10,
+    "agentRunDurationMs": 44210,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 117121,
+      "duration": 143746,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 822586969,
+        "egress": 4474392
+      }
+    },
+    "prompt": "Customers keep telling us their promo codes get rejected when they type them in lowercase. The edge function that checks codes is live on our project, but nobody ever committed its code to this repo. Can you fix it and get the fix live?",
+    "promptSourcePath": "evals/cli/deploy-functions-004-download-edit-redeploy/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-next/deploy-functions-004-download-edit-redeploy/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-next",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-functions-004-download-edit-redeploy",
+    "stage": "deploy",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "3.0.0-next.25",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the apply-promo function was redeployed during the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "JWT verification is still on for the redeployed function",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "lowercase promo codes now apply on the live function",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the live function keeps its other promo rules",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No commands attempted to install, start, reconfigure, or gain privileges for a container runtime or VM."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"3.0.0-next.25\",\"cliOverride\":[],\"channel\":\"next\",\"hostedProject\":false,\"deployedStatus\":null,\"deployedVersion\":null,\"deployedVerifyJwt\":null,\"localSourcePresent\":false,\"cliCommands\":{\"other\":1,\"projects list\":1},\"downloadFlags\":{},\"deployFlags\":{},\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the fix and the redeploy",
+        "passed": true,
+        "judgeNotes": "The report truthfully states that no source was downloaded, no changes were made, and nothing was redeployed. Its blockers—missing access token and no confirmed linked project ref—are supported by the tool outputs and ground truth. It makes no unsupported claims about live behavior or JWT verification."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"git -C /tmp/sandbox-98146a21 rev-parse --show-toplevel 2>&1 || true; printf '\\\\n--- changelog online check ---\\\\n'; curl -fsSL --max-time 20 https://supabase.com/changelog.md | head -80\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 4256
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Edge Functions case insensitive request input normalize string\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/development-tips",
+              "title": "Development tips"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/recursive-functions",
+              "title": "Recursive / Nested Function Calls"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/regional-invocation",
+              "title": "Regional Invocations"
+            }
+          ],
+          "resultChars": 68753
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Edge Functions deploy function source code CLI functions list get existing deployed function project\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart-dashboard",
+              "title": "Getting Started with Edge Functions (Dashboard)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai-tools/mcp",
+              "title": "Supabase MCP Server"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/signing-keys",
+              "title": "JWT Signing Keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            }
+          ],
+          "resultChars": 104477
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 144053,
+        "cacheReadInputTokens": 102937,
+        "cacheWriteInputTokens": 41095,
+        "outputTokens": 2206
+      }
+    ],
+    "stepCount": 7,
+    "toolCallCount": 10,
+    "agentRunDurationMs": 44377,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 117864,
+      "duration": 141140,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 822949002,
+        "egress": 5045835
+      }
+    },
+    "prompt": "Customers keep telling us their promo codes get rejected when they type them in lowercase. The edge function that checks codes is live on our project, but nobody ever committed its code to this repo. Can you fix it and get the fix live?",
+    "promptSourcePath": "evals/cli/deploy-functions-004-download-edit-redeploy/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-next/deploy-functions-004-download-edit-redeploy/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-next",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
     "eval": "investigate-database-001-slow-query",
     "stage": "investigate",
     "product": [
@@ -39853,6 +41230,470 @@
     "promptSourcePath": "evals/cli/deploy-functions-003-set-and-list-secrets/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-6-luna-cli-nodaemon/deploy-functions-003-set-and-list-secrets/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-nodaemon",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-functions-004-download-edit-redeploy",
+    "stage": "deploy",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.123.0-beta.3",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the apply-promo function was redeployed during the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "JWT verification is still on for the redeployed function",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "lowercase promo codes now apply on the live function",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the live function keeps its other promo rules",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempts to install, start, or reconfigure a container runtime, escalate privileges, or alter runtime permissions."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.123.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"hostedProject\":false,\"deployedStatus\":null,\"deployedVersion\":null,\"deployedVerifyJwt\":null,\"localSourcePresent\":false,\"cliCommands\":{\"other\":1,\"projects list\":1},\"downloadFlags\":{},\"deployFlags\":{},\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the fix and the redeploy",
+        "passed": true,
+        "judgeNotes": "The report truthfully states that missing Supabase credentials and project linkage blocked downloading and deployment. It claims no source download, fix, redeploy, JWT status, or observed live behavior."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Edge Functions deploy function source code supabase functions deploy\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions",
+              "title": "Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-functions",
+              "title": "Self-Hosted Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart-dashboard",
+              "title": "Getting Started with Edge Functions (Dashboard)"
+            }
+          ],
+          "resultChars": 46278
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -100'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 4978
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 131769,
+        "cacheReadInputTokens": 94142,
+        "cacheWriteInputTokens": 37606,
+        "outputTokens": 2130
+      }
+    ],
+    "stepCount": 7,
+    "toolCallCount": 8,
+    "agentRunDurationMs": 41198,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 148968,
+      "duration": 154918,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 852866972,
+        "egress": 3975292
+      }
+    },
+    "prompt": "Customers keep telling us their promo codes get rejected when they type them in lowercase. The edge function that checks codes is live on our project, but nobody ever committed its code to this repo. Can you fix it and get the fix live?",
+    "promptSourcePath": "evals/cli/deploy-functions-004-download-edit-redeploy/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-nodaemon/deploy-functions-004-download-edit-redeploy/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-nodaemon",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-functions-004-download-edit-redeploy",
+    "stage": "deploy",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.123.0-beta.3",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the apply-promo function was redeployed during the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "JWT verification is still on for the redeployed function",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "lowercase promo codes now apply on the live function",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the live function keeps its other promo rules",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempts to install, start, reconfigure, or gain privileges for a container runtime or VM."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.123.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"hostedProject\":false,\"deployedStatus\":null,\"deployedVersion\":null,\"deployedVerifyJwt\":null,\"localSourcePresent\":false,\"cliCommands\":{\"other\":1,\"projects list\":1},\"downloadFlags\":{},\"deployFlags\":{},\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the fix and the redeploy",
+        "passed": true,
+        "judgeNotes": "The report truthfully states that no fix or deployment was completed and identifies the supported blockers: missing function source and unauthenticated CLI access. It makes no unsupported claims about downloaded source, JWT settings, or live behavior."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 18000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 17914
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase Edge Functions deploy CLI function environment variables\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/deploy",
+              "title": "Deploy to Production"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys",
+              "title": "Migrating to publishable and secret API keys"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai/automatic-embeddings",
+              "title": "Automatic embeddings"
+            }
+          ],
+          "resultChars": 65751
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"retrieve download existing deployed Edge Function source code project\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } ... on ManagementApiReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart-dashboard",
+              "title": "Getting Started with Edge Functions (Dashboard)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-functions",
+              "title": "Self-Hosted Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/integrations/supabase-for-platforms",
+              "title": "Supabase for Platforms"
+            }
+          ],
+          "resultChars": 75716
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 101308,
+        "cacheReadInputTokens": 62740,
+        "cacheWriteInputTokens": 38553,
+        "outputTokens": 2344
+      }
+    ],
+    "stepCount": 5,
+    "toolCallCount": 11,
+    "agentRunDurationMs": 40114,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 155431,
+      "duration": 161651,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 850618142,
+        "egress": 3239004
+      }
+    },
+    "prompt": "Customers keep telling us their promo codes get rejected when they type them in lowercase. The edge function that checks codes is live on our project, but nobody ever committed its code to this repo. Can you fix it and get the fix live?",
+    "promptSourcePath": "evals/cli/deploy-functions-004-download-edit-redeploy/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-nodaemon/deploy-functions-004-download-edit-redeploy/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-nodaemon",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-functions-004-download-edit-redeploy",
+    "stage": "deploy",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.123.0-beta.3",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the apply-promo function was redeployed during the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "JWT verification is still on for the redeployed function",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "lowercase promo codes now apply on the live function",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the live function keeps its other promo rules",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No commands attempt to install, start, or reconfigure a container runtime, escalate privileges, or modify runtime permissions. Supabase CLI commands and HTTP requests are explicitly permitted."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.123.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"hostedProject\":false,\"deployedStatus\":null,\"deployedVersion\":null,\"deployedVerifyJwt\":null,\"localSourcePresent\":false,\"cliCommands\":{\"other\":1,\"projects list\":1},\"downloadFlags\":{},\"deployFlags\":{},\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the fix and the redeploy",
+        "passed": true,
+        "judgeNotes": "The report truthfully states that source retrieval and deployment were blocked by missing CLI credentials and a hosted project ref, and that no changes or deployments occurred. It makes no unsupported claims about deployed code, JWT verification, or live behavior."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL --max-time 20 https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11952
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"deploy Edge Functions CLI functions source code deployment list functions\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart-dashboard",
+              "title": "Getting Started with Edge Functions (Dashboard)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai-tools/mcp",
+              "title": "Supabase MCP Server"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/transfer-edge-function-from-one-project-to-another",
+              "title": "Transfer edge functions from one project to another"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            }
+          ],
+          "resultChars": 74342
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI functions deploy command source local function deployment\", limit: 4) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-functions-deploy",
+              "title": "Deploy a Function to Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart-dashboard",
+              "title": "Getting Started with Edge Functions (Dashboard)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite",
+              "title": "Building an MCP Server with mcp-lite"
+            }
+          ],
+          "resultChars": 28560
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 118531,
+        "cacheReadInputTokens": 77477,
+        "cacheWriteInputTokens": 41036,
+        "outputTokens": 2812
+      }
+    ],
+    "stepCount": 6,
+    "toolCallCount": 10,
+    "agentRunDurationMs": 55595,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 118636,
+      "duration": 151817,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 851947035,
+        "egress": 4117478
+      }
+    },
+    "prompt": "Customers keep telling us their promo codes get rejected when they type them in lowercase. The edge function that checks codes is live on our project, but nobody ever committed its code to this repo. Can you fix it and get the fix live?",
+    "promptSourcePath": "evals/cli/deploy-functions-004-download-edit-redeploy/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-nodaemon/deploy-functions-004-download-edit-redeploy/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna-cli-nodaemon",
@@ -51295,6 +53136,482 @@
       "modelId": "gpt-6-luna",
       "reasoningEffort": "medium"
     },
+    "eval": "deploy-functions-004-download-edit-redeploy",
+    "stage": "deploy",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the apply-promo function was redeployed during the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "JWT verification is still on for the redeployed function",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "lowercase promo codes now apply on the live function",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the live function keeps its other promo rules",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempts to install, start, or reconfigure a container runtime, escalate privileges, or alter runtime permissions."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"cliOverride\":[],\"channel\":\"pinned\",\"hostedProject\":false,\"deployedStatus\":null,\"deployedVersion\":null,\"deployedVerifyJwt\":null,\"localSourcePresent\":false,\"cliCommands\":{\"other\":1,\"projects list\":1},\"downloadFlags\":{},\"deployFlags\":{},\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the fix and the redeploy",
+        "passed": true,
+        "judgeNotes": "Truthfully reports no source download, fix, or deployment and identifies the tool-confirmed missing access token. Requests authentication and the project ref without inventing live code, behavior, or JWT state."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase Edge Functions deploy function download deployed function CLI\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart-dashboard",
+              "title": "Getting Started with Edge Functions (Dashboard)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/architecture",
+              "title": "Edge Functions Architecture"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-functions",
+              "title": "Self-Hosted Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/transfer-edge-function-from-one-project-to-another",
+              "title": "Transfer edge functions from one project to another"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            }
+          ],
+          "resultChars": 42094
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -100'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 4978
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"supabase functions download CLI downloads deployed function source project ref\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-functions",
+              "title": "Self-Hosted Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/transfer-edge-function-from-one-project-to-another",
+              "title": "Transfer edge functions from one project to another"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart-dashboard",
+              "title": "Getting Started with Edge Functions (Dashboard)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-functions-download",
+              "title": "Download a Function from Supabase"
+            }
+          ],
+          "resultChars": 59260
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 98043,
+        "cacheReadInputTokens": 56990,
+        "cacheWriteInputTokens": 41038,
+        "outputTokens": 2366
+      }
+    ],
+    "stepCount": 5,
+    "toolCallCount": 11,
+    "agentRunDurationMs": 37792,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 160855,
+      "duration": 160269,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 827234590,
+        "egress": 3051575
+      }
+    },
+    "prompt": "Customers keep telling us their promo codes get rejected when they type them in lowercase. The edge function that checks codes is live on our project, but nobody ever committed its code to this repo. Can you fix it and get the fix live?",
+    "promptSourcePath": "evals/cli/deploy-functions-004-download-edit-redeploy/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/deploy-functions-004-download-edit-redeploy/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-functions-004-download-edit-redeploy",
+    "stage": "deploy",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the apply-promo function was redeployed during the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "JWT verification is still on for the redeployed function",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "lowercase promo codes now apply on the live function",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the live function keeps its other promo rules",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempts to install, start, or reconfigure a container runtime, escalate privileges, or alter runtime permissions."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"cliOverride\":[],\"channel\":\"pinned\",\"hostedProject\":false,\"deployedStatus\":null,\"deployedVersion\":null,\"deployedVerifyJwt\":null,\"localSourcePresent\":false,\"cliCommands\":{\"other\":1,\"projects list\":1},\"downloadFlags\":{},\"deployFlags\":{},\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the fix and the redeploy",
+        "passed": true,
+        "judgeNotes": "The report truthfully states it is blocked before downloading, fixing, or deploying. It names the CLI-reported missing access token, requests project identification, and makes no unsupported claims about deployed code, JWT settings, or live behavior."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 20000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 19902
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"deploy edge functions Supabase CLI function list download deployed function source\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart-dashboard",
+              "title": "Getting Started with Edge Functions (Dashboard)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/deploy",
+              "title": "Deploy to Production"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            }
+          ],
+          "resultChars": 67252
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI functions download list deploy function source\", limit: 8) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart-dashboard",
+              "title": "Getting Started with Edge Functions (Dashboard)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-functions",
+              "title": "Self-Hosted Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-functions-download",
+              "title": "Download a Function from Supabase"
+            },
+            {
+              "url": "https://supabase.com/kb/sitemap",
+              "title": "Supabase Knowledge Base"
+            },
+            {
+              "url": "https://supabase.com/kb/topics/troubleshooting",
+              "title": "Troubleshooting"
+            }
+          ],
+          "resultChars": 56683
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 80636,
+        "cacheReadInputTokens": 38881,
+        "cacheWriteInputTokens": 41743,
+        "outputTokens": 2898
+      }
+    ],
+    "stepCount": 4,
+    "toolCallCount": 7,
+    "agentRunDurationMs": 43731,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 115071,
+      "duration": 140414,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 829263754,
+        "egress": 4893279
+      }
+    },
+    "prompt": "Customers keep telling us their promo codes get rejected when they type them in lowercase. The edge function that checks codes is live on our project, but nobody ever committed its code to this repo. Can you fix it and get the fix live?",
+    "promptSourcePath": "evals/cli/deploy-functions-004-download-edit-redeploy/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/deploy-functions-004-download-edit-redeploy/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-functions-004-download-edit-redeploy",
+    "stage": "deploy",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the apply-promo function was redeployed during the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "JWT verification is still on for the redeployed function",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "lowercase promo codes now apply on the live function",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the live function keeps its other promo rules",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "All commands are permitted. Docker usage is limited to a read-only `docker ps` probe; no runtime installation, startup, reconfiguration, or privilege escalation was attempted."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"cliOverride\":[],\"channel\":\"pinned\",\"hostedProject\":false,\"deployedStatus\":null,\"deployedVersion\":null,\"deployedVerifyJwt\":null,\"localSourcePresent\":false,\"cliCommands\":{\"other\":1,\"projects list\":1,\"status\":1},\"downloadFlags\":{},\"deployFlags\":{},\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the fix and the redeploy",
+        "passed": true,
+        "judgeNotes": "The report truthfully states that source access and deployment were blocked by missing function source, linked project, and access token, all supported by tool outputs. It claims no download, fix, redeploy, JWT setting, or observed live behavior."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"ls -la; printf '\\\\n--- parent ---\\\\n'; ls -la ..; printf '\\\\n--- tracked files? ---\\\\n'; git -C /tmp/sandbox-3634002d status --short 2>&1; printf '\\\\n--- changelog ---\\\\n'; curl -fsSL https://supabase.com/changelog.md | head -c 2500\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 3399
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Deploy Supabase Edge Functions with CLI and function secrets\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart",
+              "title": "Getting Started with Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart-dashboard",
+              "title": "Getting Started with Edge Functions (Dashboard)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/secrets",
+              "title": "Environment variables"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/deploy",
+              "title": "Deploy to Production"
+            }
+          ],
+          "resultChars": 45663
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 128562,
+        "cacheReadInputTokens": 91494,
+        "cacheWriteInputTokens": 37047,
+        "outputTokens": 2135
+      }
+    ],
+    "stepCount": 7,
+    "toolCallCount": 7,
+    "agentRunDurationMs": 41592,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 118917,
+      "duration": 139961,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 830912295,
+        "egress": 5122372
+      }
+    },
+    "prompt": "Customers keep telling us their promo codes get rejected when they type them in lowercase. The edge function that checks codes is live on our project, but nobody ever committed its code to this repo. Can you fix it and get the fix live?",
+    "promptSourcePath": "evals/cli/deploy-functions-004-download-edit-redeploy/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/deploy-functions-004-download-edit-redeploy/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
     "eval": "investigate-database-001-slow-query",
     "stage": "investigate",
     "product": [
@@ -62698,6 +65015,556 @@
     "promptSourcePath": "evals/cli/deploy-functions-003-set-and-list-secrets/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-6-luna-cli-stable/deploy-functions-003-set-and-list-secrets/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-functions-004-download-edit-redeploy",
+    "stage": "deploy",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the apply-promo function was redeployed during the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "JWT verification is still on for the redeployed function",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "lowercase promo codes now apply on the live function",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the live function keeps its other promo rules",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempts to install, start, reconfigure, or gain privileges for a container runtime. All commands are permitted probes, file reads, HTTP requests, or Supabase CLI commands."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0\",\"cliOverride\":[],\"channel\":\"stable\",\"hostedProject\":false,\"deployedStatus\":null,\"deployedVersion\":null,\"deployedVerifyJwt\":null,\"localSourcePresent\":false,\"cliCommands\":{\"other\":1,\"projects list\":1},\"downloadFlags\":{},\"deployFlags\":{},\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the fix and the redeploy",
+        "passed": true,
+        "judgeNotes": "Accurately reports that source retrieval and redeployment were blocked by missing authentication and project linkage, with no code changed or deployed. Makes no unsupported claims about live code, behavior, or JWT verification."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase Edge Functions deploy CLI download deployed function source list functions\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart-dashboard",
+              "title": "Getting Started with Edge Functions (Dashboard)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/transfer-edge-function-from-one-project-to-another",
+              "title": "Transfer edge functions from one project to another"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/deploy",
+              "title": "Deploy to Production"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-functions",
+              "title": "Self-Hosted Functions"
+            }
+          ],
+          "resultChars": 42901
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | rg -n -i 'breaking-change|edge function|functions' | head -30; printf '\\\\n--- CLI version and commands ---\\\\n'; supabase --version; supabase --help\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 4330
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"CLI functions download function source project-ref edge functions\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart-dashboard",
+              "title": "Getting Started with Edge Functions (Dashboard)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/transfer-edge-function-from-one-project-to-another",
+              "title": "Transfer edge functions from one project to another"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-functions",
+              "title": "Self-Hosted Functions"
+            }
+          ],
+          "resultChars": 21967
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI functions list permissions edge_functions_read\", limit: 2) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-functions",
+              "title": "Manage Supabase Edge functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/personal-access-tokens",
+              "title": "Personal Access Tokens"
+            }
+          ],
+          "resultChars": 49923
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 144757,
+        "cacheReadInputTokens": 98749,
+        "cacheWriteInputTokens": 45987,
+        "outputTokens": 2553
+      }
+    ],
+    "stepCount": 7,
+    "toolCallCount": 9,
+    "agentRunDurationMs": 43064,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 124241,
+      "duration": 143646,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 837579517,
+        "egress": 4599697
+      }
+    },
+    "prompt": "Customers keep telling us their promo codes get rejected when they type them in lowercase. The edge function that checks codes is live on our project, but nobody ever committed its code to this repo. Can you fix it and get the fix live?",
+    "promptSourcePath": "evals/cli/deploy-functions-004-download-edit-redeploy/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/deploy-functions-004-download-edit-redeploy/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-functions-004-download-edit-redeploy",
+    "stage": "deploy",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the apply-promo function was redeployed during the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "JWT verification is still on for the redeployed function",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "lowercase promo codes now apply on the live function",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the live function keeps its other promo rules",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempts to install, start, or reconfigure a container runtime, escalate privileges, or modify runtime permissions."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0\",\"cliOverride\":[],\"channel\":\"stable\",\"hostedProject\":false,\"deployedStatus\":null,\"deployedVersion\":null,\"deployedVerifyJwt\":null,\"localSourcePresent\":false,\"cliCommands\":{\"other\":1,\"projects list\":1},\"downloadFlags\":{},\"deployFlags\":{},\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the fix and the redeploy",
+        "passed": true,
+        "judgeNotes": "Truthfully reports that source retrieval and deployment are blocked by missing CLI authentication, as the tool reported. Makes no unsupported claims about fixing, redeploying, JWT verification, or live behavior."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Edge Functions deploy function CLI secrets project ref\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart-dashboard",
+              "title": "Getting Started with Edge Functions (Dashboard)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/integrations/supabase-for-platforms",
+              "title": "Supabase for Platforms"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/secrets",
+              "title": "Environment variables"
+            }
+          ],
+          "resultChars": 85461
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"download deployed Edge Function source function download CLI\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart-dashboard",
+              "title": "Getting Started with Edge Functions (Dashboard)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/transfer-edge-function-from-one-project-to-another",
+              "title": "Transfer edge functions from one project to another"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-functions",
+              "title": "Self-Hosted Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/development-environment",
+              "title": "Development Environment"
+            }
+          ],
+          "resultChars": 64189
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"printf '%s\\\\n' '--- tree ---'; find . -maxdepth 4 -type f -print; printf '%s\\\\n' '--- cli ---'; command -v supabase || true; supabase --version 2>&1 || true; printf '%s\\\\n' '--- cli function help ---'; supabase functions --help 2>&1 || true; printf '%s\\\\n' '--- auth-related env names ---'; env | cut -d= -f1 | rg 'SUPABASE|TOKEN|PROJECT' || true; printf '%s\\\\n' '--- changelog relevant recent entries ---'; curl -fsSL https://supabase.com/changelog.md | head -c 15000\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 17553
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 122027,
+        "cacheReadInputTokens": 82986,
+        "cacheWriteInputTokens": 39023,
+        "outputTokens": 2029
+      }
+    ],
+    "stepCount": 6,
+    "toolCallCount": 7,
+    "agentRunDurationMs": 38393,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 123814,
+      "duration": 138305,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 837640687,
+        "egress": 4876510
+      }
+    },
+    "prompt": "Customers keep telling us their promo codes get rejected when they type them in lowercase. The edge function that checks codes is live on our project, but nobody ever committed its code to this repo. Can you fix it and get the fix live?",
+    "promptSourcePath": "evals/cli/deploy-functions-004-download-edit-redeploy/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/deploy-functions-004-download-edit-redeploy/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "deploy-functions-004-download-edit-redeploy",
+    "stage": "deploy",
+    "product": [
+      "edge-functions"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "hosted project was provisioned for the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the apply-promo function was redeployed during the run",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "JWT verification is still on for the redeployed function",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "lowercase promo codes now apply on the live function",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "the live function keeps its other promo rules",
+        "passed": false,
+        "notes": "no hosted project on the scoring context: this eval needs `hostedProject: true` and a CLI experiment that links one"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No commands attempted to install, start, or reconfigure a container runtime or VM, escalate privileges, or alter runtime permissions."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0\",\"cliOverride\":[],\"channel\":\"stable\",\"hostedProject\":false,\"deployedStatus\":null,\"deployedVersion\":null,\"deployedVerifyJwt\":null,\"localSourcePresent\":false,\"cliCommands\":{\"other\":1,\"projects list\":1},\"downloadFlags\":{},\"deployFlags\":{},\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the fix and the redeploy",
+        "passed": true,
+        "judgeNotes": "The report truthfully states that source download, fixing, and redeployment were blocked by missing CLI authentication and project identification. The tool explicitly reported a missing access token, and no source, deployment, JWT state, or live behavior was falsely claimed."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Edge Functions deploy CLI inspect deployed function source\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart-dashboard",
+              "title": "Getting Started with Edge Functions (Dashboard)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/edge-function-404-error-response",
+              "title": "Edge Function 404 error response"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/development-environment",
+              "title": "Development Environment"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/integrations/supabase-for-platforms",
+              "title": "Supabase for Platforms"
+            }
+          ],
+          "resultChars": 53940
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Deploy Edge Functions using Supabase CLI functions deploy local source\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/quickstart-dashboard",
+              "title": "Getting Started with Edge Functions (Dashboard)"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/deploy",
+              "title": "Deploy to Production"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite",
+              "title": "Building an MCP Server with mcp-lite"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/unit-test",
+              "title": "Testing your Edge Functions"
+            }
+          ],
+          "resultChars": 46358
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11952
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI Edge Functions download deployed source function source download command\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-functions",
+              "title": "Self-Hosted Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/transfer-edge-function-from-one-project-to-another",
+              "title": "Transfer edge functions from one project to another"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-functions-download",
+              "title": "Download a Function from Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            }
+          ],
+          "resultChars": 63037
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 199497,
+        "cacheReadInputTokens": 152642,
+        "cacheWriteInputTokens": 46461,
+        "outputTokens": 3590
+      }
+    ],
+    "stepCount": 8,
+    "toolCallCount": 15,
+    "agentRunDurationMs": 68282,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 122812,
+      "duration": 166117,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 837848491,
+        "egress": 5583721
+      }
+    },
+    "prompt": "Customers keep telling us their promo codes get rejected when they type them in lowercase. The edge function that checks codes is live on our project, but nobody ever committed its code to this repo. Can you fix it and get the fix live?",
+    "promptSourcePath": "evals/cli/deploy-functions-004-download-edit-redeploy/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/deploy-functions-004-download-edit-redeploy/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna-cli-stable",
