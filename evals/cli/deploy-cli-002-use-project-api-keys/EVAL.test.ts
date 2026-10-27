@@ -11,6 +11,7 @@ import type {
 } from '@supabase-evals/core';
 import { afterAll, describe, expect, it, vi } from 'vitest';
 import { DETOUR_CHECK_NAME } from '../lib/detours.js';
+import { APP_SOURCE_CHECK_NAME } from './app-source.js';
 import { KEY_CHECK_NAME, URL_CHECK_NAME } from './config.js';
 import scorer from './EVAL.js';
 import {
@@ -19,12 +20,12 @@ import {
   APP_URL_VAR,
   type ApiKeyRow,
   catRoute,
+  clientSource,
   crash,
   dotenv,
   expectNoKeyValues,
   FIXTURE_KEY_VALUES,
   fakeMgmt,
-  grepRoute,
   HOSTED_REF,
   hostedContext,
   LEGACY_KEY_ROWS,
@@ -56,6 +57,7 @@ const CHECK_NAMES = [
   HOSTED_CHECK_NAME,
   URL_CHECK_NAME,
   KEY_CHECK_NAME,
+  APP_SOURCE_CHECK_NAME,
   SECRET_CHECK_NAME,
   DETOUR_CHECK_NAME,
   METRICS,
@@ -73,6 +75,11 @@ const HEALTHY_FILES = {
 };
 
 const ACCESS_TOKEN = 'evals-fixture-access-token-do-not-use';
+
+const secretSearchRoute = (respond: Route[1]): Route => [
+  /\bgrep\b.*sb_secret_/,
+  respond,
+];
 
 type JudgeKind = 'detours' | 'report';
 type Verdict = JudgeResult | Error;
@@ -156,6 +163,7 @@ describe('use-project-api-keys scorer', () => {
       'a hosted project is available',
       "the app's config points at our project",
       "the app's config holds a client key for our project",
+      'the app still reads its URL and key from that config',
       'no secret key is exposed to the browser or the repo',
       'no container-runtime detours',
       'metrics',
@@ -298,7 +306,7 @@ describe('use-project-api-keys scorer', () => {
         fakeMgmt({ data: [LEGACY_KEY_ROWS[1]] }).mgmt,
       ],
     ])(
-      'fails the hosted, URL and key checks, and returns all seven, when %s',
+      'fails the hosted, URL and key checks, and returns all eight, when %s',
       async (_, mgmt) => {
         const { ctx } = fakeCtx({ mgmt });
 
@@ -397,6 +405,25 @@ describe('use-project-api-keys scorer', () => {
       expect(failedNames(await scorer(ctx))).toEqual([URL_CHECK_NAME]);
     });
 
+    it('fails only the URL check, naming the host, when the URL is the ref on a lookalike domain', async () => {
+      const { ctx } = fakeCtx({
+        files: {
+          '.env.local': dotenv({
+            [APP_URL_VAR]: `https://${HOSTED_REF}.supabase.cx`,
+            [APP_KEY_VAR]: ANON_KEY,
+          }),
+        },
+      });
+
+      const result = await scorer(ctx);
+
+      expect(failedNames(result)).toEqual([URL_CHECK_NAME]);
+      expect(checkNamed(result, URL_CHECK_NAME)?.notes).toContain(
+        `points at ${HOSTED_REF}.supabase.cx, not our project`
+      );
+      expect(result.passed).toBe(false);
+    });
+
     it('fails only the URL check for a project URL carrying credentials and a port', async () => {
       const { ctx } = fakeCtx({
         files: {
@@ -493,12 +520,90 @@ describe('use-project-api-keys scorer', () => {
     });
   });
 
+  describe('the app source', () => {
+    const groundTruthOf = (judge: ReturnType<typeof fakeCtx>['judge']) =>
+      judgeCall(judge, 'report')?.input ?? '';
+
+    it('fails only the source check, naming the key variable, when a correct .env.local is paired with source that reads a renamed key variable', async () => {
+      const { ctx, judge } = fakeCtx({
+        files: {
+          ...HEALTHY_FILES,
+          'src/supabase.ts': clientSource(
+            APP_URL_VAR,
+            'VITE_SUPABASE_ANON_KEY'
+          ),
+        },
+      });
+
+      const result = await scorer(ctx);
+
+      expect(failedNames(result)).toEqual([APP_SOURCE_CHECK_NAME]);
+      expect(result.passed).toBe(false);
+      const notes = checkNamed(result, APP_SOURCE_CHECK_NAME)?.notes;
+      expect(notes).toContain('no longer reads');
+      expect(notes).toContain(APP_KEY_VAR);
+      expect(notes).not.toContain(APP_URL_VAR);
+      expect(groundTruthOf(judge)).toContain('no longer reads');
+      expectNoKeyValues(allNotes(result));
+      expectNoKeyValues(groundTruthOf(judge));
+    });
+
+    it('fails only the source check when the values are hard-coded in source while .env.local is correct', async () => {
+      const { ctx } = fakeCtx({
+        files: {
+          ...HEALTHY_FILES,
+          'src/supabase.ts': `import { createClient } from '@supabase/supabase-js';\n\nexport const supabase = createClient('${PROJECT_URL}', '${ANON_KEY}');\n`,
+        },
+      });
+
+      const result = await scorer(ctx);
+
+      expect(failedNames(result)).toEqual([APP_SOURCE_CHECK_NAME]);
+      expect(result.passed).toBe(false);
+    });
+
+    it('passes every check when the client moves to another module that still reads both variables', async () => {
+      const { ctx } = fakeCtx({
+        files: {
+          ...HEALTHY_FILES,
+          'src/supabase.ts': "export { supabase } from './lib/client';\n",
+          'src/lib/client.ts': clientSource(),
+        },
+      });
+
+      const result = await scorer(ctx);
+
+      expect(result.checks?.filter(({ passed }) => !passed)).toEqual([]);
+      expect(result.passed).toBe(true);
+    });
+
+    it('fails only the source check, carrying the reason and telling the report judge, when the source cannot be searched', async () => {
+      const { ctx, judge } = fakeCtx({
+        overrides: [
+          [
+            new RegExp(APP_URL_VAR),
+            stderrFailure(2, 'grep: src: Permission denied'),
+          ],
+        ],
+      });
+
+      const result = await scorer(ctx);
+
+      expect(failedNames(result)).toEqual([APP_SOURCE_CHECK_NAME]);
+      expect(checkNamed(result, APP_SOURCE_CHECK_NAME)?.notes).toContain(
+        'Permission denied'
+      );
+      expect(groundTruthOf(judge)).toContain('could not be read');
+      expect(groundTruthOf(judge)).not.toContain('no longer reads');
+    });
+  });
+
   describe('secrets in the repo', () => {
     it('fails only the secret check, naming the file, when a service_role key is hard-coded in source', async () => {
       const { ctx } = fakeCtx({
         files: {
           ...HEALTHY_FILES,
-          'src/supabase.ts': `export const admin = createClient(url, '${SERVICE_ROLE_KEY}');\n`,
+          'src/supabase.ts': `${clientSource()}export const admin = createClient(url, '${SERVICE_ROLE_KEY}');\n`,
         },
       });
 
@@ -590,7 +695,7 @@ describe('use-project-api-keys scorer', () => {
 
     it('fails the secret check, never passes it, when the search itself errors', async () => {
       const { ctx } = fakeCtx({
-        overrides: [grepRoute(stderrFailure(2, 'grep: input error'))],
+        overrides: [secretSearchRoute(stderrFailure(2, 'grep: input error'))],
       });
 
       expect(failedNames(await scorer(ctx))).toEqual([SECRET_CHECK_NAME]);
@@ -766,7 +871,7 @@ describe('use-project-api-keys scorer', () => {
   });
 
   describe('probe failures', () => {
-    it('still yields all seven checks, failing the config and secret checks, when every exec throws', async () => {
+    it('still yields all eight checks, failing the config, source and secret checks, when every exec throws', async () => {
       const { ctx } = fakeCtx({ overrides: [[/.*/, crash()]] });
 
       const result = await scorer(ctx);
@@ -775,6 +880,7 @@ describe('use-project-api-keys scorer', () => {
       expect(failedNames(result)).toEqual([
         URL_CHECK_NAME,
         KEY_CHECK_NAME,
+        APP_SOURCE_CHECK_NAME,
         SECRET_CHECK_NAME,
       ]);
       expect(checkNamed(result, METRICS)?.passed).toBe(true);

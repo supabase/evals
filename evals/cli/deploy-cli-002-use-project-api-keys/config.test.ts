@@ -93,6 +93,11 @@ describe('checkUrlPointsAtProject', () => {
       'a staging domain whose first label is the ref',
       `https://${HOSTED_REF}.supabase.red`,
     ],
+    ['an upper-case domain', `https://${HOSTED_REF.toUpperCase()}.SUPABASE.CO`],
+    [
+      'a staging project URL with a trailing slash and the explicit https port',
+      `https://${HOSTED_REF}.supabase.red:443/`,
+    ],
   ])('passes for %s', (_, value) => {
     expect(checkUrlPointsAtProject(HOSTED_OK, urlEnv(value))).toMatchObject({
       name: URL_CHECK_NAME,
@@ -150,6 +155,43 @@ describe('checkUrlPointsAtProject', () => {
     expect(check).toMatchObject({ name: URL_CHECK_NAME, passed: false });
     expect(check.notes).toContain(APP_URL_VAR);
     expect(check.notes).toContain('.env.local');
+    expectNoKeyValues(check.notes);
+  });
+
+  it.each([
+    ['a different supabase TLD', `https://${HOSTED_REF}.supabase.cx`],
+    ['supabase.com', `https://${HOSTED_REF}.supabase.com`],
+    ['an unrelated domain', `https://${HOSTED_REF}.example.com`],
+    [
+      'supabase.co as a subdomain of another domain',
+      `https://${HOSTED_REF}.supabase.co.example.com`,
+    ],
+    [
+      'supabase.red as a subdomain of another domain',
+      `https://${HOSTED_REF}.supabase.red.example.com`,
+    ],
+    ['the ref under the co TLD', `https://${HOSTED_REF}.co`],
+    ['a bare ref host', `https://${HOSTED_REF}`],
+    [
+      'a fully qualified host with a trailing dot',
+      `https://${HOSTED_REF}.supabase.co.`,
+    ],
+    [
+      'an upper-case lookalike domain',
+      `https://${HOSTED_REF.toUpperCase()}.SUPABASE.CX`,
+    ],
+  ])('fails for %s, saying the host is not our project', (_, value) => {
+    const check = checkUrlPointsAtProject(
+      HOSTED_OK,
+      urlEnv(value, '.env.local')
+    );
+
+    expect(check).toMatchObject({ name: URL_CHECK_NAME, passed: false });
+    expect(check.notes).toContain(APP_URL_VAR);
+    expect(check.notes).toContain('.env.local');
+    expect(check.notes).toContain(
+      `points at ${new URL(value).hostname}, not our project`
+    );
     expectNoKeyValues(check.notes);
   });
 

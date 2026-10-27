@@ -78,6 +78,15 @@ export function expectNoKeyValues(text: string | undefined) {
   }
 }
 
+export const clientSource = (urlVar = APP_URL_VAR, keyVar = APP_KEY_VAR) =>
+  `import { createClient } from '@supabase/supabase-js';
+
+export const supabase = createClient(
+  import.meta.env.${urlVar},
+  import.meta.env.${keyVar}
+);
+`;
+
 export type ApiKeyRow = {
   name: string;
   api_key?: string | null;
@@ -264,9 +273,9 @@ type WorkspaceOptions = {
 
 /**
  * Runs commands with bash in a real temp copy of the seeded app (`local/`)
- * plus `files` (a `null` value deletes a seeded file); a stub `supabase` answers
- * `--version`, and git config is isolated so the user's global ignore rules
- * cannot change a `check-ignore` result.
+ * plus `files` (a `null` value deletes a seeded file or directory); a stub
+ * `supabase` answers `--version`, and git config is isolated so the user's
+ * global ignore rules cannot change a `check-ignore` result.
  */
 export function workspaceExec(
   files: Record<string, string | null> = {},
@@ -285,7 +294,7 @@ export function workspaceExec(
   for (const [name, content] of Object.entries(files)) {
     const target = path.join(dir, name);
     if (content === null) {
-      fs.rmSync(target, { force: true });
+      fs.rmSync(target, { recursive: true, force: true });
       continue;
     }
     fs.mkdirSync(path.dirname(target), { recursive: true });

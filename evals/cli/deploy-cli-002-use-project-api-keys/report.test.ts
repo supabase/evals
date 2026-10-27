@@ -1,5 +1,6 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/deploy-cli-002-use-project-api-keys
 import { describe, expect, it } from 'vitest';
+import type { AppSource } from './app-source.js';
 import {
   ANON_KEY,
   APP_KEY_VAR,
@@ -25,9 +26,12 @@ import { describeGroundTruth } from './report.js';
 
 type Facts = Parameters<typeof describeGroundTruth>[0];
 
+const READS_BOTH: AppSource = { ok: true, missing: [] };
+
 const HEALTHY: Facts = {
   hosted: HOSTED_OK,
   env: appEnv({ [APP_URL_VAR]: PROJECT_URL, [APP_KEY_VAR]: ANON_KEY }),
+  source: READS_BOTH,
   secrets: CLEAN_SECRETS,
   tokenInEnvironment: true,
 };
@@ -153,6 +157,18 @@ describe('describeGroundTruth', () => {
       }
     );
 
+    it('shows the host and says it is not our project for the ref on a lookalike domain', () => {
+      const line = urlLine(
+        describe_({
+          env: appEnv({ [APP_URL_VAR]: `https://${HOSTED_REF}.supabase.cx` }),
+        })
+      );
+
+      expect(line).toContain(`${HOSTED_REF}.supabase.cx`);
+      expect(line).toMatch(NO);
+      expect(line).not.toMatch(YES);
+    });
+
     it('says it is unset when no file sets it', () => {
       expect(urlLine(describe_({ env: NO_ENV }))).toMatch(/unset/i);
     });
@@ -216,6 +232,60 @@ describe('describeGroundTruth', () => {
       expect(
         keyLine(describe_({ hosted: HOSTED_ABSENT, env: NO_ENV }))
       ).toMatch(/unset/i);
+    });
+  });
+
+  describe('app source', () => {
+    const sourceText = (source: AppSource) => describe_({ source }).join('\n');
+    const unreadLines = (source: AppSource) =>
+      describe_({ source }).filter((line) => /no longer reads/.test(line));
+
+    it('says the app reads both variables when none is missing', () => {
+      const text = sourceText(READS_BOTH);
+
+      expect(text).toMatch(/reads both/i);
+      expect(text).not.toContain('no longer reads');
+      expect(text).not.toMatch(/could not be read/i);
+    });
+
+    it.each([
+      ['the URL variable', [APP_URL_VAR], APP_KEY_VAR],
+      ['the key variable', [APP_KEY_VAR], APP_URL_VAR],
+    ])(
+      'names only the variable the source no longer reads when %s is missing',
+      (_, missing, present) => {
+        const source: AppSource = { ok: true, missing };
+
+        const lines = unreadLines(source);
+
+        expect(lines).toHaveLength(1);
+        expect(lines[0]).toContain(missing[0]);
+        expect(lines[0]).not.toContain(present);
+        expect(sourceText(source)).not.toMatch(/reads both/i);
+      }
+    );
+
+    it('names both variables on one line when the source reads neither', () => {
+      const lines = unreadLines({
+        ok: true,
+        missing: [APP_URL_VAR, APP_KEY_VAR],
+      });
+
+      expect(lines).toHaveLength(1);
+      expect(lines[0]).toContain(APP_URL_VAR);
+      expect(lines[0]).toContain(APP_KEY_VAR);
+    });
+
+    it('says the source could not be read, and why, instead of claiming a variable is unread', () => {
+      const text = sourceText({
+        ok: false,
+        notes: 'exit 2: grep: src: Permission denied',
+      });
+
+      expect(text).toMatch(/could not be read/i);
+      expect(text).toContain('Permission denied');
+      expect(text).not.toContain('no longer reads');
+      expect(text).not.toMatch(/reads both/i);
     });
   });
 
@@ -299,6 +369,28 @@ describe('describeGroundTruth', () => {
 
       expectNoKeyValues(lines.join('\n'));
     });
+
+    it.each([
+      ['reads both variables', READS_BOTH],
+      [
+        'no longer reads a variable',
+        { ok: true, missing: [APP_URL_VAR, APP_KEY_VAR] },
+      ],
+      ['could not be read', { ok: false, notes: 'exit 2: grep: src: failed' }],
+    ] satisfies [string, AppSource][])(
+      'never include a key value when the source %s',
+      (_, source) => {
+        const lines = describe_({
+          env: appEnv({
+            [APP_URL_VAR]: PROJECT_URL,
+            [APP_KEY_VAR]: SERVICE_ROLE_KEY,
+          }),
+          source,
+        });
+
+        expectNoKeyValues(lines.join('\n'));
+      }
+    );
 
     it.each([
       ['the anon key', ANON_KEY],

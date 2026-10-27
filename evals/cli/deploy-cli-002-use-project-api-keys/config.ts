@@ -10,6 +10,8 @@ export const URL_CHECK_NAME = "the app's config points at our project";
 export const KEY_CHECK_NAME =
   "the app's config holds a client key for our project";
 
+const PROJECT_DOMAINS = ['supabase.co', 'supabase.red'] as const;
+
 type KeyKind = 'unset' | 'client' | 'secret' | 'other';
 
 const KEY_PHRASES = {
@@ -29,6 +31,11 @@ function parseUrl(value: string): URL | undefined {
 /** The hostname of a URL value, or undefined when it is unset or not a URL. */
 export function urlHostname(value: string | undefined): string | undefined {
   return value === undefined ? undefined : parseUrl(value.trim())?.hostname;
+}
+
+/** Whether `hostname` is exactly `<ref>.supabase.co` or `<ref>.supabase.red`. */
+export function isProjectHost(hostname: string, ref: string): boolean {
+  return PROJECT_DOMAINS.some((domain) => hostname === `${ref}.${domain}`);
 }
 
 /** Whether `value` is unset, one of the project's client keys, a secret key, or something else. */
@@ -55,7 +62,7 @@ const fail = (
 
 function urlProblem(url: URL, ref: string): string | undefined {
   if (url.protocol !== 'https:') return 'is not https';
-  if (url.hostname.split('.')[0] !== ref) {
+  if (!isProjectHost(url.hostname, ref)) {
     return `points at ${url.hostname}, not our project`;
   }
   if (url.username !== '' || url.password !== '' || url.port !== '') {

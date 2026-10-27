@@ -1,3 +1,4 @@
+import type { AppSource } from './app-source.js';
 import {
   checkUrlPointsAtProject,
   describeKeyValue,
@@ -48,6 +49,14 @@ function describeKey(hosted: HostedFacts, env: ReadableEnv): string {
   return `- ${KEY_VAR} (from ${entry.file}): ${phrase}`;
 }
 
+function describeSource(source: AppSource): string {
+  const where = "the app's source (src/ and index.html)";
+  if (!source.ok) return `- ${where}: could not be read (${source.notes})`;
+  return source.missing.length === 0
+    ? `- ${where} reads both the URL and key variables`
+    : `- ${where} no longer reads ${source.missing.join(' or ')}`;
+}
+
 function describeSecrets(secrets: SecretExposureProbe): string[] {
   if (!secrets.ok) {
     return [`- secret key search: could not run (${secrets.notes})`];
@@ -68,10 +77,11 @@ function describeSecrets(secrets: SecretExposureProbe): string[] {
 export function describeGroundTruth(facts: {
   hosted: HostedFacts;
   env: AppEnv;
+  source: AppSource;
   secrets: SecretExposureProbe;
   tokenInEnvironment: boolean | null;
 }): string[] {
-  const { hosted, env, secrets, tokenInEnvironment } = facts;
+  const { hosted, env, source, secrets, tokenInEnvironment } = facts;
   return [
     hosted.ok
       ? `- hosted project available: ${hosted.ref}`
@@ -84,6 +94,7 @@ export function describeGroundTruth(facts: {
           describeKey(hosted, env),
         ]
       : [`- env files: could not be read (${env.notes})`]),
+    describeSource(source),
     ...describeSecrets(secrets),
   ];
 }
