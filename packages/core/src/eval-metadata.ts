@@ -45,6 +45,7 @@ export const evalSuiteSchema = z.enum([
   'regression',
   'docs',
   'cli',
+  'docs-nav',
 ]);
 export const EVAL_SUITES = evalSuiteSchema.options;
 export type EvalSuite = z.infer<typeof evalSuiteSchema>;
