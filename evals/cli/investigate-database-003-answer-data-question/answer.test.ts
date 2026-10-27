@@ -12,10 +12,13 @@ import {
   type DbQueryRun,
   finalReply,
   findDbQueryRuns,
+  findSavedOutputReads,
   formatAnswerSourceJudgeInput,
   gateAnswerSource,
   isDbQueryInvocation,
   REPLY_CHECK,
+  type SavedOutputRead,
+  savedOutputPaths,
 } from './answer.js';
 
 const DB_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
@@ -69,6 +72,9 @@ const invocationsOf = (toolCalls: ToolCallRecord[]) =>
 const runsOf = (toolCalls: ToolCallRecord[]) =>
   findDbQueryRuns(toolCalls, invocationsOf(toolCalls));
 
+const readsOf = (toolCalls: ToolCallRecord[]) =>
+  findSavedOutputReads(toolCalls, runsOf(toolCalls));
+
 const verdicts = (command: string) =>
   findSupabaseInvocations([command]).map(isDbQueryInvocation);
 
@@ -78,6 +84,17 @@ const run = (overrides: Partial<DbQueryRun> = {}): DbQueryRun => ({
   output: '{"rows":[{"?column?":1}]}',
   errored: false,
   showsAnswer: false,
+  ...overrides,
+});
+
+const read = (overrides: Partial<SavedOutputRead> = {}): SavedOutputRead => ({
+  commandIndex: 2,
+  command: "jq '.rows | length' /tmp/never.json",
+  output: '263\n',
+  errored: false,
+  showsAnswer: true,
+  path: '/tmp/never.json',
+  savedBy: 1,
   ...overrides,
 });
 
@@ -362,9 +379,332 @@ describe('findDbQueryRuns', () => {
   });
 });
 
+describe('savedOutputPaths', () => {
+  it.each([
+    [
+      'a redirect',
+      `supabase db query "select 1" > /tmp/never.json`,
+      ['/tmp/never.json'],
+    ],
+    [
+      'a redirect with no space',
+      'supabase db query "select 1" >never.json',
+      ['never.json'],
+    ],
+    [
+      'an append',
+      'supabase db query "select 1" >> out/all.json',
+      ['out/all.json'],
+    ],
+    [
+      'a combined redirect',
+      'supabase db query "select 1" &> run.log',
+      ['run.log'],
+    ],
+    [
+      'a stderr redirect',
+      'supabase db query "select 1" 2> err.log',
+      ['err.log'],
+    ],
+    [
+      'a quoted target',
+      `supabase db query "select 1" > "/tmp/never.json"`,
+      ['/tmp/never.json'],
+    ],
+    [
+      'a single-quoted target',
+      `supabase db query "select 1" > '/tmp/never.json'`,
+      ['/tmp/never.json'],
+    ],
+    [
+      'a target with a leading ./',
+      'supabase db query "select 1" > ./never.json',
+      ['never.json'],
+    ],
+    [
+      'tee',
+      'supabase db query "select 1" | tee /tmp/never.json',
+      ['/tmp/never.json'],
+    ],
+    [
+      'tee -a',
+      'supabase db query "select 1" | tee -a /tmp/never.json',
+      ['/tmp/never.json'],
+    ],
+    [
+      'tee into a pipe',
+      'supabase db query "select 1" | tee never.json | jq .rows',
+      ['never.json'],
+    ],
+    [
+      'every file tee is given',
+      'supabase db query "select 1" | tee a.json /tmp/b.json',
+      ['a.json', '/tmp/b.json'],
+    ],
+    [
+      'quotes escaped by a wrapping shell command',
+      'bash -c "supabase db query \\"select 1\\" > \\"/tmp/never.json\\""',
+      ['/tmp/never.json'],
+    ],
+    [
+      'a redirect and a tee in one command',
+      'supabase db query "select 1" > a.json && supabase db query "select 2" | tee b.json',
+      ['a.json', 'b.json'],
+    ],
+  ])('finds the file written by %s', (_label, command, paths) => {
+    expect(savedOutputPaths(command)).toEqual(paths);
+  });
+
+  it.each([
+    ['a stderr merge', 'supabase db query "select 1" 2>&1'],
+    [
+      'a stderr merge into a pipe',
+      'supabase db query "select 1" 2>&1 | jq .rows',
+    ],
+    ['a redirect to /dev/null', 'supabase db query "select 1" > /dev/null'],
+    [
+      'both streams to /dev/null',
+      'supabase db query "select 1" > /dev/null 2>&1',
+    ],
+    ['an fd duplication', 'supabase db query "select 1" >&2'],
+    ['a pipe', 'supabase db query "select 1" | jq .rows'],
+    ['a plain run', 'supabase db query "select 1"'],
+    ['a number after >', 'supabase db query "select 1 where 1 > 0"'],
+    ['a comparison operator', 'supabase db query "select 1 where a >= b"'],
+    ['a jq filter', 'supabase db query "select 1" | jq \'.rows[0].count\''],
+  ])('finds no file for %s', (_label, command) => {
+    expect(savedOutputPaths(command)).toEqual([]);
+  });
+});
+
+describe('findSavedOutputReads', () => {
+  const SAVE = `supabase db query "${COUNT_SQL}" -o json > /tmp/never.json`;
+
+  it('finds a later jq over the file the db query redirected into', () => {
+    const toolCalls = [
+      call(SAVE, { result: '' }),
+      call("jq '.rows | length' /tmp/never.json", { result: '263\n' }),
+    ];
+    expect(readsOf(toolCalls)).toEqual([
+      {
+        commandIndex: 1,
+        command: "jq '.rows | length' /tmp/never.json",
+        output: '263\n',
+        errored: false,
+        showsAnswer: true,
+        path: '/tmp/never.json',
+        savedBy: 0,
+      },
+    ]);
+  });
+
+  it('finds a read of a relative file by its basename after a cd', () => {
+    const [found] = readsOf([
+      call(`supabase db query "${COUNT_SQL}" > never.json`),
+      call("cd somewhere && jq '.rows | length' never.json", {
+        result: '263\n',
+      }),
+    ]);
+    expect(found).toMatchObject({
+      commandIndex: 1,
+      path: 'never.json',
+      savedBy: 0,
+      showsAnswer: true,
+    });
+  });
+
+  it('finds a read of an absolute file by its basename after a cd', () => {
+    const [found] = readsOf([
+      call(SAVE),
+      call("cd /tmp && jq '.rows | length' never.json", { result: '263\n' }),
+    ]);
+    expect(found).toMatchObject({
+      commandIndex: 1,
+      path: '/tmp/never.json',
+      savedBy: 0,
+    });
+  });
+
+  it('finds a read that names the file with a leading ./', () => {
+    const [found] = readsOf([
+      call(`supabase db query "${COUNT_SQL}" > out/never.json`),
+      call('jq .rows ./out/never.json', { result: '263\n' }),
+    ]);
+    expect(found).toMatchObject({ commandIndex: 1, path: 'out/never.json' });
+  });
+
+  it.each([
+    ['tee', `supabase db query "${COUNT_SQL}" | tee /tmp/never.json`],
+    ['tee -a', `supabase db query "${COUNT_SQL}" | tee -a /tmp/never.json`],
+    ['an append', `supabase db query "${COUNT_SQL}" >> /tmp/never.json`],
+    [
+      'a combined redirect',
+      `supabase db query "${COUNT_SQL}" &> /tmp/never.json`,
+    ],
+    ['a quoted target', `supabase db query "${COUNT_SQL}" > "/tmp/never.json"`],
+  ])('finds a read of the file written with %s', (_label, command) => {
+    const [found] = readsOf([
+      call(command),
+      call('wc -l /tmp/never.json', { result: '263 /tmp/never.json\n' }),
+    ]);
+    expect(found).toMatchObject({
+      commandIndex: 1,
+      path: '/tmp/never.json',
+      savedBy: 0,
+      showsAnswer: true,
+    });
+  });
+
+  it('finds a read that names the file after an option and an equals sign', () => {
+    const [found] = readsOf([
+      call(SAVE),
+      call('python3 count.py --input=/tmp/never.json', { result: '263\n' }),
+    ]);
+    expect(found).toMatchObject({ commandIndex: 1, path: '/tmp/never.json' });
+  });
+
+  it('does not take a later call that reads an unrelated file', () => {
+    expect(
+      readsOf([
+        call(SAVE),
+        call("jq '.rows | length' /tmp/other.json", { result: '263\n' }),
+      ])
+    ).toEqual([]);
+  });
+
+  it('does not take a file of the same name in another directory', () => {
+    expect(
+      readsOf([
+        call(SAVE),
+        call('jq .rows /var/other/never.json', { result: '263\n' }),
+      ])
+    ).toEqual([]);
+  });
+
+  it('matches a whole path, so out does not match output.json or layout', () => {
+    expect(
+      readsOf([
+        call(`supabase db query "${COUNT_SQL}" > out`),
+        call('jq .rows output.json', { result: '263\n' }),
+        call('cat layout', { result: '263\n' }),
+        call('cat /tmp/out.json /tmp/about', { result: '263\n' }),
+      ])
+    ).toEqual([]);
+    expect(
+      readsOf([
+        call(`supabase db query "${COUNT_SQL}" > out`),
+        call('wc -l out', { result: '263 out\n' }),
+      ])
+    ).toHaveLength(1);
+  });
+
+  it('finds no read when the db query only merged stderr or wrote to /dev/null', () => {
+    expect(
+      readsOf([
+        call(`supabase db query "${COUNT_SQL}" 2>&1`),
+        call('cat 1', { result: '263\n' }),
+        call(`supabase db query "${COUNT_SQL}" > /dev/null`),
+        call('cat /dev/null', { result: '263\n' }),
+      ])
+    ).toEqual([]);
+  });
+
+  it('does not take an earlier call that read the path before the db query wrote it', () => {
+    expect(
+      readsOf([
+        call("jq '.rows | length' /tmp/never.json", { result: '263\n' }),
+        call(SAVE),
+      ])
+    ).toEqual([]);
+  });
+
+  it('does not take a later db query run for a read', () => {
+    const toolCalls = [
+      call(SAVE),
+      call(`supabase db query "select 1" -o json | tee /tmp/never.json`, {
+        result: '263\n',
+      }),
+    ];
+    expect(runsOf(toolCalls)).toHaveLength(2);
+    expect(readsOf(toolCalls)).toEqual([]);
+  });
+
+  it('numbers reads by command, skipping tool calls that carry none', () => {
+    const [found] = readsOf([
+      readFileCall,
+      call('ls'),
+      call(SAVE),
+      readFileCall,
+      call('jq .rows /tmp/never.json', { result: '263\n' }),
+    ]);
+    expect(found).toMatchObject({ commandIndex: 2, savedBy: 1 });
+  });
+
+  it('credits a read to the latest db query that wrote the file before it', () => {
+    const toolCalls = [
+      call(SAVE),
+      call('jq .rows /tmp/never.json', { result: '1200\n' }),
+      call(`supabase db query "select 2" > /tmp/never.json`),
+      call('jq .rows /tmp/never.json', { result: '263\n' }),
+    ];
+    expect(
+      readsOf(toolCalls).map(({ commandIndex, savedBy }) => ({
+        commandIndex,
+        savedBy,
+      }))
+    ).toEqual([
+      { commandIndex: 1, savedBy: 0 },
+      { commandIndex: 3, savedBy: 2 },
+    ]);
+  });
+
+  it('finds one read per later call, even when it names two saved files', () => {
+    const reads = readsOf([
+      call(`supabase db query "select 1" > a.json`),
+      call(`supabase db query "select 2" > b.json`),
+      call('jq -s . a.json b.json', { result: '263\n' }),
+    ]);
+    expect(reads).toHaveLength(1);
+    expect(reads[0]).toMatchObject({ commandIndex: 2 });
+  });
+
+  it('does not show the answer in a read that printed no 263', () => {
+    const [found] = readsOf([
+      call(SAVE),
+      call('jq .rows /tmp/never.json', { result: '[]' }),
+    ]);
+    expect(found.showsAnswer).toBe(false);
+  });
+
+  it('marks a read errored and keeps the error and result in its output', () => {
+    const [found] = readsOf([
+      call(SAVE),
+      call("jq '.rows | length' /tmp/never.json && false", {
+        result: '\u001b[32m263\u001b[0m',
+        error: 'exit status 1',
+      }),
+    ]);
+    expect(found.errored).toBe(true);
+    expect(found.output).toContain('263');
+    expect(found.output).toContain('exit status 1');
+    expect(found.output).not.toContain('\u001b');
+    expect(found.showsAnswer).toBe(true);
+  });
+
+  it('does not take a 263 inside an email for the answer', () => {
+    const [found] = readsOf([
+      call(SAVE),
+      call('jq .rows[0].email /tmp/never.json', {
+        result: '"ada.okafor263@example.com"',
+      }),
+    ]);
+    expect(found.showsAnswer).toBe(false);
+  });
+});
+
 describe('gateAnswerSource', () => {
   it('fails when no db query ran', () => {
-    expect(gateAnswerSource([])).toEqual({
+    expect(gateAnswerSource([], [])).toEqual({
       name: ANSWER_SOURCE_CHECK,
       passed: false,
       notes: 'no supabase db query ran',
@@ -372,19 +712,23 @@ describe('gateAnswerSource', () => {
   });
 
   it('passes naming the tool call of a run that showed 263', () => {
-    const check = gateAnswerSource([
-      run({ commandIndex: 2, showsAnswer: true }),
-    ]);
+    const check = gateAnswerSource(
+      [run({ commandIndex: 2, showsAnswer: true })],
+      []
+    );
     expect(check).toMatchObject({ name: ANSWER_SOURCE_CHECK, passed: true });
     expect(check?.notes).toContain('tool call 3');
   });
 
   it('names the run that showed 263 among runs that did not', () => {
-    const check = gateAnswerSource([
-      run({ commandIndex: 0 }),
-      run({ commandIndex: 1, errored: true }),
-      run({ commandIndex: 4, showsAnswer: true }),
-    ]);
+    const check = gateAnswerSource(
+      [
+        run({ commandIndex: 0 }),
+        run({ commandIndex: 1, errored: true }),
+        run({ commandIndex: 4, showsAnswer: true }),
+      ],
+      []
+    );
     expect(check?.passed).toBe(true);
     expect(check?.notes).toContain('tool call 5');
     expect(check?.notes).not.toContain('tool call 1');
@@ -397,7 +741,8 @@ describe('gateAnswerSource', () => {
           call('supabase db query "select * from customers limit 2"', {
             result: CUSTOMER_ROWS,
           }),
-        ])
+        ]),
+        []
       )
     ).toBeUndefined();
   });
@@ -409,7 +754,8 @@ describe('gateAnswerSource', () => {
           result: CUSTOMER_ROWS,
         }),
         call(`supabase db query "${COUNT_SQL}"`, { result: ANSWER_JSON }),
-      ])
+      ]),
+      []
     );
     expect(check?.passed).toBe(true);
     expect(check?.notes).toContain('tool call 2');
@@ -417,30 +763,104 @@ describe('gateAnswerSource', () => {
   });
 
   it('leaves the verdict to the judge when no run showed 263', () => {
-    expect(gateAnswerSource([run()])).toBeUndefined();
+    expect(gateAnswerSource([run()], [])).toBeUndefined();
     expect(
-      gateAnswerSource([
-        run({ commandIndex: 0 }),
-        run({ commandIndex: 3, errored: true }),
-      ])
+      gateAnswerSource(
+        [run({ commandIndex: 0 }), run({ commandIndex: 3, errored: true })],
+        []
+      )
     ).toBeUndefined();
+  });
+
+  it('passes an errored run whose error text holds the stdout it printed before exiting non-zero', () => {
+    const toolCalls = [
+      call(`supabase db query "${COUNT_SQL}" && false`, {
+        error: ANSWER_JSON,
+      }),
+    ];
+    const check = gateAnswerSource(runsOf(toolCalls), []);
+    expect(check).toMatchObject({ name: ANSWER_SOURCE_CHECK, passed: true });
+    expect(check?.notes).toContain('tool call 1');
+  });
+
+  describe('with reads of saved output', () => {
+    const SAVE = `supabase db query "${COUNT_SQL}" -o json > /tmp/never.json`;
+
+    it('fails with no run, whatever the reads', () => {
+      expect(gateAnswerSource([], [read()])).toEqual({
+        name: ANSWER_SOURCE_CHECK,
+        passed: false,
+        notes: 'no supabase db query ran',
+      });
+    });
+
+    it('passes a read that showed 263, naming the tool call, the path and the run that saved it', () => {
+      const check = gateAnswerSource(
+        [run({ commandIndex: 1 })],
+        [read({ commandIndex: 2, savedBy: 1, path: '/tmp/never.json' })]
+      );
+      expect(check).toMatchObject({ name: ANSWER_SOURCE_CHECK, passed: true });
+      expect(check?.notes).toContain('tool call 3');
+      expect(check?.notes).toContain('/tmp/never.json');
+      expect(check?.notes).toContain('tool call 2');
+    });
+
+    it('passes the empty redirect followed by a jq that printed 263', () => {
+      const toolCalls = [
+        call(SAVE, { result: '' }),
+        call("jq '.rows | length' /tmp/never.json", { result: '263\n' }),
+      ];
+      expect(
+        gateAnswerSource(runsOf(toolCalls), readsOf(toolCalls))
+      ).toMatchObject({ passed: true });
+    });
+
+    it('names the run, not the read, when both showed 263', () => {
+      const check = gateAnswerSource(
+        [run({ commandIndex: 1, showsAnswer: true })],
+        [read({ commandIndex: 2, savedBy: 1 })]
+      );
+      expect(check?.notes).toContain('tool call 2 ran supabase db query');
+    });
+
+    it('leaves the verdict to the judge when no read showed 263 either', () => {
+      expect(
+        gateAnswerSource(
+          [run({ commandIndex: 1 })],
+          [read({ commandIndex: 2, showsAnswer: false, output: '[]' })]
+        )
+      ).toBeUndefined();
+    });
+
+    it('leaves the verdict to the judge for a read of an unrelated file that printed 263', () => {
+      const toolCalls = [
+        call(SAVE),
+        call("jq '.rows | length' /tmp/other.json", { result: '263\n' }),
+      ];
+      expect(
+        gateAnswerSource(runsOf(toolCalls), readsOf(toolCalls))
+      ).toBeUndefined();
+    });
   });
 });
 
 describe('formatAnswerSourceJudgeInput', () => {
   it('gives each run its 1-based tool call number, its command and its output', () => {
-    const input = formatAnswerSourceJudgeInput([
-      run({
-        commandIndex: 2,
-        command: 'supabase db query "select count(*) from customers"',
-        output: '{"rows":[{"count":1200}]}',
-      }),
-      run({
-        commandIndex: 6,
-        command: 'supabase db query -f orders.sql',
-        output: '{"rows":[{"count":937}]}',
-      }),
-    ]);
+    const input = formatAnswerSourceJudgeInput(
+      [
+        run({
+          commandIndex: 2,
+          command: 'supabase db query "select count(*) from customers"',
+          output: '{"rows":[{"count":1200}]}',
+        }),
+        run({
+          commandIndex: 6,
+          command: 'supabase db query -f orders.sql',
+          output: '{"rows":[{"count":937}]}',
+        }),
+      ],
+      []
+    );
     expect(input).toMatch(/tool call 3\b/i);
     expect(input).toMatch(/tool call 7\b/i);
     expect(input).not.toMatch(/tool call [0-2]\b/i);
@@ -455,10 +875,13 @@ describe('formatAnswerSourceJudgeInput', () => {
   });
 
   it('keeps the runs in order', () => {
-    const input = formatAnswerSourceJudgeInput([
-      run({ commandIndex: 1, output: 'first-output' }),
-      run({ commandIndex: 5, output: 'second-output' }),
-    ]);
+    const input = formatAnswerSourceJudgeInput(
+      [
+        run({ commandIndex: 1, output: 'first-output' }),
+        run({ commandIndex: 5, output: 'second-output' }),
+      ],
+      []
+    );
     expect(input.indexOf('first-output')).toBeGreaterThanOrEqual(0);
     expect(input.indexOf('first-output')).toBeLessThan(
       input.indexOf('second-output')
@@ -470,9 +893,56 @@ describe('formatAnswerSourceJudgeInput', () => {
     const output = `${'{"rows":[{"customer":"customer-1@example.com"}]}\n'.repeat(200)}{"rows":[{"count":263}]}`;
     expect(command.length).toBeGreaterThan(5000);
     expect(output.length).toBeGreaterThan(5000);
-    const input = formatAnswerSourceJudgeInput([run({ command, output })]);
+    const input = formatAnswerSourceJudgeInput([run({ command, output })], []);
     expect(input).toContain(command);
     expect(input).toContain(output);
+  });
+
+  it('puts each read after the runs, labelled with its path and the tool call of the run that saved it', () => {
+    const input = formatAnswerSourceJudgeInput(
+      [
+        run({ commandIndex: 1, output: 'run-output' }),
+        run({ commandIndex: 4, output: 'second-run-output' }),
+      ],
+      [
+        read({
+          commandIndex: 2,
+          command: "jq '.rows | length' /tmp/never.json",
+          output: 'read-output',
+          path: '/tmp/never.json',
+          savedBy: 1,
+        }),
+      ]
+    );
+    expect(input).toContain(
+      'Tool call 3 (reads /tmp/never.json, saved by the supabase db query in tool call 2)'
+    );
+    expect(input).toContain("jq '.rows | length' /tmp/never.json");
+    expect(input).toContain('read-output');
+    expect(input.indexOf('second-run-output')).toBeLessThan(
+      input.indexOf('read-output')
+    );
+  });
+
+  it('keeps the reads in call order and marks an errored one', () => {
+    const input = formatAnswerSourceJudgeInput(
+      [run({ commandIndex: 0 })],
+      [
+        read({ commandIndex: 1, output: 'first-read' }),
+        read({ commandIndex: 4, output: 'second-read', errored: true }),
+      ]
+    );
+    expect(input.indexOf('first-read')).toBeLessThan(
+      input.indexOf('second-read')
+    );
+    expect(input).toMatch(/Tool call 5 \(reads [^)]*errored\)/);
+    expect(input).not.toMatch(/Tool call 2 \(reads [^)]*errored\)/);
+  });
+
+  it('is the runs alone when there are no reads', () => {
+    const input = formatAnswerSourceJudgeInput([run()], []);
+    expect(input).not.toContain('reads');
+    expect(input).not.toContain('saved by');
   });
 });
 
@@ -492,7 +962,7 @@ describe('finalReply', () => {
     output: '263',
   };
 
-  it('is the last assistant message', () => {
+  it('is the last assistant message after the last tool call', () => {
     expect(
       finalReply([
         say('assistant', 'Let me look at the tables.'),
@@ -500,6 +970,60 @@ describe('finalReply', () => {
         say('assistant', 'There are 263 customers who never ordered.'),
       ])
     ).toBe('There are 263 customers who never ordered.');
+  });
+
+  it('joins every assistant message after the last tool call with a blank line', () => {
+    expect(
+      finalReply([
+        say('assistant', 'Roughly 900, I think.'),
+        toolCall,
+        say('assistant', 'There are 263 customers who never ordered.'),
+        say('assistant', 'Let me know if you want the list exported.'),
+      ])
+    ).toBe(
+      'There are 263 customers who never ordered.\n\nLet me know if you want the list exported.'
+    );
+  });
+
+  it('leaves out the user, system and empty messages between the ones it joins', () => {
+    expect(
+      finalReply([
+        toolCall,
+        say('assistant', 'There are 263.'),
+        say('user', 'thanks!'),
+        say('assistant', '  \n'),
+        say('system', 'session ended'),
+        say('assistant', 'Anything else?'),
+      ])
+    ).toBe('There are 263.\n\nAnything else?');
+  });
+
+  it('does not take an answer that came only before the last tool call', () => {
+    expect(
+      finalReply([
+        toolCall,
+        say('assistant', 'There are 263 customers who never ordered.'),
+        toolCall,
+        say('assistant', 'Let me know if you want the list exported.'),
+      ])
+    ).toBe('Let me know if you want the list exported.');
+  });
+
+  it('falls back to the last assistant message when the transcript ends on a tool call', () => {
+    expect(
+      finalReply([
+        say('assistant', 'Let me look.'),
+        toolCall,
+        say('assistant', 'There are 263 customers who never ordered.'),
+        toolCall,
+      ])
+    ).toBe('There are 263 customers who never ordered.');
+  });
+
+  it('joins every assistant message when the agent made no tool call', () => {
+    expect(
+      finalReply([say('assistant', 'First.'), say('assistant', 'Second.')])
+    ).toBe('First.\n\nSecond.');
   });
 
   it('is not replaced by a tool call that came after it', () => {

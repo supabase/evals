@@ -7,7 +7,7 @@ import type {
 import { describe, expect, it } from 'vitest';
 import { findSupabaseInvocations } from '../lib/cli-invocations.js';
 import type { StackProbe } from '../lib/stack.js';
-import type { DbQueryRun } from './answer.js';
+import type { DbQueryRun, SavedOutputRead } from './answer.js';
 import { type CliFacts, checkMetrics, readCliFacts } from './metrics.js';
 
 const DB_URL = 'postgresql://postgres:hunter2@127.0.0.1:54322/postgres';
@@ -90,6 +90,19 @@ const run = (overrides: Partial<DbQueryRun> = {}): DbQueryRun => ({
   ...overrides,
 });
 
+const savedRead = (
+  overrides: Partial<SavedOutputRead> = {}
+): SavedOutputRead => ({
+  commandIndex: 1,
+  command: "jq '.rows | length' /tmp/never.json",
+  output: '263\n',
+  errored: false,
+  showsAnswer: true,
+  path: '/tmp/never.json',
+  savedBy: 0,
+  ...overrides,
+});
+
 function metricsFacts(overrides: Partial<MetricsFacts> = {}): MetricsFacts {
   const commands = overrides.commands ?? [];
   return {
@@ -98,6 +111,7 @@ function metricsFacts(overrides: Partial<MetricsFacts> = {}): MetricsFacts {
     stack: STACK,
     cli: { versions: { cliVersion: '2.0.0' }, cliOverride: [] },
     dbQueryRuns: [],
+    savedOutputReads: [],
     reply: undefined,
     ...overrides,
   };
@@ -109,9 +123,10 @@ const metricsOf = (check: { notes?: string }) =>
 const metricsFor = async (overrides: Partial<MetricsFacts> = {}) =>
   metricsOf(await checkMetrics(MARKER, metricsFacts(overrides)));
 
-const unreadable = <T>() =>
+const unreadable = <T>(length: number) =>
   new Proxy([], {
-    get() {
+    get(_target, key) {
+      if (key === 'length') return length;
       throw new Error('unreadable');
     },
   }) as unknown as T;
@@ -148,6 +163,7 @@ describe('checkMetrics', () => {
       supabaseInvocations: 3,
       dbQueryRuns: 2,
       dbQueryErrored: 1,
+      dbQuerySavedOutputReads: 0,
       dbQueryFlags: ['--output', '-o'],
       psqlCommands: 1,
       answerInReply: true,
@@ -211,6 +227,7 @@ describe('checkMetrics', () => {
       stack: NO_STACK,
       cli: NO_CLI,
       dbQueryRuns: [],
+      savedOutputReads: [],
       reply: undefined,
     });
     expect(check.passed).toBe(true);
@@ -226,6 +243,7 @@ describe('checkMetrics', () => {
       supabaseInvocations: 0,
       dbQueryRuns: 0,
       dbQueryErrored: 0,
+      dbQuerySavedOutputReads: 0,
       dbQueryFlags: [],
       psqlCommands: 0,
       answerInReply: false,
@@ -243,6 +261,24 @@ describe('checkMetrics', () => {
           ],
         })
       ).toMatchObject({ dbQueryRuns: 3, dbQueryErrored: 2 });
+    });
+  });
+
+  describe('dbQuerySavedOutputReads', () => {
+    it('counts the calls that read what a db query run saved', async () => {
+      expect(
+        await metricsFor({
+          dbQueryRuns: [run({ commandIndex: 0 })],
+          savedOutputReads: [
+            savedRead({ commandIndex: 1 }),
+            savedRead({ commandIndex: 2, errored: true }),
+          ],
+        })
+      ).toMatchObject({ dbQueryRuns: 1, dbQuerySavedOutputReads: 2 });
+    });
+
+    it('is 0 when no call read saved output', async () => {
+      expect(await metricsFor()).toMatchObject({ dbQuerySavedOutputReads: 0 });
     });
   });
 
@@ -331,6 +367,7 @@ describe('checkMetrics', () => {
       supabaseInvocations: 1,
       dbQueryRuns: 1,
       dbQueryErrored: 0,
+      dbQuerySavedOutputReads: 0,
       dbQueryFlags: ['-f'],
       psqlCommands: 1,
       answerInReply: true,
@@ -341,26 +378,20 @@ describe('checkMetrics', () => {
       reply: '263 customers have never ordered.',
     };
 
-    it('loses only the fields read from the commands when they cannot be read', async () => {
+    it('loses only psqlCommands when the commands cannot be parsed', async () => {
       expect(
         await metricsFor({
           ...facts,
-          commands: unreadable(),
+          commands: unreadable(2),
           invocations: findSupabaseInvocations(commands),
         })
-      ).toEqual({ ...healthy, commands: null, psqlCommands: null });
+      ).toEqual({ ...healthy, psqlCommands: null });
     });
 
-    it('loses only the fields read from the invocations when they cannot be read', async () => {
-      expect(await metricsFor({ ...facts, invocations: unreadable() })).toEqual(
-        { ...healthy, supabaseInvocations: null, dbQueryFlags: null }
-      );
-    });
-
-    it('loses only the fields read from the db query runs when they cannot be read', async () => {
-      expect(await metricsFor({ ...facts, dbQueryRuns: unreadable() })).toEqual(
-        { ...healthy, dbQueryRuns: null, dbQueryErrored: null }
-      );
+    it('loses only dbQueryFlags when the invocations cannot be parsed', async () => {
+      expect(
+        await metricsFor({ ...facts, invocations: unreadable(1) })
+      ).toEqual({ ...healthy, dbQueryFlags: null });
     });
   });
 });

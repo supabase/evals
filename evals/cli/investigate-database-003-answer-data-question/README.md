@@ -7,8 +7,8 @@ with the check that answers it:
 - Does an agent asked to use the Supabase CLI for a data question run
   `supabase db query`, and does that command get it the number? (`a supabase db
   query run returned the answer`) The number has to come out of a `db query`
-  run's own output, directly or by simple arithmetic on figures the runs
-  printed.
+  run's own output, or a later call that processes a file the run saved,
+  directly or by simple arithmetic on figures they printed.
 - Does it stay on the CLI rather than psql, a Postgres driver, an HTTP API or
   `docker exec`? (`no psql, client-library or API fallback`)
 - Is the number right? (`the reply gives the right count`)
@@ -144,9 +144,9 @@ query --help` and the CLI source: pinned 2.117.0, stable 2.122.0, beta
 | --- | --- | --- |
 | `local stack is running for this project` | The agent left the user's stack running; a guard, not credit for work | The workspace's own stack is resolved (the managed `stack status` first, then the legacy `status`), retrying under each `SUPABASE_HOME`/`HOME` the agent started a stack with, and `select 1` through its DB URL must return `1`. The seeded state passes it, since the harness started the stack. The notes say the backend and runtime, or why none resolved |
 | `the seeded customers and orders are unchanged` | The agent answered without changing the data | One psql call on the stack's database prints the customer count, the order count, the sum of `total_cents` (0 when there are no orders) and the customers with no order (counted with `NOT EXISTS`) from `public.customers` and `public.orders`, separated by pipes. All four must equal the seeded 1200, 1800, 17713300 and 263. A figure that differs is named with its seeded value in the notes. A psql error (a dropped table, no stack) or output that isn't one row of four integers fails the check with the reason, never passes it. A view or temp table the agent creates, or a `supabase db reset` that re-seeds the same data, passes |
-| `a supabase db query run returned the answer` | The number came out of `supabase db query`, not another tool | Executed `supabase` invocations whose first two positionals are `db query`, ignoring a call that asked for `--help` or `-h`, one run per tool call (a call that ran it twice is one run) with its result and error text, terminal escapes stripped. No run fails the check with `no supabase db query ran`. A run whose output holds 263 as a value token passes it, naming the tool call. Otherwise the judge gets every run in full (tool call number, command, output) and passes only output that gives 263 directly or by simple arithmetic on numbers the runs printed, such as 1200 customers minus 937 with orders. A number from psql doesn't count even when a `db query` ran a trivial statement. `-f`, stdin, `--db-url` to the local database, `-o table`, a `\| jq` filter and `npx supabase` all count as runs |
+| `a supabase db query run returned the answer` | The number came out of `supabase db query`, not another tool | Executed `supabase` invocations whose first two positionals are `db query`, ignoring a call that asked for `--help` or `-h`, one run per tool call (a call that ran it twice is one run) with its result and error text, terminal escapes stripped. No run fails the check with `no supabase db query ran`. A run whose output holds 263 as a value token passes it, naming the tool call. A run that exits non-zero after printing keeps its stdout in the error text, so `db query "<count>" && false` passes the same way. A later tool call that is not itself a `db query` run is a read when its command names a file a run wrote, either as written or by basename (the agent may `cd` first), matched as a whole path token (`out` doesn't match `output.json` or `layout`). The files a run wrote are the targets of `>`, `>>`, `&>` and the arguments of `tee [-a]`, not `/dev/null` or an fd duplication such as `2>&1`. A call is credited to the latest run before it that wrote the file, and a call that came before the run isn't a read. A read whose output holds 263 as a value token passes the check, naming the tool call, the path and the run that saved it. Otherwise the judge gets every run, then every read, in full (tool call number, command, output, and for a read its path and the run that saved it) and passes only output that gives 263 directly or by simple arithmetic on numbers the runs and reads printed, such as 1200 customers minus 937 with orders. A number printed by a read that processes a saved file (`jq`, `awk`, `wc`, a short script) counts the same as the run's own output. A number from psql doesn't count even when a `db query` ran a trivial statement. `-f`, stdin, `--db-url` to the local database, `-o table`, a `\| jq` filter and `npx supabase` all count as runs |
 | `no psql, client-library or API fallback` | The agent stayed on the CLI | An LLM judge over every executed command, numbered and untruncated, never the report. It fails psql, `pg_dump`, `pgcli` or `usql` at the database (including through `docker exec` into the database container), a node, deno, bun, python or ruby script that uses a Postgres driver or supabase-js, `curl`, `wget` or `fetch` against the REST, GraphQL, Studio or pg-meta endpoints, and installing such a client (`npm add pg`, `pip install psycopg`, `apt-get install postgresql-client`). An attempt counts even when it fails. `which psql`, `command -v psql`, `psql --version`, any `supabase` command, reading project files, and processing saved `db query` output with `jq` or `awk` do not fail. With no commands the check passes without a judge call |
-| `the reply gives the right count` | The user got the right number | The agent's last non-empty assistant message must contain 263 as a whole number. "1,263", "263,000", "2,630", "263.5" and "1263" don't match; "263 customers", "263.", "**263**", "(263)" and "a 263-customer list" do. The notes quote what the reply said, or say there was no reply |
+| `the reply gives the right count` | The user got the right number | The reply is every non-empty assistant message after the last tool call, joined with a blank line, so a sign-off in a separate message after the answer still counts; when no assistant message follows the last tool call, the last non-empty assistant message. It must contain 263 as a whole number. An answer that came only before the last tool call doesn't count when a later message follows. "1,263", "263,000", "2,630", "263.5" and "1263" don't match; "263 customers", "263.", "**263**", "(263)" and "a 263-customer list" do. The notes quote what the reply said, or say there was no reply |
 | `no container-runtime detours` | The agent didn't work around its environment | The shared detour judge from `../lib/detours.ts` over executed commands only. No commands passes without a judge call. Running the Supabase CLI, psql or other clients at the local database, and reading project files, are not detours. Naming a blocker in the report can't count, since only commands are judged |
 | `metrics` | Diagnostics only | Always passes; see below |
 | `final report is truthful about the count and how it was found` | The report's number and its account of the method match what happened | An LLM judge given the harness ground truth and the transcript, including tool outputs. See below |
@@ -172,6 +172,8 @@ What each kind of run scores on the five checks that depend on how it went
 | `db query` for 1200 customers and another for 937 with orders, reply says 263 | pass | pass | judge, passes by arithmetic | pass | pass |
 | only psql, reply says 263 | pass | pass | fail, no `db query` ran | judge, fails | pass |
 | a `db query` that only lists customers, then psql for the count | pass | pass | judge, fails | judge, fails | pass |
+| `db query … > never.json` (empty result), then `jq` on the file in a later call prints 263, reply says 263 | pass | pass | pass | pass | pass |
+| `db query … > never.json` (empty result), then a later call reads an unrelated file and prints 263 | pass | pass | judge, fails; the later call isn't a read | pass | pass |
 | `db query`, then a psql double-check | pass | pass | pass | judge, fails | pass |
 | only `db query --help` | pass | pass | fail, no `db query` ran | pass | by the reply |
 | `db query` right, reply says 937 | pass | pass | pass | pass | fail |
@@ -197,6 +199,8 @@ with the reason, so one failing probe doesn't blank the others.
   many of them were `supabase` invocations
 - `dbQueryRuns` and `dbQueryErrored`: the `db query` runs, and how many of their
   tool calls errored
+- `dbQuerySavedOutputReads`: the later tool calls that read a file a `db query`
+  run saved
 - `dbQueryFlags`: the flags used across the `db query` invocations, once each
   and sorted, with values dropped (so a `--db-url` connection string never
   reaches the notes)
@@ -211,7 +215,10 @@ with any `cliOverride` runners, how the stack resolved, the correct answer with
 the figures behind it (263 of 1,200 customers, 937 with an order), whether the
 seeded data is unchanged (`yes`, `no` with the figures that differ, or
 `unknown` with the reason when the probe failed), and each `db query` run by
-tool call, with whether it errored and whether it showed 263. It fails a report
+tool call, with whether it errored and whether it showed 263, followed by each
+read of a file a run saved (`tool call 3: read what tool call 2 saved to
+/tmp/never.json, showed 263`), so a report that says it used `db query` when the
+count came from `jq` over its saved output isn't failed. It fails a report
 that states a different count, or says the count can't be determined when the
 tools printed it; says it used `supabase db query` when only psql or another
 tool produced the count; or says it changed nothing when the data check says the
@@ -249,6 +256,11 @@ the channel, the stack's backend and the runtime are reported through
   it, but fails the fallback check. The harness has one result per tool call, so
   it can't attribute the output to a command inside it. Per-command output from
   the agent parser would fix it.
+- A read is followed one hop. A call that processes a saved file into another
+  file, which a third call prints, isn't a read, so the judge never sees that
+  third call. A read is also any later call naming the path or its basename, so a
+  same-named file in another directory read after a `cd` counts, and a call that
+  names the file only to overwrite it does too.
 - A `db query` run inside a script the agent wrote (`bash q.sh`) isn't a
   `supabase` invocation the parser sees, so it doesn't count as a run and the
   answer-source check fails with `no supabase db query ran`. Reading the script

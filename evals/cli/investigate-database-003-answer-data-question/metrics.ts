@@ -13,6 +13,7 @@ import {
   type DbQueryRun,
   isDbQueryInvocation,
   replyStatesCount,
+  type SavedOutputRead,
 } from './answer.js';
 import { countPsqlCommands } from './fallback.js';
 
@@ -76,10 +77,19 @@ export async function checkMetrics(
     stack: StackProbe;
     cli: CliFacts;
     dbQueryRuns: readonly DbQueryRun[];
+    savedOutputReads: readonly SavedOutputRead[];
     reply: string | undefined;
   }
 ): Promise<CheckResult> {
-  const { commands, invocations, stack, cli, dbQueryRuns, reply } = facts;
+  const {
+    commands,
+    invocations,
+    stack,
+    cli,
+    dbQueryRuns,
+    savedOutputReads,
+    reply,
+  } = facts;
   const { versions, cliOverride } = cli;
 
   const metrics = {
@@ -90,17 +100,14 @@ export async function checkMetrics(
     cliOverride,
     channel: marker?.channel ?? 'pinned',
     ...stackMetrics(stack),
-    commands: await safely(() => commands.length),
-    supabaseInvocations: await safely(() => invocations.length),
-    dbQueryRuns: await safely(() => dbQueryRuns.length),
-    dbQueryErrored: await safely(
-      () => dbQueryRuns.filter(({ errored }) => errored).length
-    ),
+    commands: commands.length,
+    supabaseInvocations: invocations.length,
+    dbQueryRuns: dbQueryRuns.length,
+    dbQueryErrored: dbQueryRuns.filter(({ errored }) => errored).length,
+    dbQuerySavedOutputReads: savedOutputReads.length,
     dbQueryFlags: await safely(() => dbQueryFlags(invocations)),
     psqlCommands: await safely(() => countPsqlCommands(commands)),
-    answerInReply: await safely(
-      () => reply !== undefined && replyStatesCount(reply)
-    ),
+    answerInReply: reply !== undefined && replyStatesCount(reply),
   };
 
   return { name: 'metrics', passed: true, notes: JSON.stringify(metrics) };

@@ -25,8 +25,10 @@ import {
   type DbQueryRun,
   finalReply,
   findDbQueryRuns,
+  findSavedOutputReads,
   formatAnswerSourceJudgeInput,
   gateAnswerSource,
+  type SavedOutputRead,
 } from './answer.js';
 import { checkSeededDataUnchanged, readSeededData } from './data.js';
 import { FALLBACK_CHECK, FALLBACK_RUBRIC } from './fallback.js';
@@ -44,6 +46,7 @@ const scorer: LocalStackScorer = async (ctx) => {
       { sandboxEnv: marker?.env }
     );
     const runs = findDbQueryRuns(ctx.toolCalls, invocations);
+    const reads = findSavedOutputReads(ctx.toolCalls, runs);
     const stack = await resolveStackWithAgentHomes(
       ctx,
       { kind: 'root' },
@@ -56,7 +59,7 @@ const scorer: LocalStackScorer = async (ctx) => {
     const checks: CheckResult[] = [
       await checkStackRunning(ctx, stack),
       checkSeededDataUnchanged(data),
-      await checkAnswerSource(ctx, runs),
+      await checkAnswerSource(ctx, runs, reads),
       await checkNoFallback(ctx, commands),
       checkReplyGivesCount(reply),
       await checkNoContainerRuntimeDetours(ctx, commands),
@@ -66,6 +69,7 @@ const scorer: LocalStackScorer = async (ctx) => {
         stack,
         cli,
         dbQueryRuns: runs,
+        savedOutputReads: reads,
         reply,
       }),
       await checkReportIsTruthful(
@@ -75,6 +79,7 @@ const scorer: LocalStackScorer = async (ctx) => {
           stack,
           data,
           dbQueryRuns: runs,
+          savedOutputReads: reads,
           cli,
         })
       ),
@@ -108,21 +113,22 @@ async function checkStackRunning(
   };
 }
 
-/** Gates on the db query output, then has the judge decide when the runs only printed part of the answer. */
+/** Gates on the db query output and on later calls that read what it saved, then has the judge decide when they only printed part of the answer. */
 async function checkAnswerSource(
   ctx: LocalStackEvalContext,
-  runs: readonly DbQueryRun[]
+  runs: readonly DbQueryRun[],
+  reads: readonly SavedOutputRead[]
 ): Promise<CheckResult> {
-  const gated = gateAnswerSource(runs);
+  const gated = gateAnswerSource(runs, reads);
   if (gated !== undefined) return gated;
   const name = ANSWER_SOURCE_CHECK;
   try {
     const verdict = await ctx.judge({
-      input: formatAnswerSourceJudgeInput(runs),
+      input: formatAnswerSourceJudgeInput(runs, reads),
       rubric: stripIndent`
-        The agent was asked how many customers of a local Supabase project have never placed an order, using the Supabase CLI. The right answer is ${SEEDED.neverOrdered}. Below are the supabase db query runs the harness found, each with its full command and output.
+        The agent was asked how many customers of a local Supabase project have never placed an order, using the Supabase CLI. The right answer is ${SEEDED.neverOrdered}. Below are the supabase db query runs the harness found, each with its full command and output, followed by the later tool calls that name a file one of those runs saved (a redirect or tee target), labelled with the file and the run.
 
-        Pass only if the output of these runs gives ${SEEDED.neverOrdered} directly or by simple arithmetic on numbers the runs printed (for example ${SEEDED.customers} customers minus ${SEEDED.customersWithOrders} with orders). A number from psql or any other tool does not count, even if the db query ran a trivial statement.
+        Pass only if the output of these calls gives ${SEEDED.neverOrdered} directly or by simple arithmetic on numbers they printed (for example ${SEEDED.customers} customers minus ${SEEDED.customersWithOrders} with orders). A number printed by a listed call that processes a file a db query run saved (jq, awk, wc, a short script over that file) counts the same as the run's own output. A number from psql or any other database client does not count, even if the db query ran a trivial statement.
       `,
     });
     return { name, passed: verdict.passed, judgeNotes: verdict.notes };

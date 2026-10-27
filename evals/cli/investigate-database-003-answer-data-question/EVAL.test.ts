@@ -18,6 +18,7 @@ import {
 import {
   ANSWER_SOURCE_CHECK,
   findDbQueryRuns,
+  findSavedOutputReads,
   formatAnswerSourceJudgeInput,
   REPLY_CHECK,
 } from './answer.js';
@@ -240,6 +241,12 @@ const runsOf = (toolCalls: ToolCallRecord[]) =>
     findSupabaseInvocations(extractCommandEntries(toolCalls))
   );
 
+const readsOf = (toolCalls: ToolCallRecord[]) =>
+  findSavedOutputReads(toolCalls, runsOf(toolCalls));
+
+const judgeInputOf = (toolCalls: ToolCallRecord[]) =>
+  formatAnswerSourceJudgeInput(runsOf(toolCalls), readsOf(toolCalls));
+
 const metricsOf = (check: CheckResult | undefined) =>
   JSON.parse(check?.notes ?? '{}');
 
@@ -403,7 +410,7 @@ describe('the answer source', () => {
     expect(failed).toEqual([]);
     const sent = answerCalls(judge);
     expect(sent).toHaveLength(1);
-    expect(sent[0].input).toBe(formatAnswerSourceJudgeInput(runsOf(toolCalls)));
+    expect(sent[0].input).toBe(judgeInputOf(toolCalls));
     expect(sent[0].input).toContain('"count":1200');
     expect(sent[0].input).toContain('"count":937');
     expect(sent[0].input).toContain(
@@ -478,6 +485,164 @@ describe('the answer source', () => {
   });
 });
 
+describe('a later call that processes the output a db query saved', () => {
+  const SAVE_COUNT = (target: string) =>
+    `supabase db query "${COUNT_SQL}" -o json ${target}`;
+  const NEVER_SQL =
+    'select id from customers c where not exists (select 1 from orders o where o.customer_id = c.id)';
+  const SAVE_EMPTY = call(
+    `supabase db query "${NEVER_SQL}" -o json > /tmp/never.json`,
+    { result: '' }
+  );
+  const JQ_COUNT = call("jq '.rows | length' /tmp/never.json", {
+    result: '263\n',
+  });
+
+  it('passes the answer source without asking the answer judge for a redirect to an absolute path and a jq on it in a later call', async () => {
+    const { failed, check, judge } = await score([SAVE_EMPTY, JQ_COUNT]);
+    expect(failed).toEqual([]);
+    expect(answerCalls(judge)).toEqual([]);
+    expect(check(ANSWER_SOURCE_CHECK)?.passed).toBe(true);
+    expect(check(ANSWER_SOURCE_CHECK)?.notes).toContain('tool call 2');
+    expect(check(ANSWER_SOURCE_CHECK)?.notes).toContain('/tmp/never.json');
+    expect(check(ANSWER_SOURCE_CHECK)?.notes).toContain('tool call 1');
+  });
+
+  it('credits a redirect to a relative path read by its basename after a cd', async () => {
+    const { failed, judge } = await score([
+      call(`supabase db query "${NEVER_SQL}" -o json > never.json`),
+      call("cd somewhere && jq '.rows | length' never.json", {
+        result: '263\n',
+      }),
+    ]);
+    expect(failed).toEqual([]);
+    expect(answerCalls(judge)).toEqual([]);
+  });
+
+  it.each([
+    ['tee', SAVE_COUNT('| tee /tmp/never.json')],
+    ['tee -a', SAVE_COUNT('| tee -a /tmp/never.json')],
+    ['an append', SAVE_COUNT('>> /tmp/never.json')],
+    ['a combined redirect', SAVE_COUNT('&> /tmp/never.json')],
+  ])('credits a file written with %s', async (_label, command) => {
+    const { failed, judge } = await score([
+      call(command),
+      call('wc -l < /tmp/never.json', { result: '263\n' }),
+    ]);
+    expect(failed).toEqual([]);
+    expect(answerCalls(judge)).toEqual([]);
+  });
+
+  it('does not credit a later call that reads an unrelated file and prints 263', async () => {
+    const toolCalls = [
+      SAVE_EMPTY,
+      call("jq '.rows | length' /tmp/other.json", { result: '263\n' }),
+    ];
+    const { failed, judge } = await score(toolCalls, {
+      judge: failing(isAnswerJudge),
+    });
+    expect(failed).toEqual([ANSWER_SOURCE_CHECK]);
+    const sent = answerCalls(judge);
+    expect(sent).toHaveLength(1);
+    expect(sent[0].input).toBe(
+      formatAnswerSourceJudgeInput(runsOf(toolCalls), [])
+    );
+    expect(sent[0].input).not.toContain('/tmp/other.json');
+    expect(sent[0].input).not.toContain('reads');
+  });
+
+  it('does not match a path out against a later command that mentions output.json', async () => {
+    const toolCalls = [
+      call(`supabase db query "${NEVER_SQL}" > out`),
+      call("jq '.rows | length' output.json", { result: '263\n' }),
+    ];
+    const { failed, judge } = await score(toolCalls, {
+      judge: failing(isAnswerJudge),
+    });
+    expect(failed).toEqual([ANSWER_SOURCE_CHECK]);
+    expect(answerCalls(judge)).toHaveLength(1);
+  });
+
+  it('does not credit 2>&1 or > /dev/null as saved output', async () => {
+    const { failed, judge } = await score(
+      [
+        call(`supabase db query "${NEVER_SQL}" > /dev/null 2>&1`),
+        call('cat /dev/null', { result: '263\n' }),
+      ],
+      { judge: failing(isAnswerJudge) }
+    );
+    expect(failed).toEqual([ANSWER_SOURCE_CHECK]);
+    expect(answerCalls(judge)).toHaveLength(1);
+  });
+
+  it('does not credit a call that read the path before the db query wrote it', async () => {
+    const { failed, judge } = await score([JQ_COUNT, SAVE_EMPTY], {
+      judge: failing(isAnswerJudge),
+    });
+    expect(failed).toEqual([ANSWER_SOURCE_CHECK]);
+    expect(answerCalls(judge)).toHaveLength(1);
+  });
+
+  it('sends the answer judge each read, labelled with its path and the run that saved it, when the gate defers', async () => {
+    const toolCalls = [
+      call(
+        'supabase db query "select count(*) from customers" -o json > /tmp/customers.json'
+      ),
+      call("jq '.rows[0].count' /tmp/customers.json", { result: '1200\n' }),
+    ];
+    const { judge, failed } = await score(toolCalls);
+    expect(failed).toEqual([]);
+    const sent = answerCalls(judge);
+    expect(sent).toHaveLength(1);
+    expect(sent[0].input).toBe(judgeInputOf(toolCalls));
+    expect(sent[0].input).toContain(
+      'Tool call 2 (reads /tmp/customers.json, saved by the supabase db query in tool call 1)'
+    );
+    expect(sent[0].input).toContain("jq '.rows[0].count' /tmp/customers.json");
+    expect(sent[0].input).toContain('1200');
+  });
+
+  it('tells the answer judge a number from a call that processes a saved db query file counts, and a number from psql does not', async () => {
+    const { judge } = await score([
+      call(
+        'supabase db query "select count(*) from customers" > /tmp/customers.json'
+      ),
+      call('jq .rows /tmp/customers.json', { result: '1200\n' }),
+    ]);
+    const rubric = answerCalls(judge)[0].rubric;
+    expect(rubric).toMatch(/\bjq\b/);
+    expect(rubric).toMatch(/\bawk\b/);
+    expect(rubric).toMatch(/\bsaved\b/i);
+    expect(rubric).toMatch(/psql/i);
+    expect(rubric).toMatch(/arithmetic/i);
+  });
+
+  it('tells the report judge about the read', async () => {
+    const { judge } = await score([SAVE_EMPTY, JQ_COUNT]);
+    expect(reportCall(judge)?.input).toContain(
+      '- supabase db query runs the agent made: tool call 1: did not show 263; tool call 2: read what tool call 1 saved to /tmp/never.json, showed 263'
+    );
+  });
+
+  it('counts the read in the metrics', async () => {
+    const { check } = await score([SAVE_EMPTY, JQ_COUNT]);
+    expect(metricsOf(check(METRICS_CHECK))).toMatchObject({
+      dbQueryRuns: 1,
+      dbQuerySavedOutputReads: 1,
+    });
+  });
+});
+
+describe('a db query run that exits non-zero after printing the count', () => {
+  it('passes the answer source from the stdout kept in the error text, without asking the answer judge', async () => {
+    const { check, judge } = await score([
+      call(`supabase db query "${COUNT_SQL}" && false`, { error: ANSWER_JSON }),
+    ]);
+    expect(check(ANSWER_SOURCE_CHECK)).toMatchObject({ passed: true });
+    expect(answerCalls(judge)).toEqual([]);
+  });
+});
+
 describe('a db query that only listed customers', () => {
   const toolCalls = [LISTING, PSQL_COUNT];
   const verdicts = async (args: JudgeInput) => {
@@ -500,7 +665,7 @@ describe('a db query that only listed customers', () => {
     const { judge, check } = await score(toolCalls, { judge: verdicts });
     const sent = answerCalls(judge);
     expect(sent).toHaveLength(1);
-    expect(sent[0].input).toBe(formatAnswerSourceJudgeInput(runsOf(toolCalls)));
+    expect(sent[0].input).toBe(judgeInputOf(toolCalls));
     expect(sent[0].input).toContain('ada.okafor263@example.com');
     expect(sent[0].input).not.toContain('psql');
     expect(check(ANSWER_SOURCE_CHECK)).toEqual({
@@ -560,7 +725,56 @@ describe('the reply', () => {
     expect(check(REPLY_CHECK)?.notes).toMatch(/\bno (?:final )?reply\b/i);
   });
 
-  it('reads the last assistant message, not an earlier guess', async () => {
+  it('passes a reply split across messages, with a sign-off after the answer', async () => {
+    const { failed } = await score([DB_QUERY], {
+      transcript: [
+        {
+          type: 'tool_call',
+          name: 'shell',
+          input: { command: DB_QUERY.command },
+          output: ANSWER_JSON,
+        },
+        say(REPLY),
+        say('Let me know if you want the list exported.'),
+      ],
+    });
+    expect(failed).toEqual([]);
+  });
+
+  it('fails when the count came only before the last tool call', async () => {
+    const toolCallPart: TranscriptPart = {
+      type: 'tool_call',
+      name: 'shell',
+      input: { command: DB_QUERY.command },
+      output: ANSWER_JSON,
+    };
+    const { failed } = await score([DB_QUERY], {
+      transcript: [
+        toolCallPart,
+        say(REPLY),
+        toolCallPart,
+        say('Let me know if you want the list exported.'),
+      ],
+    });
+    expect(failed).toEqual([REPLY_CHECK]);
+  });
+
+  it('falls back to the last assistant message when the transcript ends on a tool call', async () => {
+    const { failed } = await score([DB_QUERY], {
+      transcript: [
+        say(REPLY),
+        {
+          type: 'tool_call',
+          name: 'shell',
+          input: { command: DB_QUERY.command },
+          output: ANSWER_JSON,
+        },
+      ],
+    });
+    expect(failed).toEqual([]);
+  });
+
+  it('reads the messages after the last tool call, not an earlier guess', async () => {
     const { failed } = await score([DB_QUERY], {
       transcript: [
         say('Roughly 900 customers, I think.'),
@@ -811,6 +1025,7 @@ describe('the metrics check', () => {
       runtime: 'native',
       dbQueryRuns: 2,
       dbQueryErrored: 1,
+      dbQuerySavedOutputReads: 0,
       dbQueryFlags: ['-o'],
       psqlCommands: 1,
       answerInReply: true,

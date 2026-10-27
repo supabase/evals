@@ -1,7 +1,7 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/investigate-database-003-answer-data-question
 import { describe, expect, it } from 'vitest';
 import { describeStack, type StackProbe } from '../lib/stack.js';
-import type { DbQueryRun } from './answer.js';
+import type { DbQueryRun, SavedOutputRead } from './answer.js';
 import type { SeededDataProbe } from './data.js';
 import { SEEDED } from './fixtures.js';
 import { describeGroundTruth, REPORT_CHECK, REPORT_RUBRIC } from './report.js';
@@ -32,11 +32,25 @@ const run = (overrides: Partial<DbQueryRun> = {}): DbQueryRun => ({
   ...overrides,
 });
 
+const savedRead = (
+  overrides: Partial<SavedOutputRead> = {}
+): SavedOutputRead => ({
+  commandIndex: 2,
+  command: "jq '.rows | length' /tmp/never.json",
+  output: '263\n',
+  errored: false,
+  showsAnswer: true,
+  path: '/tmp/never.json',
+  savedBy: 1,
+  ...overrides,
+});
+
 const FACTS: Facts = {
   workspace: '/ws',
   stack: STACK,
   data: SEEDED_PROBE,
   dbQueryRuns: [run()],
+  savedOutputReads: [],
   cli: { versions: null, cliOverride: [] },
 };
 
@@ -220,6 +234,52 @@ describe('describeGroundTruth', () => {
       expect(entry).not.toMatch(/errored/);
     });
 
+    it('lists a read of the file a run saved after the runs, naming the tool call, the path and what it showed', () => {
+      const entries = runEntries(
+        lines({
+          dbQueryRuns: [run({ commandIndex: 1, showsAnswer: false })],
+          savedOutputReads: [savedRead()],
+        })
+      );
+      expect(entries).toEqual([
+        'tool call 2: did not show 263',
+        'tool call 3: read what tool call 2 saved to /tmp/never.json, showed 263',
+      ]);
+    });
+
+    it('lists a read that errored and did not show 263', () => {
+      const [, entry] = runEntries(
+        lines({
+          dbQueryRuns: [run({ commandIndex: 1, showsAnswer: false })],
+          savedOutputReads: [
+            savedRead({ commandIndex: 4, errored: true, showsAnswer: false }),
+          ],
+        })
+      );
+      expect(entry).toMatch(/^tool call 5: read what tool call 2 saved to /);
+      expect(entry).toMatch(/errored/);
+      expect(entry).toMatch(/did not show 263/);
+    });
+
+    it('lists the reads in order', () => {
+      const entries = runEntries(
+        lines({
+          dbQueryRuns: [run({ commandIndex: 0 })],
+          savedOutputReads: [
+            savedRead({ commandIndex: 1, path: 'a.json', savedBy: 0 }),
+            savedRead({ commandIndex: 3, path: 'b.json', savedBy: 0 }),
+          ],
+        })
+      );
+      expect(entries).toHaveLength(3);
+      expect(entries[1]).toContain('a.json');
+      expect(entries[2]).toContain('b.json');
+    });
+
+    it('lists no read when there is none', () => {
+      expect(line(lines(), RUNS_LINE)).not.toMatch(/\bread\b/);
+    });
+
     it('lists every run in order', () => {
       const entries = runEntries(
         lines({
@@ -348,6 +408,17 @@ describe('REPORT_RUBRIC', () => {
         (paragraph) =>
           /\bblocker\b/i.test(paragraph) &&
           /\bpass(?:es)?\b|must not fail|do not fail/i.test(paragraph)
+      )
+    ).toBe(true);
+  });
+
+  it('counts a read of a file a db query run saved as the db query output when the report says it used supabase db query', () => {
+    expect(
+      paragraphs.some(
+        (paragraph) =>
+          /supabase db query/i.test(paragraph) &&
+          /\bsaved\b/i.test(paragraph) &&
+          /\bread\b/i.test(paragraph)
       )
     ).toBe(true);
   });
