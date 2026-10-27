@@ -4,8 +4,9 @@ Helpers used by more than one eval under `evals/cli/`. This directory has no
 `PROMPT.md`, so eval discovery skips it — never add one, or a `local/` dir.
 
 What belongs here: pure and probe helpers (`shell.ts`, `stack.ts`,
-`projects.ts`, `markers.ts`, `metrics.ts`, `migrations.ts`, `psql.ts`), shared
-judge policy text and input formatters (`detours.ts`, `report.ts`).
+`stack-keys.ts`, `projects.ts`, `markers.ts`, `metrics.ts`, `migrations.ts`,
+`psql.ts`, `link.ts`), shared judge policy text and input formatters
+(`detours.ts`, `report.ts`).
 
 What stays in each eval's `EVAL.ts`: check composition, every `ctx.judge()`
 call, its scenario-specific rubric text, and `export default`. Scenario-only
@@ -53,6 +54,11 @@ only when the agent parser records one (Codex, OpenCode); a `cd` persisting
 across separate tool calls in a persistent shell (e.g. Claude Code) is not
 tracked.
 
+`stack-keys.ts` reads a resolved stack's API keys (`supabase status -o json`, or
+`supabase stack status --env` under the `SUPABASE_HOME`/`HOME`/`TMPDIR` the
+agent started the stack with, matched by `relocatedHome`) and parses them even
+when the command exits non-zero.
+
 `migrations.ts` finds the migration file that creates a table (comments,
 string literals and dollar-quoted bodies masked, `create [unlogged] table`
 accepted) in a project directory, and checks its version is in the stack's
@@ -75,6 +81,10 @@ returns `{ ok: false, notes }` when the stack isn't ok or psql fails or throws.
 start (`start`, `stack start`, `stack restart`, `db start`) or stop (`stop`,
 `stack stop`, `stack destroy`) invocation the agent ran, flags included, and
 whether it left the stack stopped.
+
+`pgtap.ts` parses TAP output with the pg_prove pass rule, reads a `pg_prove`
+summary (`readPgProveSummaries` reads every one in an output), and finds the
+`supabase test db` runs in a transcript with each run's summaries.
 
 `redact.ts` replaces known secret values and secret-shaped text (URL passwords,
 keys, flags, JSON and YAML fields, and the cells of table columns under an

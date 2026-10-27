@@ -41,7 +41,7 @@ Running evals executes experiment x eval pairs and writes local result files und
 Run a single eval with one experiment:
 
 ```bash
-pnpm eval -- --eval resolve-dataapi-001-empty-results --experiment benchmark/claude-code-sonnet-5
+pnpm eval -- --eval resolve-dataapi-001-empty-results --experiment benchmark/claude-code-sonnet-5.5
 ```
 
 
@@ -49,7 +49,7 @@ Run selected evals across multiple experiments:
 
 ```bash
 pnpm eval -- \
-  --experiment benchmark/claude-code-sonnet-5 \
+  --experiment benchmark/claude-code-sonnet-5.5 \
   --experiment benchmark/claude-code-opus-5.5 \
   --eval resolve-dataapi-001-empty-results \
   --eval investigate-auth-001-deleted-user-access
@@ -63,7 +63,7 @@ Each run writes to `results/<experiment>/<eval>/run-<n>/result.json`. Add
 
 ```bash
 pnpm eval -- --eval resolve-dataapi-001-empty-results \
-  --experiment benchmark/claude-code-sonnet-5 \
+  --experiment benchmark/claude-code-sonnet-5.5 \
   --runs 3 \
   --skip-existing
 ```

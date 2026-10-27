@@ -97,7 +97,7 @@ describe('claudeCodeRunner.extractUsage', () => {
         subtype: 'success',
         usage: { input_tokens: 10, output_tokens: 40 },
         modelUsage: {
-          'claude-sonnet-5': {
+          'claude-sonnet-5-5': {
             inputTokens: 10,
             cacheCreationInputTokens: 200,
             cacheReadInputTokens: 3000,
@@ -114,9 +114,9 @@ describe('claudeCodeRunner.extractUsage', () => {
         },
       }),
     ].join('\n');
-    expect(extract(raw, 'claude-sonnet-5')).toEqual([
+    expect(extract(raw, 'claude-sonnet-5-5')).toEqual([
       {
-        model: 'claude-sonnet-5',
+        model: 'claude-sonnet-5-5',
         inputTokens: 3210,
         cacheReadInputTokens: 3000,
         cacheWriteInputTokens: 200,
@@ -133,12 +133,12 @@ describe('claudeCodeRunner.extractUsage', () => {
   });
 
   it('returns undefined without modelUsage', () => {
-    expect(extract(undefined, 'claude-sonnet-5')).toBeUndefined();
-    expect(extract('not json\n', 'claude-sonnet-5')).toBeUndefined();
+    expect(extract(undefined, 'claude-sonnet-5-5')).toBeUndefined();
+    expect(extract('not json\n', 'claude-sonnet-5-5')).toBeUndefined();
     expect(
       extract(
         JSON.stringify({ type: 'result', subtype: 'success' }),
-        'claude-sonnet-5'
+        'claude-sonnet-5-5'
       )
     ).toBeUndefined();
   });

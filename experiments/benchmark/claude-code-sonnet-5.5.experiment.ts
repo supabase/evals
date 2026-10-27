@@ -1,6 +1,6 @@
 import { defineExperiment } from '@supabase-evals/core';
-import { claudeCodeSonnet5 } from '../presets.js';
+import { claudeCodeSonnet55 } from '../presets.js';
 
 export default defineExperiment({
-  ...claudeCodeSonnet5,
+  ...claudeCodeSonnet55,
 });
