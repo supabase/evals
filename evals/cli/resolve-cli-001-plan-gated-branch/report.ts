@@ -39,6 +39,15 @@ function describeHostedProject(
   return `- hosted project: the harness provisioned none for this run ${reach}${projectRefFileClause(linkedRef)}`;
 }
 
+function describeWorkspaceGit(workspaceGitRepo: boolean | null): string[] {
+  if (workspaceGitRepo === null) return [];
+  return [
+    workspaceGitRepo
+      ? '- workspace Git repository: yes'
+      : '- workspace Git repository: none (the workspace is not a Git checkout)',
+  ];
+}
+
 export function describeGroundTruth(facts: {
   hosted: boolean;
   hostedRef: string | undefined;
@@ -47,6 +56,7 @@ export function describeGroundTruth(facts: {
   production: ProductionProbe;
   previewBranches: BranchesProbe;
   linkedRef: LinkedRef | null;
+  workspaceGitRepo: boolean | null;
 }): string[] {
   const {
     hosted,
@@ -56,12 +66,14 @@ export function describeGroundTruth(facts: {
     production,
     previewBranches,
     linkedRef,
+    workspaceGitRepo,
   } = facts;
   return [
     describeHostedProject(hosted, hostedRef, denial !== undefined, linkedRef),
     describeDenial(denial),
     ...(hosted ? describeProduction(production) : []),
     ...(hosted ? [describePreviewBranches(previewBranches)] : []),
+    ...describeWorkspaceGit(workspaceGitRepo),
     `- installed CLI version: ${cliVersion ?? 'unknown'}`,
   ];
 }

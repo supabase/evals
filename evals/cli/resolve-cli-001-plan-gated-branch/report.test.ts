@@ -28,6 +28,7 @@ const facts = (overrides: Partial<Facts> = {}): Facts => ({
   production: productionProbe(),
   previewBranches: { ok: true, names: [] },
   linkedRef: 'none',
+  workspaceGitRepo: null,
   ...overrides,
 });
 
@@ -42,6 +43,8 @@ describe('describeGroundTruth', () => {
       describeGroundTruth(facts()),
       describeGroundTruth(facts({ hosted: false })),
       describeGroundTruth(facts({ denial: undefined })),
+      describeGroundTruth(facts({ workspaceGitRepo: false })),
+      describeGroundTruth(facts({ hosted: false, workspaceGitRepo: true })),
     ]) {
       expect(lines.length).toBeGreaterThan(0);
       for (const line of lines) {
@@ -323,6 +326,60 @@ describe('the preview branches line', () => {
     const at = lines.findIndex((entry) => entry.includes('preview branches'));
     expect(lines[at - 1]).toContain('columns on production');
     expect(lines[at + 1]).toContain('installed CLI version');
+  });
+});
+
+describe('the workspace Git repository line', () => {
+  const NOT_A_REPO_LINE =
+    '- workspace Git repository: none (the workspace is not a Git checkout)';
+  const IN_REPO_LINE = '- workspace Git repository: yes';
+  const GIT_LINES = [NOT_A_REPO_LINE, IN_REPO_LINE];
+  const line = (overrides: Partial<Facts>) =>
+    lineWith(describeGroundTruth(facts(overrides)), 'workspace Git repository');
+
+  it.each([true, false])(
+    'says the workspace is not a Git checkout when git said so (hosted: %s)',
+    (hosted) => {
+      expect(line({ hosted, workspaceGitRepo: false })).toBe(NOT_A_REPO_LINE);
+    }
+  );
+
+  it.each([true, false])(
+    'says yes when the workspace is a Git work tree (hosted: %s)',
+    (hosted) => {
+      expect(line({ hosted, workspaceGitRepo: true })).toBe(IN_REPO_LINE);
+    }
+  );
+
+  it.each([true, false])(
+    'leaves the line out when git could not say (hosted: %s)',
+    (hosted) => {
+      const lines = describeGroundTruth(
+        facts({ hosted, workspaceGitRepo: null })
+      );
+      expect(text(lines)).not.toContain('workspace Git repository');
+    }
+  );
+
+  it('is the same line whatever the hosted project, link state or denial', () => {
+    for (const overrides of [
+      { hosted: false, linkedRef: null, denial: undefined },
+      { hosted: false, linkedRef: 'other' as const },
+      { hosted: true, denial: undefined },
+    ]) {
+      expect(line({ ...overrides, workspaceGitRepo: false })).toBe(
+        NOT_A_REPO_LINE
+      );
+    }
+  });
+
+  it('sits right before the CLI version line', () => {
+    for (const workspaceGitRepo of [true, false]) {
+      const lines = describeGroundTruth(facts({ workspaceGitRepo }));
+      const at = lines.findIndex((entry) => GIT_LINES.includes(entry));
+      expect(at).toBeGreaterThan(0);
+      expect(lines[at + 1]).toContain('installed CLI version');
+    }
   });
 });
 
