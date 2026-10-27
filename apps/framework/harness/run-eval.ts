@@ -687,20 +687,11 @@ async function main() {
     }
   }
 
-  const filtered = SMOKE
-    ? Object.values(
-        evals.reduce<Record<string, EvalManifest>>((acc, e) => {
-          acc[e.stage] ??= e;
-          return acc;
-        }, {})
-      )
-    : EVAL_FILTERS.length > 0
-      ? evals.filter((e) => EVAL_FILTERS.includes(e.id))
-      : evals;
-  const suiteFiltered =
-    SUITE_FILTERS.length > 0
-      ? filtered.filter((e) => SUITE_FILTERS.includes(e.suite))
-      : filtered;
+  const suiteFiltered = evals.filter(
+    (ev) =>
+      (EVAL_FILTERS.length === 0 || EVAL_FILTERS.includes(ev.id)) &&
+      (SUITE_FILTERS.length === 0 || SUITE_FILTERS.includes(ev.suite))
+  );
 
   if (suiteFiltered.length === 0) {
     const filter = [
@@ -740,6 +731,7 @@ async function main() {
       }
     }
 
+    const smokeStages = new Set<string>();
     for (const ev of suiteFiltered) {
       if (EXPERIMENT_FILTERS.length === 0 && ev.suite !== suite) continue;
       if (ev.mode === 'local-stack' && !config.localStack) {
@@ -752,6 +744,9 @@ async function main() {
         console.log(`SKIP ${name} x ${ev.id} (skipEval)`);
         continue;
       }
+      const smokeKey = `${ev.suite}/${ev.stage}`;
+      if (SMOKE && smokeStages.has(smokeKey)) continue;
+      if (SMOKE) smokeStages.add(smokeKey);
       if (DRY) {
         console.log(formatPlanLine(name, config, ev));
         continue;
