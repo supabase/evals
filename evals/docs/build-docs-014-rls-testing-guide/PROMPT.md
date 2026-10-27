@@ -12,15 +12,7 @@ services:
   - kong
   - postgrest
 motivation: >-
-  the RLS testing guide is the page agents are pointed at to test Row Level
-  Security policies, and a policy test that cannot fail lets a broken policy
-  ship while the suite stays green. The persona runs a small app whose access
-  rules already exist and were broken once by a change nobody caught. They know
-  they want tests in the database but not which tool Supabase uses for that.
-  This eval determines whether the page gets an agent to a policy test suite
-  that exercises who can and cannot reach each table, and that passes, when the
-  user asks for tests and never names the tool. Read README.md before editing
-  the prompt.
+  We need to know that the RLS testing guide is encouraging readers to follow secure, performant, accurate, and scalable tests that pass and don't have any false-positive or -negatives.
 ---
 
 I run a small to-do app where people can share lists, plus a public weather
