@@ -709,7 +709,7 @@ describe('checkUpgradeLinkPassedOn with a www. host', () => {
   ])('passes when %s', (_label, denialUrl, given) => {
     expect(
       checkUpgradeLinkPassedOn(
-        denial({ upgradeUrls: [denialUrl] }),
+        [denial({ upgradeUrls: [denialUrl] })],
         [`Upgrade here: ${given}`],
         true
       ).passed
@@ -719,7 +719,7 @@ describe('checkUpgradeLinkPassedOn with a www. host', () => {
   it('still fails for a different path on the www. host', () => {
     expect(
       checkUpgradeLinkPassedOn(
-        denial(),
+        [denial()],
         [
           'Upgrade here: https://www.supabase.com/dashboard/org/acme/billing-old',
         ],
@@ -730,7 +730,7 @@ describe('checkUpgradeLinkPassedOn with a www. host', () => {
 });
 
 describe('checkUpgradeLinkPassedOn', () => {
-  const passes = (messages: string[], found = denial()) =>
+  const passes = (messages: string[], found = [denial()]) =>
     checkUpgradeLinkPassedOn(found, messages, true);
 
   it.each([
@@ -781,7 +781,7 @@ describe('checkUpgradeLinkPassedOn', () => {
     expect(
       passes(
         [`Upgrade here: ${STAGING_URL}`],
-        denial({ upgradeUrls: [BILLING_URL, STAGING_URL] })
+        [denial({ upgradeUrls: [BILLING_URL, STAGING_URL] })]
       ).passed
     ).toBe(true);
   });
@@ -864,7 +864,7 @@ describe('checkUpgradeLinkPassedOn', () => {
     expect(
       passes(
         ['Upgrade at supabase.green/dashboard/org/acme/billing'],
-        denial({ upgradeUrls: [STAGING_URL] })
+        [denial({ upgradeUrls: [STAGING_URL] })]
       ).passed
     ).toBe(true);
   });
@@ -873,9 +873,13 @@ describe('checkUpgradeLinkPassedOn', () => {
     expect(
       passes(
         [`Upgrade at ${BILLING_PATH}`],
-        denial({
-          upgradeUrls: ['https://www.supabase.com/dashboard/org/acme/billing'],
-        })
+        [
+          denial({
+            upgradeUrls: [
+              'https://www.supabase.com/dashboard/org/acme/billing',
+            ],
+          }),
+        ]
       ).passed
     ).toBe(true);
   });
@@ -935,7 +939,8 @@ describe('checkUpgradeLinkPassedOn', () => {
 
   it('fails when the denial carried no link, even for a scheme-less billing link', () => {
     expect(
-      passes([`Upgrade at ${BILLING_PATH}`], denial({ upgradeUrls: [] })).passed
+      passes([`Upgrade at ${BILLING_PATH}`], [denial({ upgradeUrls: [] })])
+        .passed
     ).toBe(false);
   });
 
@@ -952,9 +957,7 @@ describe('checkUpgradeLinkPassedOn', () => {
   });
 
   it('fails with the no-denial note when there is no denial', () => {
-    expect(
-      checkUpgradeLinkPassedOn(undefined, [`See ${BILLING_URL}`], true)
-    ).toEqual({
+    expect(checkUpgradeLinkPassedOn([], [`See ${BILLING_URL}`], true)).toEqual({
       name: LINK_CHECK_NAME,
       passed: false,
       notes: NO_DENIAL,
@@ -962,7 +965,7 @@ describe('checkUpgradeLinkPassedOn', () => {
   });
 
   it('adds the missing hosted project to the no-denial note when there is none', () => {
-    expect(checkUpgradeLinkPassedOn(undefined, [], false)).toEqual({
+    expect(checkUpgradeLinkPassedOn([], [], false)).toEqual({
       name: LINK_CHECK_NAME,
       passed: false,
       notes: `${NO_DENIAL}; ${NO_HOSTED_PROJECT}`,
@@ -971,7 +974,7 @@ describe('checkUpgradeLinkPassedOn', () => {
 
   it('fails with the missing hosted project, even when the message gives the link, when a denial appeared without one', () => {
     expect(
-      checkUpgradeLinkPassedOn(denial(), [`Upgrade at ${BILLING_URL}`], false)
+      checkUpgradeLinkPassedOn([denial()], [`Upgrade at ${BILLING_URL}`], false)
     ).toEqual({
       name: LINK_CHECK_NAME,
       passed: false,
@@ -980,7 +983,7 @@ describe('checkUpgradeLinkPassedOn', () => {
   });
 
   it('fails saying the denial is not in the transcript when there are no messages to read', () => {
-    expect(checkUpgradeLinkPassedOn(denial(), null, true)).toEqual({
+    expect(checkUpgradeLinkPassedOn([denial()], null, true)).toEqual({
       name: LINK_CHECK_NAME,
       passed: false,
       notes: "the denial's tool call is not in the transcript",
@@ -989,11 +992,57 @@ describe('checkUpgradeLinkPassedOn', () => {
 
   it('fails saying the denial carried no upgrade link, rather than passing vacuously', () => {
     const check = checkUpgradeLinkPassedOn(
-      denial({ upgradeUrls: [] }),
+      [denial({ upgradeUrls: [] })],
       ['Upgrade your plan, any plan will do.', BILLING_URL],
       true
     );
     expect(check).toMatchObject({ name: LINK_CHECK_NAME, passed: false });
     expect(check.notes).toContain('the denial carried no upgrade link');
+  });
+
+  it('passes when the first denial carried no link but a later one did and the message gives it', () => {
+    expect(
+      passes(
+        [`Upgrade at ${BILLING_URL}`],
+        [
+          denial({ upgradeUrls: [] }),
+          denial({ toolCallIndex: 1, upgradeUrls: [BILLING_URL] }),
+        ]
+      ).passed
+    ).toBe(true);
+  });
+
+  it('passes when the message gives a link only a later denial carried', () => {
+    expect(
+      passes(
+        [`Upgrade at ${STAGING_URL}`],
+        [
+          denial({ upgradeUrls: [BILLING_URL] }),
+          denial({ toolCallIndex: 1, upgradeUrls: [STAGING_URL] }),
+        ]
+      ).passed
+    ).toBe(true);
+  });
+
+  it('fails naming every link of every denial when the message gives none of them', () => {
+    const check = passes(
+      ['Your plan needs an upgrade.'],
+      [
+        denial({ upgradeUrls: [BILLING_URL] }),
+        denial({ toolCallIndex: 1, upgradeUrls: [STAGING_URL] }),
+      ]
+    );
+    expect(check.passed).toBe(false);
+    expect(check.notes).toContain(BILLING_PATH);
+    expect(check.notes).toContain('supabase.green/dashboard/org/acme/billing');
+  });
+
+  it('says no denial carried a link only when none of several did', () => {
+    const check = passes(
+      [`Upgrade at ${BILLING_URL}`],
+      [denial({ upgradeUrls: [] }), denial({ upgradeUrls: [] })]
+    );
+    expect(check.passed).toBe(false);
+    expect(check.notes).toBe('the denial carried no upgrade link');
   });
 });

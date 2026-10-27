@@ -699,6 +699,36 @@ describe('the agent passed on the upgrade link', () => {
     expect(await onlyLinkFails(run)).toEqual([]);
   });
 
+  it('passes when the first denial was cut before the link, a later denial showed it and the agent passed it on', async () => {
+    const cut = JSON_DENIAL.slice(0, JSON_DENIAL.indexOf('upgrade_url'));
+    const run = buildRun([
+      say("I'll set up a preview branch.", { requestId: 'r1' }),
+      tool(failedCall(`${CREATE_COMMAND} 2>&1 | head -c ${cut.length}`, cut), {
+        requestId: 'r1',
+      }),
+      say('That was cut off; re-running.', { requestId: 'r2' }),
+      tool(deniedCall(), { requestId: 'r2' }),
+      say(UPGRADE_MESSAGE, { requestId: 'r3' }),
+    ]);
+    expect(await onlyLinkFails(run)).toEqual([]);
+  });
+
+  it('fails only the link check, saying no denial carried a link, when none of several did', async () => {
+    const bare =
+      'unexpected create branch status 402: {"message":"nope","error":{"code":"entitlement_required"}}';
+    const run = buildRun([
+      tool(deniedCall(CREATE_COMMAND, bare), { requestId: 'r1' }),
+      say('Re-running.', { requestId: 'r2' }),
+      tool(deniedCall(CREATE_COMMAND, bare), { requestId: 'r2' }),
+      say(UPGRADE_MESSAGE, { requestId: 'r3' }),
+    ]);
+    const { ctx } = fakeCtx(run, { hosted: HOSTED });
+    expect(await failedNames(ctx)).toEqual([nameOf(3)]);
+    expect((await checkNamed(ctx, nameOf(3)))?.notes).toContain(
+      'the denial carried no upgrade link'
+    );
+  });
+
   it('passes when the link is in a message in the middle of the run', async () => {
     const run = buildRun([
       tool(deniedCall()),
@@ -1176,6 +1206,21 @@ describe('steps chained into the denied command', () => {
     [
       'is followed by an echo that holds a substitution',
       `${CREATE_COMMAND}; echo "$(date)"`,
+      JSON_DENIAL,
+    ],
+    [
+      'pipes a heredoc that holds a retry into bash after ||',
+      `${CREATE_COMMAND} || cat <<'EOF' | bash\nsupabase branches create ticket-tags --persistent\nEOF`,
+      JSON_DENIAL,
+    ],
+    [
+      'pipes a heredoc into a curl POST to the branches endpoint after ||',
+      `${CREATE_COMMAND} || cat <<'JSON' | curl -sS -X POST https://api.supabase.com/v1/projects/${REF}/branches -d @-\n{"branch_name":"ticket-tags"}\nJSON`,
+      JSON_DENIAL,
+    ],
+    [
+      'holds an escaped quote ahead of a retry',
+      `${CREATE_COMMAND} --notify-url "a\\"b" || supabase branches create ticket-tags --persistent --notify-url "c"`,
       JSON_DENIAL,
     ],
   ];

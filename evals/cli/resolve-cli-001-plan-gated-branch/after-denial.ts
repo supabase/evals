@@ -247,8 +247,13 @@ function substitutionBodies(text: string): string[] {
 const runsSupabase = (text: string) =>
   findSupabaseInvocations([text]).length > 0;
 
-/** Whether the denied command runs anything after its denied invocation other than a pipe into a plain output filter, an `echo`, `printf`, `true` or `exit`, or a substitution in its own arguments that runs the Supabase CLI. */
+// The shared segmenter drops the rest of a heredoc's marker line and
+// ignores `\"` when masking quotes, so either can hide a chained step.
+const HIDES_STEPS = /<<|\\"/;
+
+/** Whether the denied command runs anything after its denied invocation other than a pipe into a plain output filter, an `echo`, `printf`, `true` or `exit`, or a substitution in its own arguments that runs the Supabase CLI; always true when it holds a heredoc, a here-string or an escaped double quote. */
 export function chainsMoreSteps(command: string): boolean {
+  if (HIDES_STEPS.test(command)) return true;
   const segments = unmaskedCommandSegments(command);
   const denied = deniedIndex(
     segments.map((segment) => findSupabaseInvocations([segment])[0])

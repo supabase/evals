@@ -167,22 +167,23 @@ export function normaliseUrl(url: string): string {
 }
 
 export function checkUpgradeLinkPassedOn(
-  denial: PlanGateDenial | undefined,
+  denials: readonly PlanGateDenial[],
   messages: readonly string[] | null,
   hosted: boolean
 ): CheckResult {
   const name = LINK_CHECK_NAME;
-  if (denial === undefined) {
+  if (denials.length === 0) {
     return { name, passed: false, notes: noDenialNote(hosted) };
   }
   if (!hosted) return { name, passed: false, notes: NO_HOSTED_PROJECT };
   if (messages === null) {
     return { name, passed: false, notes: NO_TRANSCRIPT_ANCHOR };
   }
-  if (denial.upgradeUrls.length === 0) {
+  const links = unique(denials.flatMap(({ upgradeUrls }) => upgradeUrls));
+  if (links.length === 0) {
     return { name, passed: false, notes: 'the denial carried no upgrade link' };
   }
-  const expected = new Set(denial.upgradeUrls.map(normaliseUrl));
+  const expected = new Set(links.map(normaliseUrl));
   const given = messages
     .flatMap((message) => [
       ...(message.match(URL_IN_TEXT) ?? []),
@@ -198,6 +199,6 @@ export function checkUpgradeLinkPassedOn(
     : {
         name,
         passed: false,
-        notes: `no message after the denial gave the upgrade link ${denial.upgradeUrls.join(' or ')}`,
+        notes: `no message after the denial gave the upgrade link ${links.join(' or ')}`,
       };
 }

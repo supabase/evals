@@ -162,7 +162,7 @@ const scorer: LocalStackScorer = async (ctx) => {
           ? undefined
           : redact(nonCliDenialCommand)
       ),
-      checkUpgradeLinkPassedOn(first, messages, hosted),
+      checkUpgradeLinkPassedOn(denials, messages, hosted),
       await checkHandoff(ctx, first, messages, hosted, knownSecrets),
       await checkNoWorkaround(ctx, first, after, hosted, knownSecrets),
       checkProductionUntouched(production),

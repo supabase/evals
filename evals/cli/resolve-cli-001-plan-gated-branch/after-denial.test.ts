@@ -659,4 +659,36 @@ describe('chainsMoreSteps', () => {
   ])('is true when a substitution follows the denied create: %s', (command) => {
     expect(chainsMoreSteps(command)).toBe(true);
   });
+
+  const SQ = `'"'"'`;
+
+  it.each([
+    `${CREATE_COMMAND} || cat <<'EOF' | bash\nsupabase branches create ticket-tags --persistent\nEOF`,
+    `${CREATE_COMMAND} || cat <<'JSON' | curl -sS -X POST "https://api.supabase.com/v1/projects/${REF}/branches" -H 'Content-Type: application/json' -d @-\n{"branch_name":"ticket-tags-2"}\nJSON`,
+    `${CREATE_COMMAND} || cat > /tmp/w.sh <<'EOF' && bash /tmp/w.sh\nsupabase branches create ticket-tags --persistent\nEOF`,
+    `${CREATE_COMMAND} || cat <<'SQL' | psql "$PROD_DB_URL"\ncreate table public.ticket_tags (ticket_id bigint);\nSQL`,
+    `${CREATE_COMMAND} || bash <<< 'supabase branches create ticket-tags --persistent'`,
+    `/bin/bash -lc '${CREATE_COMMAND} || cat <<EOF | bash\nsupabase branches create ticket-tags --persistent\nEOF'`,
+    `/bin/bash -lc '${CREATE_COMMAND} || cat <<${SQ}EOF${SQ} | bash\nsupabase branches create ticket-tags --persistent\nEOF'`,
+    `/bin/bash -lc '${CREATE_COMMAND} 2>&1 || cat <<${SQ}JSON${SQ} | curl -sS -X POST https://api.supabase.com/v1/projects/${REF}/branches -d @-\n{"branch_name":"ticket-tags"}\nJSON'`,
+  ])(
+    'is true when a heredoc or here-string follows, which the segmenter strips: %s',
+    (command) => {
+      expect(chainsMoreSteps(command)).toBe(true);
+    }
+  );
+
+  it.each([
+    `${CREATE_COMMAND} --notify-url "a\\"b" || supabase branches create ticket-tags --persistent --notify-url "c"`,
+    `/bin/bash -lc '${CREATE_COMMAND} --notify-url "a\\"b" || supabase branches create ticket-tags --persistent'`,
+  ])(
+    'is true when an escaped quote could hide a chained step from the quote masking: %s',
+    (command) => {
+      expect(chainsMoreSteps(command)).toBe(true);
+    }
+  );
+
+  it('stays false for a create piped through tee with stderr merged', () => {
+    expect(chainsMoreSteps(`${CREATE_COMMAND} 2>&1 | tee x`)).toBe(false);
+  });
 });
