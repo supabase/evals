@@ -114,10 +114,10 @@ const ASSERTION_PREFIXES: readonly string[] = [
   'tables_are',
   'columns_are',
 ];
-// Searched for in `executableText` with double quotes removed, so `"todo"(...)` and calls inside SQL-reading strings and `$$` bodies count.
+// Searched for with double quotes removed, so `"todo"(...)` and calls inside SQL-reading strings and `$$` bodies count.
 const UNSAFE_CALL_RE =
   /\b(?:todo|todo_start|todo_end|in_todo|skip|plan|no_plan|finish|set_config)\s*\(/i;
-// An allowed assertion can run SQL from a string or `$$` body, so these are searched for in `executableText`.
+// Searched for in the code outside literals; the literals pgTAP could run as SQL are checked against statement forms.
 const STATE_CHANGING_KEYWORDS: readonly string[] = [
   'create',
   'alter',
@@ -141,6 +141,85 @@ const STATE_CHANGING_KEYWORDS: readonly string[] = [
 ];
 const STATE_CHANGING_RE = new RegExp(
   `(?<![\\p{L}\\p{N}_])(?:${STATE_CHANGING_KEYWORDS.map((keyword) => keyword.replace(/ /g, '\\s+')).join('|')})(?![\\p{L}\\p{N}_])`,
+  'iu'
+);
+const SQL_IDENTIFIER = String.raw`(?:"(?:[^"]|"")*"|[\p{L}_][\p{L}\p{N}_$]*)`;
+const QUALIFIED_NAME = `${SQL_IDENTIFIER}(?:\\s*\\.\\s*${SQL_IDENTIFIER})*`;
+const OBJECT_KINDS: readonly string[] = [
+  'access\\s+method',
+  'aggregate',
+  'cast',
+  'collation',
+  'conversion',
+  'constraint\\s+trigger',
+  'database',
+  'default\\s+(?:privileges|conversion)',
+  'domain',
+  'event\\s+trigger',
+  'extension',
+  'foreign',
+  'function',
+  'global',
+  'group',
+  'index',
+  'language',
+  'large\\s+object',
+  'local',
+  'materialized',
+  'operator',
+  'or\\s+replace',
+  'owned\\s+by',
+  'policy',
+  'procedural',
+  'procedure',
+  'publication',
+  'recursive',
+  'role',
+  'routine',
+  'rule',
+  'schema',
+  'sequence',
+  'server',
+  'statistics',
+  'subscription',
+  'system',
+  'table',
+  'tablespace',
+  'temp',
+  'temporary',
+  'text\\s+search',
+  'transform',
+  'trigger',
+  'trusted',
+  'type',
+  'unique',
+  'unlogged',
+  'user',
+  'view',
+];
+const PRIVILEGE_ITEM = `(?:all(?:\\s+privileges)?|alter\\s+system|${SQL_IDENTIFIER})(?:\\s*\\([^)]*\\))?`;
+const WORD_END = '(?![\\p{L}\\p{N}_])';
+// Each form needs the words Postgres puts after the command word, so a description such as `'delete is blocked'` doesn't match.
+// `$` is the end of the body, since the patterns have no `m` flag.
+const STATE_CHANGING_STATEMENTS: readonly string[] = [
+  `(?:create|alter|drop)\\s+(?:${OBJECT_KINDS.join('|')})${WORD_END}`,
+  `update\\s+(?:only\\s+)?${QUALIFIED_NAME}(?:\\s*\\*)?(?:\\s+(?:as\\s+)?${SQL_IDENTIFIER})?\\s+set${WORD_END}`,
+  `delete\\s+from${WORD_END}`,
+  `merge\\s+into${WORD_END}`,
+  `truncate\\s+(?:table\\s+)?(?:only\\s+)?${QUALIFIED_NAME}(?:\\s*\\*)?(?:\\s*(?:[,;)]|$)|\\s+(?:restart|continue|cascade|restrict)${WORD_END})`,
+  `(?:grant|revoke)\\s+(?:(?:grant|admin|inherit|set)\\s+option\\s+for\\s+)?${PRIVILEGE_ITEM}(?:\\s*,\\s*${PRIVILEGE_ITEM})*\\s+(?:on|to|from)${WORD_END}`,
+  `comment\\s+on${WORD_END}`,
+  `set_config${WORD_END}`,
+  `set\\s+(?:role|search_path|session|local)${WORD_END}`,
+  `reset\\s+(?:all|role|session\\s+authorization|${QUALIFIED_NAME})\\s*(?:;|$)`,
+  `do\\s+(?:language\\s+${SQL_IDENTIFIER}\\s+)?(?:\\$|[eE]?')`,
+  `call\\s+${QUALIFIED_NAME}\\s*\\(`,
+  `copy\\s+(?:\\(|${QUALIFIED_NAME}(?:\\s*\\([^)]*\\))?\\s+(?:from|to)${WORD_END})`,
+  `on\\s+conflict${WORD_END}`,
+  `security\\s+definer${WORD_END}`,
+];
+const STATE_CHANGING_STATEMENT_RE = new RegExp(
+  `(?<![\\p{L}\\p{N}_])(?:${STATE_CHANGING_STATEMENTS.join('|')})`,
   'iu'
 );
 const SQL_COMMANDS: readonly string[] = [
@@ -202,6 +281,15 @@ const SQL_COMMAND_START_RE = new RegExp(
   'iu'
 );
 const DOLLAR_TAG_RE = /^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/;
+const ESCAPE_STRING_TOKEN_RE =
+  /''|\\(?:([0-7]{1,3})|x([0-9A-Fa-f]{1,2})|u([0-9A-Fa-f]{4})|U([0-9A-Fa-f]{8})|([\s\S]))/g;
+const SIMPLE_ESCAPES: Readonly<Record<string, string>> = {
+  b: '\b',
+  f: '\f',
+  n: '\n',
+  r: '\r',
+  t: '\t',
+};
 const FINGERPRINT_DROPPED_RE = /[\s;]/;
 const TEST_FILE_RE = /\.(?:sql|pg)$/;
 const TESTS_PREFIX = `${TESTS_DIR}/`;
@@ -344,19 +432,40 @@ function closingQuote(
   return sql.length;
 }
 
-/** The raw text between the quotes of each string and dollar-quoted literal in `sql`; literals nested in a body stay in it. */
+const isScalarValue = (code: number) =>
+  code <= 0x10ffff && (code < 0xd800 || code > 0xdfff);
+
+/** The text an `E'...'` body stands for, keeping an escape raw when it names no valid code point. */
+function decodeEscapeString(body: string): string {
+  return body.replace(
+    ESCAPE_STRING_TOKEN_RE,
+    (match, octal, hex, short, long, other) => {
+      if (match === "''") return "'";
+      if (other !== undefined) return SIMPLE_ESCAPES[other] ?? other;
+      const code =
+        octal === undefined
+          ? Number.parseInt(hex ?? short ?? long, 16)
+          : Number.parseInt(octal, 8);
+      return isScalarValue(code) ? String.fromCodePoint(code) : match;
+    }
+  );
+}
+
+/** The text each string and dollar-quoted literal in `sql` stands for; literals nested in a body stay in it. */
 function literalBodies(sql: string): string[] {
   const bodies: string[] = [];
   let i = 0;
   while (i < sql.length) {
     const char = sql[i];
     if (char === "'" || char === '"') {
-      const close = closingQuote(
-        sql,
-        i,
-        char === "'" && isEscapeString(sql, i)
-      );
-      if (char === "'") bodies.push(sql.slice(i + 1, close));
+      const escaped = char === "'" && isEscapeString(sql, i);
+      const close = closingQuote(sql, i, escaped);
+      if (char === "'") {
+        const body = sql.slice(i + 1, close);
+        bodies.push(
+          escaped ? decodeEscapeString(body) : body.replaceAll("''", "'")
+        );
+      }
       i = close + 1;
       continue;
     }
@@ -377,12 +486,28 @@ function literalBodies(sql: string): string[] {
 const readsAsSql = (body: string) =>
   SQL_COMMAND_START_RE.test(stripSqlComments(body));
 
-/** The statement with literals and comments masked, then the raw body of each literal that reads as SQL, since pgTAP runs those. */
-function executableText(statement: string): string {
-  return [
-    maskSqlLiteralsAndComments(statement),
-    ...literalBodies(stripSqlComments(statement)).filter(readsAsSql),
-  ].join(';');
+/** The body of each literal in `sql` that pgTAP could run as SQL, and of each such literal nested in one. */
+function sqlBodies(sql: string): string[] {
+  return literalBodies(stripSqlComments(sql))
+    .filter(readsAsSql)
+    .flatMap((body) => [body, ...sqlBodies(body)]);
+}
+
+/** Whether the code outside literals holds a state-changing keyword, or a literal pgTAP could run holds a state-changing statement. */
+function changesState(statement: string): boolean {
+  return (
+    STATE_CHANGING_RE.test(maskSqlLiteralsAndComments(statement)) ||
+    sqlBodies(statement).some((body) =>
+      STATE_CHANGING_STATEMENT_RE.test(stripSqlComments(body))
+    )
+  );
+}
+
+/** Whether the code outside literals, or a literal pgTAP could run, calls a function that can hide or end an assertion. */
+function callsUnsafeFunction(statement: string): boolean {
+  return [maskSqlLiteralsAndComments(statement), ...sqlBodies(statement)].some(
+    (text) => UNSAFE_CALL_RE.test(text.replaceAll('"', ''))
+  );
 }
 
 /** Whether the parenthesis opening at `open` closes at the last character of `text`. */
@@ -397,9 +522,7 @@ function callSpans(text: string, open: number): boolean {
 
 /** Whether a statement added to a seeded test file is a pgTAP assertion call or a test-data insert, the only additions that can't change what the seeded assertions run against. */
 function isAllowedAddition(statement: string): boolean {
-  const executable = executableText(statement);
-  if (STATE_CHANGING_RE.test(executable)) return false;
-  if (UNSAFE_CALL_RE.test(executable.replaceAll('"', ''))) return false;
+  if (changesState(statement) || callsUnsafeFunction(statement)) return false;
   const masked = maskStatement(statement);
   const touchesSeededInvoice = SEEDED_INVOICE_IDS_RE.test(statement);
   if (INSERT_RE.test(masked)) {
@@ -480,12 +603,11 @@ function appendedRowCount(statement: string, prefix: string): number {
   const tail = textAfterFingerprint(statement, prefix);
   if (tail === undefined) return 0;
   const masked = maskStatement(tail);
-  const executable = executableText(tail);
   const unsafe =
     RETURNING_OR_SELECT_RE.test(masked) ||
     SEEDED_INVOICE_IDS_RE.test(tail) ||
-    STATE_CHANGING_RE.test(executable) ||
-    UNSAFE_CALL_RE.test(executable.replaceAll('"', ''));
+    changesState(tail) ||
+    callsUnsafeFunction(tail);
   return unsafe ? 0 : countRowTuples(masked);
 }
 

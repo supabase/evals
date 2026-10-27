@@ -774,6 +774,62 @@ select is(public.invoice_total_cents(900104), 500::bigint, 'a line without a dis
           'an assertion whose description starts with a command word that is not a keyword',
           "select ok(true, 'selecting a line does not delete it');",
         ],
+        [
+          'an assertion whose description starts with a command word and mentions it again',
+          "select ok(true, 'delete is blocked for paid invoices');",
+        ],
+        [
+          'an assertion whose description starts with delete and says it is refused',
+          "select ok(true, 'delete is refused for paid invoices');",
+        ],
+        [
+          'an assertion whose description starts with with',
+          "select ok(true, 'with no discount, totals do not change');",
+        ],
+        [
+          'an assertion whose description starts with update',
+          "select ok(true, 'update keeps the seeded totals');",
+        ],
+        [
+          'an assertion whose description starts with truncate',
+          "select ok(true, 'truncate is refused for paid invoices');",
+        ],
+        [
+          'an assertion whose description starts with select and mentions update',
+          "select ok(true, 'select does not update anything');",
+        ],
+        [
+          'an assertion whose description starts with reset and mentions it again',
+          "select ok(true, 'reset is not needed after a reset of the totals');",
+        ],
+        [
+          'an assertion whose description starts with call',
+          "select ok(true, 'call it twice and nothing changes');",
+        ],
+        [
+          'an assertion whose description starts with copy',
+          "select ok(true, 'copy of an invoice keeps its total');",
+        ],
+        [
+          'an assertion whose description starts with grant',
+          "select ok(true, 'grant is given to admins only');",
+        ],
+        [
+          'an assertion whose description starts with drop',
+          "select ok(true, 'drop the discount and the total is unchanged');",
+        ],
+        [
+          'an assertion whose description starts with create',
+          "select ok(true, 'create a line and the total updates');",
+        ],
+        [
+          'an assertion whose escape-string description holds an ordinary escape',
+          "select ok(true, E'first line\\nsecond line');",
+        ],
+        [
+          'an assertion whose escape-string description starts with a command word and holds an escape',
+          "select ok(true, E'delete is refused\\nfor paid invoices');",
+        ],
       ])('passes %s', (_label, statement) => {
         expect(checkSeededTestsUnchanged(addedAfterPlan(statement))).toEqual({
           name: TESTS_UNCHANGED_CHECK,
@@ -807,6 +863,10 @@ select is(public.invoice_total_cents(900104), 500::bigint, 'a line without a dis
           "insert into public.invoices (id, customer_name) values (900101, 'Again') on conflict do nothing;",
         ],
         [
+          'an insert of a new invoice that skips conflicts',
+          "insert into public.invoices (id, customer_name) values (900201, 'Extra Ltd') on conflict do nothing;",
+        ],
+        [
           'an assertion that alters a table from a dollar-quoted body',
           'select lives_ok($$alter table public.invoice_lines alter column discount_percent set default 0$$);',
         ],
@@ -821,10 +881,6 @@ select is(public.invoice_total_cents(900104), 500::bigint, 'a line without a dis
         [
           'an assertion that updates rows from a plain string',
           "select lives_ok('update public.invoice_lines set discount_percent = 0');",
-        ],
-        [
-          'an assertion whose description starts with a command word and holds a keyword',
-          "select ok(true, 'delete is refused for paid invoices');",
         ],
         [
           'an assertion that alters a table from a dollar-quoted body, with a description',
@@ -869,6 +925,126 @@ select is(public.invoice_total_cents(900104), 500::bigint, 'a line without a dis
         [
           'an assertion that deletes rows from a body nested in a string',
           "select lives_ok($$select lives_ok('delete from public.invoice_lines')$$, 'x');",
+        ],
+        [
+          'an assertion that deletes rows from an escape string that opens with a hex escape',
+          "select lives_ok(E'\\x20delete from invoices', 'x');",
+        ],
+        [
+          'an assertion that alters a table from an escape string that opens with a hex escape',
+          "select lives_ok(E'\\x61lter table public.invoice_lines alter column discount_percent set default 0', 'x');",
+        ],
+        [
+          'an assertion that deletes rows from an escape string that opens with a newline escape',
+          "select lives_ok(E'\\ndelete from public.invoice_lines', 'x');",
+        ],
+        [
+          'an assertion that deletes rows from an escape string that opens with an octal escape',
+          "select lives_ok(E'\\144elete from public.invoice_lines', 'x');",
+        ],
+        [
+          'an assertion that deletes rows from an escape string that opens with a unicode escape',
+          "select lives_ok(E'\\u0064elete from public.invoice_lines', 'x');",
+        ],
+        [
+          'an assertion that deletes rows from an escape string that opens with a long unicode escape',
+          "select lives_ok(E'\\U00000064elete from public.invoice_lines', 'x');",
+        ],
+        [
+          'an assertion that deletes rows from an escape string with a hex escape inside the first word',
+          "select lives_ok(E'dele\\x74e from public.invoice_lines', 'x');",
+        ],
+        [
+          'an assertion that deletes rows from an escape string with a backslash before a plain letter',
+          "select lives_ok(E'd\\elete from public.invoice_lines', 'x');",
+        ],
+        [
+          'an assertion that deletes rows from an escape string nested in a dollar-quoted body',
+          "select lives_ok($$select lives_ok(E'\\x64elete from public.invoice_lines')$$, 'x');",
+        ],
+        [
+          'an assertion that deletes rows from an escape string nested in a string with doubled quotes',
+          "select lives_ok('select lives_ok(E''\\x64elete from public.invoice_lines'')', 'x');",
+        ],
+        [
+          'an assertion that deletes rows from a body with a comment between the words',
+          "select lives_ok($$delete /* note */ from public.invoice_lines$$, 'x');",
+        ],
+        [
+          'an assertion that updates rows through an only table and an as alias',
+          "select lives_ok($$update only public.invoice_lines as l set discount_percent = 0$$, 'x');",
+        ],
+        [
+          'an assertion that updates rows through quoted names and a bare alias',
+          `select lives_ok($$update "public"."invoice_lines" l set discount_percent = 0$$, 'x');`,
+        ],
+        [
+          'an assertion that merges into a table',
+          "select lives_ok($$merge into public.invoice_lines l using (select 1) s on true when matched then delete$$, 'x');",
+        ],
+        [
+          'an assertion that inserts with an on conflict clause from a body',
+          "select lives_ok($$insert into public.invoices (id, customer_name) values (900201, 'x') on conflict do nothing$$, 'x');",
+        ],
+        [
+          'an assertion that runs a do block from a string',
+          "select lives_ok('do $x$ begin perform 1; end $x$', 'x');",
+        ],
+        [
+          'an assertion that runs a do block with a language from a body',
+          "select lives_ok($o$do language plpgsql $x$ begin perform 1; end $x$$o$, 'x');",
+        ],
+        [
+          'an assertion that calls a procedure from a body',
+          "select lives_ok($$call public.recalculate()$$, 'x');",
+        ],
+        [
+          'an assertion that truncates a table without the table keyword',
+          "select lives_ok($$truncate public.invoice_lines$$, 'x');",
+        ],
+        [
+          'an assertion that truncates a table with cascade',
+          "select lives_ok($$truncate table public.invoice_lines cascade$$, 'x');",
+        ],
+        [
+          'an assertion that resets search_path from a body',
+          "select lives_ok($$reset search_path$$, 'x');",
+        ],
+        [
+          'an assertion that copies a table from stdin',
+          "select lives_ok($$copy public.invoice_lines from stdin$$, 'x');",
+        ],
+        [
+          'an assertion that grants a privilege from a body',
+          "select lives_ok($$grant select on public.invoices to anon$$, 'x');",
+        ],
+        [
+          'an assertion that revokes a privilege from a body',
+          "select lives_ok($$revoke all on public.invoices from anon$$, 'x');",
+        ],
+        [
+          'an assertion that creates a temp table from a body',
+          "select lives_ok($$create temp table t (x int)$$, 'x');",
+        ],
+        [
+          'an assertion that creates a security definer function from a body',
+          "select lives_ok($$create or replace function public.f() returns int language sql security definer as 'select 1'$$, 'x');",
+        ],
+        [
+          'an assertion that comments on a table from a body',
+          "select lives_ok($$comment on table public.invoices is 'x'$$, 'x');",
+        ],
+        [
+          'an assertion that alters default privileges from a body',
+          "select lives_ok($$alter default privileges grant select on tables to anon$$, 'x');",
+        ],
+        [
+          'an assertion that drops what a role owns from a body',
+          "select lives_ok($$drop owned by anon$$, 'x');",
+        ],
+        [
+          'an assertion that drops a schema after a select from a body',
+          "select lives_ok($$select 1; drop schema public cascade$$, 'x');",
         ],
         [
           'an assertion that compares the rows of a with query that deletes',
@@ -1070,55 +1246,58 @@ select is(public.invoice_total_cents(900104), 500::bigint, 'a line without a dis
       });
 
       it.each([
-        'create',
-        'alter',
-        'drop',
-        'update',
-        'delete',
-        'truncate',
-        'grant',
-        'revoke',
-        'comment on',
-        'set_config',
-        'set role',
-        'set search_path',
-        'set session',
-        'set local',
-        'reset',
-        'do',
-        'call',
-        'copy',
-        'security definer',
-      ])('fails an added assertion whose SQL string holds %s', (keyword) => {
-        const probe = addedAfterPlan(
-          `select lives_ok($$select ${keyword} x$$);`
-        );
-        expect(checkSeededTestsUnchanged(probe).passed).toBe(false);
-      });
+        ['create', 'create table t (a int)'],
+        ['alter', 'alter table t add column a int'],
+        ['drop', 'drop table t'],
+        ['update', 'update t set a = 1'],
+        ['delete', 'delete from t'],
+        ['truncate', 'truncate t'],
+        ['grant', 'grant select on t to anon'],
+        ['revoke', 'revoke select on t from anon'],
+        ['comment on', "comment on table t is 'x'"],
+        ['set_config', "select set_config('a', 'b', true)"],
+        ['set role', 'set role anon'],
+        ['set search_path', 'set search_path to x'],
+        ['set session', 'set session authorization anon'],
+        ['set local', 'set local search_path to x'],
+        ['reset', 'reset search_path'],
+        ['do', "do 'begin perform 1; end'"],
+        ['call', 'call f()'],
+        ['copy', 'copy t from stdin'],
+        ['security definer', 'alter function f() security definer'],
+      ])(
+        'fails an added assertion whose SQL string holds %s',
+        (_keyword, statement) => {
+          const probe = addedAfterPlan(
+            `select lives_ok($$select 1; ${statement}$$);`
+          );
+          expect(checkSeededTestsUnchanged(probe).passed).toBe(false);
+        }
+      );
 
       it.each([
-        'create',
-        'alter',
-        'drop',
-        'update',
-        'delete',
-        'truncate',
-        'grant',
-        'revoke',
-        'comment on',
-        'set role',
-        'set search_path',
-        'set session',
-        'set local',
-        'reset',
-        'do',
-        'call',
-        'copy',
-        'security definer',
+        ['create', 'create table t (a int)'],
+        ['alter', 'alter table t add column a int'],
+        ['drop', 'drop table t'],
+        ['update', 'update t set a = 1'],
+        ['delete', 'delete from t'],
+        ['truncate', 'truncate t'],
+        ['grant', 'grant select on t to anon'],
+        ['revoke', 'revoke select on t from anon'],
+        ['comment on', "comment on table t is 'x'"],
+        ['set role', 'set role anon'],
+        ['set search_path', 'set search_path to x'],
+        ['set session', 'set session authorization anon'],
+        ['set local', 'set local search_path to x'],
+        ['reset', 'reset search_path'],
+        ['do', "do 'begin perform 1; end'"],
+        ['call', 'call f()'],
+        ['copy', 'copy t from stdin'],
+        ['security definer', 'alter function f() security definer'],
       ])(
         'fails an added assertion whose SQL string starts with %s',
-        (keyword) => {
-          const probe = addedAfterPlan(`select lives_ok($$${keyword} x$$);`);
+        (_keyword, statement) => {
+          const probe = addedAfterPlan(`select lives_ok($$${statement}$$);`);
           expect(checkSeededTestsUnchanged(probe).passed).toBe(false);
         }
       );
@@ -1269,6 +1448,18 @@ select is(public.invoice_total_cents(900104), 500::bigint, 'a line without a dis
       });
     });
 
+    it('passes an appended row whose description starts with a command word and holds a keyword', () => {
+      const probe = edited(
+        withPlan,
+        appendRows(LAST_INVOICE, "(900104, 'delete is refused')")
+      );
+      expect(checkSeededTestsUnchanged(probe)).toEqual({
+        name: TESTS_UNCHANGED_CHECK,
+        passed: true,
+        notes: `2 seeded test files unchanged; added to ${FILE}: 1 row appended to seeded inserts`,
+      });
+    });
+
     it('passes appended rows spread over lines, comments and extra spaces', () => {
       const probe = edited(
         appendRows(
@@ -1380,8 +1571,8 @@ select is(public.invoice_total_cents(900104), 500::bigint, 'a line without a dis
         appendRows(LAST_INVOICE, "(900104, 'drop table')"),
       ],
       [
-        'a tuple whose description starts with a command word and holds a keyword',
-        appendRows(LAST_INVOICE, "(900104, 'delete is refused')"),
+        'a tuple whose escape-string description opens with a hex escape and then deletes',
+        appendRows(LAST_INVOICE, "(900104, E'\\x20delete from invoices')"),
       ],
       [
         'a tuple that names a quoted todo call',
