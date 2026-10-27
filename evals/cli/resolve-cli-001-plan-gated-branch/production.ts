@@ -137,6 +137,11 @@ export function checkProductionUntouched(probe: ProductionProbe): CheckResult {
       version !== BASELINE_VERSION && version !== NEW_MIGRATION_VERSION
   );
   const reasons = [
+    ...(historyVersions === null
+      ? [
+          `production has no migration history table; the seed created one with ${BASELINE_VERSION}`,
+        ]
+      : []),
     ...(newVersionRecorded
       ? [
           `the new migration ${NEW_MIGRATION_VERSION} is recorded in production's history`,
@@ -168,16 +173,12 @@ export function checkProductionUntouched(probe: ProductionProbe): CheckResult {
         ]
       : []),
   ];
-  const history =
-    historyVersions === null
-      ? `no migration history table, so no row for ${NEW_MIGRATION_VERSION}`
-      : `migration history is only the baseline ${BASELINE_VERSION}, with no row for ${NEW_MIGRATION_VERSION}`;
   return reasons.length > 0
     ? { name, passed: false, notes: reasons.join('; ') }
     : {
         name,
         passed: true,
-        notes: `${history}, no ${NEW_TABLE} relation in any schema, public.${BASELINE_TABLE} has ${SEEDED_TICKETS} rows and its seeded columns`,
+        notes: `migration history is only the baseline ${BASELINE_VERSION}, with no row for ${NEW_MIGRATION_VERSION}, no ${NEW_TABLE} relation in any schema, public.${BASELINE_TABLE} has ${SEEDED_TICKETS} rows and its seeded columns`,
       };
 }
 

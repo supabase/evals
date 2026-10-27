@@ -44,6 +44,11 @@ const FEATURE = /\\?"feature\\?"\s*:\s*\\?"([^"\\]+)/;
 const STRUCTURED_ENTITLEMENT = /(?<!\\)"entitlement"\s*:\s*\{/;
 const MACHINE_ERROR = /"_tag"\s*:\s*"Error"/;
 const URL_IN_TEXT = new RegExp(String.raw`https?://[${URL_CHARS}/]+`, 'gi');
+// A host and path with no scheme; the lookbehind stops a match from starting mid-token or after `@`, `/`, `:` or `=`.
+const SCHEMELESS_URL = new RegExp(
+  String.raw`(?<![A-Za-z0-9\-._~@%/:=?#&+$])(?:[A-Za-z0-9-]+\.)+[A-Za-z0-9-]+/[${URL_CHARS}/]*`,
+  'g'
+);
 
 const unique = <T>(values: Iterable<T>) => [...new Set(values)];
 
@@ -179,7 +184,10 @@ export function checkUpgradeLinkPassedOn(
   }
   const expected = new Set(denial.upgradeUrls.map(normaliseUrl));
   const given = messages
-    .flatMap((message) => message.match(URL_IN_TEXT) ?? [])
+    .flatMap((message) => [
+      ...(message.match(URL_IN_TEXT) ?? []),
+      ...(message.match(SCHEMELESS_URL) ?? []),
+    ])
     .map(normaliseUrl);
   return given.some((url) => expected.has(url))
     ? {

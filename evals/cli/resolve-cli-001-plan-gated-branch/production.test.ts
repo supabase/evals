@@ -411,13 +411,14 @@ describe('checkProductionUntouched', () => {
     );
   });
 
-  it('says, when it passes, that there is no history table rather than that the history holds the baseline', () => {
+  it('fails when there is no history table, since the seed created one with the baseline row', () => {
     const check = checkProductionUntouched(
       productionProbe({ historyVersions: null })
     );
-    expect(check.passed).toBe(true);
-    expect(check.notes).toMatch(/no migration history table/);
-    expect(check.notes).not.toContain(BASELINE_VERSION);
+    expect(check).toMatchObject({ name: NAME, passed: false });
+    expect(check.notes).toBe(
+      `production has no migration history table; the seed created one with ${BASELINE_VERSION}`
+    );
   });
 
   it('fails when the history has a version other than the baseline, naming it', () => {
@@ -561,7 +562,7 @@ describe('checkProductionUntouched', () => {
     ).toBe(false);
   });
 
-  it('passes end to end when the history table does not exist, since no version can be recorded in it', async () => {
+  it('fails end to end when the history table does not exist, however intact the rest of production is', async () => {
     expect(
       checkProductionUntouched(
         (
@@ -572,7 +573,7 @@ describe('checkProductionUntouched', () => {
           })
         ).probe
       ).passed
-    ).toBe(true);
+    ).toBe(false);
   });
 });
 
@@ -620,14 +621,27 @@ describe('checkProductionUntouched against a probed production', () => {
     expect(check.notes).toContain('tags');
   });
 
-  it('passes without a history table, saying there is none', async () => {
+  it('fails without a history table, saying there is none and what the seed created', async () => {
     const check = await verdict({
       ...SEEDED_PRODUCTION,
       hasHistory: false,
       versions: [],
     });
-    expect(check.passed).toBe(true);
+    expect(check).toMatchObject({ name: NAME, passed: false });
     expect(check.notes).toMatch(/no migration history table/);
+    expect(check.notes).toContain(BASELINE_VERSION);
+  });
+
+  it('fails for a dropped history table next to a table copied by hand, naming both', async () => {
+    const check = await verdict({
+      ...SEEDED_PRODUCTION,
+      hasHistory: false,
+      versions: [],
+      hasNewTable: true,
+    });
+    expect(check.passed).toBe(false);
+    expect(check.notes).toContain('no migration history table');
+    expect(check.notes).toContain('ticket_tags');
   });
 
   it('still fails for a system-schema-only match being ignored while a real copy exists', async () => {

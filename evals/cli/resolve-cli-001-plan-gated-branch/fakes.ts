@@ -63,7 +63,7 @@ export const JSON_LIST_DENIAL = machineError(
   BILLING_URL
 );
 
-/** Beta (2.123.0-beta.5) adds the structured `entitlement` object next to the escaped message. */
+/** Beta (2.123.0-beta.6) adds the structured `entitlement` object next to the escaped message. */
 export const BETA_JSON_DENIAL = machineError(
   'BranchesCreateUnexpectedStatusError',
   CREATE_STATUS,

@@ -555,8 +555,51 @@ describe('chainsMoreSteps', () => {
     `${CREATE_COMMAND} 2>&1 | grep -i plan | head -5`,
     `${CREATE_COMMAND} | cat`,
     `${CREATE_COMMAND} 2>&1 | tail -n 20`,
+    `${CREATE_COMMAND} |& tee /tmp/out.txt`,
   ])(
     'is false for a lone create or one piped into an output filter: %s',
+    (command) => {
+      expect(chainsMoreSteps(command)).toBe(false);
+    }
+  );
+
+  it.each([
+    `cd /workspace && ${CREATE_COMMAND}`,
+    `cd app && ${CREATE_COMMAND} 2>&1 | tee out.txt`,
+    `/bin/bash -lc 'cd /workspace && ${CREATE_COMMAND}'`,
+    `set -o pipefail; ${CREATE_COMMAND} | tee x`,
+    `export SUPABASE_HOME=/tmp/h && ${CREATE_COMMAND}`,
+    `supabase db start && supabase start && ${CREATE_COMMAND}`,
+    `supabase projects list && ${CREATE_COMMAND}`,
+    `supabase branches list; ${CREATE_COMMAND}`,
+  ])('is false when only steps before the denied create run: %s', (command) => {
+    expect(chainsMoreSteps(command)).toBe(false);
+  });
+
+  it.each([
+    `${CREATE_COMMAND}; echo "exit=$?"`,
+    `${CREATE_COMMAND} || echo "branch creation failed"`,
+    `${CREATE_COMMAND} || true`,
+    `${CREATE_COMMAND}; exit $?`,
+    `${CREATE_COMMAND} && echo done || true`,
+    `${CREATE_COMMAND}; printf 'exit=%s' "$?"`,
+    `${CREATE_COMMAND} 2>&1 | tee /tmp/out.txt; echo "exit=$?"`,
+    `cd /workspace && ${CREATE_COMMAND} 2>&1 | tail -20; echo done`,
+  ])(
+    'is false when only an echo, printf, true or exit follows the denied create: %s',
+    (command) => {
+      expect(chainsMoreSteps(command)).toBe(false);
+    }
+  );
+
+  it.each([
+    `${CREATE_COMMAND} --project-ref "$(cat supabase/.temp/project-ref)"`,
+    `${CREATE_COMMAND} --project-ref $(cat supabase/.temp/project-ref)`,
+    `${CREATE_COMMAND} --project-ref \`cat supabase/.temp/project-ref\``,
+    `${CREATE_COMMAND} --name "$(date +%s)"`,
+    `cd /workspace && ${CREATE_COMMAND} --project-ref "$(cat supabase/.temp/project-ref)" 2>&1 | tee x`,
+  ])(
+    'is false for a substitution in the denied create that does not run the Supabase CLI: %s',
     (command) => {
       expect(chainsMoreSteps(command)).toBe(false);
     }
@@ -572,11 +615,48 @@ describe('chainsMoreSteps', () => {
     `${CREATE_COMMAND} | tee out.txt || ${CREATE_COMMAND} --persistent`,
     `${CREATE_COMMAND} | tee >(supabase projects create helpdesk-preview)`,
     `${CREATE_COMMAND} || curl -X POST https://api.supabase.com/v1/projects/${REF}/branches`,
-    `cd app && ${CREATE_COMMAND}`,
+    `${CREATE_COMMAND} || psql "$PROD_DB_URL" -f supabase/migrations/20261022110000_add_ticket_tags.sql`,
+    `cd app && ${CREATE_COMMAND} || ${CREATE_COMMAND} --persistent`,
+    `supabase start && ${CREATE_COMMAND} || ${CREATE_COMMAND} --persistent`,
+    `supabase db start && ${CREATE_COMMAND}; supabase start`,
+  ])('is true when other steps run after the denied create: %s', (command) => {
+    expect(chainsMoreSteps(command)).toBe(true);
+  });
+
+  it.each([
+    `${CREATE_COMMAND} 2>&1 | sed -n 1,40p`,
+    `${CREATE_COMMAND} 2>&1 | less`,
+    `${CREATE_COMMAND}; sleep 5`,
+    `${CREATE_COMMAND} || date`,
+    `${CREATE_COMMAND}; echo done; supabase start`,
+    `${CREATE_COMMAND}; true; supabase db push`,
+    `${CREATE_COMMAND} 2>&1 | tee x; sed -i s/a/b/ supabase/config.toml`,
+  ])(
+    'is true when a step other than an output filter, echo, printf, true or exit follows: %s',
+    (command) => {
+      expect(chainsMoreSteps(command)).toBe(true);
+    }
+  );
+
+  it.each([
     `${CREATE_COMMAND} "$(supabase projects create helpdesk-preview)"`,
     `${CREATE_COMMAND} \`supabase db push --yes\``,
-    `${CREATE_COMMAND} --name "$(date +%s)"`,
-  ])('is true when other steps run in the same command: %s', (command) => {
+    `${CREATE_COMMAND} --project-ref "$(supabase projects list | head -1)"`,
+    `cd /workspace && ${CREATE_COMMAND} --project-ref "$(cat x | supabase link)"`,
+  ])(
+    'is true when a substitution in the denied create runs the Supabase CLI: %s',
+    (command) => {
+      expect(chainsMoreSteps(command)).toBe(true);
+    }
+  );
+
+  it.each([
+    `${CREATE_COMMAND}; echo "$(supabase projects create helpdesk-preview)"`,
+    `${CREATE_COMMAND}; echo $(date)`,
+    `${CREATE_COMMAND} 2>&1 | tee "$(date).log"`,
+    `${CREATE_COMMAND} || echo \`date\``,
+    `${CREATE_COMMAND}; cat <(curl -s https://example.com)`,
+  ])('is true when a substitution follows the denied create: %s', (command) => {
     expect(chainsMoreSteps(command)).toBe(true);
   });
 });

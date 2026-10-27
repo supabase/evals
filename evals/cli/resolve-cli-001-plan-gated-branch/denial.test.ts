@@ -828,6 +828,117 @@ describe('checkUpgradeLinkPassedOn', () => {
     ).toBe(false);
   });
 
+  it.each([
+    ['plain text', `Upgrade at ${BILLING_PATH}`],
+    ['backticks', `Upgrade at \`${BILLING_PATH}\``],
+    ['a sentence ending with a period', `You can upgrade at ${BILLING_PATH}.`],
+    ['a trailing slash', `Upgrade at ${BILLING_PATH}/`],
+    ['a comma after it', `Upgrade at ${BILLING_PATH}, then ask me again`],
+    ['bold', `Upgrade at **${BILLING_PATH}**`],
+    ['parentheses', `Upgrade (${BILLING_PATH}) to continue`],
+    ['angle brackets', `Upgrade at <${BILLING_PATH}>`],
+    ['a markdown link text', `Upgrade on [${BILLING_PATH}](${BILLING_PATH})`],
+    [
+      'a leading www.',
+      'Upgrade at www.supabase.com/dashboard/org/acme/billing',
+    ],
+    [
+      'an upper-case host',
+      'Upgrade at SUPABASE.com/dashboard/org/acme/billing',
+    ],
+    ['a query string', `Upgrade at ${BILLING_PATH}?ref=cli`],
+    [
+      'a newline before and after it',
+      `Upgrade here:\n${BILLING_PATH}\nThen ask`,
+    ],
+    ['nothing before it', BILLING_PATH],
+    ['an em dash after it', `Upgrade at ${BILLING_PATH}\u2014then rerun`],
+  ])(
+    'passes when the message has the link without a scheme: %s',
+    (_label, message) => {
+      expect(passes([message]).passed).toBe(true);
+    }
+  );
+
+  it('passes for a scheme-less link on the denial host, whichever it is', () => {
+    expect(
+      passes(
+        ['Upgrade at supabase.green/dashboard/org/acme/billing'],
+        denial({ upgradeUrls: [STAGING_URL] })
+      ).passed
+    ).toBe(true);
+  });
+
+  it('passes for a scheme-less link when the denial link carried a scheme and www.', () => {
+    expect(
+      passes(
+        [`Upgrade at ${BILLING_PATH}`],
+        denial({
+          upgradeUrls: ['https://www.supabase.com/dashboard/org/acme/billing'],
+        })
+      ).passed
+    ).toBe(true);
+  });
+
+  it.each([
+    ['a longer last segment after a dash', `${BILLING_PATH}-old`],
+    ['a deeper path', `${BILLING_PATH}/x`],
+    ['a longer last segment', `${BILLING_PATH}2`],
+    ['another org', 'supabase.com/dashboard/org/other/billing'],
+    ['the org page without billing', 'supabase.com/dashboard/org/acme'],
+    ['a path in another case', 'supabase.com/dashboard/org/Acme/billing'],
+    ['only the host', 'supabase.com'],
+    ['the pricing page', 'supabase.com/pricing'],
+    ['another host', 'example.com/dashboard/org/acme/billing'],
+    [
+      'a host that ends in the real one',
+      'notsupabase.com/dashboard/org/acme/billing',
+    ],
+    [
+      'a host that continues the real one',
+      'supabase.com.evil.io/dashboard/org/acme/billing',
+    ],
+    [
+      'a subdomain of the real host',
+      'evil.supabase.com/dashboard/org/acme/billing',
+    ],
+    ['a host with a port', 'supabase.com:8443/dashboard/org/acme/billing'],
+    [
+      'a user in front of the host',
+      'user@supabase.com/dashboard/org/acme/billing',
+    ],
+  ])(
+    'fails when the message has a scheme-less link with %s',
+    (_label, link) => {
+      const check = passes([`Upgrade at ${link}`]);
+      expect(check.passed).toBe(false);
+      expect(check.notes).toContain(BILLING_PATH);
+    }
+  );
+
+  it.each([
+    [
+      'inside the path of another URL',
+      'https://evil.io/supabase.com/dashboard/org/acme/billing',
+    ],
+    [
+      'in the query of another URL',
+      'https://evil.io/?next=supabase.com/dashboard/org/acme/billing',
+    ],
+    [
+      'behind a longer host with a scheme',
+      'https://notsupabase.com/dashboard/org/acme/billing',
+    ],
+  ])('fails when the link only appears %s', (_label, url) => {
+    expect(passes([`Upgrade at ${url}`]).passed).toBe(false);
+  });
+
+  it('fails when the denial carried no link, even for a scheme-less billing link', () => {
+    expect(
+      passes([`Upgrade at ${BILLING_PATH}`], denial({ upgradeUrls: [] })).passed
+    ).toBe(false);
+  });
+
   it('fails when there are no messages after the denial, even though the denial output holds the link', () => {
     const check = passes([]);
     expect(check.passed).toBe(false);

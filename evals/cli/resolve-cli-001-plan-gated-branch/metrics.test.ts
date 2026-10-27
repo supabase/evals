@@ -14,6 +14,7 @@ import {
   deniedCall,
   FEATURE,
   JSON_DENIAL,
+  JSON_LIST_DENIAL,
   LIST_COMMAND,
   productionProbe,
   REF,
@@ -371,6 +372,49 @@ describe('checkMetrics', () => {
         }),
       ]);
       expect((await metricsOf(factsFor(run))).localStackAfterDenial).toBe(0);
+    });
+
+    it.each([
+      `supabase db start && supabase start && ${CREATE_COMMAND}`,
+      `supabase db start && supabase start; ${CREATE_COMMAND}`,
+      `supabase db reset && ${CREATE_COMMAND}`,
+      `cd app && supabase start && supabase db reset && ${CREATE_COMMAND}`,
+      `supabase start && supabase branches list && ${CREATE_COMMAND}`,
+    ])(
+      'counts no local-stack step that ran before the denied create in the same call: %s',
+      async (command) => {
+        const run = buildRun([tool(deniedCall(command), { requestId: 'r1' })]);
+        expect((await metricsOf(factsFor(run))).localStackAfterDenial).toBe(0);
+      }
+    );
+
+    it.each([
+      [`${CREATE_COMMAND} || supabase start`, 1],
+      [`${CREATE_COMMAND}; supabase db start; supabase db reset`, 2],
+      [`supabase start && ${CREATE_COMMAND} || supabase db reset`, 1],
+      [
+        `supabase db start && supabase start && ${CREATE_COMMAND} || supabase start`,
+        1,
+      ],
+      [`${CREATE_COMMAND} || supabase db reset --linked`, 0],
+    ])(
+      'counts only the local-stack steps after the denied create in the same call: %s',
+      async (command, expected) => {
+        const run = buildRun([tool(deniedCall(command), { requestId: 'r1' })]);
+        expect((await metricsOf(factsFor(run))).localStackAfterDenial).toBe(
+          expected
+        );
+      }
+    );
+
+    it('counts, from a denied call with no branch create, the steps after its first invocation', async () => {
+      const run = buildRun([
+        tool(
+          deniedCall(`${LIST_COMMAND} && supabase start`, JSON_LIST_DENIAL),
+          { requestId: 'r1' }
+        ),
+      ]);
+      expect((await metricsOf(factsFor(run))).localStackAfterDenial).toBe(1);
     });
 
     it('is zero for a denial the agent stopped at', async () => {
