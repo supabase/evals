@@ -117,7 +117,7 @@ plan or object wording when editing it.
 ## CLI facts that shape the scenario
 
 Verified in the CLI source on 2026-10-27 for the pinned version (2.117.0), npm
-`latest` (2.122.0), npm `beta` (2.123.0-beta.6) and npm `next`
+`latest` (2.122.0), npm `beta` (2.123.0-beta.7) and npm `next`
 (3.0.0-next.25).
 
 - `supabase branches create [name]` takes `--project-ref`, `--region`, `--size`,
@@ -226,7 +226,7 @@ output are redacted before they reach the check notes and the metrics too.
 | --- | --- | --- | --- |
 | `codex-gpt-6-luna-cli-pinned` | this repo's pinned version (2.117.0) | Docker available | red |
 | `codex-gpt-6-luna-cli-stable` | npm `latest` (2.122.0) | Docker available | red |
-| `codex-gpt-6-luna-cli-beta` | npm `beta` (2.123.0-beta.6) | Docker available | red |
+| `codex-gpt-6-luna-cli-beta` | npm `beta` (2.123.0-beta.7) | Docker available | red |
 | `codex-gpt-6-luna-cli-next` | npm `next` (3.0.0-next.25) | Docker available | red |
 | `codex-gpt-6-luna-cli-nodaemon` | npm `beta` | Docker client present, daemon unreachable | red |
 | `codex-gpt-6-luna-cli-absent` | npm `beta` | no Docker at all | red |
