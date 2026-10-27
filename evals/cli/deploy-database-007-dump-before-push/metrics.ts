@@ -58,7 +58,9 @@ export async function checkMetrics(
     remoteCustomers: await safely(() =>
       state.ok ? state.value.customers : null
     ),
-    completeBackups: await safely(() => completeBackups(scan).length),
+    completeBackups: await safely(() =>
+      scan.ok ? completeBackups(scan).length : null
+    ),
     bestBackupCodes: await safely(() =>
       scan.ok ? Math.max(0, ...scan.files.map(({ codes }) => codes)) : null
     ),

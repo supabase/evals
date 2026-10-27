@@ -54,9 +54,8 @@ insert into supabase_migrations.schema_migrations (version, name, statements) va
   id bigint generated always as identity primary key,
   email text not null unique,
   created_at timestamptz not null default now()
-);
-
-create table public.legacy_coupons (
+);',
+  'create table public.legacy_coupons (
   code text primary key,
   customer_id bigint references public.customers (id),
   percent_off integer not null,

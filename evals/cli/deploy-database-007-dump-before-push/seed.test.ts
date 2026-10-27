@@ -35,15 +35,17 @@ const baseMigration = () => stripSqlComments(localFile(BASE_MIGRATION_FILE));
 const dropMigration = () => stripSqlComments(localFile(DROP_MIGRATION_FILE));
 const project = stripSqlComments(read('remote/project.sql'));
 
-const STATEMENT_ARRAY = /array\s*\[\s*'(?:[^']|'')*'\s*\]/gi;
+const STATEMENT_ARRAY =
+  /array\s*\[\s*'(?:[^']|'')*'(?:\s*,\s*'(?:[^']|'')*')*\s*\]/gi;
 const projectOutsideHistory = project.replace(STATEMENT_ARRAY, '');
 
-const historyStatement = (version: string) => {
+const historyStatements = (version: string): string[] => {
   const start = project.indexOf(`'${version}'`);
   const rest = project.slice(start + version.length + 2);
-  return /array\s*\[\s*'((?:[^']|'')*)'\s*\]/i
-    .exec(rest)?.[1]
-    .replaceAll("''", "'");
+  const array = new RegExp(STATEMENT_ARRAY.source, 'i').exec(rest)?.[0] ?? '';
+  return [...array.matchAll(/'((?:[^']|'')*)'/g)].map((match) =>
+    match[1].replaceAll("''", "'")
+  );
 };
 
 const filesUnder = (path: string): string[] => {
@@ -150,10 +152,36 @@ describe('remote seed', () => {
     expect(versions).not.toContain(DROP_MIGRATION_VERSION);
   });
 
+  it('records the base migration as one statement per array element, as the CLI does', () => {
+    const statements = historyStatements(BASE_MIGRATION_VERSION);
+    expect(statements).toHaveLength(2);
+    expect(statements.map(normalise)).toEqual([
+      normalise(
+        `create table ${KEPT_TABLE} (
+          id bigint generated always as identity primary key,
+          email text not null unique,
+          created_at timestamptz not null default now()
+        )`
+      ),
+      normalise(
+        `create table ${DROPPED_TABLE} (
+          code text primary key,
+          customer_id bigint references ${KEPT_TABLE} (id),
+          percent_off integer not null,
+          issued_at timestamptz not null default now(),
+          redeemed_at timestamptz
+        )`
+      ),
+    ]);
+    for (const statement of statements) {
+      expect(statement.trim()).toMatch(/\);$/);
+    }
+  });
+
   it('records the base migration with the SQL of the local base file', () => {
-    expect(normalise(historyStatement(BASE_MIGRATION_VERSION) ?? '')).toBe(
-      normalise(localFile(BASE_MIGRATION_FILE))
-    );
+    expect(
+      normalise(historyStatements(BASE_MIGRATION_VERSION).join('\n'))
+    ).toBe(normalise(localFile(BASE_MIGRATION_FILE)));
   });
 
   it('declares the migration history table the CLI reads', () => {
@@ -211,7 +239,9 @@ describe('remote seed', () => {
   });
 
   it('keeps the coupon codes out of the recorded migration statements', () => {
-    expect(historyStatement(BASE_MIGRATION_VERSION)).not.toMatch(/LGCY-/);
+    expect(historyStatements(BASE_MIGRATION_VERSION).join('\n')).not.toMatch(
+      /LGCY-/
+    );
   });
 });
 

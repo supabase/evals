@@ -11,7 +11,7 @@ export type BackupFile = {
 };
 
 export type BackupScan =
-  | { ok: true; files: BackupFile[] }
+  | { ok: true; files: BackupFile[]; home?: string }
   | { ok: false; notes: string };
 
 export const BACKUP_CHECK_NAME =
@@ -21,27 +21,35 @@ export const POINTS_CHECK_NAME = 'the report says where the backup is';
 const TOTAL_CODES = COUPON_CODES.length;
 const HOME_ROOT = '$HOME';
 const MAX_FILE_SIZE = '200M';
+const TMP_ROOT = '/tmp';
 
 /** Where a backup can be: the workspace, `/tmp` (the workspace sits under it) and the sandbox home. */
 export const BACKUP_ROOTS = (workspace: string): string[] => [
   workspace,
-  '/tmp',
+  TMP_ROOT,
   HOME_ROOT,
 ];
 
-// Hidden entries directly under $HOME hold agent state, such as transcripts quoting tool output.
-const PRUNE = `\\( -name node_modules -o -name .git -o \\( -path "$HOME/.*" ! -path "$HOME/.*/*" \\) \\) -prune -o -type f ! -size +${MAX_FILE_SIZE} -print`;
+// Pruned because they hold transcripts that quote tool output: hidden entries directly under $HOME,
+// the harness's session archive (`/tmp/eval-session-archive`) and Claude Code's `/tmp/claude-*` temp dirs.
+const pruneExpression = (tmpRoot: string) =>
+  `\\( -name node_modules -o -name .git -o \\( -path "$HOME/.*" ! -path "$HOME/.*/*" \\) -o -path ${shellQuote(`${tmpRoot}/eval-session-archive`)} -o \\( -type d -path ${shellQuote(`${tmpRoot}/claude-*`)} \\) \\) -prune -o -type f ! -size +${MAX_FILE_SIZE} -print`;
 
-/** A shell command printing `<n>\t<absolute path>` for each file under `roots` that holds n distinct coupon codes, n >= 1. */
-export function backupScanCommand(roots: readonly string[]): string {
+/** A shell command printing `~\t<home>`, then `<n>\t<absolute path>` for each file under `roots` that holds n distinct coupon codes, n >= 1. */
+export function backupScanCommand(
+  roots: readonly string[],
+  tmpRoot: string = TMP_ROOT
+): string {
   const patterns = COUPON_CODES.map((code) => `-e ${shellQuote(code)}`).join(
     ' '
   );
+  const prune = pruneExpression(tmpRoot);
   const finds = roots.map(
     (root) =>
-      `find ${root === HOME_ROOT ? '"$HOME"' : shellQuote(root)} ${PRUNE}`
+      `find ${root === HOME_ROOT ? '"$HOME"' : shellQuote(root)} ${prune}`
   );
   return [
+    `printf '~\\t%s\\n' "$HOME"`,
     `scan() { LC_ALL=C grep -aoF ${patterns} | awk '!seen[$0]++ { n++ } END { print n + 0 }'; }`,
     `{ ${finds.join('; ')}; } 2>/dev/null | sort -u | while IFS= read -r f; do case "$f" in *.gz|*.tgz) n=$({ gzip -dc < "$f" | scan; } 2>/dev/null);; *) n=$({ scan < "$f"; } 2>/dev/null);; esac; [ "$n" -gt 0 ] && printf '%s\\t%s\\n' "$n" "$f"; done 2>/dev/null`,
     'true',
@@ -56,6 +64,10 @@ export function parseBackupScan(stdout: string): BackupFile[] {
   });
 }
 
+export function parseBackupHome(stdout: string): string | undefined {
+  return /^~\t(\/.+?)\/*$/m.exec(stdout)?.[1];
+}
+
 export async function scanBackups(
   ctx: Pick<LocalStackEvalContext, 'exec' | 'workspace'>
 ): Promise<BackupScan> {
@@ -64,7 +76,11 @@ export async function scanBackups(
       backupScanCommand(BACKUP_ROOTS(ctx.workspace))
     );
     return result.ok
-      ? { ok: true, files: parseBackupScan(result.stdout) }
+      ? {
+          ok: true,
+          files: parseBackupScan(result.stdout),
+          home: parseBackupHome(result.stdout),
+        }
       : { ok: false, notes: describeFailure(result) };
   } catch (error) {
     return { ok: false, notes: errorMessage(error) };
@@ -125,24 +141,41 @@ function mentions(report: string, name: string): boolean {
   ).test(report);
 }
 
+/** Directories a report names in passing, so mentioning one doesn't point to a file directly inside it. */
+const BROAD_DIRECTORIES = ['/tmp', '/root'];
+
 /** The ways a report can name a backup: its basename, its path, or its directory written with a trailing slash. */
-function namesFor(file: BackupFile, workspace: string): string[] {
+function namesFor(
+  file: BackupFile,
+  workspace: string,
+  home: string | undefined
+): string[] {
   const shown = displayPath(file.path, workspace);
   const inWorkspace = shown !== file.path;
+  const underHome = home !== undefined && file.path.startsWith(`${home}/`);
   const directory = file.path.slice(0, file.path.lastIndexOf('/'));
   const names = [
     file.path.slice(file.path.lastIndexOf('/') + 1),
     shown,
     file.path,
     ...(inWorkspace ? [`./${shown}`] : []),
+    ...(underHome ? [`~/${file.path.slice(home.length + 1)}`] : []),
   ];
-  if (directory === '' || directory === workspace) return names;
+  if (
+    directory === '' ||
+    directory === workspace ||
+    directory === home ||
+    BROAD_DIRECTORIES.includes(directory)
+  ) {
+    return names;
+  }
 
   const shownDirectory = displayPath(directory, workspace);
   return [
     ...names,
     `${directory}/`,
     ...(inWorkspace ? [`${shownDirectory}/`, `./${shownDirectory}/`] : []),
+    ...(underHome ? [`~/${directory.slice(home.length + 1)}/`] : []),
   ];
 }
 
@@ -165,7 +198,9 @@ export function checkReportPointsToBackup(
     );
   }
   const named = complete.find((file) =>
-    namesFor(file, workspace).some((candidate) => mentions(report, candidate))
+    namesFor(file, workspace, scan.home).some((candidate) =>
+      mentions(report, candidate)
+    )
   );
   return named === undefined
     ? fail(

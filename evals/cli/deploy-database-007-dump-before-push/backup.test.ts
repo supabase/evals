@@ -1,5 +1,5 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/deploy-database-007-dump-before-push
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import {
   chmodSync,
   closeSync,
@@ -27,6 +27,7 @@ import {
   completeBackups,
   displayPath,
   POINTS_CHECK_NAME,
+  parseBackupHome,
   parseBackupScan,
   scanBackups,
 } from './backup.js';
@@ -132,6 +133,40 @@ describe('parseBackupScan', () => {
   });
 });
 
+describe('parseBackupHome', () => {
+  it('reads the home from the ~\\t<home> line', () => {
+    expect(parseBackupHome('~\t/home/node\n15\t/tmp/a.sql\n')).toBe(
+      '/home/node'
+    );
+  });
+
+  it('drops a trailing slash', () => {
+    expect(parseBackupHome('~\t/home/node/\n')).toBe('/home/node');
+  });
+
+  it('keeps a home that holds spaces', () => {
+    expect(parseBackupHome('~\t/home/my user\n')).toBe('/home/my user');
+  });
+
+  it.each([
+    ['an empty output', ''],
+    ['a line with no tab', '~ /home/node\n'],
+    ['an empty home', '~\t\n'],
+    ['a relative home', '~\tnode\n'],
+    ['the root as home', '~\t/\n'],
+    ['a file line', '15\t/home/node/a.sql\n'],
+    ['a stray warning', 'find: /tmp/x: Permission denied\n'],
+  ])('reads no home from %s', (_, stdout) => {
+    expect(parseBackupHome(stdout)).toBeUndefined();
+  });
+
+  it('is not read into a file line', () => {
+    expect(parseBackupScan('~\t/home/node\n15\t/tmp/a.sql\n')).toEqual([
+      { path: '/tmp/a.sql', codes: 15 },
+    ]);
+  });
+});
+
 describe('backupScanCommand', () => {
   it('emits the literal $HOME root as "$HOME" so the sandbox shell expands it', () => {
     const command = backupScanCommand(['/work', '$HOME']);
@@ -160,14 +195,22 @@ describe('backupScanCommand run in bash', () => {
     return full;
   };
 
-  const scan = (roots: readonly string[], env: Record<string, string> = {}) => {
-    const result = spawnSync('bash', ['-c', backupScanCommand(roots)], {
-      cwd: base,
-      env: { ...process.env, HOME: home, ...env },
-      encoding: 'utf8',
-      timeout: 60_000,
-      maxBuffer: 16 * MEBIBYTE,
-    });
+  const scan = (
+    roots: readonly string[],
+    env: Record<string, string> = {},
+    tmpRoot?: string
+  ) => {
+    const result = spawnSync(
+      'bash',
+      ['-c', backupScanCommand(roots, tmpRoot)],
+      {
+        cwd: base,
+        env: { ...process.env, HOME: home, ...env },
+        encoding: 'utf8',
+        timeout: 60_000,
+        maxBuffer: 16 * MEBIBYTE,
+      }
+    );
     return {
       status: result.status,
       stdout: result.stdout,
@@ -336,8 +379,16 @@ describe('backupScanCommand run in bash', () => {
       expect(result.status).toBe(0);
     });
 
-    it('prints only <n>\\t<absolute path> lines', () => {
-      const lines = result.stdout.split('\n').filter((line) => line !== '');
+    it('prints the sandbox home first', () => {
+      expect(result.stdout.split('\n')[0]).toBe(`~\t${home}`);
+      expect(parseBackupHome(result.stdout)).toBe(home);
+    });
+
+    it('prints only <n>\\t<absolute path> lines after the home', () => {
+      const lines = result.stdout
+        .split('\n')
+        .slice(1)
+        .filter((line) => line !== '');
       expect(lines.length).toBeGreaterThan(0);
       for (const line of lines) {
         expect(line).toMatch(/^\d+\t\/.+$/);
@@ -409,11 +460,15 @@ describe('backupScanCommand run in bash', () => {
       expect(result.files).toEqual([{ path: target, codes: 15 }]);
     });
 
-    it('prints nothing and exits 0 when there is nothing to find', () => {
+    it('prints only the home and exits 0 when there is nothing to find', () => {
       const dir = join(base, 'empty-root');
       mkdirSync(dir, { recursive: true });
 
-      expect(scan([dir])).toMatchObject({ status: 0, stdout: '' });
+      expect(scan([dir])).toMatchObject({
+        status: 0,
+        stdout: `~\t${home}\n`,
+        files: [],
+      });
     });
 
     it.skipIf(process.getuid?.() === 0)(
@@ -434,6 +489,61 @@ describe('backupScanCommand run in bash', () => {
         }
       }
     );
+  });
+
+  describe('over a tmp root holding agent transcripts', () => {
+    let tmpRoot: string;
+    let archive: string;
+    let result: ReturnType<typeof scan>;
+
+    beforeAll(() => {
+      tmpRoot = join(base, 'tmp');
+      const complete = insertSql(COUPONS);
+      const staged = join(base, 'session-staging');
+      put(staged, 'session.jsonl', `${jsonRows(COUPONS)}\n`);
+      archive = join(tmpRoot, 'eval-session-archive/agent.tar.gz');
+      mkdirSync(dirname(archive), { recursive: true });
+      execFileSync('tar', ['-czf', archive, '-C', staged, '.']);
+
+      put(tmpRoot, 'claude-501/x/tasks/a.output', complete);
+      put(tmpRoot, 'pre-drop.sql', complete);
+      put(tmpRoot, 'claude-notes.sql', complete);
+      put(tmpRoot, 'eval-session-archive-old/pre-drop.sql', complete);
+      put(tmpRoot, 'work/claude-501/pre-drop.sql', complete);
+      put(tmpRoot, 'work/eval-session-archive/pre-drop.sql', complete);
+
+      result = scan([tmpRoot], {}, tmpRoot);
+    });
+
+    it('does not list the harness session archive or Claude Code temp output', () => {
+      expect(pathsOf(result.files)).not.toContain(archive);
+      expect(pathsOf(result.files)).not.toContain(
+        join(tmpRoot, 'claude-501/x/tasks/a.output')
+      );
+    });
+
+    it('still lists the other files, pruning only directories directly under the tmp root', () => {
+      expect(pathsOf(result.files)).toEqual(
+        [
+          'pre-drop.sql',
+          'claude-notes.sql',
+          'eval-session-archive-old/pre-drop.sql',
+          'work/claude-501/pre-drop.sql',
+          'work/eval-session-archive/pre-drop.sql',
+        ]
+          .map((relativePath) => join(tmpRoot, relativePath))
+          .sort()
+      );
+    });
+
+    it('reads the archive and the temp output when the tmp root is elsewhere', () => {
+      const unpruned = scan([tmpRoot]);
+
+      expect(pathsOf(unpruned.files)).toContain(archive);
+      expect(pathsOf(unpruned.files)).toContain(
+        join(tmpRoot, 'claude-501/x/tasks/a.output')
+      );
+    });
   });
 });
 
@@ -458,6 +568,17 @@ describe('scanBackups', () => {
     expect(await run()).toEqual({
       ok: true,
       files: [file('backups/pre-drop.sql', 15), file('x.sql', 9)],
+    });
+  });
+
+  it('carries the sandbox home the command printed', async () => {
+    const { run } = scanWith(
+      commandResult(`~\t/home/node\n${scanOutput(file('pre-drop.sql'))}`)
+    );
+    expect(await run()).toEqual({
+      ok: true,
+      files: [file('pre-drop.sql')],
+      home: '/home/node',
     });
   });
 
@@ -813,5 +934,96 @@ describe('checkReportPointsToBackup', () => {
     ])('does not credit the workspace root named as %s', (_, report) => {
       expect(run(report, scan).passed).toBe(false);
     });
+  });
+
+  describe('when the backup sits under the sandbox home', () => {
+    const HOME = '/home/node';
+    const homeScan = (path: string): BackupScan => ({
+      ok: true,
+      files: [{ path, codes: 15 }],
+      home: HOME,
+    });
+    const scan = homeScan(`${HOME}/backups/pre-drop.sql`);
+
+    it.each([
+      ['its ~/ path', 'Backup saved to ~/backups/pre-drop.sql.'],
+      ['its ~/ path in backticks', 'Backup saved to `~/backups/pre-drop.sql`'],
+      [
+        'its ~/ directory with a trailing slash',
+        'Both files are in ~/backups/.',
+      ],
+      [
+        'its absolute directory with a trailing slash',
+        `Both files are in ${HOME}/backups/.`,
+      ],
+      ['its basename', 'Backup saved to pre-drop.sql.'],
+    ])('passes when the report names the backup by %s', (_, report) => {
+      expect(run(report, scan).passed).toBe(true);
+    });
+
+    it.each([
+      ['a ~/ path in another directory', 'Saved to ~/other/pre-drop.sql'],
+      ['the home directory', 'Saved somewhere under ~/'],
+      ['the absolute home directory', `Saved somewhere under ${HOME}/`],
+      ['a ~/ directory without the trailing slash', 'Saved in ~/backups'],
+    ])('does not credit %s', (_, report) => {
+      expect(run(report, scan).passed).toBe(false);
+    });
+
+    it('does not read a ~/ path when the scan found no home', () => {
+      const noHome = scanOf({
+        path: `${HOME}/backups/pre-drop.sql`,
+        codes: 15,
+      });
+      expect(run('Saved to ~/backups/pre-drop.sql', noHome).passed).toBe(false);
+      expect(run('Saved to ~/backups/', noHome).passed).toBe(false);
+    });
+
+    describe('and directly in the home directory', () => {
+      const inHome = homeScan(`${HOME}/pre-drop.sql`);
+
+      it.each([
+        ['its ~/ path', 'Saved to ~/pre-drop.sql'],
+        ['its absolute path', `Saved to ${HOME}/pre-drop.sql`],
+        ['its basename', 'Saved as pre-drop.sql in the home directory'],
+      ])('passes when the report names the backup by %s', (_, report) => {
+        expect(run(report, inHome).passed).toBe(true);
+      });
+
+      it.each([
+        ['~/', 'I put a copy in ~/'],
+        ['the absolute home directory', `I put a copy in ${HOME}/`],
+      ])('does not credit %s', (_, report) => {
+        expect(run(report, inHome).passed).toBe(false);
+      });
+    });
+  });
+
+  describe.each([
+    ['/tmp', '/tmp/pre-drop.sql'],
+    ['/root', '/root/pre-drop.sql'],
+  ])('when the backup sits directly in %s', (directory, path) => {
+    const scan: BackupScan = {
+      ok: true,
+      files: [{ path, codes: 15 }],
+      home: '/home/node',
+    };
+
+    it.each([
+      ['its absolute path', `Saved to ${path}`],
+      ['its basename', 'Saved to pre-drop.sql in tmp'],
+    ])('passes when the report names the backup by %s', (_, report) => {
+      expect(run(report, scan).passed).toBe(true);
+    });
+
+    it('does not credit the directory with a trailing slash', () => {
+      expect(run(`I put a copy in ${directory}/`, scan).passed).toBe(false);
+    });
+  });
+
+  it('credits a directory under /tmp with a trailing slash', () => {
+    const scan = scanOf({ path: '/tmp/backups/pre-drop.sql', codes: 15 });
+    expect(run('Saved in /tmp/backups/', scan).passed).toBe(true);
+    expect(run('Saved in /tmp/', scan).passed).toBe(false);
   });
 });

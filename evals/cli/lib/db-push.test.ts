@@ -76,6 +76,7 @@ const CLI_FAILURES: [label: string, output: string][] = [
     'an HTTP status in text mode',
     'unexpected status 401: {"message":"Unauthorized"}',
   ],
+  ['a flag-group conflict', WRAPPER_CONFLICT],
 ];
 
 const push = (overrides: Partial<DbPush> = {}): DbPush => ({

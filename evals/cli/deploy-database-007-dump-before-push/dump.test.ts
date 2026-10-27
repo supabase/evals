@@ -36,6 +36,9 @@ const NO_DOCKER =
   'Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?';
 const CONTAINER_ERROR = 'error running container: exit 1';
 
+const FLAG_GROUP_CONFLICT =
+  'if any flags in the group [db-url linked local] are set none of the others can be; [db-url linked] were all set';
+
 const CLI_FAILURES: [label: string, output: string][] = [
   ['an unlinked repo', UNLINKED],
   ['a JSON error', '{"_tag":"Error","error":{"code":1,"message":"boom"}}'],
@@ -219,6 +222,22 @@ describe('readDbDumps', () => {
         expect(dumps[0]?.failed).toBe(true);
       }
     );
+
+    it('marks a piped --linked dump failed when its output shows the wrapper flag-group conflict', () => {
+      const command = 'supabase db dump --linked --data-only | gzip > b.sql.gz';
+      const { dumps, pushes } = activityOf(
+        shellCall(command, { result: FLAG_GROUP_CONFLICT })
+      );
+
+      expect(dumps).toEqual([
+        dumpOf({ dataOnly: true, failed: true, failure: FLAG_GROUP_CONFLICT }),
+      ]);
+      expect(dumps.some(isCreditedDump)).toBe(false);
+      expect(checkDumpedBeforePush(true, dumps, pushes)).toMatchObject({
+        passed: false,
+        notes: `only failed supabase db dump ran; first failure: "${FLAG_GROUP_CONFLICT}"`,
+      });
+    });
 
     it.each(DUMP_FAILURES)(
       'marks a dump failed when its output shows %s and nothing else',

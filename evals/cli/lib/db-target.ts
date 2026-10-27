@@ -2,7 +2,7 @@ import type { ToolCallRecord } from '@supabase-evals/core';
 import { invocationFlag, type SupabaseInvocation } from './cli-invocations.js';
 
 export const CLI_FAILURE_RE =
-  /"_tag"\s*:\s*"Error"|Cannot find project ref|Access token not provided|Confirmation required|failed to connect|unknown flag|command not found|unexpected status \d{3}|failed to execute query/i;
+  /"_tag"\s*:\s*"Error"|Cannot find project ref|Access token not provided|Confirmation required|failed to connect|unknown flag|command not found|unexpected status \d{3}|failed to execute query|if any flags in the group/i;
 
 const FAILURE_NOTE_LENGTH = 200;
 

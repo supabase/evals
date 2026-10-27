@@ -163,7 +163,7 @@ describe('checkMetrics', () => {
       remoteHasDropMigration: null,
       remoteCouponsDropped: null,
       remoteCustomers: null,
-      completeBackups: 0,
+      completeBackups: null,
       bestBackupCodes: null,
       ...NO_ACTIVITY,
       cliVersion: null,
@@ -291,18 +291,21 @@ describe('checkMetrics', () => {
       ).toMatchObject({ completeBackups, bestBackupCodes });
     });
 
-    it('reports no complete backups and null best codes when the scan failed', async () => {
+    it('nulls the complete backups and best codes when the scan failed', async () => {
       expect(
         await metricsOf({ ...FACTS, scan: down('exit 1: boom') })
-      ).toMatchObject({ completeBackups: 0, bestBackupCodes: null });
+      ).toMatchObject({ completeBackups: null, bestBackupCodes: null });
     });
 
     it('keeps zero and null apart, so a scan that found nothing is not read as a failed scan', async () => {
       const empty = await metricsOf({ ...FACTS, scan: scanOf() });
       const failed = await metricsOf({ ...FACTS, scan: down('boom') });
 
-      expect(empty.bestBackupCodes).toBe(0);
-      expect(failed.bestBackupCodes).toBeNull();
+      expect(empty).toMatchObject({ completeBackups: 0, bestBackupCodes: 0 });
+      expect(failed).toMatchObject({
+        completeBackups: null,
+        bestBackupCodes: null,
+      });
     });
   });
 

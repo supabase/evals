@@ -21,6 +21,9 @@ const CONTAINER_URL =
 const LOCALHOST_SUBDOMAIN_URL =
   'postgresql://postgres:postgres@db.localhost:5432/postgres';
 
+const FLAG_GROUP_CONFLICT =
+  'if any flags in the group [db-url linked local] are set none of the others can be; [db-url linked] were all set';
+
 const CLI_FAILURES: [label: string, output: string][] = [
   ['a JSON error', '{"_tag":"Error","error":{"code":1,"message":"boom"}}'],
   ['a JSON error with spacing', '{ "_tag" : "Error" }'],
@@ -39,6 +42,8 @@ const CLI_FAILURES: [label: string, output: string][] = [
     'unexpected status 401: {"message":"Unauthorized"}',
   ],
   ['a failed query', 'failed to execute query: relation "x" is missing'],
+  ['a flag-group conflict', FLAG_GROUP_CONFLICT],
+  ['a flag-group conflict in upper case', FLAG_GROUP_CONFLICT.toUpperCase()],
 ];
 
 const SUCCESSES = [
@@ -444,6 +449,16 @@ describe('toolCallFailureLine', () => {
       expect(toolCallFailureLine(failed)).toBe(UNLINKED_ERROR);
     }
   );
+
+  it('keeps the flag-group conflict line of an output that opens with a warning', () => {
+    expect(
+      toolCallFailureLine(
+        call({
+          result: `Warning: --linked is deprecated\n${FLAG_GROUP_CONFLICT}`,
+        })
+      )
+    ).toBe(FLAG_GROUP_CONFLICT);
+  });
 
   it('searches the output and the error text together', () => {
     expect(
