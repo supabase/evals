@@ -96,7 +96,8 @@ const LOOPBACK_HOSTS = new Set([
 ]);
 const LOOPBACK_IPV4_RE = /^127(?:\.\d{1,3}){3}$/;
 const VARIABLE_REFERENCE = /^\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?$/;
-const LOADS_STATUS_RE = /\bsupabase\b[^;&|\n]*\bstatus\b/;
+const LOADS_STATUS_ENV_RE =
+  /(?:^|[\s;&|(])(?:eval|source|\.|export)\s+["']?(?:\$\(|<\()[^)]*\bsupabase\b[^)]*\bstatus\b[^)]*(?:-o|--output)(?:\s+|=)["']?env\b/;
 
 function wholeIdentifier(names: readonly string[]): RegExp {
   return new RegExp(
@@ -168,13 +169,13 @@ function assignedValue(command: string, name: string): string | undefined {
   return value;
 }
 
-/** Argv keeps `$VAR` unexpanded: it takes its last literal assignment in the same command, and with none it's the remote unless the command loads `supabase status`, whose env output holds the local stack's URLs. */
+/** Argv keeps `$VAR` unexpanded: it takes its last literal assignment in the same command, and with none it's the remote unless the command loads `supabase status -o env` (by `eval`, `source` or `export`), which holds the local stack's URLs. */
 function isLocalUrl(url: string, command: string): boolean {
   const name = VARIABLE_REFERENCE.exec(url)?.[1];
   if (name === undefined) return isLoopback(url);
   const assigned = assignedValue(command, name);
   if (assigned !== undefined) return isLoopback(assigned);
-  return LOADS_STATUS_RE.test(command);
+  return LOADS_STATUS_ENV_RE.test(command);
 }
 
 function isExplicitlyLocal(inv: SupabaseInvocation, command: string): boolean {

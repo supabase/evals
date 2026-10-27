@@ -196,8 +196,8 @@ hosted project.
   docker container name (`supabase_db_plans-app`); a URL that doesn't parse
   counts as loopback. A `--db-url` of `$VAR` or `${VAR}` takes the variable's
   last literal assignment in the same command (`VAR=...` or `export VAR=...`);
-  with none it's remote, unless the command loads `supabase status`, whose env
-  output holds the local stack's URLs.
+  with none it's remote, unless the command loads `supabase status -o env` with
+  `eval`, `source` or `export`, since that output holds the local stack's URLs.
 - **Where the SQL comes from.** The positional argument, unless it starts with a
   shell expansion (`$(`, `$VAR`, `${VAR}` or a backtick), which holds no SQL the
   scorer can see. Else the `-f`/`--file` contents; else, for `-f -`,
@@ -442,7 +442,8 @@ hosted project.
   hand-applied migration and `migration repair`, such a push is credited even
   though it found nothing to apply.
 - A `--db-url "$VAR"` whose value the command doesn't show, such as one loaded
-  with `source .env`, counts as remote, so a variable holding a local URL from
+  with `source .env` or from a `supabase status -o env` saved to a file and
+  sourced later, counts as remote, so a variable holding a local URL from
   outside the command is credited by the push and verify checks. The hosted
   checks still fail such a push. Any other `--db-url` that can't be parsed, such
   as `"$(cat .db-url)"`, counts as local.

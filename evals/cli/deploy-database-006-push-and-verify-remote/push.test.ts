@@ -576,6 +576,44 @@ describe('readDbActivity: a --db-url from a shell variable', () => {
     expect(queryTargetOf(command)).toBe(target);
   });
 
+  it.each([
+    [
+      'a plain supabase status',
+      'supabase status && supabase db query --db-url "$SUPABASE_DB_URL" "select 1"',
+    ],
+    [
+      'a status printed as env but not loaded',
+      'supabase status -o env && supabase db query --db-url "$DB_URL" "select 1"',
+    ],
+    [
+      'a status read as JSON',
+      'supabase status -o json | jq .; supabase db query --db-url "$SUPABASE_DB_URL" "select 1"',
+    ],
+  ])('targets a query alongside %s as remote', (_, command) => {
+    expect(queryTargetOf(command)).toBe('remote');
+  });
+
+  it('reads a push alongside a plain supabase status as not local', () => {
+    expect(
+      pushOf('supabase status && supabase db push --db-url "$SUPABASE_DB_URL"')
+        ?.explicitlyLocal
+    ).toBe(false);
+  });
+
+  it.each([
+    ['eval "$(… -o env)"', 'eval "$(supabase status -o env)"'],
+    ['eval $(… --output env)', 'eval $(supabase status --output env)'],
+    ['eval through npx', 'eval "$(npx supabase status --output=env)"'],
+    ['source <(…)', 'source <(supabase status -o env)'],
+    ['. <(…)', '. <(supabase status -o env)'],
+    ['export $(… | xargs)', 'export $(supabase status -o env | xargs)'],
+    ['set -a with eval', 'set -a; eval "$(supabase status -o env)"; set +a'],
+  ])('targets a query after loading status with %s as local', (_, load) => {
+    expect(
+      queryTargetOf(`${load} && supabase db query --db-url "$DB_URL" "select 1"`)
+    ).toBe('local');
+  });
+
   it('credits a hosted push and verify that read the URL from a variable', async () => {
     const calls = [
       'supabase db push --db-url "$SUPABASE_DB_URL"',
