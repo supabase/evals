@@ -82,6 +82,10 @@ start (`start`, `stack start`, `stack restart`, `db start`) or stop (`stop`,
 `stack stop`, `stack destroy`) invocation the agent ran, flags included, and
 whether it left the stack stopped.
 
+`pgtap.ts` parses TAP output with the pg_prove pass rule, reads a `pg_prove`
+summary (`readPgProveSummaries` reads every one in an output), and finds the
+`supabase test db` runs in a transcript with each run's summaries.
+
 `redact.ts` replaces known secret values and secret-shaped text (URL passwords,
 keys, flags, JSON and YAML fields, and the cells of table columns under an
 upper-case `PASSWORD`, `SECRET`, `TOKEN` or `KEY` header) with `[redacted]`

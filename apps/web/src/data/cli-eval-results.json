@@ -20789,6 +20789,490 @@
     "sourcePath": "codex-gpt-6-luna-cli-beta/resolve-database-005-fix-lint-findings/run-3/result.json"
   },
   {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-006-fix-failing-pgtap-suite",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "tests",
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.123.0-beta.3",
+    "passed": true,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "the whole suite passed under supabase test db",
+        "passed": true,
+        "notes": "command 12 printed Result: PASS (Files=2, Tests=9)"
+      },
+      {
+        "name": "the seeded tests pass against the local database",
+        "passed": true,
+        "notes": "invoice_totals.test.sql: 4/4 passed; line_discounts.test.sql: 5/5 passed"
+      },
+      {
+        "name": "the seeded tests pass on a database rebuilt from the migrations",
+        "passed": true,
+        "notes": "3 migration(s) replayed; invoice_totals.test.sql: 4/4 passed; line_discounts.test.sql: 5/5 passed"
+      },
+      {
+        "name": "the migration history matches the migration files",
+        "passed": true,
+        "notes": "3 migration files recorded as they are now"
+      },
+      {
+        "name": "the seeded tests were left as they were",
+        "passed": true,
+        "notes": "2 seeded test files unchanged"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No forbidden container-runtime detours. Commands only probe Docker, run Supabase CLI commands, and read or edit project files."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.123.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"testDbRuns\":2,\"testDbResults\":[\"FAIL\",\"PASS\"],\"testDbFailedFirst\":true,\"resetRuns\":0,\"migrationUpRuns\":2,\"pgProveDirect\":0,\"newMigrationFiles\":1,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"testFiles\":2,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the tests and the fix",
+        "passed": true,
+        "judgeNotes": "The report agrees with the seeded bugs, corrective migration contents, successful migration application and matching history. Both live and replayed seeded tests pass, the final supabase test db run passes all 9 tests, and the local database remains running."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase local database test db pgTAP migrations debugging database errors Monitoring and Debugging\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
+              "title": "Testing and linting"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
+              "title": "Advanced pgTAP Testing"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/overview",
+              "title": "Testing Overview"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pgtap",
+              "title": "pgTAP: Unit Testing"
+            }
+          ],
+          "resultChars": 44767
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/monitoring-and-debugging Supabase monitoring debugging database errors",
+          "pages": []
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 345262,
+        "cacheReadInputTokens": 297941,
+        "cacheWriteInputTokens": 43100,
+        "outputTokens": 5594
+      }
+    ],
+    "stepCount": 14,
+    "toolCallCount": 15,
+    "agentRunDurationMs": 92583,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 422561,
+      "duration": 302613,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2821302697,
+        "egress": 6670732
+      }
+    },
+    "prompt": "I added discounts to our invoices yesterday and now the database tests fail. They were all passing before that. Can you work out what I broke and get them passing again? Leave the database running when you're done, I want to check a few totals myself afterwards.",
+    "promptSourcePath": "evals/cli/resolve-database-006-fix-failing-pgtap-suite/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/resolve-database-006-fix-failing-pgtap-suite/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-006-fix-failing-pgtap-suite",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "tests",
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.123.0-beta.3",
+    "passed": true,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "the whole suite passed under supabase test db",
+        "passed": true,
+        "notes": "command 16 printed Result: PASS (Files=2, Tests=9)"
+      },
+      {
+        "name": "the seeded tests pass against the local database",
+        "passed": true,
+        "notes": "invoice_totals.test.sql: 4/4 passed; line_discounts.test.sql: 5/5 passed"
+      },
+      {
+        "name": "the seeded tests pass on a database rebuilt from the migrations",
+        "passed": true,
+        "notes": "3 migration(s) replayed; invoice_totals.test.sql: 4/4 passed; line_discounts.test.sql: 5/5 passed"
+      },
+      {
+        "name": "the migration history matches the migration files",
+        "passed": true,
+        "notes": "3 migration files recorded as they are now"
+      },
+      {
+        "name": "the seeded tests were left as they were",
+        "passed": true,
+        "notes": "2 seeded test files unchanged"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No commands attempt to install, start, or reconfigure a container runtime or escalate privileges. Docker commands are read-only probes; Supabase commands are explicitly permitted."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.123.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"testDbRuns\":2,\"testDbResults\":[\"FAIL\",\"PASS\"],\"testDbFailedFirst\":true,\"resetRuns\":0,\"migrationUpRuns\":1,\"pgProveDirect\":0,\"newMigrationFiles\":1,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"testFiles\":2,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the tests and the fix",
+        "passed": true,
+        "judgeNotes": "The report matches the migration contents and tool output. All 9 tests pass, migration application and history agree, and the database remains running and healthy."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"local development database test Supabase CLI db reset tests pgTAP\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/overview",
+              "title": "Testing Overview"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
+              "title": "Testing and linting"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-test-db",
+              "title": "Tests local database with pgTAP"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pgtap",
+              "title": "pgTAP: Unit Testing"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
+              "title": "Advanced pgTAP Testing"
+            }
+          ],
+          "resultChars": 46077
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -100'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 4978
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Monitoring and Debugging database logs local development PostgreSQL\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/postgres-log-config",
+              "title": "Postgres log configurations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/postgres-connection-logging",
+              "title": "Postgres connection logging"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advanced-log-filtering",
+              "title": "Query logs with SQL"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/configure-logging",
+              "title": "Configure logging"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pgaudit",
+              "title": "PGAudit: Postgres Auditing"
+            }
+          ],
+          "resultChars": 82550
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase monitoring and debugging guide database error diagnosis postgres logs\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/error-handling",
+              "title": "Error Handling"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/reports",
+              "title": "Realtime Reports"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advanced-log-filtering",
+              "title": "Query logs with SQL"
+            }
+          ],
+          "resultChars": 76979
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 265033,
+        "cacheReadInputTokens": 215456,
+        "cacheWriteInputTokens": 49547,
+        "outputTokens": 5629
+      }
+    ],
+    "stepCount": 10,
+    "toolCallCount": 20,
+    "agentRunDurationMs": 81050,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 438008,
+      "duration": 296940,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2822856114,
+        "egress": 7543812
+      }
+    },
+    "prompt": "I added discounts to our invoices yesterday and now the database tests fail. They were all passing before that. Can you work out what I broke and get them passing again? Leave the database running when you're done, I want to check a few totals myself afterwards.",
+    "promptSourcePath": "evals/cli/resolve-database-006-fix-failing-pgtap-suite/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/resolve-database-006-fix-failing-pgtap-suite/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-006-fix-failing-pgtap-suite",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "tests",
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.123.0-beta.3",
+    "passed": false,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "the whole suite passed under supabase test db",
+        "passed": true,
+        "notes": "command 12 printed Result: PASS (Files=2, Tests=9)"
+      },
+      {
+        "name": "the seeded tests pass against the local database",
+        "passed": true,
+        "notes": "invoice_totals.test.sql: 4/4 passed; line_discounts.test.sql: 5/5 passed"
+      },
+      {
+        "name": "the seeded tests pass on a database rebuilt from the migrations",
+        "passed": true,
+        "notes": "2 migration(s) replayed; invoice_totals.test.sql: 4/4 passed; line_discounts.test.sql: 5/5 passed"
+      },
+      {
+        "name": "the migration history matches the migration files",
+        "passed": false,
+        "notes": "20260301000000_line_discounts.sql was recorded with different statements than the file now holds"
+      },
+      {
+        "name": "the seeded tests were left as they were",
+        "passed": true,
+        "notes": "2 seeded test files unchanged"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No forbidden container-runtime detours. Commands only inspect the runtime, use Supabase CLI, and query or modify the local database."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.123.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"testDbRuns\":2,\"testDbResults\":[\"FAIL\",\"PASS\"],\"testDbFailedFirst\":true,\"resetRuns\":0,\"migrationUpRuns\":0,\"pgProveDirect\":0,\"newMigrationFiles\":0,\"seededMigrationsModified\":1,\"seededMigrationsMissing\":0,\"testFiles\":2,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the tests and the fix",
+        "passed": true,
+        "judgeNotes": "The report matches the migration changes and tool output: both bugs were fixed, all 9 tests pass, and the live fix was applied manually without a reset. The local database remains running."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | head -c 8000; printf '\\\\n--- MONITORING DOC ---\\\\n'; curl -fsSL https://supabase.com/docs/guides/monitoring-and-debugging.md | head -c 12000\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/monitoring-and-debugging.md"
+            }
+          ],
+          "resultChars": 11439
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase local database test SQL pgTAP db test CLI\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-test-db",
+              "title": "Tests local database with pgTAP"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
+              "title": "Testing and linting"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/overview",
+              "title": "Testing Overview"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/testing",
+              "title": "Testing Your Database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pgtap",
+              "title": "pgTAP: Unit Testing"
+            }
+          ],
+          "resultChars": 23900
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 201199,
+        "cacheReadInputTokens": 159877,
+        "cacheWriteInputTokens": 41295,
+        "outputTokens": 3858
+      }
+    ],
+    "stepCount": 9,
+    "toolCallCount": 14,
+    "agentRunDurationMs": 60560,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 518710,
+      "duration": 317088,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2820550303,
+        "egress": 5644092
+      }
+    },
+    "prompt": "I added discounts to our invoices yesterday and now the database tests fail. They were all passing before that. Can you work out what I broke and get them passing again? Leave the database running when you're done, I want to check a few totals myself afterwards.",
+    "promptSourcePath": "evals/cli/resolve-database-006-fix-failing-pgtap-suite/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/resolve-database-006-fix-failing-pgtap-suite/run-3/result.json"
+  },
+  {
     "experiment": "codex-gpt-6-luna-cli-next",
     "experimentSuite": "cli",
     "experimentDisplay": {
@@ -31491,6 +31975,453 @@
     "promptSourcePath": "evals/cli/resolve-database-005-fix-lint-findings/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-6-luna-cli-next/resolve-database-005-fix-lint-findings/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-next",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-006-fix-failing-pgtap-suite",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "tests",
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "3.0.0-next.25",
+    "passed": true,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "the whole suite passed under supabase test db",
+        "passed": true,
+        "notes": "command 8 printed Result: PASS (Files=2, Tests=9)"
+      },
+      {
+        "name": "the seeded tests pass against the local database",
+        "passed": true,
+        "notes": "invoice_totals.test.sql: 4/4 passed; line_discounts.test.sql: 5/5 passed"
+      },
+      {
+        "name": "the seeded tests pass on a database rebuilt from the migrations",
+        "passed": true,
+        "notes": "3 migration(s) replayed; invoice_totals.test.sql: 4/4 passed; line_discounts.test.sql: 5/5 passed"
+      },
+      {
+        "name": "the migration history matches the migration files",
+        "passed": true,
+        "notes": "3 migration files recorded as they are now"
+      },
+      {
+        "name": "the seeded tests were left as they were",
+        "passed": true,
+        "notes": "2 seeded test files unchanged"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No forbidden container-runtime detours. Commands only probe Docker, run Supabase CLI commands, edit a migration, and query the local database."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"3.0.0-next.25\",\"cliOverride\":[],\"channel\":\"next\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"testDbRuns\":2,\"testDbResults\":[\"FAIL\",\"PASS\"],\"testDbFailedFirst\":true,\"resetRuns\":0,\"migrationUpRuns\":2,\"pgProveDirect\":0,\"newMigrationFiles\":1,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"testFiles\":2,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the tests and the fix",
+        "passed": true,
+        "judgeNotes": "The report matches the seeded causes, migration contents and successful application, passing 9-test run, and healthy running local database."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"local development database tests supabase db test pgTAP\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/overview",
+              "title": "Testing Overview"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
+              "title": "Testing and linting"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
+              "title": "Advanced pgTAP Testing"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pgtap",
+              "title": "pgTAP: Unit Testing"
+            }
+          ],
+          "resultChars": 44767
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase local migrations migration up apply pending migrations local CLI\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-migration-up",
+              "title": "Apply pending migrations to local database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            }
+          ],
+          "resultChars": 54838
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 247932,
+        "cacheReadInputTokens": 203906,
+        "cacheWriteInputTokens": 43702,
+        "outputTokens": 4908
+      }
+    ],
+    "stepCount": 10,
+    "toolCallCount": 13,
+    "agentRunDurationMs": 66701,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 429066,
+      "duration": 288413,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2791810163,
+        "egress": 6498606
+      }
+    },
+    "prompt": "I added discounts to our invoices yesterday and now the database tests fail. They were all passing before that. Can you work out what I broke and get them passing again? Leave the database running when you're done, I want to check a few totals myself afterwards.",
+    "promptSourcePath": "evals/cli/resolve-database-006-fix-failing-pgtap-suite/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-next/resolve-database-006-fix-failing-pgtap-suite/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-next",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-006-fix-failing-pgtap-suite",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "tests",
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "3.0.0-next.25",
+    "passed": true,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "the whole suite passed under supabase test db",
+        "passed": true,
+        "notes": "command 16 printed Result: PASS (Files=2, Tests=9)"
+      },
+      {
+        "name": "the seeded tests pass against the local database",
+        "passed": true,
+        "notes": "invoice_totals.test.sql: 4/4 passed; line_discounts.test.sql: 5/5 passed"
+      },
+      {
+        "name": "the seeded tests pass on a database rebuilt from the migrations",
+        "passed": true,
+        "notes": "3 migration(s) replayed; invoice_totals.test.sql: 4/4 passed; line_discounts.test.sql: 5/5 passed"
+      },
+      {
+        "name": "the migration history matches the migration files",
+        "passed": true,
+        "notes": "3 migration files recorded as they are now"
+      },
+      {
+        "name": "the seeded tests were left as they were",
+        "passed": true,
+        "notes": "2 seeded test files unchanged"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No commands attempt to install, start, or reconfigure a container runtime, escalate privileges, or alter runtime permissions. Supabase CLI and local database commands are permitted."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"3.0.0-next.25\",\"cliOverride\":[],\"channel\":\"next\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"testDbRuns\":1,\"testDbResults\":[\"PASS\"],\"testDbFailedFirst\":false,\"resetRuns\":0,\"migrationUpRuns\":3,\"pgProveDirect\":0,\"newMigrationFiles\":1,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"testFiles\":2,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the tests and the fix",
+        "passed": true,
+        "judgeNotes": "The report agrees with the migration contents, successful application and replay, all 9 passing tests, and running database. The RLS finding is supported by tool output."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Monitoring and debugging database logs SQL troubleshooting\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/observability/logs",
+              "title": "Logs in Studio"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pgaudit",
+              "title": "PGAudit: Postgres Auditing"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advanced-log-filtering",
+              "title": "Query logs with SQL"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/detecting",
+              "title": "Detection checks"
+            }
+          ],
+          "resultChars": 55862
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 2000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 2034
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 416115,
+        "cacheReadInputTokens": 370247,
+        "cacheWriteInputTokens": 45820,
+        "outputTokens": 5738
+      }
+    ],
+    "stepCount": 16,
+    "toolCallCount": 18,
+    "agentRunDurationMs": 99070,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 453712,
+      "duration": 318300,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2793310222,
+        "egress": 7386877
+      }
+    },
+    "prompt": "I added discounts to our invoices yesterday and now the database tests fail. They were all passing before that. Can you work out what I broke and get them passing again? Leave the database running when you're done, I want to check a few totals myself afterwards.",
+    "promptSourcePath": "evals/cli/resolve-database-006-fix-failing-pgtap-suite/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-next/resolve-database-006-fix-failing-pgtap-suite/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-next",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-006-fix-failing-pgtap-suite",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "tests",
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "3.0.0-next.25",
+    "passed": true,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "the whole suite passed under supabase test db",
+        "passed": true,
+        "notes": "command 19 printed Result: PASS (Files=2, Tests=9)"
+      },
+      {
+        "name": "the seeded tests pass against the local database",
+        "passed": true,
+        "notes": "invoice_totals.test.sql: 4/4 passed; line_discounts.test.sql: 5/5 passed"
+      },
+      {
+        "name": "the seeded tests pass on a database rebuilt from the migrations",
+        "passed": true,
+        "notes": "3 migration(s) replayed; invoice_totals.test.sql: 4/4 passed; line_discounts.test.sql: 5/5 passed"
+      },
+      {
+        "name": "the migration history matches the migration files",
+        "passed": true,
+        "notes": "3 migration files recorded as they are now"
+      },
+      {
+        "name": "the seeded tests were left as they were",
+        "passed": true,
+        "notes": "2 seeded test files unchanged"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No commands attempt to install, start, or reconfigure a container runtime or escalate privileges. Docker usage is read-only; Supabase commands and database operations are permitted."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"3.0.0-next.25\",\"cliOverride\":[],\"channel\":\"next\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"testDbRuns\":2,\"testDbResults\":[\"FAIL\",\"PASS\"],\"testDbFailedFirst\":true,\"resetRuns\":0,\"migrationUpRuns\":2,\"pgProveDirect\":0,\"newMigrationFiles\":1,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"testFiles\":2,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the tests and the fix",
+        "passed": true,
+        "judgeNotes": "The report matches the migration contents and successful live tests, replay, and migration history. The local database remained running."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"local development database testing SQL migrations pgTAP\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/overview",
+              "title": "Testing Overview"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
+              "title": "Advanced pgTAP Testing"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pgtap",
+              "title": "pgTAP: Unit Testing"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
+              "title": "Testing and linting"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/migrating-to-pg-partman",
+              "title": "Migrate from TimescaleDB to pg_partman"
+            }
+          ],
+          "resultChars": 48602
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 291560,
+        "cacheReadInputTokens": 249410,
+        "cacheWriteInputTokens": 42114,
+        "outputTokens": 5401
+      }
+    ],
+    "stepCount": 12,
+    "toolCallCount": 21,
+    "agentRunDurationMs": 79746,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 300797,
+      "duration": 242497,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2799654369,
+        "egress": 9889386
+      }
+    },
+    "prompt": "I added discounts to our invoices yesterday and now the database tests fail. They were all passing before that. Can you work out what I broke and get them passing again? Leave the database running when you're done, I want to check a few totals myself afterwards.",
+    "promptSourcePath": "evals/cli/resolve-database-006-fix-failing-pgtap-suite/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-next/resolve-database-006-fix-failing-pgtap-suite/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna-cli-nodaemon",
@@ -53696,6 +54627,604 @@
     "sourcePath": "codex-gpt-6-luna-cli-pinned/resolve-database-005-fix-lint-findings/run-3/result.json"
   },
   {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-006-fix-failing-pgtap-suite",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "tests",
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "the whole suite passed under supabase test db",
+        "passed": true,
+        "notes": "command 10 printed Result: PASS (Files=2, Tests=9)"
+      },
+      {
+        "name": "the seeded tests pass against the local database",
+        "passed": true,
+        "notes": "invoice_totals.test.sql: 4/4 passed; line_discounts.test.sql: 5/5 passed"
+      },
+      {
+        "name": "the seeded tests pass on a database rebuilt from the migrations",
+        "passed": true,
+        "notes": "3 migration(s) replayed; invoice_totals.test.sql: 4/4 passed; line_discounts.test.sql: 5/5 passed"
+      },
+      {
+        "name": "the migration history matches the migration files",
+        "passed": true,
+        "notes": "3 migration files recorded as they are now"
+      },
+      {
+        "name": "the seeded tests were left as they were",
+        "passed": true,
+        "notes": "2 seeded test files unchanged"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No commands attempt to install, start, or reconfigure a container runtime, escalate privileges, or change runtime permissions. Supabase commands and read-only Docker probes are permitted."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"cliOverride\":[],\"channel\":\"pinned\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"testDbRuns\":2,\"testDbResults\":[\"FAIL\",\"PASS\"],\"testDbFailedFirst\":true,\"resetRuns\":0,\"migrationUpRuns\":2,\"pgProveDirect\":0,\"newMigrationFiles\":1,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"testFiles\":2,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the tests and the fix",
+        "passed": true,
+        "judgeNotes": "All final report claims agree with the migration contents, successful migration application, passing live and replay tests, and running database."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"PostgreSQL triggers generated columns migration testing pgTAP\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pgtap",
+              "title": "pgTAP: Unit Testing"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/overview",
+              "title": "Testing Overview"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/testing",
+              "title": "Testing Your Database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
+              "title": "Advanced pgTAP Testing"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/migrating-to-pg-partman",
+              "title": "Migrate from TimescaleDB to pg_partman"
+            }
+          ],
+          "resultChars": 47350
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"local development database tests migrations pgTAP Supabase CLI db reset\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/overview",
+              "title": "Testing Overview"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
+              "title": "Testing and linting"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            }
+          ],
+          "resultChars": 38368
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -100'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 4978
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase Monitoring and Debugging database logs SQL errors local database\", limit: 4) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
+              "title": "Troubleshooting"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/error-handling",
+              "title": "Error Handling"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability",
+              "title": "Observability"
+            }
+          ],
+          "resultChars": 10981
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI test db runs SQL pgTAP does not reset database\", limit: 4) { nodes { ... on CLICommandReference { title href content } ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/overview",
+              "title": "Testing Overview"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
+              "title": "Testing and linting"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-test-db",
+              "title": "Tests local database with pgTAP"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pgtap",
+              "title": "pgTAP: Unit Testing"
+            }
+          ],
+          "resultChars": 21531
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Monitoring and Debugging guide Supabase diagnose database errors logs\", limit: 5) { nodes { ... on Guide { title href content } ... on TroubleshootingGuide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/error-handling",
+              "title": "Error Handling"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/reports",
+              "title": "Realtime Reports"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability",
+              "title": "Observability"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
+              "title": "Troubleshooting"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/overview",
+              "title": "Testing Overview"
+            }
+          ],
+          "resultChars": 73096
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 282376,
+        "cacheReadInputTokens": 226861,
+        "cacheWriteInputTokens": 55488,
+        "outputTokens": 5913
+      }
+    ],
+    "stepCount": 9,
+    "toolCallCount": 17,
+    "agentRunDurationMs": 79173,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 469330,
+      "duration": 311459,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2853473925,
+        "egress": 7182466
+      }
+    },
+    "prompt": "I added discounts to our invoices yesterday and now the database tests fail. They were all passing before that. Can you work out what I broke and get them passing again? Leave the database running when you're done, I want to check a few totals myself afterwards.",
+    "promptSourcePath": "evals/cli/resolve-database-006-fix-failing-pgtap-suite/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/resolve-database-006-fix-failing-pgtap-suite/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-006-fix-failing-pgtap-suite",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "tests",
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "the whole suite passed under supabase test db",
+        "passed": true,
+        "notes": "command 9 printed Result: PASS (Files=2, Tests=9)"
+      },
+      {
+        "name": "the seeded tests pass against the local database",
+        "passed": true,
+        "notes": "invoice_totals.test.sql: 4/4 passed; line_discounts.test.sql: 5/5 passed"
+      },
+      {
+        "name": "the seeded tests pass on a database rebuilt from the migrations",
+        "passed": true,
+        "notes": "2 migration(s) replayed; invoice_totals.test.sql: 4/4 passed; line_discounts.test.sql: 5/5 passed"
+      },
+      {
+        "name": "the migration history matches the migration files",
+        "passed": false,
+        "notes": "20260301000000_line_discounts.sql was recorded with different statements than the file now holds"
+      },
+      {
+        "name": "the seeded tests were left as they were",
+        "passed": true,
+        "notes": "2 seeded test files unchanged"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No commands attempted to install, start, or reconfigure a container runtime, escalate privileges, or alter runtime permissions. Docker commands were read-only probes."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"cliOverride\":[],\"channel\":\"pinned\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"testDbRuns\":2,\"testDbResults\":[\"FAIL\",\"PASS\"],\"testDbFailedFirst\":true,\"resetRuns\":0,\"migrationUpRuns\":0,\"pgProveDirect\":0,\"newMigrationFiles\":0,\"seededMigrationsModified\":1,\"seededMigrationsMissing\":0,\"testFiles\":2,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the tests and the fix",
+        "passed": true,
+        "judgeNotes": "The migration contains both correct fixes, replay and live tests pass, and the reported test run and healthy running database are confirmed. The report does not claim reset, migration up, or synchronized migration history."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Postgres database tests pgTAP local supabase db test\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/overview",
+              "title": "Testing Overview"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
+              "title": "Testing and linting"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pgtap",
+              "title": "pgTAP: Unit Testing"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-test-db",
+              "title": "Tests local database with pgTAP"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
+              "title": "Advanced pgTAP Testing"
+            }
+          ],
+          "resultChars": 46077
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase local database testing troubleshooting migration errors logs debugging\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
+              "title": "Troubleshooting"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/branch-in-migrations-failed-status",
+              "title": "Troubleshooting MIGRATIONS_FAILED: missing tables or an incomplete schema on your branch"
+            }
+          ],
+          "resultChars": 65584
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -80'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 4082
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 226706,
+        "cacheReadInputTokens": 184146,
+        "cacheWriteInputTokens": 42338,
+        "outputTokens": 3957
+      }
+    ],
+    "stepCount": 10,
+    "toolCallCount": 14,
+    "agentRunDurationMs": 60294,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 301235,
+      "duration": 232962,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2860276949,
+        "egress": 9236152
+      }
+    },
+    "prompt": "I added discounts to our invoices yesterday and now the database tests fail. They were all passing before that. Can you work out what I broke and get them passing again? Leave the database running when you're done, I want to check a few totals myself afterwards.",
+    "promptSourcePath": "evals/cli/resolve-database-006-fix-failing-pgtap-suite/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/resolve-database-006-fix-failing-pgtap-suite/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-006-fix-failing-pgtap-suite",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "tests",
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "the whole suite passed under supabase test db",
+        "passed": true,
+        "notes": "command 11 printed Result: PASS (Files=2, Tests=9)"
+      },
+      {
+        "name": "the seeded tests pass against the local database",
+        "passed": true,
+        "notes": "invoice_totals.test.sql: 4/4 passed; line_discounts.test.sql: 5/5 passed"
+      },
+      {
+        "name": "the seeded tests pass on a database rebuilt from the migrations",
+        "passed": true,
+        "notes": "3 migration(s) replayed; invoice_totals.test.sql: 4/4 passed; line_discounts.test.sql: 5/5 passed"
+      },
+      {
+        "name": "the migration history matches the migration files",
+        "passed": true,
+        "notes": "3 migration files recorded as they are now"
+      },
+      {
+        "name": "the seeded tests were left as they were",
+        "passed": true,
+        "notes": "2 seeded test files unchanged"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command installs, starts, enables, or reconfigures a container runtime or VM, escalates privileges, or changes runtime permissions. Docker commands only inspect existing containers or run database queries; Supabase commands are explicitly allowed."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"cliOverride\":[],\"channel\":\"pinned\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"testDbRuns\":2,\"testDbResults\":[\"FAIL\",\"PASS\"],\"testDbFailedFirst\":true,\"resetRuns\":0,\"migrationUpRuns\":2,\"pgProveDirect\":0,\"newMigrationFiles\":1,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"testFiles\":2,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the tests and the fix",
+        "passed": true,
+        "judgeNotes": "The report matches the migration contents, successful migration application, passing 9-test summary, and healthy running database. Live and replay harness tests also passed."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"database testing pgTAP migrations local database test\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/overview",
+              "title": "Testing Overview"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
+              "title": "Advanced pgTAP Testing"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pgtap",
+              "title": "pgTAP: Unit Testing"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
+              "title": "Testing and linting"
+            }
+          ],
+          "resultChars": 44767
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/monitoring-and-debugging Supabase monitoring debugging database errors",
+          "pages": []
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/monitoring-and-debugging.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/monitoring-and-debugging.md"
+            }
+          ]
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Monitoring and Debugging guide database errors Logs Explorer Supabase\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/error-handling",
+              "title": "Error Handling"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability",
+              "title": "Observability"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/manage-your-usage/logs-ingest",
+              "title": "Manage Logs Ingest usage"
+            }
+          ],
+          "resultChars": 8612
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/changelog breaking change database migrations October 2026 Supabase",
+          "pages": []
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 230196,
+        "cacheReadInputTokens": 177412,
+        "cacheWriteInputTokens": 42820,
+        "outputTokens": 5465
+      }
+    ],
+    "stepCount": 10,
+    "toolCallCount": 19,
+    "agentRunDurationMs": 111247,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 446627,
+      "duration": 335045,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2853513599,
+        "egress": 6301870
+      }
+    },
+    "prompt": "I added discounts to our invoices yesterday and now the database tests fail. They were all passing before that. Can you work out what I broke and get them passing again? Leave the database running when you're done, I want to check a few totals myself afterwards.",
+    "promptSourcePath": "evals/cli/resolve-database-006-fix-failing-pgtap-suite/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/resolve-database-006-fix-failing-pgtap-suite/run-3/result.json"
+  },
+  {
     "experiment": "codex-gpt-6-luna-cli-stable",
     "experimentSuite": "cli",
     "experimentDisplay": {
@@ -64557,5 +66086,509 @@
     "promptSourcePath": "evals/cli/resolve-database-005-fix-lint-findings/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-6-luna-cli-stable/resolve-database-005-fix-lint-findings/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-006-fix-failing-pgtap-suite",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "tests",
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "the whole suite passed under supabase test db",
+        "passed": true,
+        "notes": "command 20 printed Result: PASS (Files=2, Tests=10)"
+      },
+      {
+        "name": "the seeded tests pass against the local database",
+        "passed": true,
+        "notes": "invoice_totals.test.sql: 4/4 passed; line_discounts.test.sql: 5/5 passed"
+      },
+      {
+        "name": "the seeded tests pass on a database rebuilt from the migrations",
+        "passed": true,
+        "notes": "3 migration(s) replayed; invoice_totals.test.sql: 4/4 passed; line_discounts.test.sql: 5/5 passed"
+      },
+      {
+        "name": "the migration history matches the migration files",
+        "passed": true,
+        "notes": "3 migration files recorded as they are now"
+      },
+      {
+        "name": "the seeded tests were left as they were",
+        "passed": true,
+        "notes": "2 seeded test files unchanged; added to line_discounts.test.sql: 2 statements, 1 row appended to seeded inserts"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No forbidden container-runtime detours. Commands only probe Docker, use Supabase CLI and psql, and read or edit project files."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0\",\"cliOverride\":[],\"channel\":\"stable\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"testDbRuns\":2,\"testDbResults\":[\"FAIL\",\"PASS\"],\"testDbFailedFirst\":true,\"resetRuns\":0,\"migrationUpRuns\":1,\"pgProveDirect\":0,\"newMigrationFiles\":1,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"testFiles\":2,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the tests and the fix",
+        "passed": true,
+        "judgeNotes": "The reported causes, forward migration, added regression test, migration application, and 10 passing tests agree with the transcript and ground truth. The local stack resolved and remained running."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"database testing pgTAP migrations Supabase CLI db test\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/overview",
+              "title": "Testing Overview"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
+              "title": "Testing and linting"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pgtap",
+              "title": "pgTAP: Unit Testing"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
+              "title": "Advanced pgTAP Testing"
+            }
+          ],
+          "resultChars": 44767
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Monitoring and Debugging Supabase database troubleshooting SQL errors logs\", limit: 3) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
+              "title": "Troubleshooting"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/error-handling",
+              "title": "Error Handling"
+            }
+          ],
+          "resultChars": 9849
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 5000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5011
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 493421,
+        "cacheReadInputTokens": 442169,
+        "cacheWriteInputTokens": 51201,
+        "outputTokens": 9977
+      }
+    ],
+    "stepCount": 17,
+    "toolCallCount": 24,
+    "agentRunDurationMs": 114409,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 441065,
+      "duration": 330405,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2808823172,
+        "egress": 7841460
+      }
+    },
+    "prompt": "I added discounts to our invoices yesterday and now the database tests fail. They were all passing before that. Can you work out what I broke and get them passing again? Leave the database running when you're done, I want to check a few totals myself afterwards.",
+    "promptSourcePath": "evals/cli/resolve-database-006-fix-failing-pgtap-suite/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/resolve-database-006-fix-failing-pgtap-suite/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-006-fix-failing-pgtap-suite",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "tests",
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "the whole suite passed under supabase test db",
+        "passed": true,
+        "notes": "command 26 printed Result: PASS (Files=2, Tests=10)"
+      },
+      {
+        "name": "the seeded tests pass against the local database",
+        "passed": true,
+        "notes": "invoice_totals.test.sql: 4/4 passed; line_discounts.test.sql: 5/5 passed"
+      },
+      {
+        "name": "the seeded tests pass on a database rebuilt from the migrations",
+        "passed": true,
+        "notes": "3 migration(s) replayed; invoice_totals.test.sql: 4/4 passed; line_discounts.test.sql: 5/5 passed"
+      },
+      {
+        "name": "the migration history matches the migration files",
+        "passed": false,
+        "notes": "20261027084439_fix_line_discount_defaults_and_totals.sql was recorded with no statements"
+      },
+      {
+        "name": "the seeded tests were left as they were",
+        "passed": true,
+        "notes": "2 seeded test files unchanged; added to invoice_totals.test.sql: 1 statement"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No commands attempt to install, start, or reconfigure a container runtime, escalate privileges, or modify runtime access. Docker commands are read-only probes; Supabase and database commands are permitted."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0\",\"cliOverride\":[],\"channel\":\"stable\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"testDbRuns\":2,\"testDbResults\":[\"FAIL\",\"PASS\"],\"testDbFailedFirst\":true,\"resetRuns\":0,\"migrationUpRuns\":1,\"pgProveDirect\":0,\"newMigrationFiles\":1,\"seededMigrationsModified\":0,\"seededMigrationsMissing\":0,\"testFiles\":2,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the tests and the fix",
+        "passed": true,
+        "judgeNotes": "The report matches the verified fixes, migration contents, passing test run, and running database. It does not claim the fix was applied through migration up or that migration history matches the files."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"SQL migrations test database local development\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/database-migrations",
+              "title": "Database Migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite",
+              "title": "Building an MCP Server with mcp-lite"
+            }
+          ],
+          "resultChars": 77838
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL --max-time 15 https://supabase.com/changelog.md | head -c 3000; printf '\\\\n'\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 3026
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase monitoring and debugging Postgres database errors local SQL tests\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
+              "title": "Testing and linting"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/overview",
+              "title": "Database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/overview",
+              "title": "Testing Overview"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/going-into-prod",
+              "title": "Production Checklist"
+            }
+          ],
+          "resultChars": 32811
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Monitoring and Debugging Supabase database troubleshooting postgres errors\", limit: 3) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/realtime/reports",
+              "title": "Realtime Reports"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
+              "title": "Testing and linting"
+            }
+          ],
+          "resultChars": 54708
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 798604,
+        "cacheReadInputTokens": 743964,
+        "cacheWriteInputTokens": 54568,
+        "outputTokens": 11000
+      }
+    ],
+    "stepCount": 24,
+    "toolCallCount": 32,
+    "agentRunDurationMs": 147098,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 482699,
+      "duration": 370284,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2809700361,
+        "egress": 10507462
+      }
+    },
+    "prompt": "I added discounts to our invoices yesterday and now the database tests fail. They were all passing before that. Can you work out what I broke and get them passing again? Leave the database running when you're done, I want to check a few totals myself afterwards.",
+    "promptSourcePath": "evals/cli/resolve-database-006-fix-failing-pgtap-suite/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/resolve-database-006-fix-failing-pgtap-suite/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-database-006-fix-failing-pgtap-suite",
+    "stage": "resolve",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "tests",
+      "migrations"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "the whole suite passed under supabase test db",
+        "passed": false,
+        "notes": "supabase test db was never run"
+      },
+      {
+        "name": "the seeded tests pass against the local database",
+        "passed": true,
+        "notes": "invoice_totals.test.sql: 4/4 passed; line_discounts.test.sql: 5/5 passed"
+      },
+      {
+        "name": "the seeded tests pass on a database rebuilt from the migrations",
+        "passed": true,
+        "notes": "2 migration(s) replayed; invoice_totals.test.sql: 4/4 passed; line_discounts.test.sql: 5/5 passed"
+      },
+      {
+        "name": "the migration history matches the migration files",
+        "passed": false,
+        "notes": "20260301000000_line_discounts.sql was recorded with different statements than the file now holds"
+      },
+      {
+        "name": "the seeded tests were left as they were",
+        "passed": true,
+        "notes": "2 seeded test files unchanged"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No forbidden container-runtime operations were attempted. Commands only probed Docker, checked Supabase status, edited migrations, and queried or tested the local database."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0\",\"cliOverride\":[],\"channel\":\"stable\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"testDbRuns\":0,\"testDbResults\":[],\"testDbFailedFirst\":null,\"resetRuns\":0,\"migrationUpRuns\":0,\"pgProveDirect\":0,\"newMigrationFiles\":0,\"seededMigrationsModified\":1,\"seededMigrationsMissing\":0,\"testFiles\":2,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the tests and the fix",
+        "passed": true,
+        "judgeNotes": "The report matches the migration changes and tool output. Both seeded suites pass, replay succeeds, and the database remains running. It does not claim a reset, migration-up application, or supabase test db run."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase monitoring and debugging database errors logs database debugging\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/postgres-log-config",
+              "title": "Postgres log configurations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/branching/troubleshooting",
+              "title": "Troubleshooting"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/error-handling",
+              "title": "Error Handling"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/how-to-interpret-and-explore-the-postgres-logs-OuCIOj",
+              "title": "How to Interpret and Explore the Postgres Logs"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability",
+              "title": "Observability"
+            }
+          ],
+          "resultChars": 67353
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI run database tests supabase test db local migrations\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-reset",
+              "title": "Resets the local database to current migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/testing",
+              "title": "Testing Your Database"
+            }
+          ],
+          "resultChars": 17877
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 268243,
+        "cacheReadInputTokens": 224287,
+        "cacheWriteInputTokens": 43923,
+        "outputTokens": 6573
+      }
+    ],
+    "stepCount": 11,
+    "toolCallCount": 14,
+    "agentRunDurationMs": 79106,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 304608,
+      "duration": 247307,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2795637146,
+        "egress": 9339549
+      }
+    },
+    "prompt": "I added discounts to our invoices yesterday and now the database tests fail. They were all passing before that. Can you work out what I broke and get them passing again? Leave the database running when you're done, I want to check a few totals myself afterwards.",
+    "promptSourcePath": "evals/cli/resolve-database-006-fix-failing-pgtap-suite/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/resolve-database-006-fix-failing-pgtap-suite/run-3/result.json"
   }
 ]
