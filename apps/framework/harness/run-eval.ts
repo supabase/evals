@@ -729,7 +729,8 @@ async function main() {
     run: number;
   }> = [];
 
-  for (const { name, suite, config } of experiments) {
+  for (const { name: shortName, suite, config } of experiments) {
+    const name = `${suite}/${shortName}`;
     if (!DRY) {
       try {
         config.agent.assertReady();

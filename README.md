@@ -58,7 +58,7 @@ pnpm eval -- \
 `--suite`, `--experiment`, and `--eval` accept multiple inputs via repeated flags as well as comma-separated values. `--experiment` takes the experiment's folder and name as `<suite>/<name>`, and naming experiments overrides the suite folder pairing.
 
 Use `--runs N` to score each experiment and eval pair independently `N` times.
-Each run writes to `results/<experiment>/<eval>/run-<n>/result.json`. Add
+Each run writes to `results/<suite>/<experiment>/<eval>/run-<n>/result.json`. Add
 `--skip-existing` to resume without replacing completed runs:
 
 ```bash

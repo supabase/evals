@@ -176,8 +176,17 @@ async function main() {
     const replaced = new Set(
       exportable.map((r) => `${r.experiment}::${r.eval}`)
     );
+    const normalizedExisting = existing.map((row) => ({
+      ...row,
+      experiment:
+        row.experiment.includes('/') || !row.suite
+          ? row.experiment
+          : `${row.suite}/${row.experiment}`,
+    }));
     results = [
-      ...existing.filter((r) => !replaced.has(`${r.experiment}::${r.eval}`)),
+      ...normalizedExisting.filter(
+        (r) => !replaced.has(`${r.experiment}::${r.eval}`)
+      ),
       ...exportable,
     ].sort(
       (a, b) =>

@@ -435,7 +435,7 @@ jobs:
             fi
             found="$(jq 'length' <<< "$actual")"
             [ "$actual" = "$required" ] || missing+=("$key ($found/$expected runs)")
-          done < <(jq -r '.[] | "\(.experiment)__\(.eval_id)"' <<< "$pairs")
+          done < <(jq -r '.[] | "\(.experiment_folder)__\(.experiment)__\(.eval_id)"' <<< "$pairs")
 
           echo "count=${#missing[@]}" >> "$GITHUB_OUTPUT"
 
@@ -472,12 +472,14 @@ jobs:
 
           mkdir -p results
           pairs='${{ needs.prepare.outputs.pairs }}'
-          while IFS= read -r experiment; do
-            mkdir -p "results/$experiment"
-            for artifact_dir in "results/downloaded/raw-results-${experiment}__"*/; do
-              [ -d "$artifact_dir" ] && cp -R "$artifact_dir"/. "results/$experiment"/
+          while IFS= read -r ref; do
+            folder="${ref%%/*}"
+            experiment="${ref#*/}"
+            mkdir -p "results/$folder/$experiment"
+            for artifact_dir in "results/downloaded/raw-results-${folder}__${experiment}__"*/; do
+              [ -d "$artifact_dir" ] && cp -R "$artifact_dir"/. "results/$folder/$experiment"/
             done
-          done < <(jq -r '.[].experiment' <<< "$pairs" | sort -u)
+          done < <(jq -r '.[] | "\(.experiment_folder)/\(.experiment)"' <<< "$pairs" | sort -u)
 
           if jq -e 'any(.[]; .eval_suite == "benchmark")' <<< "$pairs" > /dev/null; then
             export_args=(--suite benchmark --runs "${{ needs.prepare.outputs.runs }}" --output apps/web/src/data/eval-results.json)

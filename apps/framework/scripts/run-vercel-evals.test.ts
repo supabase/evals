@@ -476,7 +476,7 @@ describe('Vercel eval controller', () => {
 
       const runDirectory = join(
         output,
-        'raw-results-experiment-1__eval-1',
+        `raw-results-${pair.experiment_folder}__experiment-1__eval-1`,
         pair.eval_id,
         'run-1'
       );
