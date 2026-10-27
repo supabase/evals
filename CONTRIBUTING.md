@@ -20,6 +20,8 @@ Then add a folder under `evals/<suite>/` containing:
 
 If your scenario contains anything not self-explanatory, consider adding a `README.md` to the folder with a brief explanation of how it's set up and what it's testing.
 
+If the scenario targets a client SDK, set `sdk:` in the frontmatter (`js`, `py`, `swift`, `flutter`, `kotlin`, or `csharp`; see `evalSdkSchema` in `packages/core/src/eval-metadata.ts`). Leave it out for scenarios that are not about an SDK. To port an existing scenario to another SDK, copy it to a sibling folder named `<original-id>-<sdk>` (for example `build-dataapi-001-relational-report-py`), keep the prompt and scorer semantics the same, and set `sdk:` to the new SDK; the shared id prefix is what links the ports together.
+
 ## Eval criteria
 
 Every new scenario needs a `motivation:` defined in `PROMPT.md` frontmatter that cites concrete evidence for the scenario being part of the Supabase user journey, ideally a pain point. Examples include Supabase troubleshooting guides, user or support reports, GitHub or Linear issues, Slack threads, or social posts.

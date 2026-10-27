@@ -7,6 +7,9 @@ import {
   getExperimentResults,
   getProductKeys,
   getProductResults,
+  getSdkKey,
+  getSdkKeys,
+  getSdkResults,
   getStageResults,
   getVisibleExperiments,
   sortResults,
@@ -20,9 +23,10 @@ import {
   formatExperimentLabel,
   formatModelColumnLabel,
   formatProductLabel,
+  formatSdkLabel,
 } from "@/lib/format"
 
-export type GroupBy = "model" | "stage" | "product" | "eval"
+export type GroupBy = "model" | "stage" | "product" | "sdk" | "eval"
 
 export function runGroupKey(result: ParsedResult) {
   return `${result.experiment}::${result.eval}`
@@ -119,7 +123,7 @@ export const DIMENSIONS: Record<GroupBy, Dimension> = {
     keyOf: (result) => result.eval,
     title: (key) => formatEvalName(key),
     tooltip: (key) => key,
-    implies: ["stage", "product"],
+    implies: ["stage", "product", "sdk"],
   },
   stage: {
     id: "stage",
@@ -147,6 +151,14 @@ export const DIMENSIONS: Record<GroupBy, Dimension> = {
         ? result.product.map(formatProductLabel).join(", ")
         : formatProductLabel(UNASSIGNED_PRODUCT),
   },
+  sdk: {
+    id: "sdk",
+    label: "SDK",
+    keys: getSdkKeys,
+    filter: getSdkResults,
+    keyOf: getSdkKey,
+    title: formatSdkLabel,
+  },
 }
 
 /** Left-to-right order the axes appear in as columns of the detail sheet. */
@@ -155,6 +167,7 @@ export const DIMENSION_ORDER = [
   DIMENSIONS.model,
   DIMENSIONS.stage,
   DIMENSIONS.product,
+  DIMENSIONS.sdk,
 ]
 
 /** Order the group-by control offers the axes in. */
@@ -163,6 +176,7 @@ export const GROUP_BY_OPTIONS = [
   "eval",
   "stage",
   "product",
+  "sdk",
 ] as const satisfies ReadonlyArray<GroupBy>
 
 export function dimensionCell(dimension: Dimension, result: ParsedResult) {

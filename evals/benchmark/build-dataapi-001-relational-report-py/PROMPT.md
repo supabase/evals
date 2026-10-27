@@ -1,6 +1,7 @@
 ---
 stage: build
 interface: cli
+sdk: py
 product:
   - data-api
   - database
