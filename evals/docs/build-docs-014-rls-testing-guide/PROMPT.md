@@ -35,6 +35,11 @@ don't know which tool Supabase uses for it.
 
 Don't change the rules themselves. I want tests for the app as it is now.
 
+I'm offline after I send this, so I can't answer questions. If you'd check
+the rules with me first, take the ones the migrations already enforce as
+agreed, list them in the test files, and carry on. The one I care about most is
+that someone removed from a list can no longer see the list or its items.
+
 Read the guide below before you start and rely on it for how to set this up,
 rather than on what you already know.
 

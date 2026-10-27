@@ -8,6 +8,8 @@ A check belongs here if it tests something the guide should do. A gap counts as 
 
 The user runs a small app and was burned once by a policy change. They ask for tests in plain terms and say they don't know which tool Supabase uses. The prompt never names pgTAP, so the guide has to get the agent there.
 
+The persona can't reply, so the prompt answers the likely question ahead of time: the rules to test are the ones the migrations enforce. An agent that stops to ask leaves no tests behind.
+
 ## The seed
 
 The migration holds the same two apps as `build-docs-002-rls-guide`, with working policies already in place.
@@ -33,4 +35,4 @@ It adds one permissive `SELECT` policy with `using (true)`, runs the suite, and 
 
 ## Out of scope
 
-Tests written through the Supabase client from application code are not scored.
+Tests written through the Supabase client from application code are not scored. Neither is whether the test files list the rules they cover.
