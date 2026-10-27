@@ -21,7 +21,7 @@ const SESSION = [
 
 describe('opencode runner', () => {
   it("resolves the results-metadata provider from the slug's vendor prefix", () => {
-    expect(providerForModel('anthropic/claude-sonnet-5')).toBe('anthropic');
+    expect(providerForModel('anthropic/claude-sonnet-5-5')).toBe('anthropic');
     expect(providerForModel('openai/gpt-5.4')).toBe('openai');
     expect(providerForModel('moonshotai/kimi-k3')).toBe('moonshotai');
   });
@@ -40,7 +40,7 @@ describe('opencode runner', () => {
   });
 
   it('deriveStopReason reads the terminal step_finish reason', () => {
-    const runner = createOpencodeRunner('anthropic/claude-sonnet-5');
+    const runner = createOpencodeRunner('anthropic/claude-sonnet-5-5');
     const ok = { ok: true, exitCode: 0, stdout: '', stderr: '' };
     expect(runner.deriveStopReason!(SESSION, ok)).toBe('stop');
     // A non-stop terminal reason is surfaced verbatim.
@@ -84,7 +84,7 @@ describe('opencode runner', () => {
 });
 
 describe('opencode runner extractUsage', () => {
-  const extract = createOpencodeRunner('anthropic/claude-sonnet-5')
+  const extract = createOpencodeRunner('anthropic/claude-sonnet-5-5')
     .extractUsage!;
 
   it('adds cache into input and reasoning into output', () => {
@@ -117,9 +117,9 @@ describe('opencode runner extractUsage', () => {
         },
       }),
     ].join('\n');
-    expect(extract(raw, 'anthropic/claude-sonnet-5')).toEqual([
+    expect(extract(raw, 'anthropic/claude-sonnet-5-5')).toEqual([
       {
-        model: 'anthropic/claude-sonnet-5',
+        model: 'anthropic/claude-sonnet-5-5',
         inputTokens: 440,
         cacheReadInputTokens: 130,
         cacheWriteInputTokens: 10,
@@ -129,15 +129,17 @@ describe('opencode runner extractUsage', () => {
   });
 
   it('returns undefined without usage', () => {
-    expect(extract(undefined, 'anthropic/claude-sonnet-5')).toBeUndefined();
-    expect(extract('not json\n', 'anthropic/claude-sonnet-5')).toBeUndefined();
+    expect(extract(undefined, 'anthropic/claude-sonnet-5-5')).toBeUndefined();
+    expect(
+      extract('not json\n', 'anthropic/claude-sonnet-5-5')
+    ).toBeUndefined();
     expect(
       extract(
         JSON.stringify({
           type: 'step_finish',
           part: { type: 'step-finish', reason: 'stop' },
         }),
-        'anthropic/claude-sonnet-5'
+        'anthropic/claude-sonnet-5-5'
       )
     ).toBeUndefined();
   });
@@ -213,7 +215,7 @@ describe('opencode runner exec routing', () => {
 });
 
 describe('opencode runner extractStepCount', () => {
-  const extract = createOpencodeRunner('anthropic/claude-sonnet-5')
+  const extract = createOpencodeRunner('anthropic/claude-sonnet-5-5')
     .extractStepCount!;
 
   it('counts step_finish records', () => {

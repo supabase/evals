@@ -25,17 +25,17 @@ function defaultRuntime() {
 export const claudeCodeOpus55 = {
   agent: claudeCodeAgent({
     model: 'claude-opus-5-5',
-    reasoningEffort: 'high',
+    reasoningEffort: 'medium',
   }),
   runtime: defaultRuntime(),
   localStack: localStackRuntime(),
   skills,
 } satisfies ExperimentPreset;
 
-export const claudeCodeSonnet5 = {
+export const claudeCodeSonnet55 = {
   agent: claudeCodeAgent({
-    model: 'claude-sonnet-5',
-    reasoningEffort: 'high',
+    model: 'claude-sonnet-5-5',
+    reasoningEffort: 'medium',
   }),
   runtime: defaultRuntime(),
   localStack: localStackRuntime(),
