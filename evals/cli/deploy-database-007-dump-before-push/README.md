@@ -338,7 +338,8 @@ Both judges get their input (the executed commands, or the ground truth and the
 transcript with tool outputs) through `redactSecrets` from `../lib/redact.ts`,
 with the hosted project's API keys as known secrets, so access tokens, API keys,
 JWTs and other secret-shaped text an agent prints or types never reach the judge
-provider.
+provider. The report rubric says `[redacted]` replaces the value of secret-named
+variables, flags and keys, so a redacted value doesn't show a credential was set.
 
 `metrics` fields, each read on its own so one failing fact nulls only its
 fields: `hostedProject`, `remoteHasDropMigration` (null when the history is

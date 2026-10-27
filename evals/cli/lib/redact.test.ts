@@ -590,6 +590,131 @@ describe('redactSecrets line-anchored YAML', () => {
   });
 });
 
+describe('redactSecrets presence placeholders', () => {
+  const PLACEHOLDERS = [
+    'unset',
+    'set',
+    'yes',
+    'no',
+    'true',
+    'false',
+    'missing',
+    'present',
+    'empty',
+    'none',
+    'null',
+    'undefined',
+    'absent',
+  ];
+  const LOOKALIKES = ['unset123', 'yes-really-secret', 'settings', 'none.'];
+
+  it('keeps an env presence report that shows no credentials set', () => {
+    const text = [
+      'SUPABASE_ACCESS_TOKEN=unset',
+      'SUPABASE_DB_PASSWORD=unset',
+      'DATABASE_URL=unset',
+    ].join('\n');
+    expect(redactSecrets(text)).toBe(text);
+  });
+
+  it.each(PLACEHOLDERS)('keeps %s as an assignment value', (word) => {
+    expect(redactSecrets(`SUPABASE_DB_PASSWORD=${word}`)).toBe(
+      `SUPABASE_DB_PASSWORD=${word}`
+    );
+    expect(redactSecrets(`API_KEY=${word.toUpperCase()}`)).toBe(
+      `API_KEY=${word.toUpperCase()}`
+    );
+  });
+
+  it.each(['"unset"', "'no'", '<missing>', '(none)', '""', "''"])(
+    'keeps the wrapped or empty assignment value %s',
+    (value) => {
+      expect(redactSecrets(`SUPABASE_DB_PASSWORD=${value}`)).toBe(
+        `SUPABASE_DB_PASSWORD=${value}`
+      );
+    }
+  );
+
+  it('keeps a placeholder before a command separator and in an escaped-newline transcript', () => {
+    expect(redactSecrets('DB_PASSWORD=unset; echo done')).toBe(
+      'DB_PASSWORD=unset; echo done'
+    );
+    expect(
+      redactSecrets(JSON.stringify('DB_PASSWORD=unset\nJWT_SECRET=hunter2'))
+    ).toBe(JSON.stringify(`DB_PASSWORD=unset\nJWT_SECRET=${REDACTED}`));
+  });
+
+  it.each(LOOKALIKES)('redacts %s as an assignment value', (value) => {
+    expect(redactSecrets(`SUPABASE_DB_PASSWORD=${value}`)).toBe(
+      `SUPABASE_DB_PASSWORD=${REDACTED}`
+    );
+  });
+
+  it('redacts a real value on the line after a placeholder', () => {
+    expect(redactSecrets(`DB_PASSWORD=unset\nJWT_SECRET=${PASSWORD}`)).toBe(
+      `DB_PASSWORD=unset\nJWT_SECRET=${REDACTED}`
+    );
+  });
+
+  it.each(PLACEHOLDERS)('keeps %s as a JSON value', (word) => {
+    const text = `{"db_pass": "${word}", "name": "x"}`;
+    expect(redactSecrets(text)).toBe(text);
+  });
+
+  it.each(['<missing>', '(none)', ''])(
+    'keeps the wrapped or empty JSON value "%s"',
+    (value) => {
+      const text = `{"password": "${value}"}`;
+      expect(redactSecrets(text)).toBe(text);
+    }
+  );
+
+  it.each(LOOKALIKES)('redacts %s as a JSON value', (value) => {
+    expect(redactSecrets(`{"password": "${value}"}`)).toBe(
+      `{"password": "${REDACTED}"}`
+    );
+  });
+
+  it('keeps a placeholder in a JSON-encoded string and redacts the real value next to it', () => {
+    const output = redactSecrets(
+      JSON.stringify({
+        output: '{"db_pass": "unset", "api_key": "hunter2"}',
+      })
+    );
+    expect(output).toContain('db_pass\\": \\"unset\\"');
+    expect(output).not.toContain('hunter2');
+  });
+
+  it.each(PLACEHOLDERS)('keeps %s as a YAML value', (word) => {
+    expect(redactSecrets(`db_pass: ${word}`)).toBe(`db_pass: ${word}`);
+  });
+
+  it.each(['"No"', "'unset'", '<empty>', '(null)', '""'])(
+    'keeps the wrapped or empty YAML value %s',
+    (value) => {
+      expect(redactSecrets(`  api_key: ${value}`)).toBe(`  api_key: ${value}`);
+    }
+  );
+
+  it.each(LOOKALIKES)('redacts %s as a YAML value', (value) => {
+    expect(redactSecrets(`db_pass: ${value}`)).toBe(`db_pass: ${REDACTED}`);
+  });
+
+  it('keeps a placeholder line and redacts the real value lines around it', () => {
+    expect(
+      redactSecrets(
+        ['db_pass: unset', 'anon_key: hunter3', 'host: h'].join('\n')
+      )
+    ).toBe(['db_pass: unset', `anon_key: ${REDACTED}`, 'host: h'].join('\n'));
+  });
+
+  it('still replaces a known secret that spells a placeholder word', () => {
+    expect(redactSecrets('DB_PASSWORD=unsetunset', ['unsetunset'])).toBe(
+      `DB_PASSWORD=${REDACTED}`
+    );
+  });
+});
+
 describe('redactSecrets URL passwords with a raw @ or /', () => {
   it.each([
     [

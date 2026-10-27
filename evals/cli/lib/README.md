@@ -89,7 +89,9 @@ summary (`readPgProveSummaries` reads every one in an output), and finds the
 `redact.ts` replaces known secret values and secret-shaped text (URL passwords,
 keys, flags, JSON and YAML fields, and the cells of table columns under an
 upper-case `PASSWORD`, `SECRET`, `TOKEN` or `KEY` header) with `[redacted]`
-before it reaches a judge or report; `tableSecretValues` returns those cell
+before it reaches a judge or report, except an assignment, JSON or YAML value
+that is only a presence word (`unset`, `yes`, `none` and the like, optionally
+quoted or wrapped in `<>` or `()`) or empty; `tableSecretValues` returns those cell
 values so a scorer can pass them back as known secrets, and `readProjectKeys`
 lists the hosted project's key values to pass as the known ones.
 

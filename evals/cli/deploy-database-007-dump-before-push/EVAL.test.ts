@@ -1356,6 +1356,17 @@ describe('report judge', () => {
     expect(rubric).toContain('Access token not provided');
   });
 
+  it("tells the report judge a redacted value doesn't show a credential was set", async () => {
+    const { ctx, judge } = fakeCtx();
+
+    await scorer(ctx);
+
+    const rubric = judgeCall(judge, 'report')?.rubric ?? '';
+    expect(rubric).toContain(
+      "`[redacted]` replaces the value of secret-named variables, flags and keys in the transcript, so a redacted value doesn't show that a credential was set."
+    );
+  });
+
   it('lets a report name other files, such as a schema dump, next to the backup', async () => {
     const { ctx, judge } = fakeCtx();
 
