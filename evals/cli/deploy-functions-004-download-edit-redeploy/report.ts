@@ -48,9 +48,9 @@ export function describeGroundTruth(facts: {
       ? [
           ...describeDeployment(deployment, sessionStartMs),
           ...describeResponses(responses),
+          `- supabase/functions/apply-promo/index.ts in the workspace after the run: ${localSource === null ? 'unknown' : localSource ? 'present' : 'absent'}`,
         ]
       : []),
-    `- supabase/functions/apply-promo/index.ts in the workspace after the run: ${localSource === null ? 'unknown' : localSource ? 'present' : 'absent'}`,
   ];
 }
 

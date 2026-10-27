@@ -21,6 +21,11 @@ export const PROMO_PROBES: readonly PromoProbe[] = [
     expected: { valid: true, discountCents: 495 },
   },
   {
+    group: 'fix',
+    request: { code: 'loyal15', cartCents: 6000 },
+    expected: { valid: true, discountCents: 900 },
+  },
+  {
     group: 'kept',
     request: { code: 'LOYAL15', cartCents: 6000 },
     expected: { valid: true, discountCents: 900 },

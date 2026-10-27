@@ -46,6 +46,16 @@ const ALIASED_SOURCE = SEED_SOURCE.replace(
   'for (const [key, promo] of [...PROMOS]) PROMOS.set(key.toLowerCase(), promo);\n\nfunction json('
 );
 
+const PARTIAL_SOURCE = SEED_SOURCE.replace(
+  "['LOYAL15'",
+  "['welcome10', { percentOff: 10 }],\n  ['freeship', { centsOff: 495, minCartCents: 3000 }],\n  ['LOYAL15'"
+);
+
+const RESPONSE_JSON_SOURCE = UPPERCASED_SOURCE.replace(
+  /return new Response\(JSON\.stringify\(body\), \{\s*status,\s*headers: \{ 'content-type': 'application\/json' \},\s*\}\);/,
+  'return Response.json(body, { status });'
+);
+
 const JSON_HEADERS = "{ 'content-type': 'application/json' }";
 
 const REWRITE_SOURCE = `
@@ -95,24 +105,17 @@ async function bootSeeded({ seeded = true }: { seeded?: boolean } = {}) {
 
 type Booted = Awaited<ReturnType<typeof bootSeeded>>;
 
-async function deployThroughApi(
+async function postDeploy(
   { backend }: Booted,
-  source: string,
-  {
-    slug = FUNCTION_SLUG,
-    verifyJwt,
-  }: { slug?: string; verifyJwt?: boolean } = {}
+  slug: string,
+  metadata: Record<string, unknown>,
+  files: { name: string; content: string }[]
 ) {
   const form = new FormData();
-  form.set(
-    'metadata',
-    JSON.stringify({
-      name: slug,
-      entrypoint_path: 'index.ts',
-      ...(verifyJwt === undefined ? {} : { verify_jwt: verifyJwt }),
-    })
-  );
-  form.append('file', new File([source], 'index.ts'));
+  form.set('metadata', JSON.stringify({ name: slug, ...metadata }));
+  for (const file of files) {
+    form.append('file', new File([file.content], file.name));
+  }
   const response = await fetch(
     `${backend.url}/v1/projects/${backend.ref}/functions/deploy?slug=${slug}`,
     {
@@ -125,6 +128,25 @@ async function deployThroughApi(
     status: response.status,
     body: await response.text(),
   }).toMatchObject({ status: 201 });
+}
+
+function deployThroughApi(
+  booted: Booted,
+  source: string,
+  {
+    slug = FUNCTION_SLUG,
+    verifyJwt,
+  }: { slug?: string; verifyJwt?: boolean } = {}
+) {
+  return postDeploy(
+    booted,
+    slug,
+    {
+      entrypoint_path: 'index.ts',
+      ...(verifyJwt === undefined ? {} : { verify_jwt: verifyJwt }),
+    },
+    [{ name: 'index.ts', content: source }]
+  );
 }
 
 async function score(booted: Booted, sessionStartMs: number | null) {
@@ -215,10 +237,17 @@ describe('the seeded apply-promo function on platform-lite', () => {
       deployment: asIfRedeployed,
       sessionStartMs: 0,
     });
-    expect(passedOf(responses)).toEqual([false, false, true, true, true]);
+    expect(passedOf(responses)).toEqual([
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+    ]);
     expect(checkLowercaseCodesApply(responses).passed).toBe(false);
     expect(checkOtherRulesKept(responses).passed).toBe(true);
-    expect(booted.invokeHostedFunction).toHaveBeenCalledTimes(5);
+    expect(booted.invokeHostedFunction).toHaveBeenCalledTimes(6);
   }, 30_000);
 });
 
@@ -244,10 +273,11 @@ describe('apply-promo redeployed through the platform-lite multipart deploy API'
         true,
         true,
         true,
+        true,
       ]);
       expect(scored.lowercase.passed).toBe(true);
       expect(scored.kept.passed).toBe(true);
-      expect(booted.invokeHostedFunction).toHaveBeenCalledTimes(5);
+      expect(booted.invokeHostedFunction).toHaveBeenCalledTimes(6);
     },
     30_000
   );
@@ -258,6 +288,7 @@ describe('apply-promo redeployed through the platform-lite multipart deploy API'
     });
     expect(scored.lowercase.notes).toContain('welcome10 @6000: discount 600');
     expect(scored.lowercase.notes).toContain('freeship @6000: discount 495');
+    expect(scored.lowercase.notes).toContain('loyal15 @6000: discount 900');
     expect(scored.kept.notes).toContain('LOYAL15 @6000: discount 900');
   }, 30_000);
 
@@ -285,10 +316,28 @@ describe('apply-promo redeployed through the platform-lite multipart deploy API'
     expect(passedOf(scored.responses)).toEqual([
       false,
       false,
+      false,
       true,
       true,
       true,
     ]);
+  }, 30_000);
+
+  it('fails the lowercase check, and only it, for a partial fix that aliases welcome10 and freeship but not loyal15', async () => {
+    expect(PARTIAL_SOURCE).not.toBe(SEED_SOURCE);
+    const { scored } = await deployAndScore(PARTIAL_SOURCE, {
+      verifyJwt: true,
+    });
+    expect(passedOf(scored.responses)).toEqual([
+      true,
+      true,
+      false,
+      true,
+      true,
+      true,
+    ]);
+    expect(verdicts(scored)).toEqual([true, true, false, true]);
+    expect(scored.lowercase.notes).toContain('loyal15 @6000: status 200');
   }, 30_000);
 
   it('fails only the JWT check when the fix is deployed with verification off', async () => {
@@ -305,7 +354,7 @@ describe('apply-promo redeployed through the platform-lite multipart deploy API'
     expect(scored.kept.passed).toBe(true);
   }, 30_000);
 
-  it('fails only the other-rules check, and only on the loyalty code and the minimum cart, for a case-insensitive rewrite of WELCOME10 and FREESHIP', async () => {
+  it('fails both probe checks, on the loyalty code and the minimum cart, for a case-insensitive rewrite of WELCOME10 and FREESHIP', async () => {
     const { scored } = await deployAndScore(REWRITE_SOURCE, {
       verifyJwt: true,
     });
@@ -314,9 +363,11 @@ describe('apply-promo redeployed through the platform-lite multipart deploy API'
       true,
       false,
       false,
+      false,
       true,
     ]);
-    expect(verdicts(scored)).toEqual([true, true, true, false]);
+    expect(verdicts(scored)).toEqual([true, true, false, false]);
+    expect(scored.lowercase.notes).toContain('loyal15 @6000');
     expect(scored.kept.notes).toContain('LOYAL15 @6000');
     expect(scored.kept.notes).toContain('FREESHIP @2000');
   }, 30_000);
@@ -338,6 +389,7 @@ describe('apply-promo redeployed through the platform-lite multipart deploy API'
     const { scored } = await deployAndScore(HELLO_SOURCE, { verifyJwt: true });
     expect(verdicts(scored)).toEqual([true, true, false, false]);
     expect(passedOf(scored.responses)).toEqual([
+      false,
       false,
       false,
       false,
@@ -390,5 +442,57 @@ describe('apply-promo redeployed through the platform-lite multipart deploy API'
     expect(scored.redeployed.notes).toContain('not deployed');
     expect(scored.lowercase.notes).toContain('not probed');
     expect(booted.invokeHostedFunction).not.toHaveBeenCalled();
+  }, 30_000);
+});
+
+describe('platform-lite limits that fail a correct fix', () => {
+  it('fails the probe checks when the redeploy uploads a deno.json ahead of the entrypoint, because the invoker compiles the first stored file', async () => {
+    const booted = await bootSeeded();
+    await postDeploy(
+      booted,
+      FUNCTION_SLUG,
+      {
+        entrypoint_path: 'supabase/functions/apply-promo/index.ts',
+        import_map_path: 'supabase/functions/apply-promo/deno.json',
+      },
+      [
+        {
+          name: 'supabase/functions/apply-promo/deno.json',
+          content: '{\n  "imports": {}\n}\n',
+        },
+        {
+          name: 'supabase/functions/apply-promo/index.ts',
+          content: UPPERCASED_SOURCE,
+        },
+      ]
+    );
+    const scored = await score(booted, booted.bootedMs);
+    expect(verdicts(scored)).toEqual([true, true, false, false]);
+    expect(scored.lowercase.notes).toContain('must call Deno.serve');
+  }, 30_000);
+
+  it('fails the probe checks when the fix switches responses to Response.json, because the invoker rejects it', async () => {
+    expect(RESPONSE_JSON_SOURCE).toContain('Response.json(body');
+    const { scored } = await deployAndScore(RESPONSE_JSON_SOURCE, {
+      verifyJwt: true,
+    });
+    expect(verdicts(scored)).toEqual([true, true, false, false]);
+    expect(scored.lowercase.notes).toContain('did not return a Response');
+  }, 30_000);
+
+  it('fails the lowercase check after a Docker-bundled redeploy, because the PATCH keeps the seeded files', async () => {
+    const booted = await bootSeeded();
+    const { backend } = booted;
+    const response = await fetch(
+      `${backend.url}/v1/projects/${backend.ref}/functions/${FUNCTION_SLUG}?entrypoint_path=file:///src/index.ts&verify_jwt=true&ezbr_sha256=abc`,
+      {
+        method: 'PATCH',
+        headers: { authorization: `Bearer ${backend.accessToken}` },
+        body: new Uint8Array([1, 2, 3]),
+      }
+    );
+    expect(response.status).toBe(200);
+    const scored = await score(booted, booted.bootedMs);
+    expect(verdicts(scored)).toEqual([true, true, false, true]);
   }, 30_000);
 });

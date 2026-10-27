@@ -25,9 +25,12 @@ const API_KEYS_PATH = '/v1/projects/{ref}/api-keys';
 const SESSION_START = 1_700_000_000_000;
 const REDEPLOYED_AT = SESSION_START + 60_000;
 
-const FIX = [0, 1];
-const KEPT_VALID = [2];
-const KEPT_REJECTED = [3, 4];
+const ALL_TRUE = [true, true, true, true, true, true];
+const ALL_FALSE = [false, false, false, false, false, false];
+
+const FIX = [0, 1, 2];
+const KEPT_VALID = [3];
+const KEPT_REJECTED = [4, 5];
 
 type Promo = { percentOff?: number; centsOff?: number; minCartCents?: number };
 
@@ -246,6 +249,7 @@ describe('probePromos', () => {
     expect(invoke.mock.calls.map(([input]) => input.body)).toEqual([
       { code: 'welcome10', cartCents: 6000 },
       { code: 'freeship', cartCents: 6000 },
+      { code: 'loyal15', cartCents: 6000 },
       { code: 'LOYAL15', cartCents: 6000 },
       { code: 'FREESHIP', cartCents: 2000 },
       { code: 'SPRING50', cartCents: 6000 },
@@ -289,7 +293,7 @@ describe('probePromos', () => {
         { name: 'default', api_key: 'sb_publishable_x', type: 'publishable' },
       ],
     });
-    expect(passedOf(await run(ctx))).toEqual([true, true, true, true, true]);
+    expect(passedOf(await run(ctx))).toEqual(ALL_TRUE);
     expect(invoke).toHaveBeenCalledTimes(PROMO_PROBES.length);
     for (const [input] of invoke.mock.calls) {
       expect(input.headers).toMatchObject({
@@ -375,6 +379,7 @@ describe('probePromos judges the answers', () => {
     expect(outcomes.map((o) => o.group)).toEqual([
       'fix',
       'fix',
+      'fix',
       'kept',
       'kept',
       'kept',
@@ -382,24 +387,20 @@ describe('probePromos judges the answers', () => {
     expect(outcomes.map((o) => o.request)).toEqual(
       PROMO_PROBES.map((probe) => probe.request)
     );
-    expect(outcomes.map((o) => o.passed)).toEqual([
-      true,
-      true,
-      true,
-      true,
-      true,
-    ]);
+    expect(outcomes.map((o) => o.passed)).toEqual(ALL_TRUE);
     expect(outcomes[0].detail).toBe('discount 600');
     expect(outcomes[1].detail).toBe('discount 495');
     expect(outcomes[2].detail).toBe('discount 900');
+    expect(outcomes[3].detail).toBe('discount 900');
   });
 
-  it('fails only the two lowercase probes against the seeded, case-sensitive function, and the kept probes still reach it', async () => {
+  it('fails only the three lowercase probes against the seeded, case-sensitive function, and the kept probes still reach it', async () => {
     const { ctx, invoke } = fakeCtx({
       invoke: async (input) => seededReply(input),
     });
     const outcomes = outcomesOf(await run(ctx));
     expect(outcomes.map((o) => o.passed)).toEqual([
+      false,
       false,
       false,
       true,
@@ -425,7 +426,7 @@ describe('probePromos judges the answers', () => {
         );
       },
     });
-    expect(passedOf(await run(ctx))).toEqual([true, true, true, true, true]);
+    expect(passedOf(await run(ctx))).toEqual(ALL_TRUE);
   });
 
   it('accepts a rejected code answered with a 4xx status and a valid:false body', async () => {
@@ -438,7 +439,7 @@ describe('probePromos judges the answers', () => {
           : answer;
       },
     });
-    expect(passedOf(await run(ctx))).toEqual([true, true, true, true, true]);
+    expect(passedOf(await run(ctx))).toEqual(ALL_TRUE);
   });
 
   it('fails a valid answer with the wrong discount and shows what it answered', async () => {
@@ -456,6 +457,7 @@ describe('probePromos judges the answers', () => {
     const outcomes = outcomesOf(await run(ctx));
     expect(outcomes.map((o) => o.passed)).toEqual([
       false,
+      true,
       true,
       true,
       true,
@@ -503,7 +505,8 @@ describe('probePromos judges the answers', () => {
       },
     });
     const outcomes = outcomesOf(await run(ctx));
-    expect(outcomes.slice(0, 3).map((o) => o.passed)).toEqual([
+    expect(outcomes.slice(0, 4).map((o) => o.passed)).toEqual([
+      false,
       false,
       false,
       false,
@@ -526,6 +529,7 @@ describe('probePromos judges the answers', () => {
     });
     expect(passedOf(await run(ctx))).toEqual([
       true,
+      false,
       false,
       false,
       false,
@@ -553,7 +557,14 @@ describe('probePromos judges the answers', () => {
         return reply(200, JSON.stringify({ valid: false }));
       },
     });
-    expect(passedOf(await run(ctx))).toEqual([true, true, false, false, true]);
+    expect(passedOf(await run(ctx))).toEqual([
+      true,
+      true,
+      false,
+      false,
+      false,
+      true,
+    ]);
   });
 
   it('judges each probe on its own, so one wrong answer does not hide the others', async () => {
@@ -565,7 +576,14 @@ describe('probePromos judges the answers', () => {
         async (input) => fixedReply(input)
       ),
     });
-    expect(passedOf(await run(ctx))).toEqual([true, true, false, true, true]);
+    expect(passedOf(await run(ctx))).toEqual([
+      true,
+      true,
+      true,
+      false,
+      true,
+      true,
+    ]);
   });
 
   it('keeps probing when one invocation throws and records the message', async () => {
@@ -581,6 +599,7 @@ describe('probePromos judges the answers', () => {
     expect(invoke).toHaveBeenCalledTimes(PROMO_PROBES.length);
     expect(outcomes.map((o) => o.passed)).toEqual([
       false,
+      true,
       true,
       true,
       true,
@@ -607,16 +626,10 @@ describe('probePromos never reads an unreachable function as a rejected code', (
   ];
 
   it.each(UNREACHABLE)(
-    'fails all five probes on %s, including the two that expect a rejection',
+    'fails all six probes on %s, including the two that expect a rejection',
     async (_label, result) => {
       const { ctx } = fakeCtx({ invoke: everything(result) });
-      expect(passedOf(await run(ctx))).toEqual([
-        false,
-        false,
-        false,
-        false,
-        false,
-      ]);
+      expect(passedOf(await run(ctx))).toEqual(ALL_FALSE);
     }
   );
 
@@ -626,13 +639,7 @@ describe('probePromos never reads an unreachable function as a rejected code', (
         throw new Error('socket hang up');
       },
     });
-    expect(passedOf(await run(ctx))).toEqual([
-      false,
-      false,
-      false,
-      false,
-      false,
-    ]);
+    expect(passedOf(await run(ctx))).toEqual(ALL_FALSE);
   });
 
   it('counts a rejection only when the body says valid:false', async () => {
@@ -641,6 +648,7 @@ describe('probePromos never reads an unreachable function as a rejected code', (
     });
     const outcomes = outcomesOf(await run(ctx));
     expect(outcomes.map((o) => o.passed)).toEqual([
+      false,
       false,
       false,
       false,
@@ -831,13 +839,7 @@ describe('probePromos retries a cold boot', () => {
       invoke: scripted({ [FIRST]: [reply(503, '{"code":"BOOT_ERROR"}')] }),
     });
     const outcomes = outcomesOf(await run(ctx, { sleep }));
-    expect(outcomes.map((o) => o.passed)).toEqual([
-      true,
-      true,
-      true,
-      true,
-      true,
-    ]);
+    expect(outcomes.map((o) => o.passed)).toEqual(ALL_TRUE);
     expect(outcomes[0].detail).toBe('discount 600');
     expect(callsFor(invoke, FIRST)).toBe(2);
     expect(invoke).toHaveBeenCalledTimes(PROMO_PROBES.length + 1);
@@ -848,7 +850,7 @@ describe('probePromos retries a cold boot', () => {
     const { ctx, invoke } = fakeCtx({
       invoke: scripted({ [FIRST]: [reply(status, 'booting')] }),
     });
-    expect(passedOf(await run(ctx))).toEqual([true, true, true, true, true]);
+    expect(passedOf(await run(ctx))).toEqual(ALL_TRUE);
     expect(callsFor(invoke, FIRST)).toBe(2);
   });
 
@@ -857,13 +859,7 @@ describe('probePromos retries a cold boot', () => {
     const { ctx, invoke } = fakeCtx({
       invoke: scripted({ [FIRST]: [reply(503, 'boot'), reply(503, 'boot')] }),
     });
-    expect(passedOf(await run(ctx, { sleep }))).toEqual([
-      true,
-      true,
-      true,
-      true,
-      true,
-    ]);
+    expect(passedOf(await run(ctx, { sleep }))).toEqual(ALL_TRUE);
     expect(callsFor(invoke, FIRST)).toBe(3);
     expect(sleep).toHaveBeenCalledTimes(2);
   });
@@ -895,7 +891,7 @@ describe('probePromos retries a cold boot', () => {
       invoke: scripted({ [REJECTED]: booting() }),
     });
     const outcomes = outcomesOf(await run(ctx));
-    expect(outcomes[4]).toMatchObject({
+    expect(outcomes[5]).toMatchObject({
       passed: false,
       detail: 'status 503: {"code":"BOOT_ERROR"} (after 3 attempts)',
     });
@@ -908,6 +904,7 @@ describe('probePromos retries a cold boot', () => {
     const outcomes = outcomesOf(await run(ctx));
     expect(outcomes.map((o) => o.passed)).toEqual([
       false,
+      true,
       true,
       true,
       true,
@@ -1009,7 +1006,7 @@ describe('probePromos retries a cold boot', () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(invoke).toHaveBeenCalledTimes(1);
     await vi.advanceTimersByTimeAsync(10_000);
-    expect(passedOf(await pending)).toEqual([true, true, true, true, true]);
+    expect(passedOf(await pending)).toEqual(ALL_TRUE);
     expect(invoke).toHaveBeenCalledTimes(PROMO_PROBES.length + 1);
   });
 });
@@ -1029,8 +1026,9 @@ const ALL_PASSED: ProbeOutcome[] = [
   outcome(0, true, 'discount 600'),
   outcome(1, true, 'discount 495'),
   outcome(2, true, 'discount 900'),
-  outcome(3, true, 'rejected'),
+  outcome(3, true, 'discount 900'),
   outcome(4, true, 'rejected'),
+  outcome(5, true, 'rejected'),
 ];
 
 const withFailure = (index: number, detail: string): ResponsesProbe => ({
@@ -1043,11 +1041,12 @@ const withFailure = (index: number, detail: string): ResponsesProbe => ({
 describe('checkLowercaseCodesApply', () => {
   const name = 'lowercase promo codes now apply on the live function';
 
-  it('passes when both lowercase probes passed and lists each', () => {
+  it('passes when every lowercase probe passed and lists each', () => {
     const check = checkLowercaseCodesApply({ ok: true, outcomes: ALL_PASSED });
     expect(check).toMatchObject({ name, passed: true });
     expect(check.notes).toContain('welcome10 @6000: discount 600');
     expect(check.notes).toContain('freeship @6000: discount 495');
+    expect(check.notes).toContain('loyal15 @6000: discount 900');
   });
 
   it.each(FIX)(
@@ -1079,7 +1078,7 @@ describe('checkLowercaseCodesApply', () => {
       false
     );
     expect(
-      checkLowercaseCodesApply({ ok: true, outcomes: ALL_PASSED.slice(2) })
+      checkLowercaseCodesApply({ ok: true, outcomes: ALL_PASSED.slice(3) })
         .passed
     ).toBe(false);
   });
@@ -1142,12 +1141,13 @@ describe('checkOtherRulesKept', () => {
     const check = checkOtherRulesKept({ ok: true, outcomes: ALL_PASSED });
     expect(check.notes).not.toContain('welcome10');
     expect(check.notes).not.toContain('freeship @6000');
+    expect(check.notes).not.toContain('loyal15 @6000');
   });
 
   it('never passes without a kept outcome', () => {
     expect(checkOtherRulesKept({ ok: true, outcomes: [] }).passed).toBe(false);
     expect(
-      checkOtherRulesKept({ ok: true, outcomes: ALL_PASSED.slice(0, 2) }).passed
+      checkOtherRulesKept({ ok: true, outcomes: ALL_PASSED.slice(0, 3) }).passed
     ).toBe(false);
   });
 

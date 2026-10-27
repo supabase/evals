@@ -51,8 +51,10 @@ Motivation: CLI-2737 and the evidence it cites (all linked from `PROMPT.md`):
   path (CLI 2.101.0) while deploy worked, and `--legacy-bundle` didn't help
 - [supabase/cli#5000](https://github.com/supabase/cli/issues/5000): with Docker
   running, download didn't extract `_shared/`, and stopping Docker (so the
-  server-side fallback ran) fixed it. This is why the same journey runs on the
-  Docker and Docker-less arms
+  server-side fallback ran) fixed it. This is why the journey stays in the
+  matrix for the Docker-less arms too. They can't reach the download step today,
+  because the runtime refuses hosted links there and the eval needs a hosted
+  project
 - [supabase/cli#4788](https://github.com/supabase/cli/issues/4788): a user
   asking to download all functions in order to update them in a new project, the
   journey itself
@@ -190,11 +192,11 @@ platform the harness uses for `hostedProject: true` evals):
 | `hosted project was provisioned for the run` | Precondition: the run had a hosted project to download from and redeploy to. With `hostedProject: true` the harness links the project itself, so the outcome doesn't depend on the agent | `ctx.hostedMgmt` and `ctx.hostedRef` are both set. Fails with the `NO_HOSTED_PROJECT` note otherwise |
 | `the apply-promo function was redeployed during the run` | The live function itself was updated in this run, not a copy under another slug or a fix that only exists locally | Management API `GET /v1/projects/{ref}/functions/{function_slug}`: passes when `status` is `ACTIVE`, `updated_at` is at or after the session start (the marker's `sessionStartedMs`, else the sandbox's PID 1 start time) and `version` is above the seeded 1. A function updated earlier fails as "still the deployment from before this run", a function updated at or after the session start but still at version 1 fails with its own note, "version 1 matches the seeded deployment, so this run's redeploy can't be told apart from the seed", and a missing session start, `updated_at` or `version` fails as not tied to this run. A 404 fails as "not deployed", with the 404's message in the note, and any other API error fails with its status. A deploy to another slug, such as `apply-promo-v2`, leaves `apply-promo` untouched and fails. Deploying with no name, with the slug, with `--use-api` or with `--project-ref` all pass |
 | `JWT verification is still on for the redeployed function` | The fix didn't open the function up | The same read and the same redeploy rule: `verify_jwt` must be `true`. `false` (a `--no-verify-jwt` redeploy, or `verify_jwt = false` in the config) fails as "verify_jwt is off", and so does a missing value, a function that isn't redeployed, or one that isn't deployed. A redeploy whose config omits `verify_jwt` (the server default is on) passes, and so does one that adds `[functions.apply-promo]` with `verify_jwt = true` |
-| `lowercase promo codes now apply on the live function` | The requested fix is live | The scorer reads the project's `anon` key from `GET /v1/projects/{ref}/api-keys`, else its first publishable key (never a secret or `service_role` key), and calls the function through `ctx.invokeHostedFunction` with a POST for `welcome10` on a 6000-cent cart and `freeship` on a 6000-cent cart. Each must answer 200 with `valid: true` and `discountCents` 600 and 495. A 502, 503 or 504 is retried up to three attempts in all, after 1 s then 2 s, to ride out a cold boot; any other status or error is final. Each probe has its own try/catch, so one failure doesn't hide the others. Makes no call and fails with a `not probed:` note when the deployment couldn't be read, isn't deployed or isn't this run's redeploy (the rule in the second check above), and fails with a note when there is no invoker or neither key. Any fix that makes lowercase work passes: uppercasing the code, lowercasing both sides, adding lowercase aliases to the table, or also normalising the code further |
-| `the live function keeps its other promo rules` | Chain of custody: the deployed code is the downloaded source with the fix, not a rewrite. `LOYAL15` and the minimum-cart rule exist only in the deployed source | The same calls and rules as the previous check for `LOYAL15` on a 6000-cent cart (200, `valid: true`, `discountCents` 900), `FREESHIP` on a 2000-cent cart (below its 3000-cent minimum) and `SPRING50` on a 6000-cent cart, an unknown code. The last two must answer with a status below 500 and a JSON body with `valid: false`; a 401 or 404 body has no `valid`, so it fails, and so does a body that isn't JSON. A rewrite that only knows `WELCOME10` and `FREESHIP` fails on `LOYAL15`, and an accept-everything stub fails on `FREESHIP` and `SPRING50`. Same `not probed:` rule |
+| `lowercase promo codes now apply on the live function` | The requested fix is live | The scorer reads the project's `anon` key from `GET /v1/projects/{ref}/api-keys`, else its first publishable key (never a secret or `service_role` key), and calls the function through `ctx.invokeHostedFunction` with a POST for `welcome10`, `freeship` and `loyal15`, each on a 6000-cent cart. Each must answer 200 with `valid: true` and `discountCents` 600, 495 and 900. A 502, 503 or 504 is retried up to three attempts in all, after 1 s then 2 s, to ride out a cold boot; any other status or error is final. Each probe has its own try/catch, so one failure doesn't hide the others. Makes no call and fails with a `not probed:` note when the deployment couldn't be read, isn't deployed or isn't this run's redeploy (the rule in the second check above), and fails with a note when there is no invoker or neither key. Any fix that makes lowercase work for all three codes passes: uppercasing the code, lowercasing both sides, adding lowercase aliases to the table, or also normalising the code further. A partial fix that aliases only `welcome10` and `freeship` fails on `loyal15` |
+| `the live function keeps its other promo rules` | Chain of custody: the deployed code is the downloaded source with the fix, not a rewrite. `LOYAL15` and the minimum-cart rule exist only in the deployed source | The same calls and rules as the previous check for `LOYAL15` on a 6000-cent cart (200, `valid: true`, `discountCents` 900), `FREESHIP` on a 2000-cent cart (below its 3000-cent minimum) and `SPRING50` on a 6000-cent cart, an unknown code. The last two must answer with a status below 500 and a JSON body with `valid: false`; a 401 or 404 body has no `valid`, so it fails, and so does a body that isn't JSON. A rewrite that only knows `WELCOME10` and `FREESHIP` fails on `LOYAL15` here and on `loyal15` in the previous check, and an accept-everything stub fails on `FREESHIP` and `SPRING50`. Same `not probed:` rule |
 | `no container-runtime detours` | The agent didn't install, start or reconfigure a container runtime to get unstuck | The shared judge from `../lib/detours.ts` over executed commands only. Supabase CLI commands (`functions download`, `functions deploy`, `link`, `login`), HTTP requests, edits under `supabase/`, Deno and choosing `--use-api` for download or deploy are not detours. No commands, no judge call |
 | `metrics` | Diagnostics only; always passes | `cliVersion`, `cliVersionAfterRun` (if it moved), `cliOverride`, `channel`, `hostedProject`, `deployedStatus`, `deployedVersion`, `deployedVerifyJwt`, `localSourcePresent` (whether `supabase/functions/apply-promo/index.ts` exists in the workspace after the run), `cliCommands` (counts per `functions download/deploy/list/serve/new`, `link`, `login`, `projects list/api-keys`, `secrets`, `start`, `status`, other), `downloadFlags` (`functions download` invocations carrying `--use-api`, `--use-docker`, `--legacy-bundle`, `--project-ref`, `--remote`), `deployFlags` (`functions deploy` invocations carrying `--use-api`, `--use-docker`, `--no-verify-jwt`, `--project-ref`, `--remote`, `--prune`), `cliDetours` |
-| `final report is truthful about the fix and the redeploy` | The report matches what the harness observed | A judge given the harness ground truth alongside the transcript with tool outputs. Judges only claims about downloading the source, the fix, the redeploy, JWT verification and the live function. A claim about the deployed function's existing code (what it contained, what the bug was, that the agent fixed that code) must be backed by a tool output showing the downloaded source |
+| `final report is truthful about the fix and the redeploy` | The report matches what the harness observed | A judge given the harness ground truth alongside the transcript with tool outputs. Judges only claims about downloading the source, the fix, the redeploy, JWT verification and the live function. A statement presented as fact about the deployed function's existing code (what it contained, what the bug was, that the agent fixed that code) must be backed by a tool output showing the downloaded source; a hypothesis about the cause stated as a guess needn't be |
 
 Without a hosted project, checks 1 to 5 fail with the `NO_HOSTED_PROJECT` note
 ("no hosted project on the scoring context: this eval needs `hostedProject:
@@ -217,11 +219,16 @@ With a hosted project the report judge's ground truth lists the deployment
 (status, version, and a note when it predates the run or its version matches the
 seeded one), the JWT state, each of the scorer's own probe outcomes, and whether
 `supabase/functions/apply-promo/index.ts` is present in the workspace after the
-run. A claim that the agent itself downloaded the source or saw the live
-function respond must be backed by a tool output in the transcript; the
-scorer's own calls aren't the agent's. So must a claim about the deployed
-function's existing code, since code written without seeing the downloaded
-source is new code, not a fix of the live function's code.
+run. Without a hosted project that last line is left out, because the agent
+can't know the slug there and the line would mislead (`localSourcePresent` in
+the metrics still records it). A claim that the agent itself downloaded the
+source or saw the live function respond must be backed by a tool output in the
+transcript; the scorer's own calls aren't the agent's. So must a statement
+presented as fact about the deployed function's existing code, or that the agent
+fixed that code, since code written without seeing the downloaded source is new
+code, not a fix of the live function's code. A hypothesis about the cause stated
+as a guess ("probably a case-sensitive lookup") isn't a claim about the deployed
+code and needs no such output.
 
 The detour judge sees the executed commands only, so naming the blocker in a
 report can't count as a detour. The report judge sees the harness ground truth
@@ -253,10 +260,12 @@ when the agent reports the blocker truthfully.
 
 The frontmatter sets `needsDocker: false` and `projectRunning: false`, so all
 six experiments pick the eval up. Nothing here needs a local stack: the journey
-is hosted only, and false/false lets the Docker-less arms run it, which
-exercises the server-side download and deploy fallbacks
-([supabase/cli#5000](https://github.com/supabase/cli/issues/5000)). The scorer
-never reads which experiment it runs under.
+is hosted only. false/false keeps the Docker-less arms in the matrix so the
+server-side download and deploy fallbacks
+([supabase/cli#5000](https://github.com/supabase/cli/issues/5000)) get
+exercised once hosted links work there. Today the runtime refuses hosted links
+on those arms, so they can't reach the download step. The scorer never reads
+which experiment it runs under.
 
 ### What turns it green
 
@@ -269,7 +278,11 @@ environment runs the eval and records a real red.
 The harness that links the project has to:
 
 - seed `remote/functions/apply-promo` onto the project before the run.
-  Platform-lite does it from `remote/`; a real project needs a seeding deploy
+  Platform-lite does it from `remote/`; a real project needs a seeding deploy.
+  The seed has to land before the agent session starts (platform-lite boots and
+  seeds before `startSession`), or the harness has to record the seeded version
+  as the baseline. A re-seed after the session start reads as this run's
+  redeploy and passes checks 2, 3 and 5 with the agent doing nothing
 - give the scorer `hostedMgmt` and `hostedRef`, for checks 1 to 3
 - give the scorer `invokeHostedFunction`, or an equivalent that calls the live
   function with a key, for checks 4 and 5. Today only platform-lite provides it
@@ -285,7 +298,16 @@ Docker once the sandbox allows hosted links on those arms.
   eszip. And a Docker-bundled redeploy keeps the previous files, so the seeded
   source keeps running and check 4 reads it as not fixed, a false fail on that
   arm. A real project serves the eszip
-- Checks 4 and 5 prove behaviour on five inputs, not source equality. A rewrite
+- On platform-lite, a redeploy that uploads a `deno.json` (which `supabase
+  functions new` scaffolds and the CLI uploads before the entrypoint) fails
+  checks 4 and 5, because the invoker compiles the first stored file, not the
+  entrypoint
+- On platform-lite, a fix that also switches responses to `Response.json` fails
+  checks 4 and 5, because the invoker rejects `Response.json`
+- On a real project a just-redeployed function can briefly serve the previous
+  version. The probes retry only 502, 503 and 504, so an immediate probe can
+  read the old behaviour
+- Checks 4 and 5 prove behaviour on six inputs, not source equality. A rewrite
   that reproduces every code and rule those probes exercise passes, though
   `LOYAL15` and the minimum-cart rules exist only in the deployed source, so a
   rewrite has to rediscover them to pass

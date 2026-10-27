@@ -221,10 +221,24 @@ describe('PROMPT.md', () => {
       'http',
       'localhost',
       '--',
+      'url',
+      'host',
+      'slug',
+      'folder',
+      'auth',
+      'key',
+      'case-sensitive',
     ]) {
       expect(lowered).not.toContain(banned);
     }
-    expect(lowered).not.toMatch(/\bcli\b/);
+    for (const pattern of [
+      /\bcli\b/,
+      /\bref\b/,
+      /\bapi\b/,
+      /case[\s-]?sensitive/,
+    ]) {
+      expect(lowered).not.toMatch(pattern);
+    }
   });
 
   it('keeps the user words for the journey', () => {

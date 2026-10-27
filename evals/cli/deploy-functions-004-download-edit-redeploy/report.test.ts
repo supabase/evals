@@ -52,8 +52,9 @@ const ANSWERED: ResponsesProbe = {
     outcome(0, true, 'discount 600'),
     outcome(1, true, 'discount 495'),
     outcome(2, true, 'discount 900'),
-    outcome(3, true, 'rejected'),
+    outcome(3, true, 'discount 900'),
     outcome(4, true, 'rejected'),
+    outcome(5, true, 'rejected'),
   ],
 };
 
@@ -106,9 +107,8 @@ describe('describeGroundTruth without a hosted project', () => {
   it('states that the function source exists only on the hosted project and nothing about the live function could have been observed', () => {
     const lines = describeGroundTruth(noHostedFacts());
     expect(lines[0]).toBe(NO_HOSTED_LINE);
-    expect(lines).toHaveLength(3);
+    expect(lines).toHaveLength(2);
     expect(lines).toContain('- installed CLI: unknown');
-    expect(lines).toContain(`${LOCAL_SOURCE_PREFIX} absent`);
   });
 
   it('says nothing about the deployment even when probes are present', () => {
@@ -120,11 +120,16 @@ describe('describeGroundTruth without a hosted project', () => {
     expect(text).not.toContain(CALL_PREFIX);
   });
 
-  it('still reports whether a copy of the source is in the workspace', () => {
-    expect(describeGroundTruth(noHostedFacts({ localSource: true }))).toContain(
-      `${LOCAL_SOURCE_PREFIX} present`
-    );
-  });
+  it.each([true, false, null])(
+    'leaves out the workspace source line, since the agent cannot know the slug without a project (%s)',
+    (localSource) => {
+      const lines = describeGroundTruth(noHostedFacts({ localSource }));
+      expect(lines.join('\n')).not.toContain('apply-promo');
+      expect(
+        lines.filter((line) => line.startsWith(LOCAL_SOURCE_PREFIX))
+      ).toEqual([]);
+    }
+  );
 });
 
 describe('describeGroundTruth with a hosted project', () => {
@@ -145,14 +150,15 @@ describe('describeGroundTruth with a hosted project', () => {
 
   it('describes each of the harness own calls to the live function with the code, the cart and the outcome', () => {
     const lines = callLines(describeGroundTruth(facts()));
-    expect(lines).toHaveLength(5);
+    expect(lines).toHaveLength(6);
     expect(lines[0]).toBe(
       `${CALL_PREFIX} welcome10 @6000 passed: discount 600`
     );
     expect(lines[1]).toBe(`${CALL_PREFIX} freeship @6000 passed: discount 495`);
-    expect(lines[2]).toBe(`${CALL_PREFIX} LOYAL15 @6000 passed: discount 900`);
-    expect(lines[3]).toContain('FREESHIP @2000 passed');
-    expect(lines[4]).toContain('SPRING50 @6000 passed');
+    expect(lines[2]).toBe(`${CALL_PREFIX} loyal15 @6000 passed: discount 900`);
+    expect(lines[3]).toBe(`${CALL_PREFIX} LOYAL15 @6000 passed: discount 900`);
+    expect(lines[4]).toContain('FREESHIP @2000 passed');
+    expect(lines[5]).toContain('SPRING50 @6000 passed');
   });
 
   it('shows what a failing call came back with', () => {
@@ -165,8 +171,9 @@ describe('describeGroundTruth with a hosted project', () => {
               outcome(0, false, 'status 401: Missing authorization header'),
               outcome(1, false, 'error: edge function not found'),
               outcome(2, false, 'status 503: boot (after 3 attempts)'),
-              outcome(3, true, 'rejected'),
+              outcome(3, true, 'discount 900'),
               outcome(4, true, 'rejected'),
+              outcome(5, true, 'rejected'),
             ],
           },
         })
@@ -179,9 +186,9 @@ describe('describeGroundTruth with a hosted project', () => {
       `${CALL_PREFIX} freeship @6000 failed: error: edge function not found`
     );
     expect(lines[2]).toBe(
-      `${CALL_PREFIX} LOYAL15 @6000 failed: status 503: boot (after 3 attempts)`
+      `${CALL_PREFIX} loyal15 @6000 failed: status 503: boot (after 3 attempts)`
     );
-    expect(lines[3]).toContain('FREESHIP @2000 passed');
+    expect(lines[3]).toContain('LOYAL15 @6000 passed');
   });
 
   it('says the call could not be made, and why, when the probe did not run', () => {
@@ -322,15 +329,11 @@ describe('describeGroundTruth local source', () => {
     [false, 'absent'],
     [null, 'unknown'],
   ])('says %s is %s', (localSource, word) => {
-    for (const hosted of [true, false]) {
-      const lines = describeGroundTruth(
-        hosted ? facts({ localSource }) : noHostedFacts({ localSource })
-      );
-      expect(lines).toContain(`${LOCAL_SOURCE_PREFIX} ${word}`);
-      expect(
-        lines.filter((line) => line.startsWith(LOCAL_SOURCE_PREFIX))
-      ).toHaveLength(1);
-    }
+    const lines = describeGroundTruth(facts({ localSource }));
+    expect(lines).toContain(`${LOCAL_SOURCE_PREFIX} ${word}`);
+    expect(
+      lines.filter((line) => line.startsWith(LOCAL_SOURCE_PREFIX))
+    ).toHaveLength(1);
   });
 });
 

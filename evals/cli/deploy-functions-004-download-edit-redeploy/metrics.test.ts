@@ -291,12 +291,20 @@ describe('downloadFlags', () => {
     ['--project-ref', `supabase functions download --project-ref=${REF}`],
     [
       '--use-docker',
-      'supabase functions download apply-promo --use-docker=false',
+      'supabase functions download apply-promo --use-docker=true',
     ],
     ['--use-api', 'supabase functions download apply-promo --use-api=true'],
     ['--legacy-bundle', 'supabase functions download --legacy-bundle=true'],
   ])('counts %s in %s, bare or joined with =', (flag, command) => {
     expect(downloadFlagsOf([command])).toEqual({ [flag]: 1 });
+  });
+
+  it.each([
+    'supabase functions download apply-promo --use-docker=false',
+    'supabase functions download apply-promo --use-api=false',
+    'supabase functions download apply-promo --legacy-bundle=false',
+  ])('does not count a flag switched off with =false in %s', (command) => {
+    expect(downloadFlagsOf([command])).toEqual({});
   });
 
   it('counts a flag once per invocation that carries it', () => {
@@ -390,10 +398,19 @@ describe('deployFlags', () => {
     ['--remote', 'supabase functions deploy apply-promo --remote'],
     ['--remote', 'supabase functions --remote=staging deploy'],
     ['--project-ref', `supabase functions deploy --project-ref=${REF}`],
-    ['--use-docker', 'supabase functions deploy --use-docker=false'],
+    ['--use-docker', 'supabase functions deploy --use-docker=true'],
     ['--use-api', 'supabase functions deploy --use-api=true'],
   ])('counts %s in %s, bare or joined with =', (flag, command) => {
     expect(deployFlagsOf([command])).toEqual({ [flag]: 1 });
+  });
+
+  it.each([
+    'supabase functions deploy apply-promo --use-docker=false',
+    'supabase functions deploy apply-promo --use-api=false',
+    'supabase functions deploy apply-promo --no-verify-jwt=false',
+    'supabase functions deploy apply-promo --prune=false',
+  ])('does not count a flag switched off with =false in %s', (command) => {
+    expect(deployFlagsOf([command])).toEqual({});
   });
 
   it('counts a flag once per invocation that carries it', () => {

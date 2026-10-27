@@ -100,7 +100,13 @@ function flagCounts(
   for (const inv of invocations) {
     if (commandKey(inv) !== command) continue;
     for (const flag of flags) {
-      if (inv.argv.some((arg) => arg === flag || arg.startsWith(`${flag}=`))) {
+      if (
+        inv.argv.some(
+          (arg) =>
+            arg === flag ||
+            (arg.startsWith(`${flag}=`) && arg !== `${flag}=false`)
+        )
+      ) {
         counts[flag] = (counts[flag] ?? 0) + 1;
       }
     }
