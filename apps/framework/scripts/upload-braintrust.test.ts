@@ -91,13 +91,10 @@ describe('experimentName', () => {
     ).toBe('benchmark-grok-4.6@aefa834-20260923T1339Z');
   });
 
-  it('includes a matching suite once and distinguishes other folders', () => {
+  it('includes the suite once', () => {
     expect(
       experimentName('benchmark/grok-4.6', 'benchmark', undefined, 'stamp')
     ).toBe('benchmark-grok-4.6-stamp');
-    expect(
-      experimentName('regression/grok-4.6', 'benchmark', undefined, 'stamp')
-    ).toBe('benchmark-regression-grok-4.6-stamp');
   });
 
   it('omits the sha outside a git checkout', () => {

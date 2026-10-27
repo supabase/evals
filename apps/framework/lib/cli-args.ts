@@ -80,16 +80,13 @@ export function readSuiteFilters(rawArgs: string[]): EvalSuite[] {
   });
 }
 
-export type ExperimentRef = { suite: EvalSuite; name: string };
-
-/** Experiments are named by their folder under `experiments/`, as `<suite>/<name>`. */
-export function readExperimentFilters(rawArgs: string[]): ExperimentRef[] {
-  return readRepeatedFlag(rawArgs, 'experiment').map((value) => {
-    const [suite, name, ...rest] = normalizeExperimentName(value).split('/');
-    const parsed = evalSuiteSchema.safeParse(suite);
-    if (!parsed.success || !name || rest.length > 0) {
-      throw new Error(`invalid experiment "${value}". Expected <suite>/<name>`);
+export function readExperimentFilters(rawArgs: string[]): string[] {
+  return readRepeatedFlag(rawArgs, 'experiment').map((name) => {
+    if (name.includes('/') || name === '.' || name === '..') {
+      throw new Error(
+        `invalid experiment "${name}". Expected an experiment name`
+      );
     }
-    return { suite: parsed.data, name };
+    return name;
   });
 }

@@ -644,8 +644,8 @@ async function main() {
       const evals = discoverEvals().filter((ev) =>
         EVAL_FILTERS.includes(ev.id)
       );
-      filtered = filtered.filter(({ config }) =>
-        evals.some((ev) => !config.skipEval?.(ev))
+      filtered = filtered.filter(({ config, suite }) =>
+        evals.some((ev) => ev.suite === suite && !config.skipEval?.(ev))
       );
     }
     console.log(JSON.stringify(filtered.map((e) => `${e.suite}/${e.name}`)));
@@ -653,31 +653,6 @@ async function main() {
   }
 
   const allExperiments = await loadExperiments();
-  const isRequested = (suite: string, name: string) =>
-    EXPERIMENT_FILTERS.some((ref) => ref.suite === suite && ref.name === name);
-  const missing = EXPERIMENT_FILTERS.filter(
-    (ref) =>
-      !allExperiments.some((e) => e.suite === ref.suite && e.name === ref.name)
-  );
-  if (missing.length > 0) {
-    throw new Error(
-      `no experiment matched: ${missing.map((ref) => `${ref.suite}/${ref.name}`).join(',')}`
-    );
-  }
-
-  // Naming experiments overrides the folder pairing.
-  const experiments = allExperiments.filter(({ name, suite }) =>
-    EXPERIMENT_FILTERS.length > 0
-      ? isRequested(suite, name)
-      : SUITE_FILTERS.length === 0 || SUITE_FILTERS.includes(suite)
-  );
-  if (EXPERIMENT_FILTERS.length > 0) {
-    if (experiments.length === 0) {
-      throw new Error(
-        `no experiments matched experiment=${EXPERIMENT_FILTERS.map((ref) => `${ref.suite}/${ref.name}`).join(',')}`
-      );
-    }
-  }
   const evals = discoverEvals();
   if (EVAL_FILTERS.length > 0) {
     const evalIds = new Set(evals.map((e) => e.id));
@@ -702,6 +677,25 @@ async function main() {
       .join(' ');
     throw new Error(`no evals matched ${filter}`);
   }
+
+  const suites = new Set(suiteFiltered.map((ev) => ev.suite));
+  const missing = [...suites].flatMap((suite) =>
+    EXPERIMENT_FILTERS.filter(
+      (name) =>
+        !allExperiments.some(
+          (experiment) => experiment.suite === suite && experiment.name === name
+        )
+    ).map((name) => `${suite}/${name}`)
+  );
+  if (missing.length > 0) {
+    throw new Error(`no experiment matched: ${missing.join(', ')}`);
+  }
+  const experiments = allExperiments.filter(
+    (experiment) =>
+      suites.has(experiment.suite) &&
+      (EXPERIMENT_FILTERS.length === 0 ||
+        EXPERIMENT_FILTERS.includes(experiment.name))
+  );
 
   // Suppress noisy supabase-js logs from expected failures; --debug keeps them visible.
   const stderr = console.error;
@@ -733,7 +727,7 @@ async function main() {
 
     const smokeStages = new Set<string>();
     for (const ev of suiteFiltered) {
-      if (EXPERIMENT_FILTERS.length === 0 && ev.suite !== suite) continue;
+      if (ev.suite !== suite) continue;
       if (ev.mode === 'local-stack' && !config.localStack) {
         console.log(
           `SKIP ${name} x ${ev.id} (no local stack runtime — add \`localStack: localStackRuntime()\` from "@supabase-evals/sandbox" to experiments/<team>/${name}.experiment.ts)`

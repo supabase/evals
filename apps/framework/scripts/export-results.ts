@@ -89,7 +89,9 @@ function shouldIncludeExperiment(experiment: string): boolean {
     return true;
   }
 
-  return EXPERIMENT_FILTERS.includes(normalizeExperimentName(experiment));
+  return EXPERIMENT_FILTERS.includes(
+    normalizeExperimentName(experiment.split('/').at(-1) ?? '')
+  );
 }
 
 function shouldIncludeEval(evalId: string): boolean {

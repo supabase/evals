@@ -41,24 +41,12 @@ describe('positiveInteger', () => {
 });
 
 describe('readExperimentFilters', () => {
-  it('reads <suite>/<name> from repeated and comma-separated flags', () => {
+  it('reads repeated and comma-separated experiment names', () => {
     expect(
-      readExperimentFilters([
-        '--experiment',
-        'benchmark/grok-4.7,regression/codex-gpt-6-luna',
-        '--experiment',
-        'experiments/docs/codex-gpt-6-luna-no-skills',
-      ])
-    ).toEqual([
-      { suite: 'benchmark', name: 'grok-4.7' },
-      { suite: 'regression', name: 'codex-gpt-6-luna' },
-      { suite: 'docs', name: 'codex-gpt-6-luna-no-skills' },
-    ]);
-  });
-
-  it('requires the suite folder', () => {
-    expect(() => readExperimentFilters(['--experiment', 'grok-4.7'])).toThrow(
-      'Expected <suite>/<name>'
-    );
+      readExperimentFilters(['--experiment', 'grok-4.7,codex-gpt-6-luna'])
+    ).toEqual(['grok-4.7', 'codex-gpt-6-luna']);
+    expect(() =>
+      readExperimentFilters(['--experiment', 'benchmark/grok-4.7'])
+    ).toThrow('Expected an experiment name');
   });
 });

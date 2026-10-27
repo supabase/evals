@@ -64,3 +64,40 @@ describe('smoke selection', () => {
     expect(filtered).not.toContain('PLAN benchmark/');
   }, 15000);
 });
+
+describe('experiment selection', () => {
+  it('infers the suite, pairs each suite, and rejects missing names', () => {
+    const plan = (...args: string[]) =>
+      execFileSync(
+        process.execPath,
+        ['--import', 'tsx/esm', 'harness/run-eval.ts', '--dry', ...args],
+        {
+          cwd: import.meta.dirname + '/..',
+          encoding: 'utf8',
+          stdio: ['ignore', 'pipe', 'pipe'],
+        }
+      );
+    const single = plan(
+      '--eval',
+      'resolve-dataapi-001-empty-results',
+      '--experiment',
+      'codex-gpt-6-luna'
+    );
+    expect(single).toContain(
+      'PLAN benchmark/codex-gpt-6-luna x resolve-dataapi-001-empty-results'
+    );
+    expect(single).not.toContain('PLAN regression/');
+
+    const both = plan(
+      '--suite',
+      'benchmark,regression',
+      '--experiment',
+      'codex-gpt-6-luna'
+    );
+    expect(both).toContain('PLAN benchmark/codex-gpt-6-luna x');
+    expect(both).toContain('PLAN regression/codex-gpt-6-luna x');
+    expect(() =>
+      plan('--suite', 'benchmark,regression', '--experiment', 'grok-4.7')
+    ).toThrow('regression/grok-4.7');
+  }, 15000);
+});

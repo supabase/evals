@@ -89,8 +89,6 @@ const SANDBOX_TIMEOUT_BUFFER_MS = 10 * 60 * 1_000;
 const evalPairSchema = z.object({
   eval_id: z.string(),
   experiment: z.string(),
-  /** The `experiments/<folder>/` the experiment file lives in. */
-  experiment_folder: z.string(),
   eval_suite: z.string(),
 });
 export type EvalPair = z.infer<typeof evalPairSchema>;
@@ -171,7 +169,7 @@ export async function requiredCliChannels(
   for (const pair of pairs) {
     if (loadEvalMetadata(pair).cliVersion !== undefined) continue;
 
-    const ref = `${pair.experiment_folder}/${pair.experiment}`;
+    const ref = `${pair.eval_suite}/${pair.experiment}`;
     let config = configs.get(ref);
     if (!config) {
       config = loadExperimentConfig(ref);
@@ -443,7 +441,7 @@ async function runPairOnce(
           'eval',
           '--',
           '--experiment',
-          `${pair.experiment_folder}/${pair.experiment}`,
+          pair.experiment,
           '--eval',
           pair.eval_id,
           '--run-index',
@@ -460,7 +458,7 @@ async function runPairOnce(
       cmd: 'test',
       args: [
         '-f',
-        `results/${pair.experiment_folder}/${pair.experiment}/${pair.eval_id}/run-${run}/result.json`,
+        `results/${pair.eval_suite}/${pair.experiment}/${pair.eval_id}/run-${run}/result.json`,
       ],
       cwd: sandbox.cwd,
       timeoutMs: 30_000,
@@ -470,7 +468,7 @@ async function runPairOnce(
       args: [
         '-c',
         packWorkspaceScript(
-          `results/${pair.experiment_folder}/${pair.experiment}/${pair.eval_id}/run-${run}/workspace`,
+          `results/${pair.eval_suite}/${pair.experiment}/${pair.eval_id}/run-${run}/workspace`,
           '/tmp/eval-workspace.tgz'
         ),
       ],
@@ -683,7 +681,7 @@ export async function downloadResults(
   const workspacePartial = `${workspace}.partial`;
   const resultDownloaded = await sandbox.downloadFile(
     {
-      path: `results/${pair.experiment_folder}/${pair.experiment}/${pair.eval_id}/run-${run}/result.json`,
+      path: `results/${pair.eval_suite}/${pair.experiment}/${pair.eval_id}/run-${run}/result.json`,
     },
     { path: resultPartial },
     { mkdirRecursive: true }
@@ -699,7 +697,7 @@ export async function downloadResults(
   // Missing for agents without a `sessionDir` (e.g. ai-sdk).
   await sandbox.downloadFile(
     {
-      path: `results/${pair.experiment_folder}/${pair.experiment}/${pair.eval_id}/run-${run}/session-archive.tar.gz`,
+      path: `results/${pair.eval_suite}/${pair.experiment}/${pair.eval_id}/run-${run}/session-archive.tar.gz`,
     },
     { path: join(destination, 'session-archive.tar.gz') },
     { mkdirRecursive: true }
@@ -783,7 +781,7 @@ export function parsePairs(value: string): EvalPair[] {
   const parsed = z.array(evalPairSchema).safeParse(json);
   if (!parsed.success) {
     throw new Error(
-      'each pair must contain eval_id, experiment, experiment_folder, and eval_suite strings'
+      'each pair must contain eval_id, experiment, and eval_suite strings'
     );
   }
   return parsed.data;
@@ -859,7 +857,7 @@ function currentRevision(): string {
 
 /** Builds the stable per-pair directory expected by the publish job. */
 function artifactDirectory(pair: EvalPair): string {
-  return `raw-results-${pair.experiment_folder}__${pair.experiment}__${pair.eval_id}`;
+  return `raw-results-${pair.eval_suite}__${pair.experiment}__${pair.eval_id}`;
 }
 
 /** Formats a pair consistently in interleaved controller output. */

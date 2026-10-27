@@ -159,10 +159,7 @@ export function experimentName(
   stamp: string
 ) {
   const sha = commit ? `@${commit.slice(0, 7)}` : '';
-  const name = experiment.startsWith(`${suite}/`)
-    ? experiment.slice(suite.length + 1)
-    : experiment.replace('/', '-');
-  return `${suite}-${name}${sha}-${stamp}`;
+  return `${suite}-${experiment.split('/').at(-1)}${sha}-${stamp}`;
 }
 
 // 20260923T1339Z. UTC so runs from different zones sort against each other.
@@ -326,7 +323,9 @@ async function collectRows(
   const files = await collectResultFiles({
     includeExperiment: (experiment) =>
       EXPERIMENT_FILTERS.length === 0 ||
-      EXPERIMENT_FILTERS.includes(normalizeExperimentName(experiment)),
+      EXPERIMENT_FILTERS.includes(
+        normalizeExperimentName(experiment.split('/').at(-1) ?? '')
+      ),
     includeEval: (evalId) =>
       EVAL_FILTERS.length === 0 || EVAL_FILTERS.includes(evalId),
     onUnparseable: (sourcePath, message) =>
