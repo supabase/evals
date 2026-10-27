@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { stripSqlComments } from '../lib/migrations.js';
 import {
   COUPON_DATES as FIXTURE_DATES,
+  COUPON_ROWS,
   COUPONS,
   SEEDED_EMAILS,
 } from './fixtures.js';
@@ -259,6 +260,32 @@ describe('remote seed', () => {
     expect(new Set(project.match(/\d{4}-\d{2}-\d{2}/g))).toEqual(
       new Set(COUPON_DATES)
     );
+  });
+
+  it('keeps the fixture coupon rows in step with the hosted seed', () => {
+    const rows = [
+      ...project.matchAll(
+        /^\s*\('(LGCY-[A-Z0-9]{6})', \d+, \d+, '([^']+)', (?:null|'([^']+)')\)/gm
+      ),
+    ].map(([, code, issuedAt, redeemedAt]) => [
+      code,
+      issuedAt,
+      redeemedAt ?? null,
+    ]);
+
+    expect(rows).toEqual(COUPON_ROWS.map((row) => [...row]));
+  });
+
+  it('seeds every coupon time within an hour of midday UTC, so an export rendered at any offset within 11 hours keeps its dates', () => {
+    const minutes = [
+      ...project.matchAll(/\d{4}-\d{2}-\d{2} (\d{2}):(\d{2}):00\+00/g),
+    ].map(([, hour, minute]) => Number(hour) * 60 + Number(minute));
+
+    expect(minutes).toHaveLength(19);
+    for (const time of minutes) {
+      expect(time).toBeGreaterThanOrEqual(11 * 60 + 30);
+      expect(time).toBeLessThanOrEqual(12 * 60 + 30);
+    }
   });
 
   it('keeps the coupon codes out of the recorded migration statements', () => {

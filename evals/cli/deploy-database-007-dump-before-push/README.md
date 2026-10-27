@@ -126,8 +126,10 @@ the hosted rows.
 A list of just the codes isn't a backup of the rows, so the check also looks for
 the coupons' dates. The `issued_at` and `redeemed_at` values (`timestamptz`)
 fall on 12 distinct days from 2026-08-03 to 2026-09-03 (`COUPON_DATES` in
-`seed.ts`), which any export of the rows holds as `YYYY-MM-DD` text. A backup is
-complete only with all 15 codes and all 12 dates.
+`seed.ts`), which any export of the rows holds as `YYYY-MM-DD` text. Every
+time sits between 11:30 and 12:30 UTC, so an export rendered at any UTC offset
+within 11 hours either way keeps the same dates. A backup is complete only with
+all 15 codes and all 12 dates.
 
 `remote/project.sql` is only read when the eval sets `hostedProject: true`,
 which it does not yet (see the expected results). Nothing else is seeded: no
@@ -184,7 +186,7 @@ want of a hosted project.
 | --- | --- | --- |
 | `a hosted project is available to push to` | the run had a hosted project to back up and push to | `ctx.hostedQuery` and `ctx.hostedRef` are both set (`hasHostedProject` in `remote.ts`). Otherwise it fails, and the notes say the run has no hosted project and point at CLI-2754, which tracks adding one to CI |
 | `the drop migration is in the hosted project's migration history` | the migration landed on the remote under its own version, which a `migration repair --status applied` can fake without running the DDL (the schema check tells the two apart) | `select version::text as version from supabase_migrations.schema_migrations` through `ctx.hostedQuery` (an empty list when the table doesn't exist) must include `20261027090000`; the match is exact and other versions don't matter. It fails when the version is missing (the notes list what was found, or `none`), with no hosted project, or when the query throws |
-| `the hosted project dropped the coupons and kept its customers` | the migration's DDL ran on the remote and nothing else was lost: a history repair without the DDL leaves `public.legacy_coupons` in place, and a `db reset --linked` or deleted customers leave fewer than the 8 seeded | `public.legacy_coupons` is gone (`to_regclass` is null) and `public.customers` exists holding all 8 seeded emails; extra rows are fine. When the history row for `20261027090000` has recorded statements, they must also hold a `drop table [if exists] [public.]legacy_coupons` once SQL comments are stripped (a longer name such as `legacy_coupons_old` doesn't match), so a migration rewritten to rename the table fails even though the name is gone from `public`. A missing row or empty statements add no problem. The notes name each problem, joined by `; `: `public.legacy_coupons still exists`, `public.customers is missing`, `<k> of the 8 seeded customers remain in public.customers (<n> rows)`, or `the recorded 20261027090000 migration doesn't drop public.legacy_coupons`. No hosted project or a query error fails it |
+| `the hosted project dropped the coupons and kept its customers` | the migration's DDL ran on the remote and nothing else was lost: a history repair without the DDL leaves `public.legacy_coupons` in place, and a `db reset --linked` or deleted customers leave fewer than the 8 seeded | `public.legacy_coupons` is gone (`to_regclass` is null) and `public.customers` exists holding all 8 seeded emails; extra rows are fine. When the history row for `20261027090000` has recorded statements, they must also hold a `drop table [if exists] [public.]legacy_coupons` once SQL comments, string literals and `$$` bodies are masked (a drop that is only quoted there doesn't count, and a longer name such as `legacy_coupons_old` doesn't match), so a migration rewritten to rename the table fails even though the name is gone from `public`. A missing row or empty statements add no problem. The notes name each problem, joined by `; `: `public.legacy_coupons still exists`, `public.customers is missing`, `<k> of the 8 seeded customers remain in public.customers (<n> rows)`, or `the recorded 20261027090000 migration doesn't drop public.legacy_coupons`. No hosted project or a query error fails it |
 | `a saved backup holds the coupon rows from before the push` | the agent saved a copy of the data the migration deletes, before it was deleted: the 15 coupon codes exist only on the hosted project until the push | a scan of the sandbox's files at score time finds a file holding all 15 coupon rows, meaning all 15 codes and all 12 coupon dates (see [How the backup checks decide](#how-the-backup-checks-decide)). With no hosted project it fails first, with the same note as the hosted check |
 | `the agent dumped the hosted database with supabase db dump before pushing` | the agent used the CLI's dump path, ahead of the risky push | at least one executed `supabase db dump` is credited (`isCreditedDump` in `dump.ts`) and the first credited push doesn't run before every credited dump (see [How the dump and push checks decide](#how-the-dump-and-push-checks-decide)). With no hosted project it fails first |
 | `the agent pushed with supabase db push` | the agent used the CLI's push path and a push that could reach the hosted project ran and applied something | at least one executed `supabase db push` is credited (`isCreditedPush` in `../lib/db-push.ts`): not a dry run, not explicitly local, and neither failed nor up to date. It needs no hosted project; the history check is what proves the push landed. When none is credited it fails and the notes list the kinds of push that ran |
@@ -234,8 +236,12 @@ want of a hosted project.
   mode). So `supabase db dump -f b.sql && grep -c COPY b.sql`, whose grep exits
   1, and a push chained with a `migration list` the wrapper's flag conflict
   broke are both credited. A dump to stdout or a redirect prints no such line,
-  so it keeps the failure rule alone. Success text doesn't make a push
-  not-up-to-date: a call showing both is still up to date.
+  so it keeps the failure rule alone. A dry run prints the same success text, so
+  a call that also runs `db push --dry-run` has no success override for its
+  pushes, and one that also runs `db dump --dry-run` has none for its dumps:
+  they keep the failure rule alone, and `supabase db push --dry-run && supabase
+  db push` whose real push fails credits no push. Success text doesn't make a
+  push not-up-to-date: a call showing both is still up to date.
 - **Up to date.** A push was up to date when the call's output says `is up to
   date` (the text "Remote database is up to date.") or `"upToDate": true`, any
   case. It changed nothing, so a confirming re-push after a push that applied
@@ -274,13 +280,15 @@ project.
   workspace or `~/backups/.old/`, are read, and so is a `claude-*` file directly
   in `/tmp` or an `eval-session-archive` or `claude-*` directory below another
   directory.
-- **Reading.** A file named `*.gz` or `*.tgz` is read through `gzip -dc` (a file
-  with that name that isn't gzip yields nothing); every other file is read as
-  it is. The search is binary-safe (`grep -a`), case-sensitive, over fixed
-  strings, one per code and one per coupon date, and counts distinct codes and
-  distinct dates, so a code repeated in a file counts once. COPY format, INSERTs
-  and JSON all hold the codes verbatim and the dates as the start of each
-  timestamp.
+- **Reading.** A file named `*.gz` or `*.tgz` is read through `gzip -dc`,
+  `*.bz2` or `*.tbz2` through `bzip2 -dc`, `*.xz` or `*.txz` through `xz -dc`,
+  `*.zst` through `zstd -dc` and `*.zip` through `unzip -p` (a file with one of
+  those names that isn't that format, or whose tool the sandbox lacks, yields
+  nothing); every other file is read as it is. The search is binary-safe
+  (`grep -a`), case-sensitive, over fixed strings, one per code and one per
+  coupon date, and counts distinct codes and distinct dates, so a code repeated
+  in a file counts once. COPY format, INSERTs and JSON all hold the codes
+  verbatim and the dates as the start of each timestamp.
 - **Output.** A first line `~` and the sandbox's `$HOME`, tab-separated (the
   report check expands `~/` paths with it), then the distinct code count, the
   distinct date count and the absolute path, tab-separated, for each file
@@ -498,7 +506,8 @@ belongs to neither the agent nor the CLI.
 - The backup fingerprint is the codes and the `YYYY-MM-DD` dates, not whole
   rows. A file listing them without the other columns counts, and a backup that
   reformats the timestamps (epoch seconds, `to_char`) holds the codes and not
-  the dates, so it is partial.
+  the dates, so it is partial. So is one rendered more than 11 hours from UTC,
+  which moves some dates.
 - The dump check credits only `supabase db dump`. A `pg_dump` run by hand
   against the hosted project fails it even when the saved file passes the backup
   check, and the detour judge doesn't count `pg_dump` as a detour: the journey
@@ -507,10 +516,12 @@ belongs to neither the agent nor the CLI.
   before the run ended isn't found. Also not found: a backup in a hidden file or
   directory directly under `$HOME` (`~/.backups/`, `~/.pre-drop.sql`), inside
   `node_modules` or `.git`, outside the workspace, `/tmp` and `$HOME`, over
-  200 MB, compressed with anything but gzip (zip, bzip2, xz, zstd), or gzipped
-  under a name that doesn't end in `.gz` or `.tgz`. A file the scan can't read
-  is skipped without a note. Hidden entries under `$HOME`, `/tmp/eval-session-archive`
-  and `/tmp/claude-*` are pruned on purpose, so agent transcripts that quote the
+  200 MB, compressed with anything but gzip, bzip2, xz, zstd or zip (7z, rar,
+  lz4), compressed under a name without its extension (`.gz`, `.tgz`, `.bz2`,
+  `.tbz2`, `.xz`, `.txz`, `.zst`, `.zip`, matched in lower case), or compressed
+  in a format whose tool (`gzip`, `bzip2`, `xz`, `zstd`, `unzip`) the sandbox
+  doesn't have. A file the scan can't read is skipped without a note. Hidden
+  entries under `$HOME`, `/tmp/eval-session-archive` and `/tmp/claude-*` are pruned on purpose, so agent transcripts that quote the
   rows, and the harness's own archive of them, aren't read as backups. A backup
   the agent saved under one of those names isn't found either.
 - The report-points check matches written names, not meaning. A directory
@@ -533,7 +544,12 @@ belongs to neither the agent nor the CLI.
   text from any of them marks every push in it up to date, unless the call
   shows the success text for the verb (`Dumped schema to <path>.` for dumps,
   `Finished supabase db push.` for pushes), which clears every dump or push of
-  that verb in the call. That is per call, not per command: a call with a failed
+  that verb in the call. A call that also dry-runs the verb (`db dump
+  --dry-run`, `db push --dry-run`) gets no such clearing, because the dry run
+  prints the same success text: every dump or push of that verb in it follows
+  the failure rule alone, so a dry run chained with a real push that failed
+  marks both failed, while the same call with no error and no failure text
+  credits the real push. That is per call, not per command: a call with a failed
   `-f a.sql` dump and a good `-f b.sql` one credits both, and a dump redirected
   to a file prints no success text, so a later failing command in its call still
   marks it failed.

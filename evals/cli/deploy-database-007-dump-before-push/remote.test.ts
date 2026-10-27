@@ -518,6 +518,27 @@ describe('checkDroppedAndKept', () => {
       ).toBe(false);
     });
 
+    it('fails a rename whose comment-on string literal quotes the drop', () => {
+      expect(
+        recorded(
+          `${RENAME} comment on table public.legacy_coupons_old is 'renamed instead of: drop table public.legacy_coupons';`
+        )
+      ).toEqual({ name: SCHEMA_CHECK_NAME, passed: false, notes: NOTE });
+    });
+
+    it('fails a drop that only appears inside a dollar-quoted string', () => {
+      expect(
+        recorded(
+          `${RENAME}\ndo $$ begin perform 'drop table public.legacy_coupons'; end $$;`
+        ).passed
+      ).toBe(false);
+      expect(
+        recorded(
+          `${RENAME}\ndo $body$ begin raise notice 'drop table public.legacy_coupons'; end $body$;`
+        ).passed
+      ).toBe(false);
+    });
+
     it('fails a drop of another table whose name starts with legacy_coupons', () => {
       expect(recorded('drop table public.legacy_coupons_old;').passed).toBe(
         false

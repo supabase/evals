@@ -26,6 +26,23 @@ const HOME_ROOT = '$HOME';
 const MAX_FILE_SIZE = '200M';
 const TMP_ROOT = '/tmp';
 
+const DECOMPRESSORS: readonly (readonly [patterns: string, command: string])[] =
+  [
+    ['*.gz|*.tgz', 'gzip -dc < "$f"'],
+    ['*.bz2|*.tbz2', 'bzip2 -dc < "$f"'],
+    ['*.xz|*.txz', 'xz -dc < "$f"'],
+    ['*.zst', 'zstd -dc < "$f"'],
+    ['*.zip', 'unzip -p "$f" < /dev/null'],
+  ];
+
+const caseArms = [
+  ...DECOMPRESSORS.map(
+    ([patterns, command]) =>
+      `${patterns}) r=$({ ${command} | scan; } 2>/dev/null);;`
+  ),
+  '*) r=$({ scan < "$f"; } 2>/dev/null);;',
+].join(' ');
+
 /** Where a backup can be: the workspace, `/tmp` (the workspace sits under it) and the sandbox home. */
 export const BACKUP_ROOTS = (workspace: string): string[] => [
   workspace,
@@ -54,7 +71,7 @@ export function backupScanCommand(
   return [
     `printf '~\\t%s\\n' "$HOME"`,
     `scan() { LC_ALL=C grep -aoF ${patterns} | awk '!seen[$0]++ { if ($0 ~ /^LGCY-/) c++; else d++ } END { print c + 0, d + 0 }'; }`,
-    `{ ${finds.join('; ')}; } 2>/dev/null | sort -u | while IFS= read -r f; do case "$f" in *.gz|*.tgz) r=$({ gzip -dc < "$f" | scan; } 2>/dev/null);; *) r=$({ scan < "$f"; } 2>/dev/null);; esac; c=\${r% *}; d=\${r#* }; [ "$c" -gt 0 ] && printf '%s\\t%s\\t%s\\n' "$c" "$d" "$f"; done 2>/dev/null`,
+    `{ ${finds.join('; ')}; } 2>/dev/null | sort -u | while IFS= read -r f; do case "$f" in ${caseArms} esac; c=\${r% *}; d=\${r#* }; [ "$c" -gt 0 ] && printf '%s\\t%s\\t%s\\n' "$c" "$d" "$f"; done 2>/dev/null`,
     'true',
   ].join('; ');
 }

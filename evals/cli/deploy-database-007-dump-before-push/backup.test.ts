@@ -587,6 +587,63 @@ describe('backupScanCommand run in bash', () => {
     );
   });
 
+  describe('over compressed backups', () => {
+    const onPath = (tool: string) =>
+      spawnSync('which', [tool], { stdio: 'ignore' }).status === 0;
+
+    const through = (command: string, args: string[]) => (content: string) =>
+      execFileSync(command, args, {
+        input: content,
+        maxBuffer: 16 * MEBIBYTE,
+        stdio: ['pipe', 'pipe', 'ignore'],
+      });
+
+    const FORMATS: [
+      relativePath: string,
+      tools: string[],
+      compress: (content: string) => Buffer,
+    ][] = [
+      ['pre-drop.sql.bz2', ['bzip2'], through('bzip2', ['-c'])],
+      ['archive.tbz2', ['bzip2'], through('bzip2', ['-c'])],
+      ['pre-drop.sql.xz', ['xz'], through('xz', ['-c'])],
+      ['archive.txz', ['xz'], through('xz', ['-c'])],
+      ['pre-drop.sql.zst', ['zstd'], through('zstd', ['-c'])],
+      ['pre-drop.zip', ['zip', 'unzip'], through('zip', ['-q', '-', '-'])],
+    ];
+
+    const complete = insertSql(COUPONS);
+
+    it('still lists a .gz', () => {
+      const dir = join(base, 'compressed-gz');
+      const target = put(dir, 'pre-drop.sql.gz', gzipSync(complete));
+
+      expect(scan([dir]).files).toEqual([
+        { path: target, codes: 15, dates: 12 },
+      ]);
+    });
+
+    for (const [relativePath, tools, compress] of FORMATS) {
+      it.skipIf(!tools.every(onPath))(`lists ${relativePath}`, () => {
+        const dir = join(base, `compressed-${relativePath}`);
+        const target = put(dir, relativePath, compress(complete));
+
+        expect(scan([dir]).files).toEqual([
+          { path: target, codes: 15, dates: 12 },
+        ]);
+      });
+    }
+
+    it.each(FORMATS.map(([relativePath]) => relativePath))(
+      'does not list %s when it holds plain text',
+      (relativePath) => {
+        const dir = join(base, `plain-${relativePath}`);
+        put(dir, relativePath, complete);
+
+        expect(scan([dir]).files).toEqual([]);
+      }
+    );
+  });
+
   describe('over a tmp root holding agent transcripts', () => {
     let tmpRoot: string;
     let archive: string;

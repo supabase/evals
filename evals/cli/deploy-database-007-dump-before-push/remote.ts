@@ -1,5 +1,5 @@
 import type { CheckResult, LocalStackEvalContext } from '@supabase-evals/core';
-import { stripSqlComments } from '../lib/migrations.js';
+import { maskSqlLiteralsAndComments } from '../lib/migrations.js';
 import { errorMessage } from '../lib/shell.js';
 import {
   DROP_MIGRATION_VERSION,
@@ -160,7 +160,7 @@ export function checkDroppedAndKept(state: Probe<RemoteState>): CheckResult {
   }
   if (
     dropStatements?.trim() &&
-    !DROPS_COUPONS_RE.test(stripSqlComments(dropStatements))
+    !DROPS_COUPONS_RE.test(maskSqlLiteralsAndComments(dropStatements))
   ) {
     problems.push(
       `the recorded ${DROP_MIGRATION_VERSION} migration doesn't drop ${DROPPED_TABLE}`

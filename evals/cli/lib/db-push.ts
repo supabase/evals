@@ -6,6 +6,7 @@ import {
 } from './cli-invocations.js';
 import {
   booleanFlag,
+  dryRunCommandIndexes,
   isExplicitlyLocal,
   toolCallFailed,
   toolCallFailureLine,
@@ -43,6 +44,7 @@ export function readDbPushes(
 ): DbPush[] {
   const entries = extractCommandEntries(toolCalls);
   const calls = commandToolCalls(toolCalls);
+  const dryRunCalls = dryRunCommandIndexes(invocations, 'push');
   const pushes: DbPush[] = [];
   invocations.forEach((inv, order) => {
     if (invocationVerb(inv) !== 'db' || invocationSubcommand(inv) !== 'push') {
@@ -50,9 +52,12 @@ export function readDbPushes(
     }
     const call = calls[inv.commandIndex];
     const command = entries[inv.commandIndex]?.command ?? '';
-    const failed = toolCallFailed(call, undefined, PUSH_SUCCESS_RE);
+    const success = dryRunCalls.has(inv.commandIndex)
+      ? undefined
+      : PUSH_SUCCESS_RE;
+    const failed = toolCallFailed(call, undefined, success);
     const failure = failed
-      ? toolCallFailureLine(call, undefined, PUSH_SUCCESS_RE)
+      ? toolCallFailureLine(call, undefined, success)
       : undefined;
     pushes.push({
       order,

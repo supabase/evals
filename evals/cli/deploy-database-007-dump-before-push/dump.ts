@@ -6,6 +6,7 @@ import {
 } from '../lib/cli-invocations.js';
 import {
   booleanFlag,
+  dryRunCommandIndexes,
   isExplicitlyLocal,
   toolCallFailed,
   toolCallFailureLine,
@@ -41,6 +42,7 @@ export function readDbDumps(
 ): DbDump[] {
   const entries = extractCommandEntries(toolCalls);
   const calls = commandToolCalls(toolCalls);
+  const dryRunCalls = dryRunCommandIndexes(invocations, 'dump');
   const dumps: DbDump[] = [];
   invocations.forEach((inv, order) => {
     if (invocationVerb(inv) !== 'db' || invocationSubcommand(inv) !== 'dump') {
@@ -48,9 +50,12 @@ export function readDbDumps(
     }
     const call = calls[inv.commandIndex];
     const command = entries[inv.commandIndex]?.command ?? '';
-    const failed = toolCallFailed(call, DUMP_FAILURE_RE, DUMP_SUCCESS_RE);
+    const success = dryRunCalls.has(inv.commandIndex)
+      ? undefined
+      : DUMP_SUCCESS_RE;
+    const failed = toolCallFailed(call, DUMP_FAILURE_RE, success);
     const failure = failed
-      ? toolCallFailureLine(call, DUMP_FAILURE_RE, DUMP_SUCCESS_RE)
+      ? toolCallFailureLine(call, DUMP_FAILURE_RE, success)
       : undefined;
     dumps.push({
       order,

@@ -365,6 +365,53 @@ describe('readDbPushes', () => {
       });
     });
 
+    describe('when the call also dry-runs a push', () => {
+      const DRY_AND_REAL = 'supabase db push --dry-run && supabase db push';
+      const DRY_RUN_OUTPUT =
+        'Would push migrations.\nFinished supabase db push.';
+      const CONNECT_ERROR = 'failed to connect to postgres';
+
+      it('does not credit the real push that failed after the dry run printed the success text', () => {
+        const pushes = pushesOf(
+          shellCall(DRY_AND_REAL, {
+            result: `${DRY_RUN_OUTPUT}\n${CONNECT_ERROR}`,
+            error: 'exit 1',
+          })
+        );
+        expect(pushes.map(({ failed }) => failed)).toEqual([true, true]);
+        expect(pushes[1]?.failure).toBe(CONNECT_ERROR);
+        expect(checkPushed(pushes).passed).toBe(false);
+      });
+
+      it('does not credit the real push when only the output shows the failure', () => {
+        const pushes = pushesOf(
+          shellCall(`${DRY_AND_REAL} || true`, {
+            result: `${DRY_RUN_OUTPUT}\n${CONNECT_ERROR}`,
+          })
+        );
+        expect(checkPushed(pushes).passed).toBe(false);
+      });
+
+      it('credits the real push when the call shows no failure', () => {
+        const pushes = pushesOf(
+          shellCall(DRY_AND_REAL, { result: `${DRY_RUN_OUTPUT}\n${APPLIED}` })
+        );
+        expect(pushes.map(({ failed }) => failed)).toEqual([false, false]);
+        expect(pushes.map(isCreditedPush)).toEqual([false, true]);
+        expect(checkPushed(pushes).passed).toBe(true);
+      });
+
+      it('still reads the success text of a call that dry-runs another command', () => {
+        const [first] = pushesOf(
+          shellCall(
+            'supabase db dump --dry-run -f a.sql && supabase db push --yes',
+            { result: APPLIED, error: 'exit 1' }
+          )
+        );
+        expect(first?.failed).toBe(false);
+      });
+    });
+
     it('does not read a dump failure line as a push failure', () => {
       const pushes = pushesOf(
         shellCall('supabase db push', {

@@ -1,5 +1,10 @@
 import type { ToolCallRecord } from '@supabase-evals/core';
-import { invocationFlag, type SupabaseInvocation } from './cli-invocations.js';
+import {
+  invocationFlag,
+  invocationSubcommand,
+  invocationVerb,
+  type SupabaseInvocation,
+} from './cli-invocations.js';
 
 export const CLI_FAILURE_RE =
   /"_tag"\s*:\s*"Error"|Cannot find project ref|Access token not provided|Confirmation required|failed to connect|unknown flag|command not found|unexpected status \d{3}|failed to execute query|if any flags in the group/i;
@@ -87,6 +92,23 @@ export function isExplicitlyLocal(
     invocationFlag(inv, '--db-url'),
     remote?.includes('://') ? remote : undefined,
   ].some((url) => url !== undefined && isLocalUrl(url, command));
+}
+
+/** The tool calls that also run `supabase db <subcommand> --dry-run`, whose output repeats the real run's success text. */
+export function dryRunCommandIndexes(
+  invocations: readonly SupabaseInvocation[],
+  subcommand: string
+): Set<number> {
+  return new Set(
+    invocations
+      .filter(
+        (inv) =>
+          invocationVerb(inv) === 'db' &&
+          invocationSubcommand(inv) === subcommand &&
+          booleanFlag(inv.argv, '--dry-run')
+      )
+      .map((inv) => inv.commandIndex)
+  );
 }
 
 /** Output and error text together, since a call that exited non-zero keeps its output in `error`. */

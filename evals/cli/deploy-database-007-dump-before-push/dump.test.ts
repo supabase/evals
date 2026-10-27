@@ -30,6 +30,7 @@ const CONTAINER_URL =
 
 const DUMP = 'supabase db dump --data-only -f backups/pre-drop.sql';
 const PUSH = 'supabase db push --linked --yes';
+const CHAINED_DUMP = `${DUMP} && grep -c "^COPY" backups/pre-drop.sql`;
 const UNLINKED = 'Cannot find project ref. Have you run supabase link?';
 const PG_DUMP_ERROR =
   'pg_dump: error: connection to server at "db.abcdefghijklmnopqrst.supabase.co" failed: Connection refused';
@@ -382,6 +383,52 @@ describe('readDbDumps', () => {
           )
         );
         expect(first?.failed).toBe(true);
+      });
+    });
+
+    describe('when the call also dry-runs a dump', () => {
+      const DRY_AND_REAL = `supabase db dump --dry-run -f backups/pre-drop.sql && ${DUMP}`;
+      const DRY_RUN_OUTPUT = 'Dumped schema to backups/pre-drop.sql.';
+
+      it('does not credit the real dump that failed after the dry run printed the success text', () => {
+        const dumps = dumpsOf(
+          shellCall(DRY_AND_REAL, {
+            result: `${DRY_RUN_OUTPUT}\n${PG_DUMP_ERROR}`,
+            error: 'exit 1',
+          })
+        );
+        expect(dumps.map(({ failed }) => failed)).toEqual([true, true]);
+        expect(dumps[1]?.failure).toBe(PG_DUMP_ERROR);
+        expect(dumps.some(isCreditedDump)).toBe(false);
+      });
+
+      it('does not credit the real dump when only the output shows the failure', () => {
+        const dumps = dumpsOf(
+          shellCall(`${DRY_AND_REAL} || true`, {
+            result: `${DRY_RUN_OUTPUT}\n${UNLINKED}`,
+          })
+        );
+        expect(dumps.some(isCreditedDump)).toBe(false);
+      });
+
+      it('credits the real dump when the call shows no failure', () => {
+        const dumps = dumpsOf(
+          shellCall(DRY_AND_REAL, {
+            result: `${DRY_RUN_OUTPUT}\n${DRY_RUN_OUTPUT}`,
+          })
+        );
+        expect(dumps.map(({ failed }) => failed)).toEqual([false, false]);
+        expect(dumps.map(isCreditedDump)).toEqual([false, true]);
+      });
+
+      it('still reads the success text of a call that dry-runs a push', () => {
+        const [first] = dumpsOf(
+          shellCall(`supabase db push --dry-run && ${CHAINED_DUMP}`, {
+            result: DRY_RUN_OUTPUT,
+            error: 'exit 1',
+          })
+        );
+        expect(first?.failed).toBe(false);
       });
     });
 

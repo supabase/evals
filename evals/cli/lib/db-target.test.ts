@@ -5,6 +5,7 @@ import { findSupabaseInvocations } from './cli-invocations.js';
 import {
   booleanFlag,
   CLI_FAILURE_RE,
+  dryRunCommandIndexes,
   isExplicitlyLocal,
   isLoopbackUrl,
   toolCallFailed,
@@ -166,6 +167,40 @@ describe('isLoopbackUrl', () => {
     ],
   ])('is false for %s', (_, url) => {
     expect(isLoopbackUrl(url)).toBe(false);
+  });
+});
+
+describe('dryRunCommandIndexes', () => {
+  const indexes = (subcommand: string, ...commands: string[]) => [
+    ...dryRunCommandIndexes(findSupabaseInvocations(commands), subcommand),
+  ];
+
+  it('lists the commands that dry-run the subcommand, whatever else they run', () => {
+    expect(
+      indexes(
+        'push',
+        'supabase db push --yes',
+        'supabase db push --dry-run',
+        'supabase db push --dry-run=true && supabase db push --yes'
+      )
+    ).toEqual([1, 2]);
+  });
+
+  it('skips --dry-run=false', () => {
+    expect(indexes('push', 'supabase db push --dry-run=false')).toEqual([]);
+  });
+
+  it('skips a dry run of another subcommand or verb', () => {
+    expect(
+      indexes(
+        'push',
+        'supabase db dump --dry-run -f a.sql',
+        'supabase migration up --dry-run'
+      )
+    ).toEqual([]);
+    expect(
+      indexes('dump', 'supabase db dump --dry-run -f a.sql && supabase db push')
+    ).toEqual([0]);
   });
 });
 
