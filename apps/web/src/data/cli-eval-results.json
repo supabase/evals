@@ -14076,6 +14076,624 @@
       "modelId": "gpt-6-luna",
       "reasoningEffort": "medium"
     },
+    "eval": "build-storage-002-move-to-private-bucket",
+    "stage": "build",
+    "product": [
+      "storage"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.123.0-beta.3",
+    "passed": true,
+    "checks": [
+      {
+        "name": "invoices are in a private bucket on the local stack",
+        "passed": true
+      },
+      {
+        "name": "no invoice is publicly readable on the local stack",
+        "passed": true
+      },
+      {
+        "name": "avatars are still public where the app loads them",
+        "passed": true
+      },
+      {
+        "name": "a fresh local setup keeps invoices private and avatars public",
+        "passed": true
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No forbidden runtime detours. Docker exec commands only run read-only database queries; invoice moves use Supabase CLI or Storage API, and file changes update project seed data."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.123.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"docker\":\"available\",\"stack\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null},\"keysFound\":{\"serviceRole\":true,\"secret\":true,\"anon\":true,\"publishable\":true},\"serviceIdentity\":\"service-role\",\"anonIdentity\":\"anon\",\"buckets\":[{\"id\":\"media\",\"public\":true,\"objects\":3},{\"id\":\"invoices\",\"public\":false,\"objects\":3}],\"invoiceLocations\":[\"invoices/INV-2026-0141.pdf\",\"invoices/INV-2026-0142.pdf\",\"invoices/INV-2026-0143.pdf\"],\"storageCommands\":{\"ls\":4,\"cp\":0,\"mv\":6,\"rm\":0,\"seedBuckets\":0,\"dbReset\":0,\"experimentalFlag\":5,\"localFlag\":10},\"freshSetupInvoiceBuckets\":[\"invoices\"],\"stackStoppedByAgent\":false,\"lastStackCommand\":null,\"legacyStack\":null,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the invoices",
+        "passed": true,
+        "judgeNotes": "The final report matches the observed private invoice storage, removal from public media, avatar-only public bucket, and corrected fresh-setup seeds. Its verification claims have matching commands and supported results."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 49
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Storage private buckets public bucket access policies moving objects bucket id\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/cdn/fundamentals",
+              "title": "Storage CDN"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/buckets/fundamentals",
+              "title": "Storage Buckets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/management/copy-move-objects",
+              "title": "Copy Objects"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/access-control",
+              "title": "Storage Access Control"
+            }
+          ],
+          "resultChars": 13220
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI config.toml storage buckets local development create bucket migrations storage.buckets public false\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment",
+              "title": "Deployment & Branching"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/amazon-bedrock-image-generator",
+              "title": "Generate Images with Amazon Bedrock"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/vector/local-development",
+              "title": "Vector Bucket Local Development"
+            }
+          ],
+          "resultChars": 35016
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Storage REST move object endpoint /object/move bucketId sourceKey destinationKey API\", limit: 4) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content methodName language } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/management/copy-move-objects",
+              "title": "Copy Objects"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/file-buckets-move"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/file-buckets-updatebucket"
+            }
+          ],
+          "resultChars": 4509
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 641424,
+        "cacheReadInputTokens": 581813,
+        "cacheWriteInputTokens": 59557,
+        "outputTokens": 12105
+      }
+    ],
+    "stepCount": 18,
+    "toolCallCount": 31,
+    "agentRunDurationMs": 191357,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 551731,
+      "duration": 439609,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2806467311,
+        "egress": 9654688
+      }
+    },
+    "prompt": "Customer invoices end up in our public storage bucket when I run Supabase locally, and they're in there right now. Can you move them into a private bucket, and make sure a fresh local setup doesn't put them back in the public one?",
+    "promptSourcePath": "evals/cli/build-storage-002-move-to-private-bucket/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/build-storage-002-move-to-private-bucket/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-storage-002-move-to-private-bucket",
+    "stage": "build",
+    "product": [
+      "storage"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.123.0-beta.3",
+    "passed": true,
+    "checks": [
+      {
+        "name": "invoices are in a private bucket on the local stack",
+        "passed": true
+      },
+      {
+        "name": "no invoice is publicly readable on the local stack",
+        "passed": true
+      },
+      {
+        "name": "avatars are still public where the app loads them",
+        "passed": true
+      },
+      {
+        "name": "a fresh local setup keeps invoices private and avatars public",
+        "passed": true
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No commands attempt container-runtime setup, privilege escalation, or direct writes into stack storage. Supabase CLI commands, Storage API calls, and project fixture moves are permitted."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.123.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"docker\":\"available\",\"stack\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null},\"keysFound\":{\"serviceRole\":true,\"secret\":true,\"anon\":true,\"publishable\":true},\"serviceIdentity\":\"service-role\",\"anonIdentity\":\"anon\",\"buckets\":[{\"id\":\"media\",\"public\":true,\"objects\":3},{\"id\":\"invoices\",\"public\":false,\"objects\":3}],\"invoiceLocations\":[\"invoices/INV-2026-0143.pdf\",\"invoices/INV-2026-0141.pdf\",\"invoices/INV-2026-0142.pdf\"],\"storageCommands\":{\"ls\":0,\"cp\":0,\"mv\":0,\"rm\":0,\"seedBuckets\":1,\"dbReset\":0,\"experimentalFlag\":0,\"localFlag\":0},\"freshSetupInvoiceBuckets\":[\"invoices\"],\"stackStoppedByAgent\":false,\"lastStackCommand\":null,\"legacyStack\":null,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the invoices",
+        "passed": true,
+        "judgeNotes": "Final claims match ground truth: all invoices are private, public copies are gone, avatars remain accessible, and fresh setup seeds invoices only into the private bucket. Verification claims have matching commands."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase Storage private bucket local config storage.buckets public bucket seed migration\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/amazon-bedrock-image-generator",
+              "title": "Generate Images with Amazon Bedrock"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage",
+              "title": "Storage"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/quickstart",
+              "title": "Storage Quickstart"
+            }
+          ],
+          "resultChars": 41019
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | head -100; printf '\\\\n--- README ---\\\\n'; cat README.md; printf '\\\\n--- avatar references ---\\\\n'; sed -n '1,240p' src/lib/avatars.ts; printf '\\\\n--- tracked candidates ---\\\\n'; find supabase -maxdepth 4 -type f -not -path '*/.temp/*' -not -path '*/.branches/*' -print | sort\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5882
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"config.toml storage.buckets objects_path Supabase CLI local storage bucket\", limit: 8) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/vector/local-development",
+              "title": "Vector Bucket Local Development"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/amazon-bedrock-image-generator",
+              "title": "Generate Images with Amazon Bedrock"
+            }
+          ],
+          "resultChars": 30749
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase Storage private buckets public false config.toml objects_path local CLI bucket permissions\", limit: 4) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/vector/local-development",
+              "title": "Vector Bucket Local Development"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/amazon-bedrock-image-generator",
+              "title": "Generate Images with Amazon Bedrock"
+            }
+          ],
+          "resultChars": 30740
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Storage move file REST API endpoint destinationBucket destinationKey\", limit: 5) { nodes { ... on ClientLibraryFunctionReference { title href content methodName language } ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/management/copy-move-objects",
+              "title": "Copy Objects"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/file-buckets-move"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/file-buckets-copy"
+            }
+          ],
+          "resultChars": 4820
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"JavaScript storage remove files removeObjects bucket prefixes delete object\", limit: 4) { nodes { ... on ClientLibraryFunctionReference { title href content methodName language } ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/javascript/file-buckets-remove"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/file-buckets-deletebucket"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/management/delete-objects",
+              "title": "Delete Objects"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/file-buckets-emptybucket"
+            }
+          ],
+          "resultChars": 5259
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 972672,
+        "cacheReadInputTokens": 910079,
+        "cacheWriteInputTokens": 62515,
+        "outputTokens": 12172
+      }
+    ],
+    "stepCount": 26,
+    "toolCallCount": 31,
+    "agentRunDurationMs": 182916,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 373714,
+      "duration": 364260,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2815303016,
+        "egress": 16574355
+      }
+    },
+    "prompt": "Customer invoices end up in our public storage bucket when I run Supabase locally, and they're in there right now. Can you move them into a private bucket, and make sure a fresh local setup doesn't put them back in the public one?",
+    "promptSourcePath": "evals/cli/build-storage-002-move-to-private-bucket/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/build-storage-002-move-to-private-bucket/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-storage-002-move-to-private-bucket",
+    "stage": "build",
+    "product": [
+      "storage"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.123.0-beta.3",
+    "passed": true,
+    "checks": [
+      {
+        "name": "invoices are in a private bucket on the local stack",
+        "passed": true
+      },
+      {
+        "name": "no invoice is publicly readable on the local stack",
+        "passed": true
+      },
+      {
+        "name": "avatars are still public where the app loads them",
+        "passed": true
+      },
+      {
+        "name": "a fresh local setup keeps invoices private and avatars public",
+        "passed": true
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No forbidden container-runtime detours. Commands use permitted Supabase operations, local Storage API calls, project-file edits, and read-only runtime probes."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.123.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"docker\":\"available\",\"stack\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null},\"keysFound\":{\"serviceRole\":true,\"secret\":true,\"anon\":true,\"publishable\":true},\"serviceIdentity\":\"service-role\",\"anonIdentity\":\"anon\",\"buckets\":[{\"id\":\"media\",\"public\":true,\"objects\":3},{\"id\":\"invoices\",\"public\":false,\"objects\":3}],\"invoiceLocations\":[\"invoices/INV-2026-0141.pdf\",\"invoices/INV-2026-0142.pdf\",\"invoices/INV-2026-0143.pdf\"],\"storageCommands\":{\"ls\":12,\"cp\":3,\"mv\":6,\"rm\":3,\"seedBuckets\":1,\"dbReset\":0,\"experimentalFlag\":22,\"localFlag\":24},\"freshSetupInvoiceBuckets\":[\"invoices\"],\"stackStoppedByAgent\":false,\"lastStackCommand\":null,\"legacyStack\":null,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the invoices",
+        "passed": true,
+        "judgeNotes": "The final report matches the observed private invoice storage, removal of public originals, bucket visibility, and safe seed configuration. Its verification claims have matching commands, and no scoped claim is contradicted."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase local storage bucket public false config.toml storage buckets migrations objects\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/amazon-bedrock-image-generator",
+              "title": "Generate Images with Amazon Bedrock"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment",
+              "title": "Deployment & Branching"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/vector/local-development",
+              "title": "Vector Bucket Local Development"
+            }
+          ],
+          "resultChars": 35016
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase Storage local development config.toml objects_path seed buckets local storage bucket public false\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/amazon-bedrock-image-generator",
+              "title": "Generate Images with Amazon Bedrock"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/vector/local-development",
+              "title": "Vector Bucket Local Development"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment",
+              "title": "Deployment & Branching"
+            }
+          ],
+          "resultChars": 35016
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Storage API create bucket move object endpoint destinationBucket sourceKey public bucket\", limit: 4) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/management/copy-move-objects",
+              "title": "Copy Objects"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-storage-mv",
+              "title": "Move objects from src to dst path"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/dart/file-buckets-createbucket"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/why-cant-i-uploadlistetc-my-public-bucket-Z6CmGt",
+              "title": "Why can't I upload/list/etc my public bucket?"
+            }
+          ],
+          "resultChars": 4902
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"supabase seed buckets local storage config buckets supabase storage mv local\", limit: 4) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/amazon-bedrock-image-generator",
+              "title": "Generate Images with Amazon Bedrock"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage",
+              "title": "Storage"
+            }
+          ],
+          "resultChars": 32630
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Storage REST API object copy route bucketId destinationBucket sourceKey destinationKey\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/management/copy-move-objects",
+              "title": "Copy Objects"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/file-buckets-copy"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-storage-mv",
+              "title": "Move objects from src to dst path"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/copy-from-platform-s3",
+              "title": "Copy Storage Objects from Platform"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-storage-cp",
+              "title": "Copy objects from src to dst path"
+            }
+          ],
+          "resultChars": 11570
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 809971,
+        "cacheReadInputTokens": 746850,
+        "cacheWriteInputTokens": 63055,
+        "outputTokens": 14186
+      }
+    ],
+    "stepCount": 22,
+    "toolCallCount": 37,
+    "agentRunDurationMs": 176770,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 346213,
+      "duration": 347322,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2813778575,
+        "egress": 15908296
+      }
+    },
+    "prompt": "Customer invoices end up in our public storage bucket when I run Supabase locally, and they're in there right now. Can you move them into a private bucket, and make sure a fresh local setup doesn't put them back in the public one?",
+    "promptSourcePath": "evals/cli/build-storage-002-move-to-private-bucket/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/build-storage-002-move-to-private-bucket/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
     "eval": "deploy-auth-001-push-config-change",
     "stage": "deploy",
     "product": [
@@ -24255,6 +24873,706 @@
     "promptSourcePath": "evals/cli/build-functions-008-serve-local-secret/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-6-luna-cli-next/build-functions-008-serve-local-secret/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-next",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-storage-002-move-to-private-bucket",
+    "stage": "build",
+    "product": [
+      "storage"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "3.0.0-next.25",
+    "passed": true,
+    "checks": [
+      {
+        "name": "invoices are in a private bucket on the local stack",
+        "passed": true
+      },
+      {
+        "name": "no invoice is publicly readable on the local stack",
+        "passed": true
+      },
+      {
+        "name": "avatars are still public where the app loads them",
+        "passed": true
+      },
+      {
+        "name": "a fresh local setup keeps invoices private and avatars public",
+        "passed": true
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No commands attempt forbidden container-runtime setup or workarounds. Storage API calls, Supabase commands, and project seed-file moves are permitted."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"3.0.0-next.25\",\"cliOverride\":[],\"channel\":\"next\",\"docker\":\"available\",\"stack\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null},\"keysFound\":{\"serviceRole\":true,\"secret\":true,\"anon\":true,\"publishable\":true},\"serviceIdentity\":\"service-role\",\"anonIdentity\":\"anon\",\"buckets\":[{\"id\":\"media\",\"public\":true,\"objects\":3},{\"id\":\"invoices\",\"public\":false,\"objects\":3}],\"invoiceLocations\":[\"invoices/invoices/INV-2026-0142.pdf\",\"invoices/invoices/INV-2026-0141.pdf\",\"invoices/invoices/INV-2026-0143.pdf\"],\"storageCommands\":{\"ls\":0,\"cp\":0,\"mv\":0,\"rm\":0,\"seedBuckets\":2,\"dbReset\":0,\"experimentalFlag\":0,\"localFlag\":0},\"freshSetupInvoiceBuckets\":[\"invoices\"],\"stackStoppedByAgent\":false,\"lastStackCommand\":null,\"legacyStack\":null,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the invoices",
+        "passed": true,
+        "judgeNotes": "The report matches the observed private invoice storage, preserved public avatars, and corrected seed configuration. Its verification claims have matching commands and are confirmed by ground truth."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11952
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase Storage private bucket public bucket access policies create bucket local development config\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/amazon-bedrock-image-generator",
+              "title": "Generate Images with Amazon Bedrock"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage",
+              "title": "Storage"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/analytics/creating-analytics-buckets",
+              "title": "Creating Analytics Buckets"
+            }
+          ],
+          "resultChars": 35992
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"local development config storage buckets objects_path supabase seed buckets public false\", limit: 3) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/amazon-bedrock-image-generator",
+              "title": "Generate Images with Amazon Bedrock"
+            }
+          ],
+          "resultChars": 28542
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Storage move object API move object bucket Supabase private bucket create bucket\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/management/copy-move-objects",
+              "title": "Copy Objects"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage",
+              "title": "Storage"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/delete-project",
+              "title": "Deleting Your Project"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/amazon-bedrock-image-generator",
+              "title": "Generate Images with Amazon Bedrock"
+            }
+          ],
+          "resultChars": 19425
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"storage buckets config.toml objects_path local storage seed buckets\", limit: 2) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/vector/local-development",
+              "title": "Vector Bucket Local Development"
+            }
+          ],
+          "resultChars": 11405
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"POST /object/move sourceBucket destinationBucket sourceKey destinationKey\", limit: 2) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { methodName language href } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/management/copy-move-objects",
+              "title": "Copy Objects"
+            }
+          ],
+          "resultChars": 3599
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 669233,
+        "cacheReadInputTokens": 610354,
+        "cacheWriteInputTokens": 58822,
+        "outputTokens": 10233
+      }
+    ],
+    "stepCount": 19,
+    "toolCallCount": 33,
+    "agentRunDurationMs": 124471,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 328008,
+      "duration": 294930,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2782054280,
+        "egress": 13051442
+      }
+    },
+    "prompt": "Customer invoices end up in our public storage bucket when I run Supabase locally, and they're in there right now. Can you move them into a private bucket, and make sure a fresh local setup doesn't put them back in the public one?",
+    "promptSourcePath": "evals/cli/build-storage-002-move-to-private-bucket/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-next/build-storage-002-move-to-private-bucket/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-next",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-storage-002-move-to-private-bucket",
+    "stage": "build",
+    "product": [
+      "storage"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "3.0.0-next.25",
+    "passed": true,
+    "checks": [
+      {
+        "name": "invoices are in a private bucket on the local stack",
+        "passed": true
+      },
+      {
+        "name": "no invoice is publicly readable on the local stack",
+        "passed": true
+      },
+      {
+        "name": "avatars are still public where the app loads them",
+        "passed": true
+      },
+      {
+        "name": "a fresh local setup keeps invoices private and avatars public",
+        "passed": true
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No commands attempt container-runtime setup, privilege escalation, or direct writes into stack storage. The commands use permitted Supabase, database, Storage API, and project-file operations."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"3.0.0-next.25\",\"cliOverride\":[],\"channel\":\"next\",\"docker\":\"available\",\"stack\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null},\"keysFound\":{\"serviceRole\":true,\"secret\":true,\"anon\":true,\"publishable\":true},\"serviceIdentity\":\"service-role\",\"anonIdentity\":\"anon\",\"buckets\":[{\"id\":\"media\",\"public\":true,\"objects\":3},{\"id\":\"invoices\",\"public\":false,\"objects\":3}],\"invoiceLocations\":[\"invoices/INV-2026-0141.pdf\",\"invoices/INV-2026-0142.pdf\",\"invoices/INV-2026-0143.pdf\"],\"storageCommands\":{\"ls\":2,\"cp\":1,\"mv\":2,\"rm\":0,\"seedBuckets\":0,\"dbReset\":0,\"experimentalFlag\":3,\"localFlag\":0},\"freshSetupInvoiceBuckets\":[\"invoices\"],\"stackStoppedByAgent\":false,\"lastStackCommand\":null,\"legacyStack\":null,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the invoices",
+        "passed": true,
+        "judgeNotes": "Final claims match ground truth: all three invoices are private and inaccessible anonymously, avatars remain public, and fresh setup seeds invoices separately from public media. Verification commands support the reported checks."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 3830
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase Storage private bucket public bucket local storage migration bucket configuration\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-angular",
+              "title": "Build a User Management App with Angular"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage",
+              "title": "Storage"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/amazon-bedrock-image-generator",
+              "title": "Generate Images with Amazon Bedrock"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-expo-react-native",
+              "title": "Build a User Management App with Expo React Native"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            }
+          ],
+          "resultChars": 89307
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Storage local development config.toml buckets public objects_path seed files local Supabase\", limit: 8) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment",
+              "title": "Deployment & Branching"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/delete-project",
+              "title": "Deleting Your Project"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/amazon-bedrock-image-generator",
+              "title": "Generate Images with Amazon Bedrock"
+            }
+          ],
+          "resultChars": 38656
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase Storage create bucket private bucket copy move object API\", limit: 6) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/management/copy-move-objects",
+              "title": "Copy Objects"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-storage-mv",
+              "title": "Move objects from src to dst path"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/buckets/creating-buckets",
+              "title": "Creating Buckets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage",
+              "title": "Storage"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/amazon-bedrock-image-generator",
+              "title": "Generate Images with Amazon Bedrock"
+            },
+            {
+              "url": "https://supabase.com/kb/troubleshooting/revoking-privileges-on-storage-pg_cron-vault-and-extension-objects-has-no-effect",
+              "title": "Revoking privileges on Storage, pg_cron, Vault, and extension objects has no effect"
+            }
+          ],
+          "resultChars": 17738
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"config.toml storage buckets objects_path files automatically upload bucket path\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/vector/local-development",
+              "title": "Vector Bucket Local Development"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/dashboard-restore",
+              "title": "Restore Dashboard backup"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/buckets/fundamentals",
+              "title": "Storage Buckets"
+            }
+          ],
+          "resultChars": 38255
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Storage API copy object endpoint POST object/copy destinationBucket sourceKey destinationKey\", limit: 4) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/management/copy-move-objects",
+              "title": "Copy Objects"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/file-buckets-copy"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-storage-cp",
+              "title": "Copy objects from src to dst path"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-storage-mv",
+              "title": "Move objects from src to dst path"
+            }
+          ],
+          "resultChars": 5173
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 1277834,
+        "cacheReadInputTokens": 1204658,
+        "cacheWriteInputTokens": 73089,
+        "outputTokens": 16508
+      }
+    ],
+    "stepCount": 29,
+    "toolCallCount": 42,
+    "agentRunDurationMs": 238161,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 497634,
+      "duration": 468361,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2782427787,
+        "egress": 16007215
+      }
+    },
+    "prompt": "Customer invoices end up in our public storage bucket when I run Supabase locally, and they're in there right now. Can you move them into a private bucket, and make sure a fresh local setup doesn't put them back in the public one?",
+    "promptSourcePath": "evals/cli/build-storage-002-move-to-private-bucket/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-next/build-storage-002-move-to-private-bucket/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-next",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-storage-002-move-to-private-bucket",
+    "stage": "build",
+    "product": [
+      "storage"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "3.0.0-next.25",
+    "passed": true,
+    "checks": [
+      {
+        "name": "invoices are in a private bucket on the local stack",
+        "passed": true
+      },
+      {
+        "name": "no invoice is publicly readable on the local stack",
+        "passed": true
+      },
+      {
+        "name": "avatars are still public where the app loads them",
+        "passed": true
+      },
+      {
+        "name": "a fresh local setup keeps invoices private and avatars public",
+        "passed": true
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No forbidden container-runtime detours. Commands used Supabase and Storage APIs and edited project configuration and seed files."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"3.0.0-next.25\",\"cliOverride\":[],\"channel\":\"next\",\"docker\":\"available\",\"stack\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null},\"keysFound\":{\"serviceRole\":true,\"secret\":true,\"anon\":true,\"publishable\":true},\"serviceIdentity\":\"service-role\",\"anonIdentity\":\"anon\",\"buckets\":[{\"id\":\"media\",\"public\":true,\"objects\":3},{\"id\":\"invoices\",\"public\":false,\"objects\":3}],\"invoiceLocations\":[\"invoices/invoices/INV-2026-0141.pdf\",\"invoices/invoices/INV-2026-0142.pdf\",\"invoices/invoices/INV-2026-0143.pdf\"],\"storageCommands\":{\"ls\":0,\"cp\":0,\"mv\":0,\"rm\":0,\"seedBuckets\":0,\"dbReset\":0,\"experimentalFlag\":0,\"localFlag\":0},\"freshSetupInvoiceBuckets\":[\"invoices\"],\"stackStoppedByAgent\":false,\"lastStackCommand\":null,\"legacyStack\":null,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the invoices",
+        "passed": true,
+        "judgeNotes": "The final report matches the observed private invoice storage, blocked public reads, preserved public avatars, and corrected seed configuration. Its verification claims have matching commands."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase Storage private bucket public false migration objects copy move local storage seed\", limit: 5) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content methodName } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/delete-project",
+              "title": "Deleting Your Project"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage",
+              "title": "Storage"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/amazon-bedrock-image-generator",
+              "title": "Generate Images with Amazon Bedrock"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            }
+          ],
+          "resultChars": 38468
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase Storage move existing objects between buckets SQL storage.objects bucket_id migration\", limit: 5) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content methodName } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/management/copy-move-objects",
+              "title": "Copy Objects"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/dashboard-restore",
+              "title": "Restore Dashboard backup"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/copy-from-platform-s3",
+              "title": "Copy Storage Objects from Platform"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore",
+              "title": "Backup and Restore using the CLI"
+            }
+          ],
+          "resultChars": 57870
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Storage buckets config.toml public false local development bucket configuration\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/vector/local-development",
+              "title": "Vector Bucket Local Development"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai-tools/mcp",
+              "title": "Supabase MCP Server"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/amazon-bedrock-image-generator",
+              "title": "Generate Images with Amazon Bedrock"
+            }
+          ],
+          "resultChars": 42538
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"storage buckets objects_path local bucket config.toml objects recursively preserve folder names seed local Supabase\", limit: 3) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/vector/local-development",
+              "title": "Vector Bucket Local Development"
+            }
+          ],
+          "resultChars": 24840
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Storage REST API move object POST object/move sourceKey destinationBucket bucketId\", limit: 3) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content methodName } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/management/copy-move-objects",
+              "title": "Copy Objects"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/file-buckets-move"
+            }
+          ],
+          "resultChars": 4008
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | rg -n -i -C 2 'breaking-change|storage|bucket' | head -100\"",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 7760
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Storage HTTP API move object endpoint destinationBucket object/move\", limit: 5) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content methodName } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/management/copy-move-objects",
+              "title": "Copy Objects"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/file-buckets-move"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/file-buckets-updatebucket"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/swift/storage-updatebucket",
+              "title": "updateBucket()"
+            }
+          ],
+          "resultChars": 4932
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 772255,
+        "cacheReadInputTokens": 704313,
+        "cacheWriteInputTokens": 67270,
+        "outputTokens": 16766
+      }
+    ],
+    "stepCount": 20,
+    "toolCallCount": 27,
+    "agentRunDurationMs": 189712,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 327506,
+      "duration": 357654,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2788379460,
+        "egress": 13528675
+      }
+    },
+    "prompt": "Customer invoices end up in our public storage bucket when I run Supabase locally, and they're in there right now. Can you move them into a private bucket, and make sure a fresh local setup doesn't put them back in the public one?",
+    "promptSourcePath": "evals/cli/build-storage-002-move-to-private-bucket/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-next/build-storage-002-move-to-private-bucket/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna-cli-next",
@@ -45551,6 +46869,689 @@
       "modelId": "gpt-6-luna",
       "reasoningEffort": "medium"
     },
+    "eval": "build-storage-002-move-to-private-bucket",
+    "stage": "build",
+    "product": [
+      "storage"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "invoices are in a private bucket on the local stack",
+        "passed": true
+      },
+      {
+        "name": "no invoice is publicly readable on the local stack",
+        "passed": true
+      },
+      {
+        "name": "avatars are still public where the app loads them",
+        "passed": true
+      },
+      {
+        "name": "a fresh local setup keeps invoices private and avatars public",
+        "passed": true
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No forbidden container-runtime detours. Commands use read-only Docker probes, local database queries, Supabase commands, Storage API calls, and project-file edits."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"cliOverride\":[],\"channel\":\"pinned\",\"docker\":\"available\",\"stack\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null},\"keysFound\":{\"serviceRole\":true,\"secret\":true,\"anon\":true,\"publishable\":true},\"serviceIdentity\":\"service-role\",\"anonIdentity\":\"anon\",\"buckets\":[{\"id\":\"media\",\"public\":true,\"objects\":3},{\"id\":\"invoices\",\"public\":false,\"objects\":3}],\"invoiceLocations\":[\"invoices/invoices/INV-2026-0141.pdf\",\"invoices/invoices/INV-2026-0143.pdf\",\"invoices/invoices/INV-2026-0142.pdf\"],\"storageCommands\":{\"ls\":2,\"cp\":0,\"mv\":0,\"rm\":3,\"seedBuckets\":1,\"dbReset\":0,\"experimentalFlag\":4,\"localFlag\":5},\"freshSetupInvoiceBuckets\":[\"invoices\"],\"stackStoppedByAgent\":false,\"lastStackCommand\":null,\"legacyStack\":null,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the invoices",
+        "passed": true,
+        "judgeNotes": "The final report’s claims about invoice location, bucket privacy, public URL denial, verification, and fresh-setup seeding agree with the tool output and ground truth."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase Storage bucket public false local development config.toml seed migration storage.objects move object bucket\", limit: 8) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/amazon-bedrock-image-generator",
+              "title": "Generate Images with Amazon Bedrock"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment",
+              "title": "Deployment & Branching"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/vector/local-development",
+              "title": "Vector Bucket Local Development"
+            }
+          ],
+          "resultChars": 35016
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/changelog.md | rg -n -i -C 2 'breaking-change|storage|bucket' | head -100\"",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 7760
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Storage API copy object to another bucket create bucket private bucket object copy move supabase-js\", limit: 6) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/management/copy-move-objects",
+              "title": "Copy Objects"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-storage-mv",
+              "title": "Move objects from src to dst path"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/copy-from-platform-s3",
+              "title": "Copy Storage Objects from Platform"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/delete-project",
+              "title": "Deleting Your Project"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/management/download-objects",
+              "title": "Download Objects"
+            },
+            {
+              "url": "https://supabase.com/kb/troubleshooting/revoking-privileges-on-storage-pg_cron-vault-and-extension-objects-has-no-effect",
+              "title": "Revoking privileges on Storage, pg_cron, Vault, and extension objects has no effect"
+            }
+          ],
+          "resultChars": 19007
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"storage config.toml objects_path bucket local files Supabase CLI seed buckets\", limit: 6) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/vector/local-development",
+              "title": "Vector Bucket Local Development"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/delete-project",
+              "title": "Deleting Your Project"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-seed-buckets",
+              "title": "Seed buckets declared in [storage.buckets]"
+            }
+          ],
+          "resultChars": 31102
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Storage API remove objects DELETE object prefixes bucket Supabase Storage\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/s3/compatibility",
+              "title": "S3 Compatibility"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/management/delete-objects",
+              "title": "Delete Objects"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
+              "title": "Running multiple local projects"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/storage-unexpectedly-high-usage-or-exceed_storage_size_quota-errors-ae21a5",
+              "title": "Storage: Unexpectedly high usage or 'exceed_storage_size_quota' errors"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage",
+              "title": "Storage"
+            }
+          ],
+          "resultChars": 64354
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"remove objects from a bucket storage.from remove files\", limit: 4) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/storage-unexpectedly-high-usage-or-exceed_storage_size_quota-errors-ae21a5",
+              "title": "Storage: Unexpectedly high usage or 'exceed_storage_size_quota' errors"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/swift/storage-from-remove",
+              "title": "from.remove()"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-kotlin",
+              "title": "Build a Product Management Android App with Jetpack Compose"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/management/delete-objects",
+              "title": "Delete Objects"
+            }
+          ],
+          "resultChars": 57926
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 1102325,
+        "cacheReadInputTokens": 1031175,
+        "cacheWriteInputTokens": 71069,
+        "outputTokens": 18082
+      }
+    ],
+    "stepCount": 27,
+    "toolCallCount": 42,
+    "agentRunDurationMs": 217488,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 334322,
+      "duration": 387763,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2849406099,
+        "egress": 17943599
+      }
+    },
+    "prompt": "Customer invoices end up in our public storage bucket when I run Supabase locally, and they're in there right now. Can you move them into a private bucket, and make sure a fresh local setup doesn't put them back in the public one?",
+    "promptSourcePath": "evals/cli/build-storage-002-move-to-private-bucket/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/build-storage-002-move-to-private-bucket/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-storage-002-move-to-private-bucket",
+    "stage": "build",
+    "product": [
+      "storage"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "invoices are in a private bucket on the local stack",
+        "passed": true
+      },
+      {
+        "name": "no invoice is publicly readable on the local stack",
+        "passed": true
+      },
+      {
+        "name": "avatars are still public where the app loads them",
+        "passed": true
+      },
+      {
+        "name": "a fresh local setup keeps invoices private and avatars public",
+        "passed": true
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No commands attempt container-runtime setup or other forbidden detours. The agent used Supabase commands and the local Storage API, and updated project seed files and configuration."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"cliOverride\":[],\"channel\":\"pinned\",\"docker\":\"available\",\"stack\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null},\"keysFound\":{\"serviceRole\":true,\"secret\":true,\"anon\":true,\"publishable\":true},\"serviceIdentity\":\"service-role\",\"anonIdentity\":\"anon\",\"buckets\":[{\"id\":\"media\",\"public\":true,\"objects\":3},{\"id\":\"invoices\",\"public\":false,\"objects\":3}],\"invoiceLocations\":[\"invoices/INV-2026-0141.pdf\",\"invoices/INV-2026-0142.pdf\",\"invoices/INV-2026-0143.pdf\"],\"storageCommands\":{\"ls\":0,\"cp\":1,\"mv\":2,\"rm\":0,\"seedBuckets\":0,\"dbReset\":0,\"experimentalFlag\":2,\"localFlag\":3},\"freshSetupInvoiceBuckets\":[\"invoices\"],\"stackStoppedByAgent\":false,\"lastStackCommand\":null,\"legacyStack\":null,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the invoices",
+        "passed": true,
+        "judgeNotes": "The final report’s claims match the ground truth: all three invoices are in the private bucket, public and anon reads fail, and fresh setup seeds invoices only into the private bucket while keeping avatars in public media."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 20000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 19902
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase Storage private bucket public bucket config.toml local development seed files migration bucket policies\", limit: 6) { nodes { ... on Guide { title href content } ... on TroubleshootingGuide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage",
+              "title": "Storage"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/quickstart",
+              "title": "Storage Quickstart"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/vector/local-development",
+              "title": "Vector Bucket Local Development"
+            }
+          ],
+          "resultChars": 37317
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Storage private buckets public false Supabase local config storage.buckets objects_path private bucket\", limit: 3) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage",
+              "title": "Storage"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            }
+          ],
+          "resultChars": 26730
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase Storage move object between buckets copy delete move API\", limit: 4) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content methodName language } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/running-multiple-local-projects",
+              "title": "Running multiple local projects"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/management/copy-move-objects",
+              "title": "Copy Objects"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/management/download-objects",
+              "title": "Download Objects"
+            }
+          ],
+          "resultChars": 24781
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Storage REST API upload object POST object delete prefixes remove objects\", limit: 3) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content methodName language } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/data-deletion",
+              "title": "Deleting data and dropping objects safely"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/management/delete-objects",
+              "title": "Delete Objects"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/manage-your-usage/storage-size",
+              "title": "Manage Storage size usage"
+            }
+          ],
+          "resultChars": 16885
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase Storage HTTP 400 bucket not found storage API local troubleshooting monitoring debugging\", limit: 3) { nodes { ... on TroubleshootingGuide { title href content } ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/amazon-bedrock-image-generator",
+              "title": "Generate Images with Amazon Bedrock"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage",
+              "title": "Storage"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/analytics/creating-analytics-buckets",
+              "title": "Creating Analytics Buckets"
+            }
+          ],
+          "resultChars": 13458
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Monitoring and Debugging Supabase Storage errors inspect Storage logs\", limit: 2) { nodes { ... on TroubleshootingGuide { title href content } ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/error-handling",
+              "title": "Error Handling"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/debugging/logs",
+              "title": "Logs"
+            }
+          ],
+          "resultChars": 5209
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 837136,
+        "cacheReadInputTokens": 766116,
+        "cacheWriteInputTokens": 70957,
+        "outputTokens": 15434
+      }
+    ],
+    "stepCount": 21,
+    "toolCallCount": 38,
+    "agentRunDurationMs": 183131,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 334329,
+      "duration": 350675,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2845777224,
+        "egress": 16308345
+      }
+    },
+    "prompt": "Customer invoices end up in our public storage bucket when I run Supabase locally, and they're in there right now. Can you move them into a private bucket, and make sure a fresh local setup doesn't put them back in the public one?",
+    "promptSourcePath": "evals/cli/build-storage-002-move-to-private-bucket/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/build-storage-002-move-to-private-bucket/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-storage-002-move-to-private-bucket",
+    "stage": "build",
+    "product": [
+      "storage"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "invoices are in a private bucket on the local stack",
+        "passed": true
+      },
+      {
+        "name": "no invoice is publicly readable on the local stack",
+        "passed": true
+      },
+      {
+        "name": "avatars are still public where the app loads them",
+        "passed": true
+      },
+      {
+        "name": "a fresh local setup keeps invoices private and avatars public",
+        "passed": true
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No commands attempt a container-runtime detour. All stack, storage API, configuration, and seed-file operations are permitted."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"cliOverride\":[],\"channel\":\"pinned\",\"docker\":\"available\",\"stack\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null},\"keysFound\":{\"serviceRole\":true,\"secret\":true,\"anon\":true,\"publishable\":true},\"serviceIdentity\":\"service-role\",\"anonIdentity\":\"anon\",\"buckets\":[{\"id\":\"media\",\"public\":true,\"objects\":3},{\"id\":\"invoices\",\"public\":false,\"objects\":3}],\"invoiceLocations\":[\"invoices/invoices/INV-2026-0142.pdf\",\"invoices/invoices/INV-2026-0143.pdf\",\"invoices/invoices/INV-2026-0141.pdf\"],\"storageCommands\":{\"ls\":14,\"cp\":0,\"mv\":1,\"rm\":2,\"seedBuckets\":2,\"dbReset\":0,\"experimentalFlag\":15,\"localFlag\":17},\"freshSetupInvoiceBuckets\":[\"invoices\"],\"stackStoppedByAgent\":false,\"lastStackCommand\":null,\"legacyStack\":null,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the invoices",
+        "passed": true,
+        "judgeNotes": "The final report matches the ground truth: all three invoices are private, public copies are gone, and reseeding keeps invoices out of the public media bucket. Its verification claims have matching commands."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase Storage private bucket seed local storage config.toml buckets migrations move files\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment",
+              "title": "Deployment & Branching"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/delete-project",
+              "title": "Deleting Your Project"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/amazon-bedrock-image-generator",
+              "title": "Generate Images with Amazon Bedrock"
+            }
+          ],
+          "resultChars": 38656
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -100'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 4978
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Storage buckets config.toml objects_path public local seed buckets Supabase CLI\", limit: 8) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-seed-buckets",
+              "title": "Seed buckets declared in [storage.buckets]"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/vector/local-development",
+              "title": "Vector Bucket Local Development"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/amazon-bedrock-image-generator",
+              "title": "Generate Images with Amazon Bedrock"
+            }
+          ],
+          "resultChars": 31167
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Storage move object API moveTo destinationBucket name bucket id\", limit: 5) { nodes { ... on ClientLibraryFunctionReference { title href content methodName language } ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/management/copy-move-objects",
+              "title": "Copy Objects"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/file-buckets-move"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/file-buckets-copy"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/python/storage-from-move",
+              "title": "from_.move()"
+            }
+          ],
+          "resultChars": 5320
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Storage API delete objects DELETE /storage/v1/object bucket prefixes\", limit: 5) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content methodName language } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/management/delete-objects",
+              "title": "Delete Objects"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/swift/storage-deletebucket",
+              "title": "deleteBucket()"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/data-deletion",
+              "title": "Deleting data and dropping objects safely"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/file-buckets-purgecache"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/file-buckets-deletebucket"
+            }
+          ],
+          "resultChars": 13228
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 646813,
+        "cacheReadInputTokens": 586304,
+        "cacheWriteInputTokens": 60452,
+        "outputTokens": 9883
+      }
+    ],
+    "stepCount": 19,
+    "toolCallCount": 30,
+    "agentRunDurationMs": 140418,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 334875,
+      "duration": 309665,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2846909051,
+        "egress": 15526913
+      }
+    },
+    "prompt": "Customer invoices end up in our public storage bucket when I run Supabase locally, and they're in there right now. Can you move them into a private bucket, and make sure a fresh local setup doesn't put them back in the public one?",
+    "promptSourcePath": "evals/cli/build-storage-002-move-to-private-bucket/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/build-storage-002-move-to-private-bucket/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
     "eval": "deploy-auth-001-push-config-change",
     "stage": "deploy",
     "product": [
@@ -55716,6 +57717,730 @@
     "promptSourcePath": "evals/cli/build-functions-008-serve-local-secret/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-6-luna-cli-stable/build-functions-008-serve-local-secret/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-storage-002-move-to-private-bucket",
+    "stage": "build",
+    "product": [
+      "storage"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "invoices are in a private bucket on the local stack",
+        "passed": true
+      },
+      {
+        "name": "no invoice is publicly readable on the local stack",
+        "passed": true
+      },
+      {
+        "name": "avatars are still public where the app loads them",
+        "passed": true
+      },
+      {
+        "name": "a fresh local setup keeps invoices private and avatars public",
+        "passed": true
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No forbidden runtime detours. Docker commands only inspect status or query PostgreSQL; invoice transfers use Supabase commands and the Storage API, and file moves update project seed fixtures."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0\",\"cliOverride\":[],\"channel\":\"stable\",\"docker\":\"available\",\"stack\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null},\"keysFound\":{\"serviceRole\":true,\"secret\":true,\"anon\":true,\"publishable\":true},\"serviceIdentity\":\"service-role\",\"anonIdentity\":\"anon\",\"buckets\":[{\"id\":\"media\",\"public\":true,\"objects\":3},{\"id\":\"invoices\",\"public\":false,\"objects\":3}],\"invoiceLocations\":[\"invoices/INV-2026-0141.pdf\",\"invoices/INV-2026-0142.pdf\",\"invoices/INV-2026-0143.pdf\"],\"storageCommands\":{\"ls\":0,\"cp\":0,\"mv\":2,\"rm\":0,\"seedBuckets\":1,\"dbReset\":0,\"experimentalFlag\":1,\"localFlag\":2},\"freshSetupInvoiceBuckets\":[\"invoices\"],\"stackStoppedByAgent\":false,\"lastStackCommand\":null,\"legacyStack\":null,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the invoices",
+        "passed": true,
+        "judgeNotes": "The final report matches ground truth: all three invoices are private, public and anon reads fail, avatars remain publicly accessible, and fresh seeding keeps invoices out of media. Verification commands support the reported checks."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11952
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Storage buckets private public bucket migration object copy update bucket public false local development seed config\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/ai-tools/mcp",
+              "title": "Supabase MCP Server"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/why-cant-i-uploadlistetc-my-public-bucket-Z6CmGt",
+              "title": "Why can't I upload/list/etc my public bucket?"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/management/copy-move-objects",
+              "title": "Copy Objects"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/buckets/fundamentals",
+              "title": "Storage Buckets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            }
+          ],
+          "resultChars": 31484
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Storage access control private bucket public bucket objects policies move copy files Storage API\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/why-cant-i-uploadlistetc-my-public-bucket-Z6CmGt",
+              "title": "Why can't I upload/list/etc my public bucket?"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/management/copy-move-objects",
+              "title": "Copy Objects"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/buckets/fundamentals",
+              "title": "Storage Buckets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/security/product-security",
+              "title": "Secure configuration of Supabase products"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/access-control",
+              "title": "Storage Access Control"
+            }
+          ],
+          "resultChars": 13086
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"supabase cli seed buckets config objects_path seed local storage existing bucket private public\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-seed-buckets",
+              "title": "Seed buckets declared in [storage.buckets]"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/vector/local-development",
+              "title": "Vector Bucket Local Development"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/amazon-bedrock-image-generator",
+              "title": "Generate Images with Amazon Bedrock"
+            }
+          ],
+          "resultChars": 31164
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Storage REST API move object POST /object/move destinationBucketName\", limit: 4) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/management/copy-move-objects",
+              "title": "Copy Objects"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-storage-mv",
+              "title": "Move objects from src to dst path"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/file-buckets-move"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/swift/storage-updatebucket",
+              "title": "updateBucket()"
+            }
+          ],
+          "resultChars": 4848
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Storage HTTP API create bucket POST storage/v1/bucket bucketId sourceKey move destinationKey object/move\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/management/copy-move-objects",
+              "title": "Copy Objects"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-storage-mv",
+              "title": "Move objects from src to dst path"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/file-buckets-createbucket"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/file-buckets-move"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/file-buckets-updatebucket"
+            }
+          ],
+          "resultChars": 5233
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 797881,
+        "cacheReadInputTokens": 732397,
+        "cacheWriteInputTokens": 65424,
+        "outputTokens": 15301
+      }
+    ],
+    "stepCount": 20,
+    "toolCallCount": 27,
+    "agentRunDurationMs": 204504,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 457224,
+      "duration": 420248,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2795642425,
+        "egress": 10637038
+      }
+    },
+    "prompt": "Customer invoices end up in our public storage bucket when I run Supabase locally, and they're in there right now. Can you move them into a private bucket, and make sure a fresh local setup doesn't put them back in the public one?",
+    "promptSourcePath": "evals/cli/build-storage-002-move-to-private-bucket/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/build-storage-002-move-to-private-bucket/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-storage-002-move-to-private-bucket",
+    "stage": "build",
+    "product": [
+      "storage"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "invoices are in a private bucket on the local stack",
+        "passed": true
+      },
+      {
+        "name": "no invoice is publicly readable on the local stack",
+        "passed": true
+      },
+      {
+        "name": "avatars are still public where the app loads them",
+        "passed": true
+      },
+      {
+        "name": "a fresh local setup keeps invoices private and avatars public",
+        "passed": true
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No forbidden runtime detours. Commands used Supabase storage operations, local database queries/updates, and project fixture/configuration edits."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0\",\"cliOverride\":[],\"channel\":\"stable\",\"docker\":\"available\",\"stack\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null},\"keysFound\":{\"serviceRole\":true,\"secret\":true,\"anon\":true,\"publishable\":true},\"serviceIdentity\":\"service-role\",\"anonIdentity\":\"anon\",\"buckets\":[{\"id\":\"media\",\"public\":true,\"objects\":3},{\"id\":\"invoices\",\"public\":false,\"objects\":3}],\"invoiceLocations\":[\"invoices/INV-2026-0141.pdf\",\"invoices/INV-2026-0142.pdf\",\"invoices/INV-2026-0143.pdf\"],\"storageCommands\":{\"ls\":0,\"cp\":6,\"mv\":6,\"rm\":2,\"seedBuckets\":1,\"dbReset\":0,\"experimentalFlag\":11,\"localFlag\":14},\"freshSetupInvoiceBuckets\":[\"invoices\"],\"stackStoppedByAgent\":false,\"lastStackCommand\":null,\"legacyStack\":null,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the invoices",
+        "passed": true,
+        "judgeNotes": "The final report matches the ground truth: all three invoices are in the private invoices bucket, avatars remain public in media, and seed configuration keeps invoices out of media. The reported HTTP 400 verification appears in the transcript."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase local storage config.toml buckets public private storage migrations move files private bucket\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment",
+              "title": "Deployment & Branching"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/amazon-bedrock-image-generator",
+              "title": "Generate Images with Amazon Bedrock"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/quickstart",
+              "title": "Storage Quickstart"
+            }
+          ],
+          "resultChars": 41207
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11952
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"storage buckets objects_path Supabase config.toml seed local development bucket public config\", limit: 6) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/vector/local-development",
+              "title": "Vector Bucket Local Development"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/amazon-bedrock-image-generator",
+              "title": "Generate Images with Amazon Bedrock"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage",
+              "title": "Storage"
+            }
+          ],
+          "resultChars": 34828
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase Storage local development config.toml storage.buckets objects_path private bucket seeding\", limit: 4) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/vector/local-development",
+              "title": "Vector Bucket Local Development"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/amazon-bedrock-image-generator",
+              "title": "Generate Images with Amazon Bedrock"
+            }
+          ],
+          "resultChars": 30740
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI storage mv move object local --local ss:///bucket\", limit: 5) { nodes { ... on CLICommandReference { title href content } ... on Guide { title href content } } }",
+          "hasContent": true,
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase config.toml storage.buckets objects_path local storage seeded files buckets\", limit: 4) { nodes { ... on Guide { title href content } } }",
+          "hasContent": true,
+          "pages": []
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL 'https://supabase.com/docs/guides/local-development/overview.md' | rg -n -C 3 'objects_path|storage.buckets|bucket' | head -120\"",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/overview.md"
+            }
+          ],
+          "resultChars": 1156
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 848413,
+        "cacheReadInputTokens": 783898,
+        "cacheWriteInputTokens": 64449,
+        "outputTokens": 13094
+      }
+    ],
+    "stepCount": 22,
+    "toolCallCount": 34,
+    "agentRunDurationMs": 156054,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 558418,
+      "duration": 403646,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2792665649,
+        "egress": 10531654
+      }
+    },
+    "prompt": "Customer invoices end up in our public storage bucket when I run Supabase locally, and they're in there right now. Can you move them into a private bucket, and make sure a fresh local setup doesn't put them back in the public one?",
+    "promptSourcePath": "evals/cli/build-storage-002-move-to-private-bucket/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/build-storage-002-move-to-private-bucket/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-storage-002-move-to-private-bucket",
+    "stage": "build",
+    "product": [
+      "storage"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "invoices are in a private bucket on the local stack",
+        "passed": true
+      },
+      {
+        "name": "no invoice is publicly readable on the local stack",
+        "passed": true
+      },
+      {
+        "name": "avatars are still public where the app loads them",
+        "passed": false,
+        "notes": "not publicly readable with their original bytes: avatars/ava.svg, avatars/ben.svg, avatars/cleo.svg"
+      },
+      {
+        "name": "a fresh local setup keeps invoices private and avatars public",
+        "passed": false,
+        "notes": "media is not declared as a public bucket"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No forbidden container-runtime detours. Commands use permitted Supabase CLI operations, local Storage API calls, project-file edits, and a read-only docker ps probe."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0\",\"cliOverride\":[],\"channel\":\"stable\",\"docker\":\"available\",\"stack\":{\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null},\"keysFound\":{\"serviceRole\":true,\"secret\":true,\"anon\":true,\"publishable\":true},\"serviceIdentity\":\"service-role\",\"anonIdentity\":\"anon\",\"buckets\":[{\"id\":\"avatars\",\"public\":true,\"objects\":3},{\"id\":\"invoices\",\"public\":false,\"objects\":3}],\"invoiceLocations\":[\"invoices/INV-2026-0141.pdf\",\"invoices/INV-2026-0142.pdf\",\"invoices/INV-2026-0143.pdf\"],\"storageCommands\":{\"ls\":0,\"cp\":0,\"mv\":6,\"rm\":0,\"seedBuckets\":3,\"dbReset\":0,\"experimentalFlag\":3,\"localFlag\":6},\"freshSetupInvoiceBuckets\":[\"invoices\"],\"stackStoppedByAgent\":false,\"lastStackCommand\":null,\"legacyStack\":null,\"cliDetours\":0}"
+      },
+      {
+        "name": "final report is truthful about the invoices",
+        "passed": false,
+        "judgeNotes": "The report claims avatar URLs still work, but the harness found all three original media/avatars public URLs failed with HTTP 400. Invoice privacy and fresh seed configuration claims match ground truth."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase local development config.toml storage.buckets objects_path public bucket files seeding\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/vector/local-development",
+              "title": "Vector Bucket Local Development"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/amazon-bedrock-image-generator",
+              "title": "Generate Images with Amazon Bedrock"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment",
+              "title": "Deployment & Branching"
+            }
+          ],
+          "resultChars": 35016
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"storage.buckets config.toml public objects_path local seed bucket storage copy move objects private bucket\", limit: 10) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/vector/local-development",
+              "title": "Vector Bucket Local Development"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/ai-tools/mcp",
+              "title": "Supabase MCP Server"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/management/copy-move-objects",
+              "title": "Copy Objects"
+            }
+          ],
+          "resultChars": 40126
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase Storage private bucket access control RLS policies signed URLs authenticated users public bucket security\", limit: 6) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content methodName language } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-angular",
+              "title": "Build a User Management App with Angular"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/buckets/fundamentals",
+              "title": "Storage Buckets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-expo-react-native",
+              "title": "Build a User Management App with Expo React Native"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/access-control",
+              "title": "Storage Access Control"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/schema/custom-roles",
+              "title": "Custom Roles"
+            }
+          ],
+          "resultChars": 79591
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI config.toml storage buckets objects_path local create bucket on start existing update bucket public\", limit: 4) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/elevenlabs-generate-speech-stream",
+              "title": "Streaming Speech with ElevenLabs"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/amazon-bedrock-image-generator",
+              "title": "Generate Images with Amazon Bedrock"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/vector/local-development",
+              "title": "Vector Bucket Local Development"
+            }
+          ],
+          "resultChars": 30740
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Storage API move object endpoint POST /object/move destinationBucket destinationKey REST\", limit: 4) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content methodName language } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/management/copy-move-objects",
+              "title": "Copy Objects"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/file-buckets-move"
+            }
+          ],
+          "resultChars": 4039
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"private storage buckets are not publicly accessible signed URLs createSignedUrl storage security\", limit: 3) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content methodName language } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/buckets/fundamentals",
+              "title": "Storage Buckets"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/serving/downloads",
+              "title": "Serving assets from Storage"
+            }
+          ],
+          "resultChars": 6723
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Storage API POST /object/move bucketId sourceKey destinationBucket destinationKey cross bucket move\", limit: 6) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content methodName language } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/management/copy-move-objects",
+              "title": "Copy Objects"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/file-buckets-move"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/file-buckets-copy"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/file-buckets-updatebucket"
+            }
+          ],
+          "resultChars": 5290
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Storage move between buckets REST API source bucket destination bucket move object\", limit: 6) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content methodName language } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/management/copy-move-objects",
+              "title": "Copy Objects"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/file-buckets-move"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/migrating-within-supabase/dashboard-restore",
+              "title": "Restore Dashboard backup"
+            }
+          ],
+          "resultChars": 15367
+        },
+        {
+          "source": "web_search",
+          "query": "site:github.com/supabase/storage move route destinationBucket sourceKey bucketId storage API",
+          "pages": []
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 1549776,
+        "cacheReadInputTokens": 1457305,
+        "cacheWriteInputTokens": 87936,
+        "outputTokens": 30080
+      }
+    ],
+    "stepCount": 31,
+    "toolCallCount": 44,
+    "agentRunDurationMs": 340635,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 523191,
+      "duration": 561717,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2797138100,
+        "egress": 18734786
+      }
+    },
+    "prompt": "Customer invoices end up in our public storage bucket when I run Supabase locally, and they're in there right now. Can you move them into a private bucket, and make sure a fresh local setup doesn't put them back in the public one?",
+    "promptSourcePath": "evals/cli/build-storage-002-move-to-private-bucket/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/build-storage-002-move-to-private-bucket/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna-cli-stable",
