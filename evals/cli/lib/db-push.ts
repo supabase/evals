@@ -29,6 +29,10 @@ export const PUSH_CHECK_NAME = 'the agent pushed with supabase db push';
 
 const UP_TO_DATE_RE = /\bis up to date\b|"upToDate"\s*:\s*true/i;
 
+// next wraps `supabase db push` in ANSI colour codes in text mode.
+const PUSH_SUCCESS_RE =
+  /Finished (?:\x1b\[[\d;]*m)*supabase db push(?:\x1b\[[\d;]*m)*\./;
+
 function pushedNothing(call: ToolCallRecord | undefined): boolean {
   return typeof call?.result === 'string' && UP_TO_DATE_RE.test(call.result);
 }
@@ -46,8 +50,10 @@ export function readDbPushes(
     }
     const call = calls[inv.commandIndex];
     const command = entries[inv.commandIndex]?.command ?? '';
-    const failed = toolCallFailed(call);
-    const failure = failed ? toolCallFailureLine(call) : undefined;
+    const failed = toolCallFailed(call, undefined, PUSH_SUCCESS_RE);
+    const failure = failed
+      ? toolCallFailureLine(call, undefined, PUSH_SUCCESS_RE)
+      : undefined;
     pushes.push({
       order,
       dryRun: booleanFlag(inv.argv, '--dry-run'),

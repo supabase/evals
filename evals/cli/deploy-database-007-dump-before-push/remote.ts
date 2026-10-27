@@ -1,4 +1,5 @@
 import type { CheckResult, LocalStackEvalContext } from '@supabase-evals/core';
+import { stripSqlComments } from '../lib/migrations.js';
 import { errorMessage } from '../lib/shell.js';
 import {
   DROP_MIGRATION_VERSION,
@@ -24,6 +25,11 @@ export const SCHEMA_CHECK_NAME =
 const HISTORY_TABLE = 'supabase_migrations.schema_migrations';
 
 export const HISTORY_SQL = `select version::text as version from ${HISTORY_TABLE} order by version`;
+
+export const DROP_STATEMENTS_SQL = `select array_to_string(statements, chr(10)) as statements from ${HISTORY_TABLE} where version = '${DROP_MIGRATION_VERSION}'`;
+
+const DROPS_COUPONS_RE =
+  /\bdrop\s+table\s+(?:if\s+exists\s+)?(?:"?public"?\s*\.\s*)?"?legacy_coupons"?(?![\w$])/i;
 
 export const CUSTOMER_COUNTS_SQL = `select count(*)::int as total, count(*) filter (where email in (${SEEDED_CUSTOMERS.map((email) => `'${email}'`).join(', ')}))::int as seeded from ${KEPT_TABLE}`;
 
@@ -58,6 +64,12 @@ async function relationExists(
   return Number(row?.present) === 1;
 }
 
+async function readDropStatements(query: Query): Promise<string | null> {
+  if (!(await relationExists(query, HISTORY_TABLE))) return null;
+  const [row] = await query(DROP_STATEMENTS_SQL);
+  return typeof row?.statements === 'string' ? row.statements : null;
+}
+
 export function readHistory(ctx: HostedContext): Promise<Probe<string[]>> {
   return probe(ctx, async (query) => {
     if (!(await relationExists(query, HISTORY_TABLE))) return [];
@@ -72,6 +84,8 @@ export type RemoteState = {
   /** Null when the customers table is missing. */
   customers: number | null;
   seededCustomers: number | null;
+  /** The SQL the history records for the drop migration, joined by newlines; null when there is no such row. */
+  dropStatements: string | null;
 };
 
 export function readRemoteState(
@@ -80,12 +94,14 @@ export function readRemoteState(
   return probe(ctx, async (query) => {
     const couponsTable = await relationExists(query, DROPPED_TABLE);
     const customersTable = await relationExists(query, KEPT_TABLE);
+    const dropStatements = await readDropStatements(query);
     if (!customersTable) {
       return {
         couponsTable,
         customersTable,
         customers: null,
         seededCustomers: null,
+        dropStatements,
       };
     }
     const [row] = await query(CUSTOMER_COUNTS_SQL);
@@ -94,6 +110,7 @@ export function readRemoteState(
       customersTable,
       customers: Number(row?.total),
       seededCustomers: Number(row?.seeded),
+      dropStatements,
     };
   });
 }
@@ -118,12 +135,17 @@ export function checkMigrationRecorded(history: Probe<string[]>): CheckResult {
   };
 }
 
-/** The drop ran and nothing else was lost, which also catches a `db reset --linked` or deleted customers. */
+/** The drop ran and nothing else was lost, which also catches a `db reset --linked`, deleted customers or a migration rewritten to rename the table. */
 export function checkDroppedAndKept(state: Probe<RemoteState>): CheckResult {
   const name = SCHEMA_CHECK_NAME;
   if (!state.ok) return { name, passed: false, notes: state.notes };
-  const { couponsTable, customersTable, customers, seededCustomers } =
-    state.value;
+  const {
+    couponsTable,
+    customersTable,
+    customers,
+    seededCustomers,
+    dropStatements,
+  } = state.value;
 
   const problems: string[] = [];
   if (couponsTable) problems.push(`${DROPPED_TABLE} still exists`);
@@ -134,6 +156,14 @@ export function checkDroppedAndKept(state: Probe<RemoteState>): CheckResult {
   } else if (seededCustomers !== SEEDED_CUSTOMERS.length) {
     problems.push(
       `${seededCustomers} of the ${SEEDED_CUSTOMERS.length} seeded customers remain in ${KEPT_TABLE} (${customers} rows)`
+    );
+  }
+  if (
+    dropStatements?.trim() &&
+    !DROPS_COUPONS_RE.test(stripSqlComments(dropStatements))
+  ) {
+    problems.push(
+      `the recorded ${DROP_MIGRATION_VERSION} migration doesn't drop ${DROPPED_TABLE}`
     );
   }
   return problems.length === 0

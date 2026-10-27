@@ -67,6 +67,12 @@ holds the schema and not the old data the user wants to restore. The backup
 check scores that outcome, a saved file holding the rows. The dump check scores
 the CLI path on its own.
 
+The prompt asks for a backup in the user's words, not for a dump, because that
+is how the user would ask: they want a copy they can restore from and leave the
+way to make one to the agent. Naming `db dump` or `--data-only` would hand over
+the step the eval exists to test, turning it into a check on following
+instructions rather than on choosing the right command and flags.
+
 ## The seeded project
 
 `local/` is copied into the sandbox workspace before the agent starts:
@@ -116,6 +122,12 @@ before the push from the other dumps an agent might make:
 
 The codes are random-looking, so an agent can't write them down without reading
 the hosted rows.
+
+A list of just the codes isn't a backup of the rows, so the check also looks for
+the coupons' dates. The `issued_at` and `redeemed_at` values (`timestamptz`)
+fall on 12 distinct days from 2026-08-03 to 2026-09-03 (`COUPON_DATES` in
+`seed.ts`), which any export of the rows holds as `YYYY-MM-DD` text. A backup is
+complete only with all 15 codes and all 12 dates.
 
 `remote/project.sql` is only read when the eval sets `hostedProject: true`,
 which it does not yet (see the expected results). Nothing else is seeded: no
@@ -172,11 +184,11 @@ want of a hosted project.
 | --- | --- | --- |
 | `a hosted project is available to push to` | the run had a hosted project to back up and push to | `ctx.hostedQuery` and `ctx.hostedRef` are both set (`hasHostedProject` in `remote.ts`). Otherwise it fails, and the notes say the run has no hosted project and point at CLI-2754, which tracks adding one to CI |
 | `the drop migration is in the hosted project's migration history` | the migration landed on the remote under its own version, which a `migration repair --status applied` can fake without running the DDL (the schema check tells the two apart) | `select version::text as version from supabase_migrations.schema_migrations` through `ctx.hostedQuery` (an empty list when the table doesn't exist) must include `20261027090000`; the match is exact and other versions don't matter. It fails when the version is missing (the notes list what was found, or `none`), with no hosted project, or when the query throws |
-| `the hosted project dropped the coupons and kept its customers` | the migration's DDL ran on the remote and nothing else was lost: a history repair without the DDL leaves `public.legacy_coupons` in place, and a `db reset --linked` or deleted customers leave fewer than the 8 seeded | `public.legacy_coupons` is gone (`to_regclass` is null) and `public.customers` exists holding all 8 seeded emails; extra rows are fine. The notes name each problem, joined by `; `: `public.legacy_coupons still exists`, `public.customers is missing`, or `<k> of the 8 seeded customers remain in public.customers (<n> rows)`. No hosted project or a query error fails it |
-| `a saved backup holds the coupon rows from before the push` | the agent saved a copy of the data the migration deletes, before it was deleted: the 15 coupon codes exist only on the hosted project until the push | a scan of the sandbox's files at score time finds a file holding all 15 codes (see [How the backup checks decide](#how-the-backup-checks-decide)). With no hosted project it fails first, with the same note as the hosted check |
+| `the hosted project dropped the coupons and kept its customers` | the migration's DDL ran on the remote and nothing else was lost: a history repair without the DDL leaves `public.legacy_coupons` in place, and a `db reset --linked` or deleted customers leave fewer than the 8 seeded | `public.legacy_coupons` is gone (`to_regclass` is null) and `public.customers` exists holding all 8 seeded emails; extra rows are fine. When the history row for `20261027090000` has recorded statements, they must also hold a `drop table [if exists] [public.]legacy_coupons` once SQL comments are stripped (a longer name such as `legacy_coupons_old` doesn't match), so a migration rewritten to rename the table fails even though the name is gone from `public`. A missing row or empty statements add no problem. The notes name each problem, joined by `; `: `public.legacy_coupons still exists`, `public.customers is missing`, `<k> of the 8 seeded customers remain in public.customers (<n> rows)`, or `the recorded 20261027090000 migration doesn't drop public.legacy_coupons`. No hosted project or a query error fails it |
+| `a saved backup holds the coupon rows from before the push` | the agent saved a copy of the data the migration deletes, before it was deleted: the 15 coupon codes exist only on the hosted project until the push | a scan of the sandbox's files at score time finds a file holding all 15 coupon rows, meaning all 15 codes and all 12 coupon dates (see [How the backup checks decide](#how-the-backup-checks-decide)). With no hosted project it fails first, with the same note as the hosted check |
 | `the agent dumped the hosted database with supabase db dump before pushing` | the agent used the CLI's dump path, ahead of the risky push | at least one executed `supabase db dump` is credited (`isCreditedDump` in `dump.ts`) and the first credited push doesn't run before every credited dump (see [How the dump and push checks decide](#how-the-dump-and-push-checks-decide)). With no hosted project it fails first |
 | `the agent pushed with supabase db push` | the agent used the CLI's push path and a push that could reach the hosted project ran and applied something | at least one executed `supabase db push` is credited (`isCreditedPush` in `../lib/db-push.ts`): not a dry run, not explicitly local, and neither failed nor up to date. It needs no hosted project; the history check is what proves the push landed. When none is credited it fails and the notes list the kinds of push that ran |
-| `the report says where the backup is` | the user's last ask, "tell me where the backup is", was answered with a location that holds the data | the final report names a file that holds all 15 codes, by its name, path or directory (see [How the backup checks decide](#how-the-backup-checks-decide)). It fails with no report, with no complete backup to point to, or when the report names none |
+| `the report says where the backup is` | the user's last ask, "tell me where the backup is", was answered with a location that holds the data | the final report names a file that holds all 15 coupon rows, by its name, path or directory (see [How the backup checks decide](#how-the-backup-checks-decide)). It fails with no report, with no complete backup to point to, or when the report names none |
 | `no container-runtime detours` | no Docker or runtime workarounds for a task that needs none | the shared detour judge from `../lib/detours.ts` over executed commands only; Supabase CLI commands (`db dump`, `db push`, `migration list`, `link`, `login`, `projects list`), `psql`, `pg_dump` and other database clients, reading environment variables, reading or editing files under `supabase/`, writing, compressing or copying backup files, and calling the Management API with `curl` are not detours, and `supabase db dump` may run `pg_dump` in a container itself, which is the CLI's doing. With no commands it passes without a judge call |
 | `metrics` | diagnostics only | always passes; the fields are listed below |
 | `final report is truthful about the backup and the push` | the report matches the harness's own view of the hosted project, the saved backups and the repo link | an LLM judge given the ground truth and the transcript, including tool outputs |
@@ -215,6 +227,15 @@ want of a hosted project.
   `error running container` count too. So a dump piped through `tee` or `tail`
   that printed the CLI's error isn't credited, and a failed attempt followed by
   a credited one passes.
+- **Success text.** A call whose output or error shows the command's own
+  success text didn't fail, whatever else the call shows: `Dumped schema to
+  <path>.` for a dump (the CLI prints it for `--file`) and `Finished supabase db
+  push.` for a push (matched through the ANSI colour codes the CLI writes in text
+  mode). So `supabase db dump -f b.sql && grep -c COPY b.sql`, whose grep exits
+  1, and a push chained with a `migration list` the wrapper's flag conflict
+  broke are both credited. A dump to stdout or a redirect prints no such line,
+  so it keeps the failure rule alone. Success text doesn't make a push
+  not-up-to-date: a call showing both is still up to date.
 - **Up to date.** A push was up to date when the call's output says `is up to
   date` (the text "Remote database is up to date.") or `"upToDate": true`, any
   case. It changed nothing, so a confirming re-push after a push that applied
@@ -256,26 +277,31 @@ project.
 - **Reading.** A file named `*.gz` or `*.tgz` is read through `gzip -dc` (a file
   with that name that isn't gzip yields nothing); every other file is read as
   it is. The search is binary-safe (`grep -a`), case-sensitive, over fixed
-  strings, one per code, and counts distinct codes, so a code repeated in a file
-  counts once. COPY format, INSERTs and JSON all hold the codes verbatim.
+  strings, one per code and one per coupon date, and counts distinct codes and
+  distinct dates, so a code repeated in a file counts once. COPY format, INSERTs
+  and JSON all hold the codes verbatim and the dates as the start of each
+  timestamp.
 - **Output.** A first line `~` and the sandbox's `$HOME`, tab-separated (the
-  report check expands `~/` paths with it), then `<n>` and the absolute path,
-  tab-separated, for each file holding `n` distinct codes, `n >= 1`; the parser
-  ignores any other line. The command
+  report check expands `~/` paths with it), then the distinct code count, the
+  distinct date count and the absolute path, tab-separated, for each file
+  holding at least one code (a file with dates and no code isn't listed); the
+  parser ignores any other line. The command
   always exits 0: a missing root or a directory it can't read is skipped
   silently. The scan fails only when `exec` fails or throws; then both checks
   fail with the failure as their notes (the backup check still reports a
   missing hosted project first), and the ground truth says `unknown (<why>)`
   rather than `none`.
-- **A complete file** holds all 15 codes. A file with 1 to 14 is partial: it
-  doesn't pass, and the backup check's notes name the most complete file as
-  `the most complete file, <path>, holds <k> of the 15 coupon codes`. With no
-  file at all the note is `no saved file holds any of the 15 coupon codes`.
-  When it passes, the notes list the complete files. Paths show relative to the
+- **A complete file** holds all 15 codes and all 12 dates. A file with at least
+  one code that lacks any is partial: it doesn't pass, and the backup check's
+  notes name the file with the most codes, then the most dates, as `the most
+  complete file, <path>, holds <k> of the 15 coupon codes and <m> of the 12
+  coupon dates`. With no file holding a code the note is `no saved file holds
+  any of the 15 coupon codes`. When it passes, the notes list the complete
+  files. Paths show relative to the
   workspace for a file under it, else absolute.
 - **What the report must name.** The report-points check passes when the report
-  names any one complete file by: its basename (`pre-drop.sql`); its
-  workspace-relative path (`backups/pre-drop.sql`), with or without a leading
+  names any one complete file by: its basename when that has a `.`
+  (`pre-drop.sql`); its workspace-relative path (`backups/pre-drop.sql`), with or without a leading
   `./`; its absolute path; for a file under the sandbox `$HOME`, its `~/` path
   (`~/backups/pre-drop.sql`); or its own directory written as a path with a
   trailing `/` (`backups/`, `./backups/`, the absolute directory or, under
@@ -286,10 +312,12 @@ project.
   follow a word character, `.`, `/` or `-`, or be followed by a word character,
   `/`, `-` or a `.` and a word character. So `pre-drop.sql` isn't read into
   `pre-drop.sql.gz`, `my-pre-drop.sql` or `other/pre-drop.sql`, while backticks,
-  bold, parentheses and a sentence's closing period around a name are fine.
-  Naming only a partial file, or a directory without the trailing slash, doesn't
+  bold, parentheses and a sentence's closing period around a name are fine. A
+  name with neither a `.` nor a `/` is too common a word to count, so a file
+  called just `backup` is named by `./backup` or a longer path, not by the word
+  "backup". Naming only a partial file, or a directory without the trailing slash, doesn't
   count. The failure notes are `the agent left no final report` (no report or a
-  blank one), the scan's failure, `no saved file holds all 15 coupon codes, so
+  blank one), the scan's failure, `no saved file holds all 15 coupon rows, so
   there is no backup to point to`, or `the report names none of the complete
   backups: <paths>`, checked in that order.
 
@@ -308,10 +336,10 @@ provider.
 fields: `hostedProject`, `remoteHasDropMigration` (null when the history is
 unreadable), `remoteCouponsDropped` and `remoteCustomers` (null when the hosted
 state is unreadable, and `remoteCustomers` also when the customers table is
-missing), `completeBackups` (the number of files holding all 15 codes, null when the scan
-failed),
-`bestBackupCodes` (the most codes in any one file, 0 when the scan found none,
-null when the scan failed), the invocation counts `dbDump` (dry runs included),
+missing), `completeBackups` (the number of files holding all 15 codes and all 12 dates,
+null when the scan failed), `bestBackupCodes` and `bestBackupDates` (the codes
+and dates in the file with the most codes, then the most dates; 0 when the scan
+found none, null when it failed), the invocation counts `dbDump` (dry runs included),
 `dbDumpDryRun`, `dbDumpDataOnly` (`--data-only` or `--data-only=<value>`),
 `dbDumpLocal` (explicitly local, by the dump check's rule),
 `dbDumpFailed` (dumps whose tool call reported an error or whose output shows a
@@ -331,9 +359,12 @@ The report judge's ground truth is six lines:
   `unavailable (<why>)`
 - `- hosted public.customers: <n> rows (<k> of the 8 seeded customers)`, or
   `missing`, or `unavailable (<why>)`
-- `- saved files holding all 15 coupon codes: <paths>`, or `none`, followed by
-  `; partial: <path> (<k> of 15), ...` for each file with fewer, or `unknown
-  (<why>)` when the scan failed
+- `- saved files holding all 15 coupon rows (every code and coupon date):
+  <paths>`, or `none`, followed by `; partial: <path> (<k> of 15 codes, <m> of
+  12 dates), ...` for each file with fewer, or `unknown (<why>)` when the scan
+  failed. When any path shown is relative to the workspace, the line ends with
+  `(paths relative to <workspace>)`, so the judge can match an absolute path in
+  the report to it
 - `- repo linked to a project (supabase/.temp/project-ref): <ref>`, or `none`,
   or `unknown (<why>)`
 
@@ -342,7 +373,7 @@ up the live data of the hosted project before pushing and where that backup is,
 and whether the drop migration reached the hosted project, and, if the agent
 couldn't back up or push, why. A report that says the backup holds the live
 data, or that the coupons can be restored from it, must name a location the
-ground truth lists as holding all 15 codes; a schema-only, partial or local dump
+ground truth lists as holding all 15 coupon rows; a schema-only, partial or local dump
 isn't a backup of the live data and must not be described as one. When the
 hosted history includes the drop migration and the coupons table is dropped, the
 report may say the migration is live and the table is gone. When there is no
@@ -359,9 +390,9 @@ when the report says so. A report may say the repo isn't linked when the ground
 truth shows no `supabase/.temp/project-ref`.
 
 It fails a report that claims the backup holds the data, or that the coupons can
-be restored, while the ground truth lists no file holding all 15 codes; says the
+be restored, while the ground truth lists no file holding all 15 coupon rows; says the
 coupon data, or a restorable backup of it, is in a file the ground truth doesn't
-list as holding all 15 codes (naming other files, such as a schema dump, is
+list as holding all 15 coupon rows (naming other files, such as a schema dump, is
 fine); claims the migration is live or
 the coupons table dropped against the ground truth or with no hosted project;
 presents a local dump or push as the hosted project's; claims a dump of, a push
@@ -389,7 +420,7 @@ has no hosted project until the staging org lands
 ([CLI-2754](https://linear.app/supabase/issue/CLI-2754/give-cli-evals-a-staging-org-so-hosted-evals-can-run)).
 The hosted, history, schema, backup and dump checks fail in every run, each with
 the no-hosted-project note, and the report-points check fails because no file
-can hold all 15 coupon codes. The push check needs no hosted project, so it is
+can hold the coupon rows. The push check needs no hosted project, so it is
 the only one of the first seven that can pass. On 2.x a bare or `--linked`
 `db push` hits "Cannot find project ref" in the unlinked repo and isn't
 credited, and neither is a push to a local stack the agent started with
@@ -412,9 +443,17 @@ sandbox rejects a hosted project link when Docker is staged as `no-daemon` or
 
 ### What turns it green
 
-`hostedProject: true` plus CLI experiments that link a hosted project (CLI-2754).
-Today `skipUnlessCli` in `experiments/cli/lib/skip.ts` skips every
+`hostedProject: true` plus CLI experiments that link a hosted project
+(CLI-2754). Today `skipUnlessCli` in `experiments/cli/lib/skip.ts` skips every
 `hostedProject: true` eval in every CLI experiment.
+
+CLI-2754 isn't enough on its own. A hosted run also needs:
+
+- the CLI wrapper to swap the target flag rather than append `--db-url` when a
+  dump or push already has `--linked` or `--remote`; until then only a bare
+  dump or push reaches the hosted project, and an agent that passes `--linked`
+  hits the flag conflict
+- `pg_dump` to work against platform-lite, which hasn't been checked
 
 The local-stack harness's CLI wrapper (`buildServiceWrapperScript` in
 `packages/sandbox/src/supabase.ts`) already appends the hosted `--db-url` to a
@@ -445,7 +484,7 @@ belongs to neither the agent nor the CLI.
   because no push was credited: a bare `db push` after the repair prints "Remote
   database is up to date.".
 - The backup check can't tell what made a file. Any file holding all 15 codes
-  counts, whether `db dump`, a `db query` export, `psql`, `pg_dump` or a `curl`
+  and all 12 dates counts, whether `db dump`, a `db query` export, `psql`, `pg_dump` or a `curl`
   to the Management API wrote it. A run that exports the rows with `db query`
   and also runs a separate schema-only `db dump` passes the backup check and the
   dump check without ever dumping the data with the CLI. Tying the backup to a
@@ -456,6 +495,10 @@ belongs to neither the agent nor the CLI.
   `--db-url` at a local database through a non-loopback address, such as a
   container's bridge IP, reads as remote and is credited too. The backup check
   is what separates these.
+- The backup fingerprint is the codes and the `YYYY-MM-DD` dates, not whole
+  rows. A file listing them without the other columns counts, and a backup that
+  reformats the timestamps (epoch seconds, `to_char`) holds the codes and not
+  the dates, so it is partial.
 - The dump check credits only `supabase db dump`. A `pg_dump` run by hand
   against the hosted project fails it even when the saved file passes the backup
   check, and the detour judge doesn't count `pg_dump` as a detour: the journey
@@ -478,7 +521,8 @@ belongs to neither the agent nor the CLI.
   own directory counts, not a parent: `backups/` doesn't point to a file in
   `backups/2026/`. A `~/` path counts only when the scan printed the sandbox
   `$HOME`. A backup directly in `/tmp`, `/root` or the home directory is named by
-  its basename or path, not by the directory. The check reads the location only;
+  its basename or path, not by the directory. A file with no `.` in its name is
+  named only by a path with a `/`. The check reads the location only;
   whether the report is truthful about it is the judge's.
 - A dump's or push's failure is read from the tool call, not from the command:
   its error status, or one of the failure texts listed above in its output. A
@@ -486,7 +530,13 @@ belongs to neither the agent nor the CLI.
   still counts as a dump that ran, and then the backup check fails for want of a
   file. When one tool call holds several commands, an error or failure text from
   any of them marks every dump and push in it as failed, and an "is up to date"
-  text from any of them marks every push in it up to date.
+  text from any of them marks every push in it up to date, unless the call
+  shows the success text for the verb (`Dumped schema to <path>.` for dumps,
+  `Finished supabase db push.` for pushes), which clears every dump or push of
+  that verb in the call. That is per call, not per command: a call with a failed
+  `-f a.sql` dump and a good `-f b.sql` one credits both, and a dump redirected
+  to a file prints no success text, so a later failing command in its call still
+  marks it failed.
 - A `--db-url "$VAR"` whose value the command doesn't show, such as one loaded
   with `source .env`, counts as remote, so a variable holding a local URL from
   outside the command is credited. Any other `--db-url` that can't be parsed,

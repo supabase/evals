@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   activityOf,
   BASE_VERSION,
+  DROP_STATEMENT,
   DROP_VERSION,
   FAKE_ACCESS_TOKEN,
   failedShellCall,
@@ -41,6 +42,7 @@ const GOOD_STATE: RemoteState = {
   customersTable: true,
   customers: 8,
   seededCustomers: 8,
+  dropStatements: DROP_STATEMENT,
 };
 
 const factsFor = (calls: Parameters<typeof activityOf>): Facts => ({
@@ -81,6 +83,7 @@ const GOOD_METRICS = {
   remoteCustomers: 8,
   completeBackups: 1,
   bestBackupCodes: 15,
+  bestBackupDates: 12,
   dbDump: 1,
   dbDumpDryRun: 0,
   dbDumpDataOnly: 1,
@@ -165,6 +168,7 @@ describe('checkMetrics', () => {
       remoteCustomers: null,
       completeBackups: null,
       bestBackupCodes: null,
+      bestBackupDates: null,
       ...NO_ACTIVITY,
       cliVersion: null,
       runtime: null,
@@ -245,6 +249,7 @@ describe('checkMetrics', () => {
             customersTable: false,
             customers: null,
             seededCustomers: null,
+            dropStatements: null,
           }),
         })
       ).toMatchObject({ remoteCouponsDropped: true, remoteCustomers: null });
@@ -270,41 +275,70 @@ describe('checkMetrics', () => {
 
   describe('backup facts', () => {
     it.each([
-      ['one complete file', [file('a.sql')], 1, 15],
+      ['one complete file', [file('a.sql')], 1, 15, 12],
       [
         'two complete files and a partial one',
-        [file('a.sql'), file('b.sql.gz'), file('c.sql', 4)],
+        [file('a.sql'), file('b.sql.gz'), file('c.sql', 4, 3)],
         2,
         15,
+        12,
       ],
-      ['only a partial file', [file('a.sql', 9)], 0, 9],
+      ['only a partial file', [file('a.sql', 9, 8)], 0, 9, 8],
       [
         'the best of several partial files',
-        [file('a.sql', 3), file('b.sql', 14), file('c.sql', 9)],
+        [file('a.sql', 3, 2), file('b.sql', 14, 12), file('c.sql', 9, 8)],
         0,
         14,
+        12,
       ],
-      ['a scan that found nothing', [], 0, 0],
-    ])('counts %s', async (_, files, completeBackups, bestBackupCodes) => {
-      expect(
-        await metricsOf({ ...FACTS, scan: scanOf(...files) })
-      ).toMatchObject({ completeBackups, bestBackupCodes });
-    });
+      ['a file of the codes alone', [file('codes.csv', 15, 0)], 0, 15, 0],
+      [
+        'the dates of the file with the most codes, not the most dates',
+        [file('a.sql', 15, 0), file('b.sql', 9, 12)],
+        0,
+        15,
+        0,
+      ],
+      [
+        'the most dates among files tied on codes',
+        [file('a.sql', 9, 2), file('b.sql', 9, 7), file('c.sql', 9, 5)],
+        0,
+        9,
+        7,
+      ],
+      ['a scan that found nothing', [], 0, 0, 0],
+    ])(
+      'counts %s',
+      async (_, files, completeBackups, bestBackupCodes, bestBackupDates) => {
+        expect(
+          await metricsOf({ ...FACTS, scan: scanOf(...files) })
+        ).toMatchObject({ completeBackups, bestBackupCodes, bestBackupDates });
+      }
+    );
 
-    it('nulls the complete backups and best codes when the scan failed', async () => {
+    it('nulls the complete backups and best codes and dates when the scan failed', async () => {
       expect(
         await metricsOf({ ...FACTS, scan: down('exit 1: boom') })
-      ).toMatchObject({ completeBackups: null, bestBackupCodes: null });
+      ).toMatchObject({
+        completeBackups: null,
+        bestBackupCodes: null,
+        bestBackupDates: null,
+      });
     });
 
     it('keeps zero and null apart, so a scan that found nothing is not read as a failed scan', async () => {
       const empty = await metricsOf({ ...FACTS, scan: scanOf() });
       const failed = await metricsOf({ ...FACTS, scan: down('boom') });
 
-      expect(empty).toMatchObject({ completeBackups: 0, bestBackupCodes: 0 });
+      expect(empty).toMatchObject({
+        completeBackups: 0,
+        bestBackupCodes: 0,
+        bestBackupDates: 0,
+      });
       expect(failed).toMatchObject({
         completeBackups: null,
         bestBackupCodes: null,
+        bestBackupDates: null,
       });
     });
   });
@@ -723,9 +757,15 @@ describe('checkMetrics', () => {
 
       expect(check.passed).toBe(true);
       expect(JSON.parse(check.notes ?? '{}')).toMatchObject(
-        without(GOOD_METRICS, 'completeBackups', 'bestBackupCodes')
+        without(
+          GOOD_METRICS,
+          'completeBackups',
+          'bestBackupCodes',
+          'bestBackupDates'
+        )
       );
       expect(JSON.parse(check.notes ?? '{}').bestBackupCodes).toBeNull();
+      expect(JSON.parse(check.notes ?? '{}').bestBackupDates).toBeNull();
     });
 
     it('keeps every other field when reading the CLI facts throws', async () => {

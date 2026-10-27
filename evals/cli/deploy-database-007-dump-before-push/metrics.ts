@@ -9,7 +9,7 @@ import {
 } from '../lib/cli-invocations.js';
 import type { DbPush } from '../lib/db-push.js';
 import { type readCliVersions, safely } from '../lib/metrics.js';
-import { type BackupScan, completeBackups } from './backup.js';
+import { type BackupScan, bestBackup, completeBackups } from './backup.js';
 import { type DbDump, dumpedBeforePush } from './dump.js';
 import type { Probe, RemoteState } from './remote.js';
 import { DROP_MIGRATION_VERSION } from './seed.js';
@@ -62,7 +62,10 @@ export async function checkMetrics(
       scan.ok ? completeBackups(scan).length : null
     ),
     bestBackupCodes: await safely(() =>
-      scan.ok ? Math.max(0, ...scan.files.map(({ codes }) => codes)) : null
+      scan.ok ? (bestBackup(scan.files)?.codes ?? 0) : null
+    ),
+    bestBackupDates: await safely(() =>
+      scan.ok ? (bestBackup(scan.files)?.dates ?? 0) : null
     ),
     dbDump: await safely(() => dumps.length),
     dbDumpDryRun: await safely(

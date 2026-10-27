@@ -89,12 +89,23 @@ export function isExplicitlyLocal(
   ].some((url) => url !== undefined && isLocalUrl(url, command));
 }
 
-/** A piped or `|| true` command exits 0 whatever the CLI did, so its own failure text counts too. */
+/** Output and error text together, since a call that exited non-zero keeps its output in `error`. */
+function callText(call: ToolCallRecord | undefined): string {
+  return `${typeof call?.result === 'string' ? call.result : ''}\n${call?.error ?? ''}`;
+}
+
+/**
+ * A piped or `|| true` command exits 0 whatever the CLI did, so its own failure text counts too;
+ * `success` is the command's own success text, which wins over a later command in the same call failing.
+ */
 export function toolCallFailed(
   call: ToolCallRecord | undefined,
-  extra?: RegExp
+  extra?: RegExp,
+  success?: RegExp
 ): boolean {
-  if (call === undefined) return false;
+  if (call === undefined || success?.test(callText(call)) === true) {
+    return false;
+  }
   const output = typeof call.result === 'string' ? call.result : '';
   return (
     call.error !== undefined ||
@@ -106,11 +117,12 @@ export function toolCallFailed(
 /** A failed call's output is in `error` with no `result`, and can open with warnings, so both are searched for the failure line. */
 export function toolCallFailureLine(
   call: ToolCallRecord | undefined,
-  extra?: RegExp
+  extra?: RegExp,
+  success?: RegExp
 ): string | undefined {
-  const output = typeof call?.result === 'string' ? call.result : '';
+  if (success?.test(callText(call)) === true) return undefined;
   const line =
-    `${output}\n${call?.error ?? ''}`
+    callText(call)
       .split('\n')
       .find(
         (candidate) =>

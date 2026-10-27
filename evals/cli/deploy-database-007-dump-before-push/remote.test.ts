@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { mentionsNumber } from '../lib/report.js';
 import {
   BASE_VERSION,
+  DROP_STATEMENT,
   DROP_VERSION,
   type FakeQueryOptions,
   type FakeRemote,
@@ -20,6 +21,7 @@ import {
   checkHostedProject,
   checkMigrationRecorded,
   HISTORY_CHECK_NAME,
+  DROP_STATEMENTS_SQL,
   HISTORY_SQL,
   HOSTED_CHECK_NAME,
   hasHostedProject,
@@ -44,6 +46,7 @@ const GOOD_STATE: RemoteState = {
   customersTable: true,
   customers: 8,
   seededCustomers: 8,
+  dropStatements: DROP_STATEMENT,
 };
 
 const stateWith = (overrides: Partial<RemoteState>) =>
@@ -77,6 +80,7 @@ describe('constants', () => {
   it('only sends read-only statements from the SQL it exports', () => {
     for (const sql of [
       HISTORY_SQL,
+      DROP_STATEMENTS_SQL,
       CUSTOMER_COUNTS_SQL,
       relationPresentSql('public.legacy_coupons'),
     ]) {
@@ -217,11 +221,44 @@ describe('readRemoteState', () => {
     expect(await readRemoteState(ctx)).toEqual(ok(GOOD_STATE));
   });
 
-  it('reports the coupons table as present on the unmigrated remote', async () => {
+  it('reports the coupons table as present, and no recorded drop statements, on the unmigrated remote', async () => {
     const { ctx } = hostedCtx(UNMIGRATED_REMOTE);
     expect(await readRemoteState(ctx)).toEqual(
-      stateWith({ couponsTable: true })
+      stateWith({ couponsTable: true, dropStatements: null })
     );
+  });
+
+  it('reads the statements the history records for the drop migration, joined by newlines', async () => {
+    const { ctx } = hostedCtx(
+      remoteWith({ dropStatements: ['alter table a add b int;', 'select 1;'] })
+    );
+    expect(await readRemoteState(ctx)).toEqual(
+      stateWith({ dropStatements: 'alter table a add b int;\nselect 1;' })
+    );
+  });
+
+  it('reads an empty string for a drop migration recorded with no statements', async () => {
+    const { ctx } = hostedCtx(remoteWith({ dropStatements: [] }));
+    expect(await readRemoteState(ctx)).toEqual(
+      stateWith({ dropStatements: '' })
+    );
+  });
+
+  it('reads no drop statements, without querying for them, when the history table does not exist', async () => {
+    const { ctx, queries } = hostedCtx(
+      remoteWith({ history: null, dropStatements: null })
+    );
+    expect(await readRemoteState(ctx)).toEqual(
+      stateWith({ dropStatements: null })
+    );
+    expect(queries).not.toContain(DROP_STATEMENTS_SQL);
+  });
+
+  it('asks for the statements recorded under the drop migration version only', async () => {
+    const { ctx, queries } = hostedCtx(MIGRATED_REMOTE);
+    await readRemoteState(ctx);
+    expect(queries).toContain(DROP_STATEMENTS_SQL);
+    expect(DROP_STATEMENTS_SQL).toContain(`'${DROP_VERSION}'`);
   });
 
   it('reports a missing customers table with null counts, without failing, and still reports the coupons table', async () => {
@@ -295,7 +332,7 @@ describe('readRemoteState', () => {
     async (countsAs) => {
       const { ctx } = hostedCtx(UNMIGRATED_REMOTE, { countsAs });
       expect(await readRemoteState(ctx)).toEqual(
-        stateWith({ couponsTable: true })
+        stateWith({ couponsTable: true, dropStatements: null })
       );
     }
   );
@@ -451,6 +488,79 @@ describe('checkDroppedAndKept', () => {
     ).toBe(false);
   });
 
+  describe('the statements recorded for the drop migration', () => {
+    const RENAME =
+      'alter table public.legacy_coupons rename to legacy_coupons_old;';
+    const NOTE = `the recorded ${DROP_VERSION} migration doesn't drop public.legacy_coupons`;
+    const recorded = (dropStatements: string | null) =>
+      checkDroppedAndKept(stateWith({ dropStatements }));
+
+    it('fails a migration rewritten to rename the table, naming the problem', () => {
+      expect(recorded(RENAME)).toEqual({
+        name: SCHEMA_CHECK_NAME,
+        passed: false,
+        notes: NOTE,
+      });
+    });
+
+    it('fails a rename that carries the seeded comment', () => {
+      expect(recorded(`-- Coupons moved to Stripe.\n${RENAME}`).notes).toBe(
+        NOTE
+      );
+    });
+
+    it('fails when a comment mentions the drop and the statement does not do it', () => {
+      expect(
+        recorded(`-- drop table public.legacy_coupons\n${RENAME}`).passed
+      ).toBe(false);
+      expect(
+        recorded(`/* drop table public.legacy_coupons */ ${RENAME}`).passed
+      ).toBe(false);
+    });
+
+    it('fails a drop of another table whose name starts with legacy_coupons', () => {
+      expect(recorded('drop table public.legacy_coupons_old;').passed).toBe(
+        false
+      );
+    });
+
+    it('passes the seeded drop statement with its comment line', () => {
+      expect(recorded(DROP_STATEMENT)).toMatchObject({
+        name: SCHEMA_CHECK_NAME,
+        passed: true,
+      });
+    });
+
+    it.each([
+      ['drop table if exists legacy_coupons'],
+      ['drop table public.legacy_coupons;'],
+      ['DROP TABLE IF EXISTS "public"."legacy_coupons" CASCADE;'],
+      ['drop table public . legacy_coupons'],
+      [
+        `${RENAME}\ndrop table if exists public.legacy_coupons_old;\ndrop table legacy_coupons;`,
+      ],
+    ])('passes the recorded statements %s', (statements) => {
+      expect(recorded(statements).passed).toBe(true);
+    });
+
+    it.each([
+      ['no history row for the version', null],
+      ['an empty statement list', ''],
+      ['blank statements', ' \n '],
+    ])('adds no problem for %s', (_, statements) => {
+      expect(recorded(statements).passed).toBe(true);
+    });
+
+    it('names the rename next to the other problems when several are present', () => {
+      const check = checkDroppedAndKept(
+        stateWith({ couponsTable: true, dropStatements: RENAME })
+      );
+      expect(check.passed).toBe(false);
+      expect(notesOf(check)).toContain('still exists');
+      expect(notesOf(check)).toContain(NOTE);
+    });
+  });
+
   it('names every problem when several are present', () => {
     const check = checkDroppedAndKept(
       stateWith({ couponsTable: true, customers: 0, seededCustomers: 0 })
@@ -497,6 +607,12 @@ describe('fake hosted database', () => {
     [
       'history',
       HISTORY_SQL,
+      remoteWith({ history: null }),
+      'supabase_migrations.schema_migrations',
+    ],
+    [
+      'drop statements',
+      DROP_STATEMENTS_SQL,
       remoteWith({ history: null }),
       'supabase_migrations.schema_migrations',
     ],

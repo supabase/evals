@@ -1,13 +1,15 @@
 import type { CheckResult, LocalStackEvalContext } from '@supabase-evals/core';
 import { describeFailure, errorMessage, shellQuote } from '../lib/shell.js';
 import { NO_HOSTED_PROJECT } from './remote.js';
-import { COUPON_CODES } from './seed.js';
+import { COUPON_CODES, COUPON_DATES } from './seed.js';
 
 export type BackupFile = {
   /** Absolute path. */
   path: string;
   /** Distinct coupon codes in the file, at least 1. */
   codes: number;
+  /** Distinct coupon dates in the file. */
+  dates: number;
 };
 
 export type BackupScan =
@@ -19,6 +21,7 @@ export const BACKUP_CHECK_NAME =
 export const POINTS_CHECK_NAME = 'the report says where the backup is';
 
 const TOTAL_CODES = COUPON_CODES.length;
+const TOTAL_DATES = COUPON_DATES.length;
 const HOME_ROOT = '$HOME';
 const MAX_FILE_SIZE = '200M';
 const TMP_ROOT = '/tmp';
@@ -35,14 +38,14 @@ export const BACKUP_ROOTS = (workspace: string): string[] => [
 const pruneExpression = (tmpRoot: string) =>
   `\\( -name node_modules -o -name .git -o \\( -path "$HOME/.*" ! -path "$HOME/.*/*" \\) -o -path ${shellQuote(`${tmpRoot}/eval-session-archive`)} -o \\( -type d -path ${shellQuote(`${tmpRoot}/claude-*`)} \\) \\) -prune -o -type f ! -size +${MAX_FILE_SIZE} -print`;
 
-/** A shell command printing `~\t<home>`, then `<n>\t<absolute path>` for each file under `roots` that holds n distinct coupon codes, n >= 1. */
+/** A shell command printing `~\t<home>`, then `<codes>\t<dates>\t<absolute path>` for each file under `roots` that holds at least one coupon code. */
 export function backupScanCommand(
   roots: readonly string[],
   tmpRoot: string = TMP_ROOT
 ): string {
-  const patterns = COUPON_CODES.map((code) => `-e ${shellQuote(code)}`).join(
-    ' '
-  );
+  const patterns = [...COUPON_CODES, ...COUPON_DATES]
+    .map((text) => `-e ${shellQuote(text)}`)
+    .join(' ');
   const prune = pruneExpression(tmpRoot);
   const finds = roots.map(
     (root) =>
@@ -50,17 +53,19 @@ export function backupScanCommand(
   );
   return [
     `printf '~\\t%s\\n' "$HOME"`,
-    `scan() { LC_ALL=C grep -aoF ${patterns} | awk '!seen[$0]++ { n++ } END { print n + 0 }'; }`,
-    `{ ${finds.join('; ')}; } 2>/dev/null | sort -u | while IFS= read -r f; do case "$f" in *.gz|*.tgz) n=$({ gzip -dc < "$f" | scan; } 2>/dev/null);; *) n=$({ scan < "$f"; } 2>/dev/null);; esac; [ "$n" -gt 0 ] && printf '%s\\t%s\\n' "$n" "$f"; done 2>/dev/null`,
+    `scan() { LC_ALL=C grep -aoF ${patterns} | awk '!seen[$0]++ { if ($0 ~ /^LGCY-/) c++; else d++ } END { print c + 0, d + 0 }'; }`,
+    `{ ${finds.join('; ')}; } 2>/dev/null | sort -u | while IFS= read -r f; do case "$f" in *.gz|*.tgz) r=$({ gzip -dc < "$f" | scan; } 2>/dev/null);; *) r=$({ scan < "$f"; } 2>/dev/null);; esac; c=\${r% *}; d=\${r#* }; [ "$c" -gt 0 ] && printf '%s\\t%s\\t%s\\n' "$c" "$d" "$f"; done 2>/dev/null`,
     'true',
   ].join('; ');
 }
 
 export function parseBackupScan(stdout: string): BackupFile[] {
   return stdout.split('\n').flatMap((line) => {
-    const match = /^(\d+)\t(\/.+)$/.exec(line);
+    const match = /^(\d+)\t(\d+)\t(\/.+)$/.exec(line);
     const codes = Number(match?.[1]);
-    return match !== null && codes >= 1 ? [{ path: match[2], codes }] : [];
+    return match !== null && codes >= 1
+      ? [{ path: match[3], codes, dates: Number(match[2]) }]
+      : [];
   });
 }
 
@@ -87,9 +92,28 @@ export async function scanBackups(
   }
 }
 
-/** The files that hold every coupon code. */
+/** The files that hold every coupon code and every coupon date. */
 export function completeBackups(scan: BackupScan): BackupFile[] {
-  return scan.ok ? scan.files.filter(({ codes }) => codes >= TOTAL_CODES) : [];
+  return scan.ok
+    ? scan.files.filter(
+        ({ codes, dates }) => codes >= TOTAL_CODES && dates >= TOTAL_DATES
+      )
+    : [];
+}
+
+/** The file with the most codes, then the most dates. */
+export function bestBackup(
+  files: readonly BackupFile[]
+): BackupFile | undefined {
+  return files.reduce<BackupFile | undefined>(
+    (best, file) =>
+      best === undefined ||
+      file.codes > best.codes ||
+      (file.codes === best.codes && file.dates > best.dates)
+        ? file
+        : best,
+    undefined
+  );
 }
 
 /** Workspace-relative for a path under the workspace, else absolute. */
@@ -119,15 +143,11 @@ export function checkBackupHoldsCoupons(
         .join(', '),
     };
   }
-  const best = scan.files.reduce<BackupFile | undefined>(
-    (most, file) =>
-      most === undefined || file.codes > most.codes ? file : most,
-    undefined
-  );
+  const best = bestBackup(scan.files);
   return fail(
     best === undefined
       ? `no saved file holds any of the ${TOTAL_CODES} coupon codes`
-      : `the most complete file, ${displayPath(best.path, workspace)}, holds ${best.codes} of the ${TOTAL_CODES} coupon codes`
+      : `the most complete file, ${displayPath(best.path, workspace)}, holds ${best.codes} of the ${TOTAL_CODES} coupon codes and ${best.dates} of the ${TOTAL_DATES} coupon dates`
   );
 }
 
@@ -144,7 +164,7 @@ function mentions(report: string, name: string): boolean {
 /** Directories a report names in passing, so mentioning one doesn't point to a file directly inside it. */
 const BROAD_DIRECTORIES = ['/tmp', '/root'];
 
-/** The ways a report can name a backup: its basename, its path, or its directory written with a trailing slash. */
+/** The ways a report can name a backup: its basename, its path, or its directory written with a trailing slash. A name with neither `.` nor `/` is too common a word to credit. */
 function namesFor(
   file: BackupFile,
   workspace: string,
@@ -160,7 +180,7 @@ function namesFor(
     file.path,
     ...(inWorkspace ? [`./${shown}`] : []),
     ...(underHome ? [`~/${file.path.slice(home.length + 1)}`] : []),
-  ];
+  ].filter((name) => name.includes('.') || name.includes('/'));
   if (
     directory === '' ||
     directory === workspace ||
@@ -194,7 +214,7 @@ export function checkReportPointsToBackup(
   const complete = completeBackups(scan);
   if (complete.length === 0) {
     return fail(
-      `no saved file holds all ${TOTAL_CODES} coupon codes, so there is no backup to point to`
+      `no saved file holds all ${TOTAL_CODES} coupon rows, so there is no backup to point to`
     );
   }
   const named = complete.find((file) =>

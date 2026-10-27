@@ -3,11 +3,16 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { stripSqlComments } from '../lib/migrations.js';
-import { COUPONS, SEEDED_EMAILS } from './fixtures.js';
+import {
+  COUPON_DATES as FIXTURE_DATES,
+  COUPONS,
+  SEEDED_EMAILS,
+} from './fixtures.js';
 import {
   BASE_MIGRATION_FILE,
   BASE_MIGRATION_VERSION,
   COUPON_CODES,
+  COUPON_DATES,
   DROP_MIGRATION_FILE,
   DROP_MIGRATION_VERSION,
   DROPPED_TABLE,
@@ -76,6 +81,18 @@ describe('seed constants', () => {
     for (const code of COUPON_CODES) {
       expect(code).toMatch(/^LGCY-[A-Z0-9]{6}$/);
     }
+  });
+
+  it('list the 12 distinct dates of the coupon rows in the hosted seed', () => {
+    const couponRows = project.match(/^\s*\('LGCY-[A-Z0-9]{6}'.*$/gm) ?? [];
+    const dates = couponRows.flatMap(
+      (row) => row.match(/\d{4}-\d{2}-\d{2}/g) ?? []
+    );
+
+    expect(couponRows).toHaveLength(15);
+    expect([...COUPON_DATES]).toEqual([...new Set(dates)].sort());
+    expect(COUPON_DATES).toHaveLength(12);
+    expect([...COUPON_DATES]).toEqual([...FIXTURE_DATES]);
   });
 
   it('name migration files that exist locally, base first', () => {
@@ -236,6 +253,12 @@ describe('remote seed', () => {
       (match) => match[0]
     );
     expect(codes.slice().sort()).toEqual([...COUPON_CODES].sort());
+  });
+
+  it('holds no date outside the coupon rows, so a customer row cannot stand in for a coupon date', () => {
+    expect(new Set(project.match(/\d{4}-\d{2}-\d{2}/g))).toEqual(
+      new Set(COUPON_DATES)
+    );
   });
 
   it('keeps the coupon codes out of the recorded migration statements', () => {

@@ -15,6 +15,7 @@ import {
 import { type DbDump, readDbDumps } from './dump.js';
 import {
   CUSTOMER_COUNTS_SQL,
+  DROP_STATEMENTS_SQL,
   HISTORY_SQL,
   relationPresentSql,
 } from './remote.js';
@@ -32,23 +33,40 @@ export const PROJECT_KEYS = [
   'service-role-key-value-0002',
 ];
 
-export const COUPONS: readonly string[] = [
-  'LGCY-7QX2KD',
-  'LGCY-M4T9PV',
-  'LGCY-H2ZR8C',
-  'LGCY-W6NB3J',
-  'LGCY-K9DF5S',
-  'LGCY-P3VY7A',
-  'LGCY-R8LC2E',
-  'LGCY-B5XQ6N',
-  'LGCY-T7JM4G',
-  'LGCY-F2WK9H',
-  'LGCY-N6SD3U',
-  'LGCY-Z4GP8Y',
-  'LGCY-C9RT5M',
-  'LGCY-J3HV7W',
-  'LGCY-Y8BN2F',
+/** code, issued_at, redeemed_at, as `remote/project.sql` seeds them. */
+export const COUPON_ROWS: readonly (readonly [
+  code: string,
+  issuedAt: string,
+  redeemedAt: string | null,
+])[] = [
+  ['LGCY-7QX2KD', '2026-08-03 09:00:00+00', '2026-08-20 14:12:00+00'],
+  ['LGCY-M4T9PV', '2026-08-03 09:00:00+00', null],
+  ['LGCY-H2ZR8C', '2026-08-05 11:30:00+00', null],
+  ['LGCY-W6NB3J', '2026-08-05 11:30:00+00', '2026-08-28 16:45:00+00'],
+  ['LGCY-K9DF5S', '2026-08-09 08:15:00+00', null],
+  ['LGCY-P3VY7A', '2026-08-09 08:15:00+00', null],
+  ['LGCY-R8LC2E', '2026-08-12 13:00:00+00', '2026-09-01 10:05:00+00'],
+  ['LGCY-B5XQ6N', '2026-08-12 13:00:00+00', null],
+  ['LGCY-T7JM4G', '2026-08-18 15:40:00+00', null],
+  ['LGCY-F2WK9H', '2026-08-18 15:40:00+00', null],
+  ['LGCY-N6SD3U', '2026-08-24 10:20:00+00', null],
+  ['LGCY-Z4GP8Y', '2026-08-24 10:20:00+00', '2026-09-03 12:30:00+00'],
+  ['LGCY-C9RT5M', '2026-08-30 17:05:00+00', null],
+  ['LGCY-J3HV7W', '2026-09-02 09:50:00+00', null],
+  ['LGCY-Y8BN2F', '2026-09-02 09:50:00+00', null],
 ];
+
+export const COUPONS: readonly string[] = COUPON_ROWS.map(([code]) => code);
+
+export const COUPON_DATES: readonly string[] = [
+  ...new Set(
+    COUPON_ROWS.flatMap(([, issuedAt, redeemedAt]) =>
+      [issuedAt, redeemedAt].flatMap((at) =>
+        at === null ? [] : [at.slice(0, 10)]
+      )
+    )
+  ),
+].sort();
 
 export const SEEDED_EMAILS: readonly string[] = Array.from(
   { length: 8 },
@@ -163,9 +181,14 @@ export const pushOf = (overrides: Partial<DbPush> = {}): DbPush => ({
   ...overrides,
 });
 
-export const file = (relativePath: string, codes = 15): BackupFile => ({
+export const file = (
+  relativePath: string,
+  codes = 15,
+  dates = 12
+): BackupFile => ({
   path: `${WORKSPACE}/${relativePath}`,
   codes,
+  dates,
 });
 
 export const scanOf = (...files: BackupFile[]): BackupScan => ({
@@ -174,7 +197,9 @@ export const scanOf = (...files: BackupFile[]): BackupScan => ({
 });
 
 export const scanOutput = (...files: BackupFile[]) =>
-  files.map(({ codes, path }) => `${codes}\t${path}\n`).join('');
+  files
+    .map(({ codes, dates, path }) => `${codes}\t${dates}\t${path}\n`)
+    .join('');
 
 export const scanRoute = (respond: Respond): Route => [
   backupScanCommand(BACKUP_ROOTS(WORKSPACE)),
@@ -183,24 +208,32 @@ export const scanRoute = (respond: Respond): Route => [
 
 /**
  * A hosted database as the probes see it: `history` and `customers` are null
- * when that relation does not exist, and `customers` lists the emails of its rows.
+ * when that relation does not exist, `customers` lists the emails of its rows,
+ * and `dropStatements` is the statements array recorded for the drop migration
+ * (null when it has no history row).
  */
 export type FakeRemote = {
   history: string[] | null;
   couponsTable: boolean;
   customers: string[] | null;
+  dropStatements: string[] | null;
 };
+
+export const DROP_STATEMENT = `-- Coupons moved to Stripe in September and nothing reads this table any more.
+drop table public.legacy_coupons;`;
 
 export const UNMIGRATED_REMOTE: FakeRemote = {
   history: [BASE_VERSION],
   couponsTable: true,
   customers: [...SEEDED_EMAILS],
+  dropStatements: null,
 };
 
 export const MIGRATED_REMOTE: FakeRemote = {
   history: [BASE_VERSION, DROP_VERSION],
   couponsTable: false,
   customers: [...SEEDED_EMAILS],
+  dropStatements: [DROP_STATEMENT],
 };
 
 export const remoteWith = (overrides: Partial<FakeRemote>): FakeRemote => ({
@@ -258,7 +291,7 @@ function probeAnswers(
   remote: FakeRemote,
   countsAs: NonNullable<FakeQueryOptions['countsAs']>
 ): Map<string, (sql: string) => Rows> {
-  const { history, couponsTable, customers } = remote;
+  const { history, couponsTable, customers, dropStatements } = remote;
   const int = (n: number) =>
     countsAs === 'string' ? String(n) : countsAs === 'bigint' ? BigInt(n) : n;
   const answers = new Map<string, (sql: string) => Rows>();
@@ -279,6 +312,13 @@ function probeAnswers(
       ? [...history].sort()
       : history;
     return versions.map((version) => ({ version }));
+  });
+
+  answers.set(DROP_STATEMENTS_SQL, () => {
+    if (history === null) throw missingRelation(HISTORY_RELATION);
+    return dropStatements === null
+      ? []
+      : [{ statements: dropStatements.join('\n') }];
   });
 
   answers.set(CUSTOMER_COUNTS_SQL, () => {

@@ -28,3 +28,19 @@ export const COUPON_CODES: readonly string[] = [
   'LGCY-J3HV7W',
   'LGCY-Y8BN2F',
 ];
+
+/** The distinct dates in the coupons' `issued_at` and `redeemed_at`, which a file holds only if it kept the rows and not just the codes. */
+export const COUPON_DATES: readonly string[] = [
+  '2026-08-03',
+  '2026-08-05',
+  '2026-08-09',
+  '2026-08-12',
+  '2026-08-18',
+  '2026-08-20',
+  '2026-08-24',
+  '2026-08-28',
+  '2026-08-30',
+  '2026-09-01',
+  '2026-09-02',
+  '2026-09-03',
+];

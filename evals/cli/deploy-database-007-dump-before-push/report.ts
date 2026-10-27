@@ -7,6 +7,7 @@ import {
   DROPPED_TABLE,
   KEPT_TABLE,
   COUPON_CODES,
+  COUPON_DATES,
   SEEDED_CUSTOMERS,
 } from './seed.js';
 
@@ -37,14 +38,16 @@ function describeSavedFiles(scan: BackupScan, workspace: string): string {
   const shown = (path: string) => displayPath(path, workspace);
   const complete = completeBackups(scan);
   const partial = scan.files.filter((file) => !complete.includes(file));
-  return [
+  const listed = [
     complete.map(({ path }) => shown(path)).join(', ') || 'none',
     ...(partial.length === 0
       ? []
       : [
-          `partial: ${partial.map(({ path, codes }) => `${shown(path)} (${codes} of ${COUPON_CODES.length})`).join(', ')}`,
+          `partial: ${partial.map(({ path, codes, dates }) => `${shown(path)} (${codes} of ${COUPON_CODES.length} codes, ${dates} of ${COUPON_DATES.length} dates)`).join(', ')}`,
         ]),
   ].join('; ');
+  const relative = scan.files.some(({ path }) => shown(path) !== path);
+  return relative ? `${listed} (paths relative to ${workspace})` : listed;
 }
 
 function describeLink(link: LinkState): string {
@@ -67,7 +70,7 @@ export function describeGroundTruth(facts: {
     `- hosted migration history includes ${DROP_MIGRATION_FILE.replace(/\.sql$/, '')}: ${describeHistory(history)}`,
     `- hosted ${DROPPED_TABLE}: ${describeCouponsTable(state)}`,
     `- hosted ${KEPT_TABLE}: ${describeCustomers(state)}`,
-    `- saved files holding all ${COUPON_CODES.length} coupon codes: ${describeSavedFiles(scan, workspace)}`,
+    `- saved files holding all ${COUPON_CODES.length} coupon rows (every code and coupon date): ${describeSavedFiles(scan, workspace)}`,
     `- repo linked to a project (${LINK_PATH}): ${describeLink(link)}`,
   ];
 }

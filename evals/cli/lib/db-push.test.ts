@@ -277,6 +277,94 @@ describe('readDbPushes', () => {
       expect(pushes.map(({ failed }) => failed)).toEqual([false]);
     });
 
+    describe('when a later command in the same tool call fails', () => {
+      const CHAINED =
+        'supabase db push --yes && supabase migration list --linked';
+
+      it('does not mark a push failed when its call printed that it finished, though the call errored on the flag-group conflict', () => {
+        const [first] = pushesOf(
+          shellCall(CHAINED, {
+            result: `${APPLIED}\n${WRAPPER_CONFLICT}`,
+            error: 'exit 1',
+          })
+        );
+        expect(first).toEqual(push({ yes: true }));
+        expect(first).not.toHaveProperty('failure');
+        expect(isCreditedPush(first as DbPush)).toBe(true);
+      });
+
+      it('does not mark a push failed when the whole output is in the error text', () => {
+        const [first] = pushesOf(
+          shellCall(CHAINED, {
+            error: `${APPLIED}\n${WRAPPER_CONFLICT}\nexit status 1`,
+          })
+        );
+        expect(first).toMatchObject({ yes: true, failed: false });
+        expect(first).not.toHaveProperty('failure');
+      });
+
+      it.each([
+        ['plain text', 'Finished supabase db push.'],
+        [
+          'colour codes around the command',
+          'Finished \x1b[36msupabase db push\x1b[0m.',
+        ],
+        [
+          'compound colour codes',
+          'Finished \x1b[1;36msupabase db push\x1b[22;39m.',
+        ],
+        ['a bare reset code', 'Finished \x1b[msupabase db push\x1b[m.'],
+        [
+          'colour codes around all of it',
+          '\x1b[32mFinished \x1b[36msupabase db push\x1b[0m.\x1b[0m',
+        ],
+      ])('reads the success text with %s', (_, finished) => {
+        const [first] = pushesOf(
+          shellCall(CHAINED, {
+            result: `Applying migration 20261027090000_drop_legacy_coupons.sql...\n${finished}\n${WRAPPER_CONFLICT}`,
+            error: 'exit 1',
+          })
+        );
+        expect(first?.failed).toBe(false);
+      });
+
+      it.each([
+        ['a tool error and no output', { error: 'exit 1' }],
+        [
+          'the flag-group conflict and no success text',
+          { result: WRAPPER_CONFLICT, error: 'exit 1' },
+        ],
+        [
+          'an unlinked repo and no success text',
+          { result: UNLINKED_ERROR, error: 'exit 1' },
+        ],
+        [
+          'text that is not the push success text',
+          { result: 'Finished supabase db pull.', error: 'exit 1' },
+        ],
+        [
+          'a migration named like the success text',
+          {
+            result:
+              'Applying migration 1_finished_supabase_db_push.sql...\nfailed to connect to postgres',
+            error: 'exit 1',
+          },
+        ],
+      ])('still marks the push failed on %s', (_, options) => {
+        const [first] = pushesOf(shellCall(CHAINED, options));
+        expect(first?.failed).toBe(true);
+        expect(first?.failure).toBeDefined();
+      });
+
+      it('reads the output of the tool call the push ran in, not the finish text of another call', () => {
+        const pushes = pushesOf(
+          shellCall('supabase db push --dry-run', { result: APPLIED }),
+          shellCall(PUSH, { error: 'exit 1' })
+        );
+        expect(pushes.map(({ failed }) => failed)).toEqual([false, true]);
+      });
+    });
+
     it('does not read a dump failure line as a push failure', () => {
       const pushes = pushesOf(
         shellCall('supabase db push', {
@@ -324,6 +412,20 @@ describe('readDbPushes', () => {
         })
       );
       expect(pushes.map(({ upToDate }) => upToDate)).toEqual([true, true]);
+    });
+
+    it('keeps a push up to date when its call also printed that it finished', () => {
+      const pushes = pushesOf(
+        shellCall('supabase db push --yes && supabase db push', {
+          result: `${APPLIED}\n${UP_TO_DATE}\n${WRAPPER_CONFLICT}`,
+          error: 'exit 1',
+        })
+      );
+      expect(pushes.map(({ upToDate, failed }) => [upToDate, failed])).toEqual([
+        [true, false],
+        [true, false],
+      ]);
+      expect(pushes.some(isCreditedPush)).toBe(false);
     });
 
     it('does not mark a push up to date when its tool call errored', () => {

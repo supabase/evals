@@ -32,6 +32,8 @@ import {
   scanBackups,
 } from './backup.js';
 import {
+  COUPON_DATES,
+  COUPON_ROWS,
   COUPONS,
   commandResult,
   crash,
@@ -48,21 +50,55 @@ import { NO_HOSTED_PROJECT } from './remote.js';
 
 const some = (count: number) => COUPONS.slice(0, count);
 
+const rowsOf = (codes: readonly string[]) =>
+  codes.map(
+    (code) =>
+      COUPON_ROWS.find(([known]) => known === code) ??
+      ([code, '2026-07-01 00:00:00+00', null] as const)
+  );
+
+const isoTimestamp = (at: string) => at.replace(' ', 'T').replace('+00', 'Z');
+
 const insertSql = (codes: readonly string[]) =>
-  `${codes
+  `${rowsOf(codes)
     .map(
-      (code, index) =>
-        `INSERT INTO public.legacy_coupons VALUES ('${code}', ${(index % 8) + 1}, 10, '2026-08-01 00:00:00+00', NULL);`
+      ([code, issuedAt, redeemedAt], index) =>
+        `INSERT INTO public.legacy_coupons VALUES ('${code}', ${(index % 8) + 1}, 10, '${issuedAt}', ${redeemedAt === null ? 'NULL' : `'${redeemedAt}'`});`
     )
     .join('\n')}\n`;
 
 const copySql = (codes: readonly string[]) =>
-  `COPY public.legacy_coupons (code, customer_id, percent_off) FROM stdin;\n${codes
-    .map((code) => `${code}\t1\t10`)
+  `COPY public.legacy_coupons (code, customer_id, percent_off, issued_at, redeemed_at) FROM stdin;\n${rowsOf(
+    codes
+  )
+    .map(
+      ([code, issuedAt, redeemedAt]) =>
+        `${code}\t1\t10\t${issuedAt}\t${redeemedAt ?? '\\N'}`
+    )
     .join('\n')}\n\\.\n`;
 
-const jsonRows = (codes: readonly string[]) =>
-  JSON.stringify(codes.map((code) => ({ code, percent_off: 10 })));
+const jsonRows = (
+  codes: readonly string[],
+  timestamp: (at: string) => string = isoTimestamp
+) =>
+  JSON.stringify(
+    rowsOf(codes).map(([code, issuedAt, redeemedAt]) => ({
+      code,
+      percent_off: 10,
+      issued_at: timestamp(issuedAt),
+      redeemed_at: redeemedAt === null ? null : timestamp(redeemedAt),
+    }))
+  );
+
+const csvCodes = (codes: readonly string[]) => `code\n${codes.join('\n')}\n`;
+
+const csvRows = (codes: readonly string[]) =>
+  `code,issued_at,redeemed_at\n${rowsOf(codes)
+    .map(
+      ([code, issuedAt, redeemedAt]) =>
+        `${code},${issuedAt},${redeemedAt ?? ''}`
+    )
+    .join('\n')}\n`;
 
 const SCHEMA_ONLY = `CREATE TABLE public.legacy_coupons (
   code text PRIMARY KEY,
@@ -87,14 +123,14 @@ describe('constants', () => {
 });
 
 describe('parseBackupScan', () => {
-  it('reads one file per <n>\\t<path> line', () => {
+  it('reads one file per <codes>\\t<dates>\\t<path> line', () => {
     expect(
       parseBackupScan(
-        `15\t${WORKSPACE}/backups/pre-drop.sql\n9\t/home/agent/backups/part.sql\n`
+        `15\t12\t${WORKSPACE}/backups/pre-drop.sql\n9\t0\t/home/agent/backups/part.sql\n`
       )
     ).toEqual([
-      { path: `${WORKSPACE}/backups/pre-drop.sql`, codes: 15 },
-      { path: '/home/agent/backups/part.sql', codes: 9 },
+      { path: `${WORKSPACE}/backups/pre-drop.sql`, codes: 15, dates: 12 },
+      { path: '/home/agent/backups/part.sql', codes: 9, dates: 0 },
     ]);
   });
 
@@ -104,38 +140,40 @@ describe('parseBackupScan', () => {
   });
 
   it('reads a last line with no trailing newline', () => {
-    expect(parseBackupScan('15\t/tmp/a.sql')).toEqual([
-      { path: '/tmp/a.sql', codes: 15 },
+    expect(parseBackupScan('15\t12\t/tmp/a.sql')).toEqual([
+      { path: '/tmp/a.sql', codes: 15, dates: 12 },
     ]);
   });
 
   it('keeps a path that holds spaces', () => {
-    expect(parseBackupScan('15\t/tmp/my dir/pre drop.sql\n')).toEqual([
-      { path: '/tmp/my dir/pre drop.sql', codes: 15 },
+    expect(parseBackupScan('15\t12\t/tmp/my dir/pre drop.sql\n')).toEqual([
+      { path: '/tmp/my dir/pre drop.sql', codes: 15, dates: 12 },
     ]);
   });
 
   it.each([
-    ['a line with no tab', '15 /tmp/a.sql'],
-    ['a non-numeric count', 'many\t/tmp/a.sql'],
-    ['an empty count', '\t/tmp/a.sql'],
-    ['an empty path', '15\t'],
-    ['a count of zero', '0\t/tmp/a.sql'],
+    ['a line with no tab', '15 12 /tmp/a.sql'],
+    ['a line with no dates column', '15\t/tmp/a.sql'],
+    ['a non-numeric count', 'many\t12\t/tmp/a.sql'],
+    ['a non-numeric date count', '15\tmany\t/tmp/a.sql'],
+    ['an empty count', '\t12\t/tmp/a.sql'],
+    ['an empty path', '15\t12\t'],
+    ['a count of zero', '0\t0\t/tmp/a.sql'],
     ['a stray warning', 'find: /tmp/x: Permission denied'],
     ['a blank line', ''],
   ])('ignores %s between valid lines', (_, malformed) => {
     expect(
-      parseBackupScan(`15\t/tmp/a.sql\n${malformed}\n9\t/tmp/b.sql\n`)
+      parseBackupScan(`15\t12\t/tmp/a.sql\n${malformed}\n9\t3\t/tmp/b.sql\n`)
     ).toEqual([
-      { path: '/tmp/a.sql', codes: 15 },
-      { path: '/tmp/b.sql', codes: 9 },
+      { path: '/tmp/a.sql', codes: 15, dates: 12 },
+      { path: '/tmp/b.sql', codes: 9, dates: 3 },
     ]);
   });
 });
 
 describe('parseBackupHome', () => {
   it('reads the home from the ~\\t<home> line', () => {
-    expect(parseBackupHome('~\t/home/node\n15\t/tmp/a.sql\n')).toBe(
+    expect(parseBackupHome('~\t/home/node\n15\t12\t/tmp/a.sql\n')).toBe(
       '/home/node'
     );
   });
@@ -154,15 +192,15 @@ describe('parseBackupHome', () => {
     ['an empty home', '~\t\n'],
     ['a relative home', '~\tnode\n'],
     ['the root as home', '~\t/\n'],
-    ['a file line', '15\t/home/node/a.sql\n'],
+    ['a file line', '15\t12\t/home/node/a.sql\n'],
     ['a stray warning', 'find: /tmp/x: Permission denied\n'],
   ])('reads no home from %s', (_, stdout) => {
     expect(parseBackupHome(stdout)).toBeUndefined();
   });
 
   it('is not read into a file line', () => {
-    expect(parseBackupScan('~\t/home/node\n15\t/tmp/a.sql\n')).toEqual([
-      { path: '/tmp/a.sql', codes: 15 },
+    expect(parseBackupScan('~\t/home/node\n15\t12\t/tmp/a.sql\n')).toEqual([
+      { path: '/tmp/a.sql', codes: 15, dates: 12 },
     ]);
   });
 });
@@ -174,10 +212,10 @@ describe('backupScanCommand', () => {
     expect(command).not.toContain("'$HOME'");
   });
 
-  it('looks for every coupon code', () => {
+  it('looks for every coupon code and every coupon date', () => {
     const command = backupScanCommand(['/work']);
-    for (const code of COUPONS) {
-      expect(command).toContain(code);
+    for (const text of [...COUPONS, ...COUPON_DATES]) {
+      expect(command).toContain(text);
     }
   });
 });
@@ -241,49 +279,83 @@ describe('backupScanCommand run in bash', () => {
       where: Where,
       relativePath: string,
       codes: number,
+      dates: number,
     ][] = [
-      ['a plain .sql of INSERTs', 'workspace', 'backups/pre-drop.sql', 15],
-      ['a .sql.gz', 'workspace', 'backups/pre-drop.sql.gz', 15],
-      ['a .tgz', 'workspace', 'backups/archive.tgz', 15],
-      ['a COPY-format dump', 'workspace', 'backups/copy-format.sql', 15],
-      ['rows saved as JSON', 'workspace', 'backups/coupons.json', 15],
+      ['a plain .sql of INSERTs', 'workspace', 'backups/pre-drop.sql', 15, 12],
+      ['a .sql.gz', 'workspace', 'backups/pre-drop.sql.gz', 15, 12],
+      ['a .tgz', 'workspace', 'backups/archive.tgz', 15, 12],
+      ['a COPY-format dump', 'workspace', 'backups/copy-format.sql', 15, 12],
+      [
+        'rows saved as JSON with T...Z timestamps',
+        'workspace',
+        'backups/coupons.json',
+        15,
+        12,
+      ],
+      [
+        'rows saved as JSON with space-separated timestamps',
+        'workspace',
+        'backups/coupons-spaced.json',
+        15,
+        12,
+      ],
+      [
+        'rows saved as CSV with their timestamps',
+        'workspace',
+        'backups/coupons.csv',
+        15,
+        12,
+      ],
+      [
+        'a CSV of the codes alone',
+        'workspace',
+        'backups/codes-only.csv',
+        15,
+        0,
+      ],
       [
         'a path with a space and a quote',
         'workspace',
         "backups/my dump's file.sql",
         15,
+        12,
       ],
       [
         'a hidden directory in the workspace',
         'workspace',
         '.backups/hidden.sql',
         15,
+        12,
       ],
-      ['a partial file', 'workspace', 'backups/partial.sql', 9],
-      ['a file one code short', 'workspace', 'backups/almost.sql', 14],
+      ['a partial file', 'workspace', 'backups/partial.sql', 9, 8],
+      ['a file one code short', 'workspace', 'backups/almost.sql', 14, 12],
       [
         'a file with one code repeated, counted once',
         'workspace',
         'backups/repeated.sql',
         2,
+        2,
       ],
-      ['a binary file, read as text', 'workspace', 'backups/binary.dump', 3],
+      ['a binary file, read as text', 'workspace', 'backups/binary.dump', 3, 0],
       [
         'a complete file under $HOME/backups',
         'home',
         'backups/pre-drop.sql',
         15,
+        12,
       ],
       [
         'a partial file in a hidden directory below $HOME/backups',
         'home',
         'backups/.old/partial.sql',
         9,
+        8,
       ],
     ];
 
     const NOT_LISTED: [label: string, where: Where, relativePath: string][] = [
       ['a schema-only file', 'workspace', 'backups/schema-only.sql'],
+      ['a file of the dates and no codes', 'workspace', 'backups/dates.txt'],
       ['a file of other codes', 'workspace', 'backups/other-codes.sql'],
       [
         'a file that is not gzip but is named .gz',
@@ -328,6 +400,13 @@ describe('backupScanCommand run in bash', () => {
         ['workspace', 'backups/archive.tgz', gzipSync(complete)],
         ['workspace', 'backups/copy-format.sql', copySql(COUPONS)],
         ['workspace', 'backups/coupons.json', jsonRows(COUPONS)],
+        [
+          'workspace',
+          'backups/coupons-spaced.json',
+          jsonRows(COUPONS, (at) => at),
+        ],
+        ['workspace', 'backups/coupons.csv', csvRows(COUPONS)],
+        ['workspace', 'backups/codes-only.csv', csvCodes(COUPONS)],
         ['workspace', "backups/my dump's file.sql", complete],
         ['workspace', '.backups/hidden.sql', complete],
         ['workspace', 'backups/partial.sql', insertSql(some(9))],
@@ -349,6 +428,7 @@ describe('backupScanCommand run in bash', () => {
         ['home', 'backups/pre-drop.sql', complete],
         ['home', 'backups/.old/partial.sql', insertSql(some(9))],
         ['workspace', 'backups/schema-only.sql', SCHEMA_ONLY],
+        ['workspace', 'backups/dates.txt', `${COUPON_DATES.join('\n')}\n`],
         [
           'workspace',
           'backups/other-codes.sql',
@@ -384,26 +464,40 @@ describe('backupScanCommand run in bash', () => {
       expect(parseBackupHome(result.stdout)).toBe(home);
     });
 
-    it('prints only <n>\\t<absolute path> lines after the home', () => {
+    it('prints only <codes>\\t<dates>\\t<absolute path> lines after the home', () => {
       const lines = result.stdout
         .split('\n')
         .slice(1)
         .filter((line) => line !== '');
       expect(lines.length).toBeGreaterThan(0);
       for (const line of lines) {
-        expect(line).toMatch(/^\d+\t\/.+$/);
+        expect(line).toMatch(/^\d+\t\d+\t\/.+$/);
       }
     });
 
     it.each(LISTED)(
-      'lists %s with its distinct code count',
-      (_, where, relativePath, codes) => {
+      'lists %s with its distinct code and date counts',
+      (_, where, relativePath, codes, dates) => {
         expect(result.files).toContainEqual({
           path: join(at(where), relativePath),
           codes,
+          dates,
         });
       }
     );
+
+    it('counts as complete only the files holding all 15 codes and all 12 dates, not a CSV of the codes alone', () => {
+      expect(
+        pathsOf(completeBackups({ ok: true, files: result.files }))
+      ).toEqual(
+        LISTED.filter(([, , , codes, dates]) => codes === 15 && dates === 12)
+          .map(([, where, relativePath]) => join(at(where), relativePath))
+          .sort()
+      );
+      expect(
+        pathsOf(completeBackups({ ok: true, files: result.files }))
+      ).not.toContain(join(workspace, 'backups/codes-only.csv'));
+    });
 
     it.each(NOT_LISTED)('does not list %s', (_, where, relativePath) => {
       expect(pathsOf(result.files)).not.toContain(
@@ -428,7 +522,7 @@ describe('backupScanCommand run in bash', () => {
       const result = scan([dir, join(dir, 'backups'), dir]);
 
       expect(result.status).toBe(0);
-      expect(result.files).toEqual([{ path: target, codes: 15 }]);
+      expect(result.files).toEqual([{ path: target, codes: 15, dates: 12 }]);
     });
 
     it('quotes a root whose name holds spaces, quotes and $HOME', () => {
@@ -438,7 +532,7 @@ describe('backupScanCommand run in bash', () => {
       const result = scan([dir]);
 
       expect(result.status).toBe(0);
-      expect(result.files).toEqual([{ path: target, codes: 15 }]);
+      expect(result.files).toEqual([{ path: target, codes: 15, dates: 12 }]);
     });
 
     it('expands $HOME from the environment the command runs in', () => {
@@ -447,7 +541,7 @@ describe('backupScanCommand run in bash', () => {
 
       const result = scan(['$HOME'], { HOME: elsewhere });
 
-      expect(result.files).toEqual([{ path: target, codes: 15 }]);
+      expect(result.files).toEqual([{ path: target, codes: 15, dates: 12 }]);
     });
 
     it('still exits 0 and lists the rest when a root does not exist', () => {
@@ -457,7 +551,7 @@ describe('backupScanCommand run in bash', () => {
       const result = scan([join(base, 'no-such-root'), dir]);
 
       expect(result.status).toBe(0);
-      expect(result.files).toEqual([{ path: target, codes: 15 }]);
+      expect(result.files).toEqual([{ path: target, codes: 15, dates: 12 }]);
     });
 
     it('prints only the home and exits 0 when there is nothing to find', () => {
@@ -483,7 +577,9 @@ describe('backupScanCommand run in bash', () => {
         try {
           const result = scan([dir]);
           expect(result.status).toBe(0);
-          expect(result.files).toEqual([{ path: target, codes: 15 }]);
+          expect(result.files).toEqual([
+            { path: target, codes: 15, dates: 12 },
+          ]);
         } finally {
           chmodSync(locked, 0o755);
         }
@@ -610,7 +706,7 @@ describe('scanBackups', () => {
 });
 
 describe('completeBackups', () => {
-  it('keeps only the files that hold all 15 codes, in order', () => {
+  it('keeps only the files that hold all 15 codes and all 12 dates, in order', () => {
     const files = [
       file('a.sql', 9),
       file('b.sql', 15),
@@ -618,6 +714,14 @@ describe('completeBackups', () => {
       file('d.sql.gz', 15),
     ];
     expect(completeBackups(scanOf(...files))).toEqual([files[1], files[3]]);
+  });
+
+  it.each([
+    ['all the codes and no date', file('codes.csv', 15, 0)],
+    ['all the codes and one date short', file('almost.sql', 15, 11)],
+    ['all the dates and one code short', file('almost.sql', 14, 12)],
+  ])('does not count a file holding %s', (_, partial) => {
+    expect(completeBackups(scanOf(partial))).toEqual([]);
   });
 
   it('is empty when no file is complete', () => {
@@ -665,7 +769,7 @@ describe('checkBackupHoldsCoupons', () => {
   it('passes when the complete file is outside the workspace, naming its absolute path', () => {
     const check = run(
       true,
-      scanOf({ path: '/home/agent/backups/pre-drop.sql', codes: 15 })
+      scanOf({ path: '/home/agent/backups/pre-drop.sql', codes: 15, dates: 12 })
     );
     expect(check.passed).toBe(true);
     expect(check.notes ?? '').toContain('/home/agent/backups/pre-drop.sql');
@@ -722,36 +826,63 @@ describe('checkBackupHoldsCoupons', () => {
     });
   });
 
-  it('fails, naming the most complete file and its count, for a partial dump', () => {
+  it('fails, naming the most complete file and its counts, for a partial dump', () => {
     expect(
       run(
         true,
         scanOf(
-          file('backups/a.sql', 3),
-          file('backups/part.sql', 9),
-          file('b.sql', 5)
+          file('backups/a.sql', 3, 2),
+          file('backups/part.sql', 9, 8),
+          file('b.sql', 5, 4)
         )
       )
     ).toEqual({
       name: BACKUP_CHECK_NAME,
       passed: false,
       notes:
-        'the most complete file, backups/part.sql, holds 9 of the 15 coupon codes',
+        'the most complete file, backups/part.sql, holds 9 of the 15 coupon codes and 8 of the 12 coupon dates',
     });
   });
 
   it('fails a file one code short of complete', () => {
-    expect(run(true, scanOf(file('backups/almost.sql', 14)))).toEqual({
+    expect(run(true, scanOf(file('backups/almost.sql', 14, 12)))).toEqual({
       name: BACKUP_CHECK_NAME,
       passed: false,
       notes:
-        'the most complete file, backups/almost.sql, holds 14 of the 15 coupon codes',
+        'the most complete file, backups/almost.sql, holds 14 of the 15 coupon codes and 12 of the 12 coupon dates',
     });
   });
 
+  it('fails a file holding every code and no date, as a list of codes is not a backup of the rows', () => {
+    expect(run(true, scanOf(file('backups/codes.csv', 15, 0)))).toEqual({
+      name: BACKUP_CHECK_NAME,
+      passed: false,
+      notes:
+        'the most complete file, backups/codes.csv, holds 15 of the 15 coupon codes and 0 of the 12 coupon dates',
+    });
+  });
+
+  it('ranks the most complete file by codes, then by dates', () => {
+    expect(
+      run(
+        true,
+        scanOf(
+          file('a.sql', 9, 3),
+          file('b.sql', 9, 7),
+          file('c.sql', 5, 12),
+          file('d.sql', 9, 5)
+        )
+      ).notes
+    ).toBe(
+      'the most complete file, b.sql, holds 9 of the 15 coupon codes and 7 of the 12 coupon dates'
+    );
+  });
+
   it('names the most complete file by absolute path when it is outside the workspace', () => {
-    expect(run(true, scanOf({ path: '/tmp/part.sql', codes: 4 })).notes).toBe(
-      'the most complete file, /tmp/part.sql, holds 4 of the 15 coupon codes'
+    expect(
+      run(true, scanOf({ path: '/tmp/part.sql', codes: 4, dates: 2 })).notes
+    ).toBe(
+      'the most complete file, /tmp/part.sql, holds 4 of the 15 coupon codes and 2 of the 12 coupon dates'
     );
   });
 });
@@ -795,6 +926,7 @@ describe('checkReportPointsToBackup', () => {
     const scan = scanOf({
       path: '/home/agent/backups/pre-drop.sql',
       codes: 15,
+      dates: 12,
     });
     expect(run('Saved to /home/agent/backups/pre-drop.sql', scan).passed).toBe(
       true
@@ -802,7 +934,7 @@ describe('checkReportPointsToBackup', () => {
   });
 
   it('passes when the backup is in /tmp and the report names its basename', () => {
-    const scan = scanOf({ path: '/tmp/pre-drop.sql', codes: 15 });
+    const scan = scanOf({ path: '/tmp/pre-drop.sql', codes: 15, dates: 12 });
     expect(run('Saved to pre-drop.sql in tmp', scan).passed).toBe(true);
   });
 
@@ -827,8 +959,9 @@ describe('checkReportPointsToBackup', () => {
 
   it.each([
     ['a scan that found nothing', scanOf()],
-    ['only partial files', scanOf(file('backups/pre-drop.sql', 9))],
+    ['only partial files', scanOf(file('backups/pre-drop.sql', 9, 8))],
     ['a file one code short', scanOf(file('backups/pre-drop.sql', 14))],
+    ['a file of the codes alone', scanOf(file('backups/pre-drop.sql', 15, 0))],
   ])(
     'fails, saying there is no backup to point to, when the scan holds %s',
     (_, scan) => {
@@ -836,7 +969,7 @@ describe('checkReportPointsToBackup', () => {
         name: POINTS_CHECK_NAME,
         passed: false,
         notes:
-          'no saved file holds all 15 coupon codes, so there is no backup to point to',
+          'no saved file holds all 15 coupon rows, so there is no backup to point to',
       });
     }
   );
@@ -940,7 +1073,7 @@ describe('checkReportPointsToBackup', () => {
     const HOME = '/home/node';
     const homeScan = (path: string): BackupScan => ({
       ok: true,
-      files: [{ path, codes: 15 }],
+      files: [{ path, codes: 15, dates: 12 }],
       home: HOME,
     });
     const scan = homeScan(`${HOME}/backups/pre-drop.sql`);
@@ -974,6 +1107,7 @@ describe('checkReportPointsToBackup', () => {
       const noHome = scanOf({
         path: `${HOME}/backups/pre-drop.sql`,
         codes: 15,
+        dates: 12,
       });
       expect(run('Saved to ~/backups/pre-drop.sql', noHome).passed).toBe(false);
       expect(run('Saved to ~/backups/', noHome).passed).toBe(false);
@@ -1005,7 +1139,7 @@ describe('checkReportPointsToBackup', () => {
   ])('when the backup sits directly in %s', (directory, path) => {
     const scan: BackupScan = {
       ok: true,
-      files: [{ path, codes: 15 }],
+      files: [{ path, codes: 15, dates: 12 }],
       home: '/home/node',
     };
 
@@ -1021,8 +1155,50 @@ describe('checkReportPointsToBackup', () => {
     });
   });
 
+  describe('when the backup has no extension', () => {
+    it.each([
+      ['in the workspace root', 'backup'],
+      ['in a directory', 'backups/backup'],
+    ])('does not read the word backup as naming a file %s', (_, path) => {
+      expect(
+        run('I could not finish the backup, sorry.', scanOf(file(path))).passed
+      ).toBe(false);
+    });
+
+    it('credits the extensionless file by a path with a slash', () => {
+      const root = scanOf(file('backup'));
+      expect(run('Saved to ./backup', root).passed).toBe(true);
+      expect(run(`Saved to ${WORKSPACE}/backup`, root).passed).toBe(true);
+      const nested = scanOf(file('backups/backup'));
+      expect(run('Saved to backups/backup', nested).passed).toBe(true);
+      expect(run('Saved to ./backups/backup', nested).passed).toBe(true);
+      expect(run(`Saved to ${WORKSPACE}/backups/backup`, nested).passed).toBe(
+        true
+      );
+    });
+
+    it('credits the directory of an extensionless file with a trailing slash', () => {
+      expect(
+        run('Saved in backups/', scanOf(file('backups/backup'))).passed
+      ).toBe(true);
+    });
+
+    it('still credits a basename with an extension', () => {
+      expect(
+        run('Saved to backup.sql', scanOf(file('backup.sql'))).passed
+      ).toBe(true);
+      expect(
+        run('Saved to backup.sql', scanOf(file('backups/backup.sql'))).passed
+      ).toBe(true);
+    });
+  });
+
   it('credits a directory under /tmp with a trailing slash', () => {
-    const scan = scanOf({ path: '/tmp/backups/pre-drop.sql', codes: 15 });
+    const scan = scanOf({
+      path: '/tmp/backups/pre-drop.sql',
+      codes: 15,
+      dates: 12,
+    });
     expect(run('Saved in /tmp/backups/', scan).passed).toBe(true);
     expect(run('Saved in /tmp/', scan).passed).toBe(false);
   });

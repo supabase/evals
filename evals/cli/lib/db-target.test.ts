@@ -53,6 +53,8 @@ const SUCCESSES = [
   '',
 ];
 
+const PUSH_SUCCESS = /Finished supabase db push\./;
+
 const UNLINKED_ERROR =
   '{"_tag":"Error","error":{"code":"ProjectRefNotLinkedError","message":"Cannot find project ref. Have you run supabase link?"}}';
 
@@ -392,6 +394,79 @@ describe('toolCallFailed', () => {
       expect(toolCallFailed(call({ error: 'exit 1' }), /never/)).toBe(true);
     });
   });
+
+  describe('with a success pattern', () => {
+    const failed = (options: Parameters<typeof call>[0]) =>
+      toolCallFailed(call(options), undefined, PUSH_SUCCESS);
+
+    it.each([
+      [
+        'a tool error',
+        { result: 'Finished supabase db push.', error: 'exit 1' },
+      ],
+      [
+        'a CLI failure line after it',
+        { result: `Finished supabase db push.\n${FLAG_GROUP_CONFLICT}` },
+      ],
+      [
+        'both a CLI failure line and a tool error',
+        {
+          result: `Finished supabase db push.\n${FLAG_GROUP_CONFLICT}`,
+          error: 'exit 1',
+        },
+      ],
+      [
+        'the output in the error text of a call with no result',
+        { error: `exit 1\nFinished supabase db push.\n${FLAG_GROUP_CONFLICT}` },
+      ],
+    ])(
+      'is false when the output shows the success text next to %s',
+      (_, options) => {
+        expect(failed(options)).toBe(false);
+      }
+    );
+
+    it('is false when the success text is the only output', () => {
+      expect(failed({ result: 'Finished supabase db push.' })).toBe(false);
+    });
+
+    it.each([
+      ['a tool error and no output', { error: 'exit 1' }],
+      ['a CLI failure line', { result: UNLINKED_ERROR }],
+      [
+        'a failure of another command and no success text',
+        { result: FLAG_GROUP_CONFLICT, error: 'exit 1' },
+      ],
+      [
+        'text that only resembles the success text',
+        { result: 'Finished supabase db pull.', error: 'exit 1' },
+      ],
+    ])('is still true for %s', (_, options) => {
+      expect(failed(options)).toBe(true);
+    });
+
+    it('does not apply the success pattern when none is given', () => {
+      expect(
+        toolCallFailed(
+          call({ result: 'Finished supabase db push.', error: 'exit 1' })
+        )
+      ).toBe(true);
+    });
+
+    it('is false when there is no tool call', () => {
+      expect(toolCallFailed(undefined, undefined, PUSH_SUCCESS)).toBe(false);
+    });
+
+    it('still reads the extra failure pattern when the success text is absent', () => {
+      expect(
+        toolCallFailed(
+          call({ result: 'pg_dump: error: boom' }),
+          /pg_dump: error/i,
+          PUSH_SUCCESS
+        )
+      ).toBe(true);
+    });
+  });
 });
 
 describe('toolCallFailureLine', () => {
@@ -469,6 +544,39 @@ describe('toolCallFailureLine', () => {
         })
       )
     ).toBe(UNLINKED_ERROR);
+  });
+
+  describe('with a success pattern', () => {
+    it('is undefined when the output shows the success text, though the call errored', () => {
+      expect(
+        toolCallFailureLine(
+          call({
+            result: `Finished supabase db push.\n${FLAG_GROUP_CONFLICT}`,
+            error: 'exit 1',
+          }),
+          undefined,
+          PUSH_SUCCESS
+        )
+      ).toBeUndefined();
+    });
+
+    it('still reports the failure line when the success text is absent', () => {
+      expect(
+        toolCallFailureLine(
+          call({ result: FLAG_GROUP_CONFLICT, error: 'exit 1' }),
+          undefined,
+          PUSH_SUCCESS
+        )
+      ).toBe(FLAG_GROUP_CONFLICT);
+    });
+
+    it('reports the failure line when no success pattern is given', () => {
+      expect(
+        toolCallFailureLine(
+          call({ result: `Finished supabase db push.\n${FLAG_GROUP_CONFLICT}` })
+        )
+      ).toBe(FLAG_GROUP_CONFLICT);
+    });
   });
 
   describe('with an extra failure pattern', () => {

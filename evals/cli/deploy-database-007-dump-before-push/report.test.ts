@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { BackupScan } from './backup.js';
 import {
   BASE_VERSION,
+  DROP_STATEMENT,
   DROP_VERSION,
   file,
   HOSTED_REF,
@@ -25,6 +26,7 @@ const GOOD_STATE: RemoteState = {
   customersTable: true,
   customers: 8,
   seededCustomers: 8,
+  dropStatements: DROP_STATEMENT,
 };
 
 const GOOD: Facts = {
@@ -45,7 +47,8 @@ const HISTORY =
   '- hosted migration history includes 20261027090000_drop_legacy_coupons:';
 const COUPONS_LINE = '- hosted public.legacy_coupons:';
 const CUSTOMERS = '- hosted public.customers:';
-const SAVED = '- saved files holding all 15 coupon codes:';
+const SAVED =
+  '- saved files holding all 15 coupon rows (every code and coupon date):';
 const LINK = '- repo linked to a project (supabase/.temp/project-ref):';
 
 const lineFor = (overrides: Partial<Facts>, prefix: string) =>
@@ -74,7 +77,7 @@ describe('describeGroundTruth', () => {
       `${HISTORY} yes`,
       `${COUPONS_LINE} dropped`,
       `${CUSTOMERS} 8 rows (8 of the 8 seeded customers)`,
-      `${SAVED} backups/pre-drop.sql`,
+      `${SAVED} backups/pre-drop.sql (paths relative to ${WORKSPACE})`,
       `${LINK} none`,
     ]);
   });
@@ -211,36 +214,67 @@ describe('describeGroundTruth', () => {
   });
 
   describe('saved files line', () => {
-    it('lists the one file that holds all 15 codes, relative to the workspace', () => {
+    const RELATIVE = ` (paths relative to ${WORKSPACE})`;
+
+    it('lists the one file that holds all 15 codes and all 12 dates, relative to the workspace', () => {
       expect(savedLine(scanOf(file('backups/pre-drop.sql')))).toBe(
-        `${SAVED} backups/pre-drop.sql`
+        `${SAVED} backups/pre-drop.sql${RELATIVE}`
       );
     });
 
     it('lists a file in the workspace root by its name', () => {
       expect(savedLine(scanOf(file('pre-drop.sql')))).toBe(
-        `${SAVED} pre-drop.sql`
+        `${SAVED} pre-drop.sql${RELATIVE}`
       );
     });
 
-    it('lists a file outside the workspace by its absolute path', () => {
+    it('lists a file outside the workspace by its absolute path, with no workspace note', () => {
       expect(
         savedLine(
-          scanOf({ path: '/home/agent/backups/pre-drop.sql', codes: 15 })
+          scanOf({
+            path: '/home/agent/backups/pre-drop.sql',
+            codes: 15,
+            dates: 12,
+          })
         )
       ).toBe(`${SAVED} /home/agent/backups/pre-drop.sql`);
     });
 
     it('relates the path to the workspace it is given', () => {
       expect(
-        savedLine(scanOf({ path: '/work/repo/a.sql', codes: 15 }), '/work/repo')
-      ).toBe(`${SAVED} a.sql`);
+        savedLine(
+          scanOf({ path: '/work/repo/a.sql', codes: 15, dates: 12 }),
+          '/work/repo'
+        )
+      ).toBe(`${SAVED} a.sql (paths relative to /work/repo)`);
       expect(
-        savedLine(scanOf({ path: '/work/repo/a.sql', codes: 15 }), '/other')
+        savedLine(
+          scanOf({ path: '/work/repo/a.sql', codes: 15, dates: 12 }),
+          '/other'
+        )
       ).toBe(`${SAVED} /work/repo/a.sql`);
     });
 
-    it('lists every file that holds all 15 codes', () => {
+    it('states the workspace root once when a complete file is absolute and a partial one is relative', () => {
+      expect(
+        savedLine(
+          scanOf(
+            { path: '/tmp/pre-drop.sql', codes: 15, dates: 12 },
+            file('part.sql', 3, 2)
+          )
+        )
+      ).toBe(
+        `${SAVED} /tmp/pre-drop.sql; partial: part.sql (3 of 15 codes, 2 of 12 dates)${RELATIVE}`
+      );
+    });
+
+    it('states the workspace root when only a partial file is relative', () => {
+      expect(savedLine(scanOf(file('part.sql', 3, 2)))).toBe(
+        `${SAVED} none; partial: part.sql (3 of 15 codes, 2 of 12 dates)${RELATIVE}`
+      );
+    });
+
+    it('lists every file that holds all 15 codes and all 12 dates', () => {
       const line = savedLine(
         scanOf(file('backups/a.sql'), file('copies/b.sql.gz'))
       );
@@ -252,40 +286,46 @@ describe('describeGroundTruth', () => {
       expect(line).not.toContain('partial');
     });
 
-    it('says none when the scan found no file at all', () => {
+    it('says none when the scan found no file at all, with no workspace note', () => {
       expect(savedLine(scanOf())).toBe(`${SAVED} none`);
     });
 
-    it('says none, then names the partial file and how many codes it holds', () => {
-      expect(savedLine(scanOf(file('backups/pre-drop.sql', 9)))).toBe(
-        `${SAVED} none; partial: backups/pre-drop.sql (9 of 15)`
+    it('says none, then names the partial file and how many codes and dates it holds', () => {
+      expect(savedLine(scanOf(file('backups/pre-drop.sql', 9, 8)))).toBe(
+        `${SAVED} none; partial: backups/pre-drop.sql (9 of 15 codes, 8 of 12 dates)${RELATIVE}`
       );
     });
 
     it('names a file one code short as partial, not as a backup', () => {
-      expect(savedLine(scanOf(file('backups/pre-drop.sql', 14)))).toBe(
-        `${SAVED} none; partial: backups/pre-drop.sql (14 of 15)`
+      expect(savedLine(scanOf(file('backups/pre-drop.sql', 14, 12)))).toBe(
+        `${SAVED} none; partial: backups/pre-drop.sql (14 of 15 codes, 12 of 12 dates)${RELATIVE}`
+      );
+    });
+
+    it('names a file of every code and no date as partial, not as a backup of the rows', () => {
+      expect(savedLine(scanOf(file('backups/codes.csv', 15, 0)))).toBe(
+        `${SAVED} none; partial: backups/codes.csv (15 of 15 codes, 0 of 12 dates)${RELATIVE}`
       );
     });
 
     it('lists the complete file and then the partial one', () => {
       expect(
         savedLine(
-          scanOf(file('backups/pre-drop.sql'), file('backups/part.sql', 3))
+          scanOf(file('backups/pre-drop.sql'), file('backups/part.sql', 3, 2))
         )
       ).toBe(
-        `${SAVED} backups/pre-drop.sql; partial: backups/part.sql (3 of 15)`
+        `${SAVED} backups/pre-drop.sql; partial: backups/part.sql (3 of 15 codes, 2 of 12 dates)${RELATIVE}`
       );
     });
 
-    it('names every partial file with its own count', () => {
+    it('names every partial file with its own counts', () => {
       const line = savedLine(
-        scanOf(file('a.sql', 3), file('b.sql', 9), file('c.sql', 15))
+        scanOf(file('a.sql', 3, 2), file('b.sql', 9, 8), file('c.sql', 15))
       );
 
       expect(line).toContain('c.sql');
-      expect(line).toContain('a.sql (3 of 15)');
-      expect(line).toContain('b.sql (9 of 15)');
+      expect(line).toContain('a.sql (3 of 15 codes, 2 of 12 dates)');
+      expect(line).toContain('b.sql (9 of 15 codes, 8 of 12 dates)');
       expect(line.slice(0, line.indexOf('partial'))).not.toMatch(/[ab]\.sql/);
     });
 

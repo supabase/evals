@@ -32,6 +32,9 @@ export const DUMP_CHECK_NAME =
 export const DUMP_FAILURE_RE =
   /pg_dump: error|Cannot connect to the Docker daemon|error running container/i;
 
+/** Printed on stderr for every `--file` dump that finishes, `--data-only` included; ANSI codes can wrap the path. */
+const DUMP_SUCCESS_RE = /Dumped schema to \S/;
+
 export function readDbDumps(
   invocations: readonly SupabaseInvocation[],
   toolCalls: readonly ToolCallRecord[]
@@ -45,9 +48,9 @@ export function readDbDumps(
     }
     const call = calls[inv.commandIndex];
     const command = entries[inv.commandIndex]?.command ?? '';
-    const failed = toolCallFailed(call, DUMP_FAILURE_RE);
+    const failed = toolCallFailed(call, DUMP_FAILURE_RE, DUMP_SUCCESS_RE);
     const failure = failed
-      ? toolCallFailureLine(call, DUMP_FAILURE_RE)
+      ? toolCallFailureLine(call, DUMP_FAILURE_RE, DUMP_SUCCESS_RE)
       : undefined;
     dumps.push({
       order,

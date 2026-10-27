@@ -11,6 +11,7 @@ import {
 } from './fixtures.js';
 import {
   checkDumpedBeforePush,
+  type DbDump,
   DUMP_CHECK_NAME,
   DUMP_FAILURE_RE,
   isCreditedDump,
@@ -300,6 +301,88 @@ describe('readDbDumps', () => {
           shellCall(DUMP, { error: `pg_dump: error: ${'x'.repeat(500)}` })
         )[0]?.failure
       ).toHaveLength(200);
+    });
+
+    describe('when a later command in the same tool call fails', () => {
+      const WRITTEN =
+        'Dumped schema to /tmp/eval-workspace/backups/pre-drop.sql.';
+      const CHAINED = `${DUMP} && grep -c "^COPY" backups/pre-drop.sql`;
+
+      it('does not mark a dump failed when its call printed where it wrote, though the call errored on a later grep', () => {
+        const [first] = dumpsOf(
+          shellCall(CHAINED, { result: WRITTEN, error: 'exit 1' })
+        );
+        expect(first).toEqual(dumpOf({ dataOnly: true }));
+        expect(first).not.toHaveProperty('failure');
+        expect(isCreditedDump(first as DbDump)).toBe(true);
+      });
+
+      it('does not mark a dump failed when the whole output is in the error text', () => {
+        const [first] = dumpsOf(
+          shellCall(CHAINED, { error: `${WRITTEN}\nexit status 1` })
+        );
+        expect(first).toMatchObject({ dataOnly: true, failed: false });
+        expect(first).not.toHaveProperty('failure');
+      });
+
+      it.each([
+        ['plain text', WRITTEN],
+        [
+          'a bold path',
+          'Dumped schema to \x1b[1m/tmp/eval-workspace/backups/pre-drop.sql\x1b[22m.',
+        ],
+        ['a relative path', 'Dumped schema to backups/pre-drop.sql.'],
+      ])('reads the success text with %s', (_, written) => {
+        const [first] = dumpsOf(
+          shellCall(CHAINED, {
+            result: `Dumping data from remote database...\n${written}`,
+            error: 'exit 1',
+          })
+        );
+        expect(first?.failed).toBe(false);
+      });
+
+      it('credits the dump and the push of a chained run whose later command failed', () => {
+        const { dumps, pushes } = activityOf(
+          shellCall(CHAINED, { result: WRITTEN, error: 'exit 1' }),
+          PUSH
+        );
+        expect(checkDumpedBeforePush(true, dumps, pushes)).toMatchObject({
+          passed: true,
+        });
+      });
+
+      it.each([
+        ['a tool error and no output', { error: 'exit 1' }],
+        [
+          'a pg_dump error and no success text',
+          { result: PG_DUMP_ERROR, error: 'exit 1' },
+        ],
+        [
+          'an unlinked repo and no success text',
+          { result: UNLINKED, error: 'exit 1' },
+        ],
+        [
+          'a dump redirected to stdout, which prints no success text',
+          { result: 'Dumping data from remote database...', error: 'exit 1' },
+        ],
+      ])('still marks the dump failed on %s', (_, options) => {
+        const [first] = dumpsOf(
+          shellCall(`${DUMP} && grep -c "^COPY" backups/pre-drop.sql`, options)
+        );
+        expect(first?.failed).toBe(true);
+        expect(first?.failure).toBeDefined();
+      });
+
+      it('marks a redirected dump failed when a later command in its call errored', () => {
+        const [first] = dumpsOf(
+          shellCall(
+            'supabase db dump --data-only > backups/pre-drop.sql && grep -c "^COPY" backups/pre-drop.sql',
+            { error: 'exit 1' }
+          )
+        );
+        expect(first?.failed).toBe(true);
+      });
     });
 
     it('reads the output of the tool call the dump ran in, not of another call', () => {
