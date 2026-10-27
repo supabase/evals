@@ -159,7 +159,10 @@ export function experimentName(
   stamp: string
 ) {
   const sha = commit ? `@${commit.slice(0, 7)}` : '';
-  return `${suite}-${experiment.replace('/', '-')}${sha}-${stamp}`;
+  const name = experiment.startsWith(`${suite}/`)
+    ? experiment.slice(suite.length + 1)
+    : experiment.replace('/', '-');
+  return `${suite}-${name}${sha}-${stamp}`;
 }
 
 // 20260923T1339Z. UTC so runs from different zones sort against each other.
@@ -774,7 +777,7 @@ async function main() {
     for (const { experiment, suite, rows } of byExperiment.values()) {
       const evals = new Set(rows.map((row) => row.evalId)).size;
       console.log(
-        `${suite}/${experiment}: ${rows.length} row(s), ${evals} eval(s)`
+        `${suite}: ${experiment}: ${rows.length} row(s), ${evals} eval(s)`
       );
     }
     return;
