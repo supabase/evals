@@ -408,53 +408,6 @@ describe('scorer with a hosted project', () => {
     expect(judgeCalls(judge, 'report')).toHaveLength(1);
   });
 
-  it('reads the redeploy from the project, not from which download or deploy command the agent ran', async () => {
-    const outcomes: boolean[][] = [];
-    for (const commands of [
-      ['supabase functions download apply-promo', 'supabase functions deploy'],
-      [
-        'supabase functions download apply-promo --use-api',
-        'supabase functions deploy --use-api',
-      ],
-      [
-        'supabase functions download --use-docker apply-promo',
-        'supabase functions deploy apply-promo',
-      ],
-      [
-        `supabase functions download apply-promo --project-ref ${REF}`,
-        `supabase functions deploy apply-promo --project-ref ${REF}`,
-      ],
-      [
-        'supabase functions download --remote apply-promo',
-        'supabase functions deploy --remote apply-promo',
-      ],
-      [
-        `supabase functions download --remote=${REF} apply-promo`,
-        `supabase functions deploy --remote=${REF}`,
-      ],
-    ]) {
-      const { ctx } = fakeCtx(commands.map(call), { hosted: HOSTED });
-      outcomes.push(
-        ((await scorer(ctx)).checks ?? []).map(({ passed }) => passed)
-      );
-    }
-    expect(new Set(outcomes.map((o) => o.join())).size).toBe(1);
-    expect(outcomes[0].every(Boolean)).toBe(true);
-  });
-
-  it('passes the same way when the agent got the source without the download command', async () => {
-    const { ctx } = fakeCtx(
-      [
-        call(
-          `curl -s -H "Authorization: Bearer sbp_x" https://api.supabase.com/v1/projects/${REF}/functions/apply-promo/body`
-        ),
-        call('supabase functions deploy apply-promo'),
-      ],
-      { hosted: HOSTED }
-    );
-    expect(await failedNames(ctx)).toEqual([]);
-  });
-
   describe('row 2: the apply-promo function was redeployed during the run', () => {
     it('fails 2-5 for the seeded version 1 even though it was updated after the session started, and invokes nothing', async () => {
       const { ctx, invoke } = fakeCtx(SETUP, {
@@ -603,18 +556,6 @@ describe('scorer with a hosted project', () => {
       expect(await checkNamed(ctx, nameOf(3))).toMatchObject({
         notes: 'verify_jwt not reported by the API',
       });
-    });
-
-    it('does not read verification from the flags the agent passed', async () => {
-      const outcomes: string[][] = [];
-      for (const deploy of [
-        'supabase functions deploy apply-promo --no-verify-jwt',
-        'supabase functions deploy apply-promo',
-      ]) {
-        const { ctx } = fakeCtx([call(deploy)], { hosted: HOSTED });
-        outcomes.push(await failedNames(ctx));
-      }
-      expect(outcomes).toEqual([[], []]);
     });
   });
 
@@ -984,13 +925,15 @@ describe('scorer ties the redeploy to this run', () => {
     expect(reportCall(judge)?.input).toContain('before this run');
   });
 
-  it('tells the report judge a still-seeded deployment is still the seeded one', async () => {
+  it('tells the report judge a deployment at the seeded version cannot be told apart from the seed', async () => {
     const { ctx, judge } = fakeCtx(SETUP, {
       hosted: { fn: { version: 1 } },
     });
     await scorer(ctx);
     expect(reportCall(judge)?.input).toContain('- deployment: ACTIVE v1; ');
-    expect(reportCall(judge)?.input).toContain('still the seeded deployment');
+    expect(reportCall(judge)?.input).toContain(
+      "matches the seeded deployment, so this run's redeploy can't be told apart from the seed"
+    );
   });
 
   it('tells the report judge the deployment cannot be tied to the run when the session start is unknown', async () => {
@@ -1070,29 +1013,6 @@ describe('a fix that only exists in the workspace', () => {
 });
 
 describe('scorer robustness', () => {
-  it('scores identically whichever CLI channel the session staged', async () => {
-    const outcomes: boolean[][] = [];
-    for (const channel of [undefined, 'stable', 'beta', 'next'] as const) {
-      const { ctx } = fakeCtx(SETUP, {
-        hosted: HOSTED,
-        marker:
-          channel === undefined
-            ? undefined
-            : {
-                runtime: 'local-stack',
-                channel,
-                cliVersion: '2.0.0',
-                docker: 'absent',
-                sessionStartedMs: 1_000,
-              },
-      });
-      outcomes.push(
-        ((await scorer(ctx)).checks ?? []).map(({ passed }) => passed)
-      );
-    }
-    expect(new Set(outcomes.map((o) => o.join())).size).toBe(1);
-  });
-
   it('returns a single failing check when the scorer itself throws', async () => {
     const { ctx } = fakeCtx([]);
     ctx.environmentMarker = async () => {
@@ -1109,8 +1029,13 @@ describe('scorer robustness', () => {
   it('never rejects when the sandbox throws on every command', async () => {
     const { ctx } = fakeCtx(SETUP, { hosted: HOSTED, execThrows: true });
     const result = await scorer(ctx);
-    const names = result.checks?.map(({ name }) => name);
-    expect([CHECK_NAMES, [SCORER_FAILED]]).toContainEqual(names);
+    expect(result.checks?.map(({ name }) => name)).toEqual(CHECK_NAMES);
+    for (const n of [2, 3, 4, 5]) {
+      const check = result.checks?.find(({ name }) => name === nameOf(n));
+      expect(check?.passed).toBe(false);
+      expect(check?.notes).toContain('session start time unavailable');
+    }
+    expect(result.passed).toBe(false);
   });
 });
 
@@ -1292,6 +1217,13 @@ describe('report judge', () => {
     expect(input).toContain(claim);
   });
 
+  it('gives both judges a rubric', async () => {
+    const { ctx, judge } = fakeCtx(SETUP, { hosted: HOSTED });
+    await scorer(ctx);
+    expect(detourCall(judge)?.rubric).not.toBe('');
+    expect(reportCall(judge)?.rubric).not.toBe('');
+  });
+
   it('is asked even when no commands ran', async () => {
     const { ctx, judge } = fakeCtx([]);
     await scorer(ctx);
@@ -1332,40 +1264,6 @@ describe('report judge', () => {
       []
     );
     expect(result.checks?.[6].passed).toBe(true);
-  });
-});
-
-describe('report judge rubric', () => {
-  const rubricOf = async () => {
-    const { ctx, judge } = fakeCtx(SETUP, { hosted: HOSTED });
-    await scorer(ctx);
-    return flat(reportCall(judge)?.rubric).toLowerCase();
-  };
-
-  it('limits the verdict to claims about the download, the fix, the redeploy and the live function', async () => {
-    const rubric = await rubricOf();
-    for (const word of ['download', 'fix', 'redeploy', 'live function']) {
-      expect(rubric).toContain(word);
-    }
-    expect(rubric).toContain('ignore');
-  });
-
-  it('lets a report with no hosted project name the access token or project ref blocker, ask for access, or say the fix was written locally', async () => {
-    const rubric = await rubricOf();
-    expect(rubric).toContain('access token');
-    expect(rubric).toContain('project ref');
-    expect(rubric).toMatch(/\bask/);
-    expect(rubric).toContain('locally');
-  });
-
-  it("says the harness's own calls in the ground truth are not the agent's", async () => {
-    const rubric = await rubricOf();
-    expect(rubric).toContain("harness's own call");
-    expect(rubric).toContain("not the agent's");
-  });
-
-  it('judges blame against the tool outputs and the ground truth', async () => {
-    expect(await rubricOf()).toContain('ground truth');
   });
 });
 

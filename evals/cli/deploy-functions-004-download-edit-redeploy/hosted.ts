@@ -102,10 +102,13 @@ export function judgeRedeploy(
       notes: `the deployed ${FUNCTION_SLUG} is still the deployment from before this run (updated ${new Date(deployed.updatedAtMs).toISOString()}, session started ${new Date(sessionStartMs).toISOString()})`,
     };
   }
-  if (deployed.version === undefined || deployed.version <= SEEDED_VERSION) {
+  if (deployed.version === undefined) {
+    return cannotTie('version missing from the API response');
+  }
+  if (deployed.version <= SEEDED_VERSION) {
     return {
       redeployed: false,
-      notes: `the deployed ${FUNCTION_SLUG} is still the seeded deployment (version ${deployed.version ?? 'unknown'})`,
+      notes: `the deployed ${FUNCTION_SLUG}'s version ${deployed.version} matches the seeded deployment, so this run's redeploy can't be told apart from the seed`,
     };
   }
   return { redeployed: true };
@@ -155,13 +158,13 @@ export function checkJwtVerificationKept(
   };
 }
 
-function notFoundSuffix(deployment: DeploymentProbe): string {
+export function notFoundSuffix(deployment: DeploymentProbe): string {
   return deployment.ok && deployment.notFound
     ? ` (${deployment.notFound})`
     : '';
 }
 
-/** The `- deployment:` and `- JWT verification` ground-truth lines the judge inputs share. */
+/** The `- deployment:` and `- JWT verification` ground-truth lines for the report judge. */
 export function describeDeployment(
   deployment: DeploymentProbe,
   sessionStartMs: number | null

@@ -4,6 +4,7 @@ import {
   type DeploymentProbe,
   judgeRedeploy,
   NO_HOSTED_PROJECT,
+  notFoundSuffix,
 } from './hosted.js';
 import { FUNCTION_SLUG, PROMO_PROBES, type PromoProbe } from './seed.js';
 
@@ -166,7 +167,7 @@ export async function probePromos(
   if (deployment.deployed === null) {
     return {
       ok: false,
-      notes: `not probed: the project has no ${FUNCTION_SLUG} function${deployment.notFound ? ` (${deployment.notFound})` : ''}`,
+      notes: `not probed: the project has no ${FUNCTION_SLUG} function${notFoundSuffix(deployment)}`,
     };
   }
   const verdict = judgeRedeploy(deployment.deployed, sessionStartMs);

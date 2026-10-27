@@ -21,8 +21,8 @@ const iso = (ms: number) => new Date(ms).toISOString();
 
 const BEFORE_THIS_RUN = (updatedMs: number, startedMs: number) =>
   `still the deployment from before this run (updated ${iso(updatedMs)}, session started ${iso(startedMs)})`;
-const STILL_SEEDED = (version: number) =>
-  `still the seeded deployment (version ${version})`;
+const MATCHES_SEED = (version: number) =>
+  `version ${version} matches the seeded deployment, so this run's redeploy can't be told apart from the seed`;
 const NO_SESSION_START = "can't be tied to this run";
 const SESSION_START_MISSING = 'session start time unavailable';
 const UPDATED_AT_MISSING = 'updated_at missing';
@@ -387,22 +387,31 @@ describe('judgeRedeploy', () => {
       )
     ).toEqual({
       redeployed: false,
-      notes: expect.stringContaining(STILL_SEEDED(1)),
+      notes: expect.stringContaining(MATCHES_SEED(1)),
     });
   });
 
   it('does not count a version below the seeded one', () => {
     expect(judgeRedeploy(fnOf({ version: 0 }), SESSION_START)).toMatchObject({
       redeployed: false,
-      notes: expect.stringContaining(STILL_SEEDED(0)),
+      notes: expect.stringContaining(MATCHES_SEED(0)),
     });
   });
 
   it('does not count a function whose version the API did not report, and never prints undefined', () => {
-    const verdict = judgeRedeploy(fnOf({ version: undefined }), SESSION_START);
-    expect(verdict.redeployed).toBe(false);
-    expect(!verdict.redeployed && verdict.notes).toMatch(/seeded|version/);
-    expect(!verdict.redeployed && verdict.notes).not.toContain('undefined');
+    const notes = notRedeployedNotes({ version: undefined });
+    expect(notes).toContain(NO_SESSION_START);
+    expect(notes).toContain('version missing');
+    expect(notes).not.toContain('undefined');
+  });
+
+  it('says the seed cannot be told apart from a redeploy, not that the function predates the run, when it was updated after the session started at the seeded version', () => {
+    const notes = notRedeployedNotes({
+      version: 1,
+      updatedAtMs: REDEPLOYED_AT,
+    });
+    expect(notes).toContain(MATCHES_SEED(1));
+    expect(notes).not.toContain('from before this run');
   });
 
   it('counts version 2, the first redeploy of the seeded function', () => {
@@ -494,7 +503,7 @@ describe('checkFunctionRedeployed', () => {
       SESSION_START
     );
     expect(check).toMatchObject({ name, passed: false });
-    expect(check.notes).toContain(STILL_SEEDED(1));
+    expect(check.notes).toContain(MATCHES_SEED(1));
   });
 
   it('fails an ACTIVE function that predates the run, saying when it was updated', () => {

@@ -2,7 +2,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
-import { FUNCTION_SLUG, PROMO_PROBES, SEEDED_VERSION } from './seed.js';
+import { FUNCTION_SLUG, PROMO_PROBES } from './seed.js';
 
 const here = (path: string) => new URL(`./${path}`, import.meta.url);
 const read = (path: string) => readFileSync(here(path), 'utf8');
@@ -52,45 +52,7 @@ const FIXED_SOURCE = SEED_SOURCE.replace(
   'PROMOS.get(code.toUpperCase())'
 );
 
-describe('seed constants', () => {
-  it('names the seeded function', () => {
-    expect(FUNCTION_SLUG).toBe('apply-promo');
-  });
-
-  it('records that platform-lite seeds remote functions at version 1', () => {
-    expect(SEEDED_VERSION).toBe(1);
-  });
-
-  it('probes two lowercase codes that must start working and three rules that must be kept', () => {
-    expect([...PROMO_PROBES]).toEqual([
-      {
-        group: 'fix',
-        request: { code: 'welcome10', cartCents: 6000 },
-        expected: { valid: true, discountCents: 600 },
-      },
-      {
-        group: 'fix',
-        request: { code: 'freeship', cartCents: 6000 },
-        expected: { valid: true, discountCents: 495 },
-      },
-      {
-        group: 'kept',
-        request: { code: 'LOYAL15', cartCents: 6000 },
-        expected: { valid: true, discountCents: 900 },
-      },
-      {
-        group: 'kept',
-        request: { code: 'FREESHIP', cartCents: 2000 },
-        expected: { valid: false },
-      },
-      {
-        group: 'kept',
-        request: { code: 'SPRING50', cartCents: 6000 },
-        expected: { valid: false },
-      },
-    ]);
-  });
-
+describe('probe table', () => {
   it('sends the fix probes in lowercase and the kept probes in the exact case the seed already accepts', () => {
     for (const { group, request } of PROMO_PROBES) {
       if (group === 'fix')

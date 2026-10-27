@@ -505,14 +505,26 @@ describe('readLocalSource', () => {
     expect(readLocalSource(root)).toBe(false);
   });
 
-  it('is null when the workspace cannot be read', () => {
-    const unreadable = {
-      toString() {
-        throw new Error('unreadable workspace');
-      },
-    } as unknown as string;
-    expect(readLocalSource(unreadable)).toBeNull();
+  it('is false when a path component is a regular file', () => {
+    const root = workspace({ 'supabase/functions': 'not a directory' });
+    expect(readLocalSource(root)).toBe(false);
   });
+
+  it.skipIf(process.getuid?.() === 0)(
+    'is null when the workspace cannot be read for a reason other than a missing path',
+    () => {
+      const root = workspace({
+        'supabase/functions/apply-promo/index.ts': 'export {};',
+      });
+      const locked = path.join(root, 'supabase');
+      fs.chmodSync(locked, 0o000);
+      try {
+        expect(readLocalSource(root)).toBeNull();
+      } finally {
+        fs.chmodSync(locked, 0o755);
+      }
+    }
+  );
 });
 
 describe('readCliFacts', () => {

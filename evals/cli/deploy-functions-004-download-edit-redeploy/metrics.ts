@@ -6,6 +6,8 @@ import type {
   LocalStackEvalContext,
 } from '@supabase-evals/core';
 import {
+  invocationSubcommand,
+  invocationVerb,
   listCliOverrides,
   type SupabaseInvocation,
 } from '../lib/cli-invocations.js';
@@ -34,21 +36,6 @@ const TRACKED_COMMANDS = new Set([
   'status',
 ]);
 const COMMAND_GROUPS = new Set(['functions', 'projects']);
-const VALUE_FLAGS = new Set([
-  '--workdir',
-  '--profile',
-  '--network-id',
-  '-o',
-  '--output',
-  '--output-format',
-  '--dns-resolver',
-  '--project-ref',
-  '--import-map',
-  '-j',
-  '--jobs',
-  '--log-level',
-  '--agent',
-]);
 const DOWNLOAD_FLAGS = [
   '--use-api',
   '--use-docker',
@@ -85,17 +72,9 @@ export async function readCliFacts(
   };
 }
 
-function subcommandWords(argv: readonly string[]): string[] {
-  const words: string[] = [];
-  for (let i = 1; i < argv.length; i++) {
-    if (!argv[i].startsWith('-')) words.push(argv[i]);
-    else if (VALUE_FLAGS.has(argv[i])) i++;
-  }
-  return words;
-}
-
-function commandKey(argv: readonly string[]): string {
-  const [first = '', second = ''] = subcommandWords(argv);
+function commandKey(inv: SupabaseInvocation): string {
+  const first = invocationVerb(inv) ?? '';
+  const second = invocationSubcommand(inv) ?? '';
   const key = COMMAND_GROUPS.has(first) ? `${first} ${second}` : first;
   return TRACKED_COMMANDS.has(key) ? key : 'other';
 }
@@ -105,8 +84,8 @@ export function countCliCommands(
   invocations: readonly SupabaseInvocation[]
 ): Record<string, number> {
   const counts: Record<string, number> = {};
-  for (const { argv } of invocations) {
-    const key = commandKey(argv);
+  for (const inv of invocations) {
+    const key = commandKey(inv);
     counts[key] = (counts[key] ?? 0) + 1;
   }
   return counts;
@@ -118,10 +97,10 @@ function flagCounts(
   flags: readonly string[]
 ): Record<string, number> {
   const counts: Record<string, number> = {};
-  for (const { argv } of invocations) {
-    if (commandKey(argv) !== command) continue;
+  for (const inv of invocations) {
+    if (commandKey(inv) !== command) continue;
     for (const flag of flags) {
-      if (argv.some((arg) => arg === flag || arg.startsWith(`${flag}=`))) {
+      if (inv.argv.some((arg) => arg === flag || arg.startsWith(`${flag}=`))) {
         counts[flag] = (counts[flag] ?? 0) + 1;
       }
     }
@@ -146,7 +125,7 @@ export function deployFlags(
 /** Whether the agent left the function's source in the workspace; null when the workspace can't be read. */
 export function readLocalSource(hostWorkspace: string): boolean | null {
   try {
-    return fs.existsSync(
+    fs.statSync(
       path.join(
         hostWorkspace,
         'supabase',
@@ -155,8 +134,10 @@ export function readLocalSource(hostWorkspace: string): boolean | null {
         'index.ts'
       )
     );
-  } catch {
-    return null;
+    return true;
+  } catch (error) {
+    const { code } = error as NodeJS.ErrnoException;
+    return code === 'ENOENT' || code === 'ENOTDIR' ? false : null;
   }
 }
 
