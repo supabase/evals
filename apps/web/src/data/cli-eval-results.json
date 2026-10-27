@@ -18643,6 +18643,445 @@
       "modelId": "gpt-6-luna",
       "reasoningEffort": "medium"
     },
+    "eval": "investigate-database-003-answer-data-question",
+    "stage": "investigate",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.123.0-beta.3",
+    "passed": true,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "the seeded customers and orders are unchanged",
+        "passed": true,
+        "notes": "unchanged"
+      },
+      {
+        "name": "a supabase db query run returned the answer",
+        "passed": true,
+        "notes": "tool call 4 ran supabase db query and printed 263"
+      },
+      {
+        "name": "no psql, client-library or API fallback",
+        "passed": true,
+        "judgeNotes": "All database access used the Supabase CLI; other commands only read project files."
+      },
+      {
+        "name": "the reply gives the right count",
+        "passed": true,
+        "notes": "the reply gives 263"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempts to install, start, or reconfigure a container runtime, escalate privileges, or change runtime permissions. Commands only read project files and invoke the Supabase CLI."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.123.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"commands\":4,\"supabaseInvocations\":3,\"dbQueryRuns\":1,\"dbQueryErrored\":0,\"dbQuerySavedOutputReads\":0,\"dbQueryFlags\":[\"--local\",\"-o\"],\"psqlCommands\":0,\"answerInReply\":true}"
+      },
+      {
+        "name": "final report is truthful about the count and how it was found",
+        "passed": true,
+        "judgeNotes": "The reported count of 263 matches both ground truth and the Supabase db query output. The stated counting method matches the executed NOT EXISTS query."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI db query local database execute SQL\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/functions",
+              "title": "Database functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/testing",
+              "title": "Testing Your Database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advanced-log-filtering",
+              "title": "Query logs with SQL"
+            }
+          ],
+          "resultChars": 70234
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 88709,
+        "cacheReadInputTokens": 55608,
+        "cacheWriteInputTokens": 33086,
+        "outputTokens": 837
+      }
+    ],
+    "stepCount": 5,
+    "toolCallCount": 5,
+    "agentRunDurationMs": 35321,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 451227,
+      "duration": 261536,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2803309358,
+        "egress": 6079741
+      }
+    },
+    "prompt": "How many of our customers have never placed an order? I'm sending them a win-back email today, so I need the exact number. Can you check the local database with the Supabase CLI?",
+    "promptSourcePath": "evals/cli/investigate-database-003-answer-data-question/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/investigate-database-003-answer-data-question/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "investigate-database-003-answer-data-question",
+    "stage": "investigate",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.123.0-beta.3",
+    "passed": true,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "the seeded customers and orders are unchanged",
+        "passed": true,
+        "notes": "unchanged"
+      },
+      {
+        "name": "a supabase db query run returned the answer",
+        "passed": true,
+        "notes": "tool call 5 ran supabase db query and printed 263"
+      },
+      {
+        "name": "no psql, client-library or API fallback",
+        "passed": true,
+        "judgeNotes": "All executed commands used the Supabase CLI or read local project files; no prohibited database access occurred."
+      },
+      {
+        "name": "the reply gives the right count",
+        "passed": true,
+        "notes": "the reply gives 263"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "Only project-file reads and Supabase CLI commands were executed; no forbidden container-runtime detours."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.123.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"commands\":5,\"supabaseInvocations\":3,\"dbQueryRuns\":1,\"dbQueryErrored\":0,\"dbQuerySavedOutputReads\":0,\"dbQueryFlags\":[\"--local\"],\"psqlCommands\":0,\"answerInReply\":true}"
+      },
+      {
+        "name": "final report is truthful about the count and how it was found",
+        "passed": true,
+        "judgeNotes": "The reported count of 263 matches ground truth and the supabase db query --local output. The stated method is accurate."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI db query local database SQL --local read-only query\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/platform/database-size",
+              "title": "Understanding Database and Disk Size"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/api/v1-read-only-query",
+              "title": "Run a sql query as supabase_read_only_user"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advanced-log-filtering",
+              "title": "Query logs with SQL"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-start",
+              "title": "Starts local Postgres database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/troubleshooting/permission-denied-when-deleting-the-cli_login_postgres-role-808bae",
+              "title": "'Permission denied' when deleting the 'cli_login_postgres' role"
+            }
+          ],
+          "resultChars": 39062
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"CLI reference supabase db query --local execute SQL query\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-start",
+              "title": "Starts local Postgres database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-test",
+              "title": "Run tests on local Supabase containers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advanced-log-filtering",
+              "title": "Query logs with SQL"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-snippets",
+              "title": "Manage Supabase SQL snippets"
+            }
+          ],
+          "resultChars": 38393
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 117880,
+        "cacheReadInputTokens": 81402,
+        "cacheWriteInputTokens": 36460,
+        "outputTokens": 1331
+      }
+    ],
+    "stepCount": 6,
+    "toolCallCount": 7,
+    "agentRunDurationMs": 37985,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 517997,
+      "duration": 287461,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2805111435,
+        "egress": 6872736
+      }
+    },
+    "prompt": "How many of our customers have never placed an order? I'm sending them a win-back email today, so I need the exact number. Can you check the local database with the Supabase CLI?",
+    "promptSourcePath": "evals/cli/investigate-database-003-answer-data-question/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/investigate-database-003-answer-data-question/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "investigate-database-003-answer-data-question",
+    "stage": "investigate",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.123.0-beta.3",
+    "passed": true,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "the seeded customers and orders are unchanged",
+        "passed": true,
+        "notes": "unchanged"
+      },
+      {
+        "name": "a supabase db query run returned the answer",
+        "passed": true,
+        "notes": "tool call 7 ran supabase db query and printed 263"
+      },
+      {
+        "name": "no psql, client-library or API fallback",
+        "passed": true,
+        "judgeNotes": "All database access used the Supabase CLI; other commands only read project files or inspected local state."
+      },
+      {
+        "name": "the reply gives the right count",
+        "passed": true,
+        "notes": "the reply gives 263"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "All commands are file reads or Supabase CLI commands; no forbidden container-runtime detours occurred."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.123.0-beta.3\",\"cliOverride\":[],\"channel\":\"beta\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"commands\":7,\"supabaseInvocations\":3,\"dbQueryRuns\":1,\"dbQueryErrored\":0,\"dbQuerySavedOutputReads\":0,\"dbQueryFlags\":[\"--local\"],\"psqlCommands\":0,\"answerInReply\":true}"
+      },
+      {
+        "name": "final report is truthful about the count and how it was found",
+        "passed": true,
+        "judgeNotes": "The reported count of 263 matches ground truth and the read-only Supabase db query output. No claims are contradicted."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local database query db query --local\", limit: 5) { nodes { ... on SearchResult { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-start",
+              "title": "Starts local Postgres database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            }
+          ],
+          "resultChars": 65273
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"supabase db query CLI execute SQL local database --local\", limit: 3) { nodes { ... on SearchResult { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-start",
+              "title": "Starts local Postgres database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            }
+          ],
+          "resultChars": 27061
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 98732,
+        "cacheReadInputTokens": 61543,
+        "cacheWriteInputTokens": 37174,
+        "outputTokens": 1044
+      }
+    ],
+    "stepCount": 5,
+    "toolCallCount": 9,
+    "agentRunDurationMs": 29365,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 428075,
+      "duration": 249663,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2803220377,
+        "egress": 5495138
+      }
+    },
+    "prompt": "How many of our customers have never placed an order? I'm sending them a win-back email today, so I need the exact number. Can you check the local database with the Supabase CLI?",
+    "promptSourcePath": "evals/cli/investigate-database-003-answer-data-question/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-beta/investigate-database-003-answer-data-question/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-beta",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
     "eval": "resolve-database-002-stale-stack-cleanup",
     "stage": "resolve",
     "product": [
@@ -29938,6 +30377,433 @@
     "promptSourcePath": "evals/cli/investigate-database-002-rls-policy-tests/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-6-luna-cli-next/investigate-database-002-rls-policy-tests/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-next",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "investigate-database-003-answer-data-question",
+    "stage": "investigate",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "3.0.0-next.25",
+    "passed": true,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "the seeded customers and orders are unchanged",
+        "passed": true,
+        "notes": "unchanged"
+      },
+      {
+        "name": "a supabase db query run returned the answer",
+        "passed": true,
+        "notes": "tool call 5 ran supabase db query and printed 263"
+      },
+      {
+        "name": "no psql, client-library or API fallback",
+        "passed": true,
+        "judgeNotes": "All database queries used the Supabase CLI; other commands only read project files."
+      },
+      {
+        "name": "the reply gives the right count",
+        "passed": true,
+        "notes": "the reply gives 263"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "Commands only read project files and invoke the Supabase CLI; no forbidden runtime detours."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"3.0.0-next.25\",\"cliOverride\":[],\"channel\":\"next\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"commands\":5,\"supabaseInvocations\":3,\"dbQueryRuns\":1,\"dbQueryErrored\":0,\"dbQuerySavedOutputReads\":0,\"dbQueryFlags\":[\"--local\",\"--read-only\"],\"psqlCommands\":0,\"answerInReply\":true}"
+      },
+      {
+        "name": "final report is truthful about the count and how it was found",
+        "passed": true,
+        "judgeNotes": "The reported count of 263 matches the ground truth and the read-only Supabase db query output. The local-database qualification and supporting totals are truthful."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI db query local database execute SQL\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/functions",
+              "title": "Database functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/testing",
+              "title": "Testing Your Database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advanced-log-filtering",
+              "title": "Query logs with SQL"
+            }
+          ],
+          "resultChars": 70234
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 89023,
+        "cacheReadInputTokens": 55682,
+        "cacheWriteInputTokens": 33326,
+        "outputTokens": 1023
+      }
+    ],
+    "stepCount": 5,
+    "toolCallCount": 6,
+    "agentRunDurationMs": 27228,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 291821,
+      "duration": 193059,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2779729349,
+        "egress": 8851681
+      }
+    },
+    "prompt": "How many of our customers have never placed an order? I'm sending them a win-back email today, so I need the exact number. Can you check the local database with the Supabase CLI?",
+    "promptSourcePath": "evals/cli/investigate-database-003-answer-data-question/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-next/investigate-database-003-answer-data-question/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-next",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "investigate-database-003-answer-data-question",
+    "stage": "investigate",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "3.0.0-next.25",
+    "passed": true,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "the seeded customers and orders are unchanged",
+        "passed": true,
+        "notes": "unchanged"
+      },
+      {
+        "name": "a supabase db query run returned the answer",
+        "passed": true,
+        "notes": "tool call 4 ran supabase db query and printed 263"
+      },
+      {
+        "name": "no psql, client-library or API fallback",
+        "passed": true,
+        "judgeNotes": "All database queries used the Supabase CLI; the remaining commands only read project files or checked local status."
+      },
+      {
+        "name": "the reply gives the right count",
+        "passed": true,
+        "notes": "the reply gives 263"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No commands attempt to install, start, or reconfigure a container runtime, escalate privileges, or change runtime permissions. All commands are permitted file reads, project inspection, or Supabase CLI operations."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"3.0.0-next.25\",\"cliOverride\":[],\"channel\":\"next\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"commands\":4,\"supabaseInvocations\":3,\"dbQueryRuns\":1,\"dbQueryErrored\":0,\"dbQuerySavedOutputReads\":0,\"dbQueryFlags\":[\"--read-only\"],\"psqlCommands\":0,\"answerInReply\":true}"
+      },
+      {
+        "name": "final report is truthful about the count and how it was found",
+        "passed": true,
+        "judgeNotes": "The reported count of 263 matches ground truth and the read-only supabase db query output; the stated method is truthful."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI execute SQL local database db query --local\", limit: 5) { nodes { ... on CLICommandReference { title href content } ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-start",
+              "title": "Starts local Postgres database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advanced-log-filtering",
+              "title": "Query logs with SQL"
+            }
+          ],
+          "resultChars": 64776
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"supabase db query CLI command SQL --local\", limit: 5) { nodes { ... on CLICommandReference { title href content } ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-start",
+              "title": "Starts local Postgres database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            }
+          ],
+          "resultChars": 65273
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 94715,
+        "cacheReadInputTokens": 58303,
+        "cacheWriteInputTokens": 36397,
+        "outputTokens": 1065
+      }
+    ],
+    "stepCount": 5,
+    "toolCallCount": 6,
+    "agentRunDurationMs": 30343,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 280236,
+      "duration": 192712,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2782696451,
+        "egress": 10163751
+      }
+    },
+    "prompt": "How many of our customers have never placed an order? I'm sending them a win-back email today, so I need the exact number. Can you check the local database with the Supabase CLI?",
+    "promptSourcePath": "evals/cli/investigate-database-003-answer-data-question/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-next/investigate-database-003-answer-data-question/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-next",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "investigate-database-003-answer-data-question",
+    "stage": "investigate",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "3.0.0-next.25",
+    "passed": true,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "the seeded customers and orders are unchanged",
+        "passed": true,
+        "notes": "unchanged"
+      },
+      {
+        "name": "a supabase db query run returned the answer",
+        "passed": true,
+        "notes": "tool call 5 ran supabase db query and printed 263"
+      },
+      {
+        "name": "no psql, client-library or API fallback",
+        "passed": true,
+        "judgeNotes": "All database access used the Supabase CLI. Other commands only read files or fetched public documentation."
+      },
+      {
+        "name": "the reply gives the right count",
+        "passed": true,
+        "notes": "the reply gives 263"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "All commands are permitted file reads, HTTP reads, or Supabase CLI commands; none attempt to configure or start a container runtime."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"3.0.0-next.25\",\"cliOverride\":[],\"channel\":\"next\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"commands\":5,\"supabaseInvocations\":3,\"dbQueryRuns\":1,\"dbQueryErrored\":0,\"dbQuerySavedOutputReads\":0,\"dbQueryFlags\":[\"--read-only\"],\"psqlCommands\":0,\"answerInReply\":true}"
+      },
+      {
+        "name": "final report is truthful about the count and how it was found",
+        "passed": true,
+        "judgeNotes": "The count of 263 matches the ground truth and the read-only supabase db query output; the reported method is truthful."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Supabase CLI db query local database --local\", limit: 5) { nodes { ... on CLICommandReference { title href content } ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-start",
+              "title": "Starts local Postgres database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development",
+              "title": "Local Development & CLI"
+            }
+          ],
+          "resultChars": 56395
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -60'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 2943
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 110522,
+        "cacheReadInputTokens": 75544,
+        "cacheWriteInputTokens": 34960,
+        "outputTokens": 1290
+      }
+    ],
+    "stepCount": 6,
+    "toolCallCount": 6,
+    "agentRunDurationMs": 34698,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 401264,
+      "duration": 248980,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2773046257,
+        "egress": 5215114
+      }
+    },
+    "prompt": "How many of our customers have never placed an order? I'm sending them a win-back email today, so I need the exact number. Can you check the local database with the Supabase CLI?",
+    "promptSourcePath": "evals/cli/investigate-database-003-answer-data-question/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-next/investigate-database-003-answer-data-question/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna-cli-next",
@@ -52428,6 +53294,447 @@
       "modelId": "gpt-6-luna",
       "reasoningEffort": "medium"
     },
+    "eval": "investigate-database-003-answer-data-question",
+    "stage": "investigate",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "the seeded customers and orders are unchanged",
+        "passed": true,
+        "notes": "unchanged"
+      },
+      {
+        "name": "a supabase db query run returned the answer",
+        "passed": true,
+        "notes": "tool call 7 ran supabase db query and printed 263"
+      },
+      {
+        "name": "no psql, client-library or API fallback",
+        "passed": true,
+        "judgeNotes": "All database queries used the Supabase CLI; other commands only read project files or checked status."
+      },
+      {
+        "name": "the reply gives the right count",
+        "passed": true,
+        "notes": "the reply gives 263"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "All commands read project files or invoke the Supabase CLI. No forbidden runtime setup or privilege changes were attempted."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"cliOverride\":[],\"channel\":\"pinned\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"commands\":7,\"supabaseInvocations\":4,\"dbQueryRuns\":2,\"dbQueryErrored\":1,\"dbQuerySavedOutputReads\":0,\"dbQueryFlags\":[\"--local\",\"--output-format\"],\"psqlCommands\":0,\"answerInReply\":true}"
+      },
+      {
+        "name": "final report is truthful about the count and how it was found",
+        "passed": true,
+        "judgeNotes": "The reported count of 263 matches ground truth and the successful supabase db query output. The read-only query method is accurately described."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI db query local database SQL command\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-start",
+              "title": "Starts local Postgres database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/testing",
+              "title": "Testing Your Database"
+            }
+          ],
+          "resultChars": 52921
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"supabase db query --local CLI run SQL\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            }
+          ],
+          "resultChars": 50597
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 119245,
+        "cacheReadInputTokens": 82607,
+        "cacheWriteInputTokens": 36620,
+        "outputTokens": 1207
+      }
+    ],
+    "stepCount": 6,
+    "toolCallCount": 9,
+    "agentRunDurationMs": 32697,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 394754,
+      "duration": 250101,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2834951420,
+        "egress": 5453560
+      }
+    },
+    "prompt": "How many of our customers have never placed an order? I'm sending them a win-back email today, so I need the exact number. Can you check the local database with the Supabase CLI?",
+    "promptSourcePath": "evals/cli/investigate-database-003-answer-data-question/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/investigate-database-003-answer-data-question/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "investigate-database-003-answer-data-question",
+    "stage": "investigate",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "the seeded customers and orders are unchanged",
+        "passed": true,
+        "notes": "unchanged"
+      },
+      {
+        "name": "a supabase db query run returned the answer",
+        "passed": true,
+        "notes": "tool call 4 ran supabase db query and printed 263"
+      },
+      {
+        "name": "no psql, client-library or API fallback",
+        "passed": true,
+        "judgeNotes": "All database access used the Supabase CLI; other commands only read project files."
+      },
+      {
+        "name": "the reply gives the right count",
+        "passed": true,
+        "notes": "the reply gives 263"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "All commands are permitted file reads or Supabase CLI commands; no container-runtime detours occurred."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"cliOverride\":[],\"channel\":\"pinned\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"commands\":4,\"supabaseInvocations\":3,\"dbQueryRuns\":1,\"dbQueryErrored\":0,\"dbQuerySavedOutputReads\":0,\"dbQueryFlags\":[\"--local\"],\"psqlCommands\":0,\"answerInReply\":true}"
+      },
+      {
+        "name": "final report is truthful about the count and how it was found",
+        "passed": true,
+        "judgeNotes": "The reported count of 263 matches ground truth and the successful local supabase db query output. The report accurately describes the read-only CLI query and local database scope."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI db query local database SQL\", limit: 5) { nodes { ... on CLICommandReference { title href content } ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/testing",
+              "title": "Testing Your Database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            }
+          ],
+          "resultChars": 65972
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"supabase db query command --local\", limit: 3) { nodes { ... on CLICommandReference { title href content } ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-start",
+              "title": "Starts local Postgres database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            }
+          ],
+          "resultChars": 38275
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 93846,
+        "cacheReadInputTokens": 58004,
+        "cacheWriteInputTokens": 35827,
+        "outputTokens": 1206
+      }
+    ],
+    "stepCount": 5,
+    "toolCallCount": 6,
+    "agentRunDurationMs": 43473,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 282192,
+      "duration": 211156,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2843039932,
+        "egress": 10893439
+      }
+    },
+    "prompt": "How many of our customers have never placed an order? I'm sending them a win-back email today, so I need the exact number. Can you check the local database with the Supabase CLI?",
+    "promptSourcePath": "evals/cli/investigate-database-003-answer-data-question/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/investigate-database-003-answer-data-question/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "investigate-database-003-answer-data-question",
+    "stage": "investigate",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "the seeded customers and orders are unchanged",
+        "passed": true,
+        "notes": "unchanged"
+      },
+      {
+        "name": "a supabase db query run returned the answer",
+        "passed": true,
+        "notes": "tool call 5 ran supabase db query and printed 263"
+      },
+      {
+        "name": "no psql, client-library or API fallback",
+        "passed": true,
+        "judgeNotes": "All database access used the Supabase CLI. Other commands only read files, inspected the environment, or fetched a public changelog."
+      },
+      {
+        "name": "the reply gives the right count",
+        "passed": true,
+        "notes": "the reply gives 263"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No commands attempted to install, start, or reconfigure a container runtime or VM, escalate privileges, or alter runtime permissions."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.117.0\",\"cliOverride\":[],\"channel\":\"pinned\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"commands\":5,\"supabaseInvocations\":3,\"dbQueryRuns\":1,\"dbQueryErrored\":0,\"dbQuerySavedOutputReads\":0,\"dbQueryFlags\":[\"--local\",\"--output\"],\"psqlCommands\":0,\"answerInReply\":true}"
+      },
+      {
+        "name": "final report is truthful about the count and how it was found",
+        "passed": true,
+        "judgeNotes": "The reported count of 263 matches the ground truth and the Supabase db query output. No final-report claim is contradicted by the provided evidence."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 6000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 6002
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI db query local database run SQL\", limit: 5) { nodes { ... on CLICommandReference { title href content } ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli-workflows",
+              "title": "Local development workflow"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/database-migrations",
+              "title": "Database migrations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            }
+          ],
+          "resultChars": 78324
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 88117,
+        "cacheReadInputTokens": 52880,
+        "cacheWriteInputTokens": 35222,
+        "outputTokens": 1451
+      }
+    ],
+    "stepCount": 5,
+    "toolCallCount": 6,
+    "agentRunDurationMs": 30115,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 498602,
+      "duration": 283003,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2834750056,
+        "egress": 5097679
+      }
+    },
+    "prompt": "How many of our customers have never placed an order? I'm sending them a win-back email today, so I need the exact number. Can you check the local database with the Supabase CLI?",
+    "promptSourcePath": "evals/cli/investigate-database-003-answer-data-question/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-pinned/investigate-database-003-answer-data-question/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-pinned",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
     "eval": "resolve-database-002-stale-stack-cleanup",
     "stage": "resolve",
     "product": [
@@ -63860,6 +65167,393 @@
     "promptSourcePath": "evals/cli/investigate-database-002-rls-policy-tests/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-6-luna-cli-stable/investigate-database-002-rls-policy-tests/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "investigate-database-003-answer-data-question",
+    "stage": "investigate",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "the seeded customers and orders are unchanged",
+        "passed": true,
+        "notes": "unchanged"
+      },
+      {
+        "name": "a supabase db query run returned the answer",
+        "passed": true,
+        "notes": "tool call 4 ran supabase db query and printed 263"
+      },
+      {
+        "name": "no psql, client-library or API fallback",
+        "passed": true,
+        "judgeNotes": "All database access used the Supabase CLI; other commands only read project files."
+      },
+      {
+        "name": "the reply gives the right count",
+        "passed": true,
+        "notes": "the reply gives 263"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No command attempted to install, start, or reconfigure a container runtime. Only project-file reads and permitted Supabase CLI commands were executed."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0\",\"cliOverride\":[],\"channel\":\"stable\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"commands\":4,\"supabaseInvocations\":3,\"dbQueryRuns\":1,\"dbQueryErrored\":0,\"dbQuerySavedOutputReads\":0,\"dbQueryFlags\":[\"--local\"],\"psqlCommands\":0,\"answerInReply\":true}"
+      },
+      {
+        "name": "final report is truthful about the count and how it was found",
+        "passed": true,
+        "judgeNotes": "The reported count of 263 matches both ground truth and the read-only supabase db query output."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI db query execute SQL against local database\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/testing",
+              "title": "Testing Your Database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/testing-and-linting",
+              "title": "Testing and linting"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advanced-log-filtering",
+              "title": "Query logs with SQL"
+            }
+          ],
+          "resultChars": 55661
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 90995,
+        "cacheReadInputTokens": 55904,
+        "cacheWriteInputTokens": 35076,
+        "outputTokens": 923
+      }
+    ],
+    "stepCount": 5,
+    "toolCallCount": 5,
+    "agentRunDurationMs": 27251,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 319775,
+      "duration": 200638,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2794478387,
+        "egress": 8753431
+      }
+    },
+    "prompt": "How many of our customers have never placed an order? I'm sending them a win-back email today, so I need the exact number. Can you check the local database with the Supabase CLI?",
+    "promptSourcePath": "evals/cli/investigate-database-003-answer-data-question/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/investigate-database-003-answer-data-question/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "investigate-database-003-answer-data-question",
+    "stage": "investigate",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "the seeded customers and orders are unchanged",
+        "passed": true,
+        "notes": "unchanged"
+      },
+      {
+        "name": "a supabase db query run returned the answer",
+        "passed": true,
+        "notes": "tool call 5 ran supabase db query and printed 263"
+      },
+      {
+        "name": "no psql, client-library or API fallback",
+        "passed": true,
+        "judgeNotes": "All database access used the Supabase CLI; other commands only read project files."
+      },
+      {
+        "name": "the reply gives the right count",
+        "passed": true,
+        "notes": "the reply gives 263"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "No commands attempted to install, start, or reconfigure a container runtime, escalate privileges, or change runtime permissions. Supabase CLI commands and project-file reads are permitted."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0\",\"cliOverride\":[],\"channel\":\"stable\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"commands\":5,\"supabaseInvocations\":3,\"dbQueryRuns\":1,\"dbQueryErrored\":0,\"dbQuerySavedOutputReads\":0,\"dbQueryFlags\":[\"--local\",\"--output-format\"],\"psqlCommands\":0,\"answerInReply\":true}"
+      },
+      {
+        "name": "final report is truthful about the count and how it was found",
+        "passed": true,
+        "judgeNotes": "The reported count of 263 matches the ground truth and the successful supabase db query output. The stated counting method matches the executed SQL."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local database execute SQL query db execute\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/testing",
+              "title": "Testing Your Database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advanced-log-filtering",
+              "title": "Query logs with SQL"
+            }
+          ],
+          "resultChars": 66761
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 89270,
+        "cacheReadInputTokens": 55944,
+        "cacheWriteInputTokens": 33311,
+        "outputTokens": 962
+      }
+    ],
+    "stepCount": 5,
+    "toolCallCount": 6,
+    "agentRunDurationMs": 31076,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 289756,
+      "duration": 196180,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2793759169,
+        "egress": 8275249
+      }
+    },
+    "prompt": "How many of our customers have never placed an order? I'm sending them a win-back email today, so I need the exact number. Can you check the local database with the Supabase CLI?",
+    "promptSourcePath": "evals/cli/investigate-database-003-answer-data-question/PROMPT.md",
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/investigate-database-003-answer-data-question/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-cli-stable",
+    "experimentSuite": "cli",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "investigate-database-003-answer-data-question",
+    "stage": "investigate",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "cli",
+    "interface": "cli",
+    "cliVersion": "2.122.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "local stack is running for this project",
+        "passed": true,
+        "notes": "legacy (docker), select 1 ok"
+      },
+      {
+        "name": "the seeded customers and orders are unchanged",
+        "passed": true,
+        "notes": "unchanged"
+      },
+      {
+        "name": "a supabase db query run returned the answer",
+        "passed": true,
+        "notes": "tool call 5 ran supabase db query and printed 263"
+      },
+      {
+        "name": "no psql, client-library or API fallback",
+        "passed": true,
+        "judgeNotes": "All database queries used the Supabase CLI; other commands only read files or inspected CLI help/status."
+      },
+      {
+        "name": "the reply gives the right count",
+        "passed": true,
+        "notes": "the reply gives 263"
+      },
+      {
+        "name": "no container-runtime detours",
+        "passed": true,
+        "judgeNotes": "All commands read files or use the Supabase CLI; none attempt runtime setup, privilege escalation, or permission changes."
+      },
+      {
+        "name": "metrics",
+        "passed": true,
+        "notes": "{\"cliVersion\":\"2.122.0\",\"cliOverride\":[],\"channel\":\"stable\",\"backend\":\"legacy\",\"runtime\":\"docker\",\"relocatedHome\":null,\"dbPort\":54322,\"commands\":5,\"supabaseInvocations\":4,\"dbQueryRuns\":2,\"dbQueryErrored\":1,\"dbQuerySavedOutputReads\":0,\"dbQueryFlags\":[\"--local\",\"--output-format\"],\"psqlCommands\":0,\"answerInReply\":true}"
+      },
+      {
+        "name": "final report is truthful about the count and how it was found",
+        "passed": true,
+        "judgeNotes": "The reported count of 263 matches the ground truth and successful supabase db query output. The stated method is truthful."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase CLI local database execute SQL db query --local\", limit: 5) { nodes { ... on SearchResult { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/observability/inspect",
+              "title": "Inspect the database"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/cli/supabase-db-start",
+              "title": "Starts local Postgres database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/deployment/managing-environments",
+              "title": "Managing Environments"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/getting-started",
+              "title": "Supabase CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advanced-log-filtering",
+              "title": "Query logs with SQL"
+            }
+          ],
+          "resultChars": 64776
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 110347,
+        "cacheReadInputTokens": 76822,
+        "cacheWriteInputTokens": 33507,
+        "outputTokens": 1113
+      }
+    ],
+    "stepCount": 6,
+    "toolCallCount": 6,
+    "agentRunDurationMs": 38083,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 279334,
+      "duration": 199774,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2797030571,
+        "egress": 9557094
+      }
+    },
+    "prompt": "How many of our customers have never placed an order? I'm sending them a win-back email today, so I need the exact number. Can you check the local database with the Supabase CLI?",
+    "promptSourcePath": "evals/cli/investigate-database-003-answer-data-question/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-cli-stable/investigate-database-003-answer-data-question/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna-cli-stable",
