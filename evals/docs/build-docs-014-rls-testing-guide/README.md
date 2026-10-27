@@ -20,11 +20,17 @@ The weather tables start with rows in them, the way a live dashboard would. A su
 
 ## What the scorer checks
 
+- The seeded policies, RLS settings, and helper functions are unchanged. The prompt tells the agent to leave them alone, and a suite can only pass against a policy it was allowed to rewrite.
 - pgTAP test files exist under `supabase/tests/`.
 - The tests exercise access control on the application tables, judged against a low bar: one assertion on an application table, one allowed case, one denied case, and a role set at least once.
 - `supabase test db` runs at least eight assertions and all of them pass.
+- The suite fails when `todos`, and then `list_items`, is opened to every signed-in user. A test that cannot fail does not protect the policy it names.
 - The agent read the guide the prompt referenced.
+
+## How the scorer opens a read
+
+It adds one permissive `SELECT` policy with `using (true)`, runs the suite, and drops the policy. Permissive policies combine with `or`, so the seeded policies stay as the agent left them. The suite has to pass just before each run, so a failure can only come from the opened read. When it doesn't pass, the check reports that it could not measure.
 
 ## Out of scope
 
-The prompt tells the agent not to change the policies. The scorer does not check that it complied. Tests written through the Supabase client from application code are not scored either.
+Tests written through the Supabase client from application code are not scored.

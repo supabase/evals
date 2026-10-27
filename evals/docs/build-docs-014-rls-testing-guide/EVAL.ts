@@ -4,20 +4,44 @@ import {
   type LocalStackEvalContext,
   type LocalStackScorer,
 } from '@supabase-evals/core';
+import { checkSeededPoliciesUnchanged } from './policies.js';
 import {
   checkPgTapSuitePasses,
+  checkSuiteCatchesOpenRead,
   checkTestsExerciseAccessControl,
   checkTestFilesExist,
+  runPgTapSuite,
 } from './tests.js';
 
 const GUIDE_PATH = 'guides/database/postgres/testing-row-level-security';
 
 const scorer: LocalStackScorer = async (ctx) => {
   try {
+    const policies = await checkSeededPoliciesUnchanged(ctx);
+    const testFiles = await checkTestFilesExist(ctx);
+    const accessControl = await checkTestsExerciseAccessControl(ctx);
+
+    const suite = await runPgTapSuite(ctx);
+    const todosCaught = await checkSuiteCatchesOpenRead(
+      ctx,
+      suite,
+      'todos',
+      'the suite fails when any signed-in user can read every todo'
+    );
+    const listItemsCaught = await checkSuiteCatchesOpenRead(
+      ctx,
+      await runPgTapSuite(ctx),
+      'list_items',
+      'the suite fails when any signed-in user can read every list item'
+    );
+
     const checks: CheckResult[] = [
-      await checkTestFilesExist(ctx),
-      await checkTestsExerciseAccessControl(ctx),
-      await checkPgTapSuitePasses(ctx),
+      policies,
+      testFiles,
+      accessControl,
+      checkPgTapSuitePasses(suite),
+      todosCaught,
+      listItemsCaught,
       checkGuideWasRead(ctx),
     ];
 
