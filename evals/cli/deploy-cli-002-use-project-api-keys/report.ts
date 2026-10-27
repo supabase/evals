@@ -41,7 +41,8 @@ function describeUrl(hosted: HostedFacts, env: ReadableEnv): string {
 function describeKey(hosted: HostedFacts, env: ReadableEnv): string {
   const entry = env.values[KEY_VAR];
   const kind = describeKeyValue(hosted, entry?.value);
-  if (kind === 'unset' || entry === undefined) return `- ${KEY_VAR}: unset`;
+  // No colon: the judge-input redactor blanks any `<name>key: value` line.
+  if (kind === 'unset' || entry === undefined) return `- ${KEY_VAR} is unset`;
   const phrase =
     kind === 'other' && !hosted.ok
       ? NO_HOSTED_TO_COMPARE

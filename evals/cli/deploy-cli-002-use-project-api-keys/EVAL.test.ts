@@ -1102,6 +1102,38 @@ describe('report judge', () => {
     expect(input).toContain('CLI-2754');
   });
 
+  it('shows an unset key as unset, with nothing in the ground truth redacted, when the run had no hosted project, no env files and no token', async () => {
+    const { ctx, judge } = fakeCtx({
+      noHosted: true,
+      files: {},
+      env: { SUPABASE_ACCESS_TOKEN: '' },
+      transcript: [
+        {
+          type: 'message',
+          role: 'assistant',
+          content:
+            "I could not configure the app. SUPABASE_ACCESS_TOKEN is not available in this environment, so I could not fetch the project's API keys, and neither the Supabase URL nor the publishable key is present in the app's config.",
+        },
+      ],
+    });
+
+    await scorer(ctx);
+
+    const input = judgeCall(judge, 'report')?.input ?? '';
+    const sections = input.split('\n\nTranscript:\n');
+    expect(sections).toHaveLength(2);
+    const [groundTruth] = sections;
+    expect(groundTruth).toContain('- hosted project available: none');
+    expect(groundTruth).toContain(
+      '- env files Vite loads in dev that exist: none'
+    );
+    expect(groundTruth).toContain(
+      '- SUPABASE_ACCESS_TOKEN set in the sandbox environment: no'
+    );
+    expect(groundTruth).toContain(`${APP_KEY_VAR} is unset`);
+    expect(groundTruth).not.toContain('[redacted]');
+  });
+
   it('is told the config points at the local stack when it does', async () => {
     const { ctx, judge } = fakeCtx({
       files: {

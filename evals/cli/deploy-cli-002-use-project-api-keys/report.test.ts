@@ -1,5 +1,6 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/deploy-cli-002-use-project-api-keys
 import { describe, expect, it } from 'vitest';
+import { redactSecrets } from '../lib/redact.js';
 import type { AppSource } from './app-source.js';
 import {
   ANON_KEY,
@@ -233,6 +234,19 @@ describe('describeGroundTruth', () => {
         keyLine(describe_({ hosted: HOSTED_ABSENT, env: NO_ENV }))
       ).toMatch(/unset/i);
     });
+
+    it.each([
+      ['a hosted project', HOSTED_OK, NO_ENV],
+      ['no hosted project', HOSTED_ABSENT, NO_ENV],
+      ['a blank value', HOSTED_OK, appEnv({ [APP_KEY_VAR]: '  ' })],
+    ])(
+      'words the unset key as "<name> is unset", with no colon, with %s',
+      (_, hosted, env) => {
+        expect(keyLine(describe_({ hosted, env }))).toBe(
+          `- ${APP_KEY_VAR} is unset`
+        );
+      }
+    );
   });
 
   describe('app source', () => {
@@ -403,5 +417,127 @@ describe('describeGroundTruth', () => {
 
       expect(text).not.toContain(value);
     });
+  });
+
+  describe('redaction', () => {
+    const PROJECT_KEYS = [
+      ANON_KEY,
+      PUBLISHABLE_KEY,
+      SERVICE_ROLE_KEY,
+      SECRET_KEY,
+    ];
+
+    const KEY_SETS: [string, string[]][] = [
+      ['no known project keys', []],
+      ['the project keys known', PROJECT_KEYS],
+    ];
+
+    const withKey = (value: string) => appEnv({ [APP_KEY_VAR]: value });
+    const withUrl = (value: string) =>
+      appEnv({ [APP_URL_VAR]: value, [APP_KEY_VAR]: ANON_KEY });
+
+    const STATES: [string, Partial<Facts>][] = [
+      ['an unset key', { env: NO_ENV }],
+      ['a blank key', { env: withKey('  ') }],
+      [
+        'an unset key and no hosted project',
+        { hosted: HOSTED_ABSENT, env: NO_ENV },
+      ],
+      ['a client key', { env: withKey(PUBLISHABLE_KEY) }],
+      ['an anon client key', { env: withKey(ANON_KEY) }],
+      ['a service_role key', { env: withKey(SERVICE_ROLE_KEY) }],
+      ['an sb_secret_ key', { env: withKey(SECRET_KEY) }],
+      ['another value', { env: withKey(LOCAL_ANON_KEY) }],
+      ['a placeholder', { env: withKey(PLACEHOLDER_KEY) }],
+      [
+        'a key no hosted project can verify',
+        { hosted: HOSTED_ABSENT, env: withKey(LOCAL_ANON_KEY) },
+      ],
+      [
+        'a secret key and no hosted project',
+        { hosted: HOSTED_ABSENT, env: withKey(SERVICE_ROLE_KEY) },
+      ],
+      ['an unset URL', { env: appEnv({ [APP_KEY_VAR]: ANON_KEY }) }],
+      ['our project URL', {}],
+      ['our project URL and no hosted project', { hosted: HOSTED_ABSENT }],
+      [
+        'another project URL',
+        { env: withUrl(`https://${OTHER_REF}.supabase.co`) },
+      ],
+      ['the local stack URL', { env: withUrl(LOCAL_URL) }],
+      ['a URL variable that is not a URL', { env: withUrl('your-url') }],
+      ['env files that could not be read', { env: ENV_FAILED }],
+      ['a source that reads both variables', { source: READS_BOTH }],
+      [
+        'a source that no longer reads the URL',
+        { source: { ok: true, missing: [APP_URL_VAR] } },
+      ],
+      [
+        'a source that reads neither variable',
+        { source: { ok: true, missing: [APP_URL_VAR, APP_KEY_VAR] } },
+      ],
+      [
+        'a source that could not be read',
+        {
+          source: { ok: false, notes: 'exit 2: grep: src: Permission denied' },
+        },
+      ],
+      [
+        'secret exposures',
+        {
+          secrets: {
+            ok: true,
+            exposures: [
+              `${APP_KEY_VAR} in .env.local ships a secret key to the browser`,
+              '.env.local would be committed with a secret key',
+              `${APP_KEY_VAR} in .env holds a secret key (overridden, so not currently shipped)`,
+            ],
+            storedPrivately: [],
+          },
+        },
+      ],
+      [
+        'secrets stored privately',
+        {
+          secrets: {
+            ok: true,
+            exposures: [],
+            storedPrivately: [
+              'SUPABASE_SERVICE_ROLE_KEY in .env.local',
+              'SUPABASE_SECRET_KEY in .env',
+            ],
+          },
+        },
+      ],
+      [
+        'a secret search that could not run',
+        {
+          secrets: {
+            ok: false,
+            notes:
+              'supabase/config.toml is missing, so the search proves nothing',
+          },
+        },
+      ],
+      ['a token in the environment', { tokenInEnvironment: true }],
+      ['no token in the environment', { tokenInEnvironment: false }],
+      ['an unknown token state', { tokenInEnvironment: null }],
+    ];
+
+    const CASES = STATES.flatMap(([state, overrides]) =>
+      KEY_SETS.map(
+        ([keys, known]) => [`${state}, with ${keys}`, overrides, known] as const
+      )
+    );
+
+    it.each(CASES)(
+      'leaves every line of the ground truth for %s unchanged by the judge-input redactor',
+      (_, overrides, known) => {
+        const lines = describe_(overrides);
+
+        expect(lines.map((line) => redactSecrets(line, known))).toEqual(lines);
+        expect(redactSecrets(lines.join('\n'), known)).toBe(lines.join('\n'));
+      }
+    );
   });
 });
