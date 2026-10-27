@@ -3371,7 +3371,7 @@
       {
         "name": "a signed-in user reads their own todos",
         "passed": true,
-        "notes": "titles: todo-a-b14ea675, todo-a-edit-b14ea675, todo-a-delete-b14ea675"
+        "notes": "titles: todo-a-b7dbbe75, todo-a-edit-b7dbbe75, todo-a-delete-b7dbbe75"
       },
       {
         "name": "a signed-in user cannot read another user's todos",
@@ -3380,7 +3380,7 @@
       {
         "name": "the second user reads their own todos and not the first user's",
         "passed": true,
-        "notes": "titles: todo-b-b14ea675"
+        "notes": "titles: todo-b-b7dbbe75"
       },
       {
         "name": "signed-out visitors read no todos",
@@ -3419,12 +3419,307 @@
       {
         "name": "a member who does not own the list still reads it",
         "passed": true,
-        "notes": "names: list-b14ea675"
+        "notes": "names: list-b7dbbe75"
       },
       {
         "name": "a member who authored nothing still reads the list's items",
         "passed": true,
-        "notes": "titles: item-b14ea675"
+        "notes": "titles: item-b7dbbe75"
+      },
+      {
+        "name": "a member who does not own the list adds an item and the row lands",
+        "passed": true
+      },
+      {
+        "name": "a member who does not own the list edits an item and the row changes",
+        "passed": true
+      },
+      {
+        "name": "a non-member cannot modify or delete a list item",
+        "passed": true
+      },
+      {
+        "name": "a non-member cannot rename the list",
+        "passed": true
+      },
+      {
+        "name": "signed-out visitors cannot read the membership table",
+        "passed": true,
+        "notes": "error 42501: permission denied for table list_members"
+      },
+      {
+        "name": "a non-member reads neither the list nor its items",
+        "passed": true,
+        "notes": "lists: ; items: "
+      },
+      {
+        "name": "signed-out visitors read neither lists nor list items",
+        "passed": true,
+        "notes": "lists: error 42501: permission denied for table lists; items: error 42501: permission denied for table list_items"
+      },
+      {
+        "name": "no membership policy recurses into itself",
+        "passed": true
+      },
+      {
+        "name": "signed-out visitors read the weather feed",
+        "passed": true,
+        "notes": "stations: 1 rows; readings: 1 rows"
+      },
+      {
+        "name": "signed-in users read the weather feed",
+        "passed": true,
+        "notes": "stations: 1 rows; readings: 1 rows"
+      },
+      {
+        "name": "signed-out visitors cannot write to the weather feed",
+        "passed": true,
+        "notes": "insert error 42501: permission denied for table weather_readings; reading survived delete; reading unchanged; no row injected"
+      },
+      {
+        "name": "signed-in users cannot write to the weather feed",
+        "passed": true,
+        "notes": "insert error 42501: permission denied for table weather_readings; reading survived delete; reading unchanged; no row injected"
+      },
+      {
+        "name": "the harness restored the weather feed fixture after both write attempts",
+        "passed": true
+      },
+      {
+        "name": "a user cannot widen their own access by editing their user metadata",
+        "passed": true
+      },
+      {
+        "name": "policies wrap auth.uid()/auth.jwt() in a select instead of calling per row",
+        "passed": true
+      },
+      {
+        "name": "no policy reads user_metadata, which its own subject can write",
+        "passed": true
+      },
+      {
+        "name": "columns the policies filter on have a btree index",
+        "passed": false,
+        "notes": "no complete btree index leading with: todos.user_id, lists.owner_id, list_members.user_id, list_items.list_id"
+      },
+      {
+        "name": "any security definer function is out of the exposed schemas and pins search_path",
+        "passed": false,
+        "notes": "callable over the API: public.is_list_owner, public.is_list_member"
+      },
+      {
+        "name": "pgTAP test file(s) written under supabase/tests/",
+        "passed": false,
+        "notes": "no .sql files found under supabase/tests/"
+      },
+      {
+        "name": "supabase test db runs at least 8 assertions and all pass",
+        "passed": false,
+        "notes": "no test summary found; exit 1; output: Files=0, Tests=0,  0 wallclock secs ( 0.01 usr +  0.00 sys =  0.01 CPU)\nResult: NOTESTS\nConnecting to local database...\n3.36: Pulling from supabase/pg_prove\ndcccee43ad5d: Pulling fs layer\n06d62d0de6d7: Pulling fs layer\na22cb17b3b93: Pulling fs layer\n4f4fb700ef54: Pulling fs layer\n4f4fb700ef54: Waiting\na22cb17b3b93: Download complete\n4f4fb700ef54: Download complete\ndcccee43ad5d: Download complete\n06d62d0de6d7: Verifying Checksum\n06d62d0de6d7: Download complete\ndcccee43ad5d: Pull complete\n06d62d0d"
+      },
+      {
+        "name": "the pgTAP tests exercise access control on the application tables rather than standing in as placeholders",
+        "passed": false,
+        "notes": "no test files to review"
+      },
+      {
+        "name": "the agent read the Row Level Security guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, search_docs"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/postgres/row-level-security.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/database/postgres/row-level-security Supabase row level security",
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Row Level Security enable RLS policies authenticated grants anon select Supabase Postgres\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
+              "title": "Advanced pgTAP Testing"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/access-control",
+              "title": "Storage Access Control"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/authorization",
+              "title": "Realtime Authorization"
+            }
+          ],
+          "resultChars": 90963
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 366801,
+        "cacheReadInputTokens": 311621,
+        "cacheWriteInputTokens": 46543,
+        "outputTokens": 13657
+      }
+    ],
+    "stepCount": 15,
+    "toolCallCount": 16,
+    "agentRunDurationMs": 164389,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 407235,
+      "duration": 377804,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1672539490,
+        "egress": 6544367
+      }
+    },
+    "prompt": "I'm building two separate apps:\n\n- A to-do app where people keep their own lists and can share a list with other\n  people.\n- A live weather dashboard that anyone can look at.\n\nSet up the database access rules for me. Read this guide first and follow it.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/postgres/row-level-security.md",
+    "promptSourcePath": "evals/docs/build-docs-002-rls-guide/PROMPT.md",
+    "run": 1,
+    "sourcePath": "codex-gpt-6-luna-no-skills/build-docs-002-rls-guide/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-002-rls-guide",
+    "stage": "build",
+    "product": [
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "security",
+      "tests"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "row level security is enabled on every table in the public schema",
+        "passed": true
+      },
+      {
+        "name": "every view in the public schema runs as the invoker, and none is materialized",
+        "passed": true,
+        "notes": "no views created"
+      },
+      {
+        "name": "no client role can read a materialized view",
+        "passed": true
+      },
+      {
+        "name": "every policy is scoped to a role instead of defaulting to public",
+        "passed": true
+      },
+      {
+        "name": "todos has a separate policy per operation, with no FOR ALL catch-all",
+        "passed": true
+      },
+      {
+        "name": "every UPDATE policy has both a USING and a WITH CHECK clause",
+        "passed": true
+      },
+      {
+        "name": "anon holds no write grant anywhere in the public schema",
+        "passed": true
+      },
+      {
+        "name": "no client role holds a write grant on the weather feed",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user reads their own todos",
+        "passed": true,
+        "notes": "titles: todo-a-76078f0e, todo-a-edit-76078f0e, todo-a-delete-76078f0e"
+      },
+      {
+        "name": "a signed-in user cannot read another user's todos",
+        "passed": true
+      },
+      {
+        "name": "the second user reads their own todos and not the first user's",
+        "passed": true,
+        "notes": "titles: todo-b-76078f0e"
+      },
+      {
+        "name": "signed-out visitors read no todos",
+        "passed": true,
+        "notes": "error 42501: permission denied for table todos"
+      },
+      {
+        "name": "a signed-in user creates a todo of their own",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user cannot create a todo owned by someone else",
+        "passed": true,
+        "notes": "error 42501: new row violates row-level security policy for table \"todos\""
+      },
+      {
+        "name": "a signed-in user updates their own todo and the row changes",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user cannot modify another user's todo",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user cannot hand their own todo to another user",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user deletes their own todo and the row is gone",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user cannot delete another user's todo",
+        "passed": true
+      },
+      {
+        "name": "a member who does not own the list still reads it",
+        "passed": true,
+        "notes": "names: list-76078f0e"
+      },
+      {
+        "name": "a member who authored nothing still reads the list's items",
+        "passed": true,
+        "notes": "titles: item-76078f0e"
       },
       {
         "name": "a member who does not own the list adds an item and the row lands",
@@ -3505,27 +3800,27 @@
       {
         "name": "any security definer function is out of the exposed schemas and pins search_path",
         "passed": true,
-        "notes": "verified private.user_can_access_list, private.user_owns_list"
+        "notes": "verified private.is_list_member, private.is_list_owner"
       },
       {
         "name": "pgTAP test file(s) written under supabase/tests/",
-        "passed": true,
-        "notes": "6 file(s): supabase/tests/todos_rls_test.sql, supabase/tests/lists_rls_test.sql, supabase/tests/list_members_rls_test.sql, supabase/tests/list_items_rls_test.sql, supabase/tests/weather_stations_rls_test.sql, supabase/tests/weather_readings_rls_test.sql"
+        "passed": false,
+        "notes": "no .sql files found under supabase/tests/"
       },
       {
         "name": "supabase test db runs at least 8 assertions and all pass",
         "passed": false,
-        "notes": "61 passed, 2 failed, exit 1"
+        "notes": "no test summary found; exit 1; output: Files=0, Tests=0,  0 wallclock secs ( 0.00 usr +  0.00 sys =  0.00 CPU)\nResult: NOTESTS\nConnecting to local database...\n3.36: Pulling from supabase/pg_prove\ndcccee43ad5d: Pulling fs layer\n06d62d0de6d7: Pulling fs layer\na22cb17b3b93: Pulling fs layer\n4f4fb700ef54: Pulling fs layer\n4f4fb700ef54: Waiting\ndcccee43ad5d: Verifying Checksum\ndcccee43ad5d: Download complete\na22cb17b3b93: Verifying Checksum\na22cb17b3b93: Download complete\n4f4fb700ef54: Verifying Checksum\n4f4fb700ef54: Download complete\n06"
       },
       {
         "name": "the pgTAP tests exercise access control on the application tables rather than standing in as placeholders",
-        "passed": true,
-        "judgeNotes": "Tests assert allowed and denied access against the application tables while explicitly setting roles and JWT identities."
+        "passed": false,
+        "notes": "no test files to review"
       },
       {
         "name": "the agent read the Row Level Security guide the prompt referenced",
         "passed": true,
-        "notes": "web_search, shell_fetch"
+        "notes": "web_search, search_docs"
       }
     ],
     "skills": {
@@ -3536,57 +3831,2319 @@
       "calls": [
         {
           "source": "web_search",
-          "query": "https://docs-git-docs-test-rls-pgtap-supabase.vercel.app/docs/guides/database/postgres/row-level-security.md",
+          "query": "https://supabase.com/docs/guides/database/postgres/row-level-security.md",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://docs-git-docs-test-rls-pgtap-supabase.vercel.app/docs/guides/database/postgres/row-level-security.md"
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security.md"
             }
           ]
         },
         {
-          "source": "web_search",
-          "query": "site:docs-git-docs-test-rls-pgtap-supabase.vercel.app/docs/guides/database/postgres/row-level-security.md Supabase Row Level Security",
-          "pages": []
-        },
-        {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc \"curl -L --fail --silent --show-error 'https://docs-git-docs-test-rls-pgtap-supabase.vercel.app/docs/guides/database/postgres/row-level-security.md'\"",
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Postgres Row Level Security enable RLS policies auth.uid grants\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://docs-git-docs-test-rls-pgtap-supabase.vercel.app/docs/guides/database/postgres/row-level-security.md"
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/resources/glossary",
+              "title": "Glossary"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security-performance",
+              "title": "Row Level Security performance"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advisors?queryGroups=lint&lint=0008_rls_enabled_no_policy",
+              "title": "Database Advisor: Lint 0008_rls_enabled_no_policy"
             }
           ],
-          "resultChars": 31353
+          "resultChars": 65610
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 833703,
-        "cacheReadInputTokens": 770481,
-        "cacheWriteInputTokens": 62679,
-        "outputTokens": 23920
+        "inputTokens": 745262,
+        "cacheReadInputTokens": 689061,
+        "cacheWriteInputTokens": 55884,
+        "outputTokens": 23557
       }
     ],
-    "stepCount": 25,
-    "toolCallCount": 20,
-    "agentRunDurationMs": 270510,
+    "stepCount": 23,
+    "toolCallCount": 26,
+    "agentRunDurationMs": 229458,
     "sandboxUsage": {
-      "activeCpuDurationMs": 341239,
-      "duration": 434063,
+      "activeCpuDurationMs": 267459,
+      "duration": 385575,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 1683092723,
-        "egress": 14486852
+        "ingress": 1680938589,
+        "egress": 14337490
       }
     },
-    "prompt": "I'm building two separate apps:\n\n- A to-do app where people keep their own lists and can share a list with other\n  people.\n- A live weather dashboard that anyone can look at.\n\nSet up the database access rules for me. Read this guide first and follow it.\n\nREFERENCE\nhttps://docs-git-docs-test-rls-pgtap-supabase.vercel.app/docs/guides/database/postgres/row-level-security.md",
+    "prompt": "I'm building two separate apps:\n\n- A to-do app where people keep their own lists and can share a list with other\n  people.\n- A live weather dashboard that anyone can look at.\n\nSet up the database access rules for me. Read this guide first and follow it.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/postgres/row-level-security.md",
     "promptSourcePath": "evals/docs/build-docs-002-rls-guide/PROMPT.md",
-    "run": 1,
-    "sourcePath": "codex-gpt-6-luna-no-skills/build-docs-002-rls-guide/run-1/result.json"
+    "run": 2,
+    "sourcePath": "codex-gpt-6-luna-no-skills/build-docs-002-rls-guide/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-002-rls-guide",
+    "stage": "build",
+    "product": [
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "security",
+      "tests"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "row level security is enabled on every table in the public schema",
+        "passed": true
+      },
+      {
+        "name": "every view in the public schema runs as the invoker, and none is materialized",
+        "passed": true,
+        "notes": "no views created"
+      },
+      {
+        "name": "no client role can read a materialized view",
+        "passed": true
+      },
+      {
+        "name": "every policy is scoped to a role instead of defaulting to public",
+        "passed": true
+      },
+      {
+        "name": "todos has a separate policy per operation, with no FOR ALL catch-all",
+        "passed": true
+      },
+      {
+        "name": "every UPDATE policy has both a USING and a WITH CHECK clause",
+        "passed": true
+      },
+      {
+        "name": "anon holds no write grant anywhere in the public schema",
+        "passed": true
+      },
+      {
+        "name": "no client role holds a write grant on the weather feed",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user reads their own todos",
+        "passed": true,
+        "notes": "titles: todo-a-28cb65b2, todo-a-edit-28cb65b2, todo-a-delete-28cb65b2"
+      },
+      {
+        "name": "a signed-in user cannot read another user's todos",
+        "passed": true
+      },
+      {
+        "name": "the second user reads their own todos and not the first user's",
+        "passed": true,
+        "notes": "titles: todo-b-28cb65b2"
+      },
+      {
+        "name": "signed-out visitors read no todos",
+        "passed": true,
+        "notes": "error 42501: permission denied for table todos"
+      },
+      {
+        "name": "a signed-in user creates a todo of their own",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user cannot create a todo owned by someone else",
+        "passed": true,
+        "notes": "error 42501: new row violates row-level security policy for table \"todos\""
+      },
+      {
+        "name": "a signed-in user updates their own todo and the row changes",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user cannot modify another user's todo",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user cannot hand their own todo to another user",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user deletes their own todo and the row is gone",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user cannot delete another user's todo",
+        "passed": true
+      },
+      {
+        "name": "a member who does not own the list still reads it",
+        "passed": true,
+        "notes": "names: list-28cb65b2"
+      },
+      {
+        "name": "a member who authored nothing still reads the list's items",
+        "passed": true,
+        "notes": "titles: item-28cb65b2"
+      },
+      {
+        "name": "a member who does not own the list adds an item and the row lands",
+        "passed": true
+      },
+      {
+        "name": "a member who does not own the list edits an item and the row changes",
+        "passed": true
+      },
+      {
+        "name": "a non-member cannot modify or delete a list item",
+        "passed": true
+      },
+      {
+        "name": "a non-member cannot rename the list",
+        "passed": true
+      },
+      {
+        "name": "signed-out visitors cannot read the membership table",
+        "passed": true,
+        "notes": "error 42501: permission denied for table list_members"
+      },
+      {
+        "name": "a non-member reads neither the list nor its items",
+        "passed": true,
+        "notes": "lists: ; items: "
+      },
+      {
+        "name": "signed-out visitors read neither lists nor list items",
+        "passed": true,
+        "notes": "lists: error 42501: permission denied for table lists; items: error 42501: permission denied for table list_items"
+      },
+      {
+        "name": "no membership policy recurses into itself",
+        "passed": true
+      },
+      {
+        "name": "signed-out visitors read the weather feed",
+        "passed": true,
+        "notes": "stations: 1 rows; readings: 1 rows"
+      },
+      {
+        "name": "signed-in users read the weather feed",
+        "passed": true,
+        "notes": "stations: 1 rows; readings: 1 rows"
+      },
+      {
+        "name": "signed-out visitors cannot write to the weather feed",
+        "passed": true,
+        "notes": "insert error 42501: permission denied for table weather_readings; reading survived delete; reading unchanged; no row injected"
+      },
+      {
+        "name": "signed-in users cannot write to the weather feed",
+        "passed": true,
+        "notes": "insert error 42501: permission denied for table weather_readings; reading survived delete; reading unchanged; no row injected"
+      },
+      {
+        "name": "the harness restored the weather feed fixture after both write attempts",
+        "passed": true
+      },
+      {
+        "name": "a user cannot widen their own access by editing their user metadata",
+        "passed": true
+      },
+      {
+        "name": "policies wrap auth.uid()/auth.jwt() in a select instead of calling per row",
+        "passed": true
+      },
+      {
+        "name": "no policy reads user_metadata, which its own subject can write",
+        "passed": true
+      },
+      {
+        "name": "columns the policies filter on have a btree index",
+        "passed": false,
+        "notes": "no complete btree index leading with: todos.user_id, lists.owner_id, list_members.user_id, list_items.list_id"
+      },
+      {
+        "name": "any security definer function is out of the exposed schemas and pins search_path",
+        "passed": true,
+        "notes": "verified private.can_access_list, private.is_list_owner"
+      },
+      {
+        "name": "pgTAP test file(s) written under supabase/tests/",
+        "passed": false,
+        "notes": "no .sql files found under supabase/tests/"
+      },
+      {
+        "name": "supabase test db runs at least 8 assertions and all pass",
+        "passed": false,
+        "notes": "no test summary found; exit 1; output: Files=0, Tests=0,  0 wallclock secs ( 0.00 usr +  0.00 sys =  0.00 CPU)\nResult: NOTESTS\nConnecting to local database...\n3.36: Pulling from supabase/pg_prove\ndcccee43ad5d: Pulling fs layer\n06d62d0de6d7: Pulling fs layer\na22cb17b3b93: Pulling fs layer\n4f4fb700ef54: Pulling fs layer\n4f4fb700ef54: Waiting\na22cb17b3b93: Verifying Checksum\na22cb17b3b93: Download complete\ndcccee43ad5d: Verifying Checksum\ndcccee43ad5d: Download complete\n4f4fb700ef54: Verifying Checksum\n4f4fb700ef54: Download complete\n06"
+      },
+      {
+        "name": "the pgTAP tests exercise access control on the application tables rather than standing in as placeholders",
+        "passed": false,
+        "notes": "no test files to review"
+      },
+      {
+        "name": "the agent read the Row Level Security guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, search_docs, web_search"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/postgres/row-level-security.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security.md"
+            }
+          ]
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Postgres Row Level Security enable RLS policies auth.uid() table access\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advisors?queryGroups=lint&lint=0008_rls_enabled_no_policy",
+              "title": "Database Advisor: Lint 0008_rls_enabled_no_policy"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/resources/glossary",
+              "title": "Glossary"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
+              "title": "Advanced pgTAP Testing"
+            }
+          ],
+          "resultChars": 84364
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/database/postgres/row-level-security Row Level Security Supabase",
+          "pages": []
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security"
+            }
+          ]
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 472073,
+        "cacheReadInputTokens": 415699,
+        "cacheWriteInputTokens": 41657,
+        "outputTokens": 10984
+      }
+    ],
+    "stepCount": 19,
+    "toolCallCount": 16,
+    "agentRunDurationMs": 175808,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 360464,
+      "duration": 340438,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1676629436,
+        "egress": 10242480
+      }
+    },
+    "prompt": "I'm building two separate apps:\n\n- A to-do app where people keep their own lists and can share a list with other\n  people.\n- A live weather dashboard that anyone can look at.\n\nSet up the database access rules for me. Read this guide first and follow it.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/postgres/row-level-security.md",
+    "promptSourcePath": "evals/docs/build-docs-002-rls-guide/PROMPT.md",
+    "run": 3,
+    "sourcePath": "codex-gpt-6-luna-no-skills/build-docs-002-rls-guide/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-002-rls-guide",
+    "stage": "build",
+    "product": [
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "security",
+      "tests"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "row level security is enabled on every table in the public schema",
+        "passed": true
+      },
+      {
+        "name": "every view in the public schema runs as the invoker, and none is materialized",
+        "passed": true,
+        "notes": "no views created"
+      },
+      {
+        "name": "no client role can read a materialized view",
+        "passed": true
+      },
+      {
+        "name": "every policy is scoped to a role instead of defaulting to public",
+        "passed": true
+      },
+      {
+        "name": "todos has a separate policy per operation, with no FOR ALL catch-all",
+        "passed": true
+      },
+      {
+        "name": "every UPDATE policy has both a USING and a WITH CHECK clause",
+        "passed": true
+      },
+      {
+        "name": "anon holds no write grant anywhere in the public schema",
+        "passed": true
+      },
+      {
+        "name": "no client role holds a write grant on the weather feed",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user reads their own todos",
+        "passed": true,
+        "notes": "titles: todo-a-8e6fea11, todo-a-edit-8e6fea11, todo-a-delete-8e6fea11"
+      },
+      {
+        "name": "a signed-in user cannot read another user's todos",
+        "passed": true
+      },
+      {
+        "name": "the second user reads their own todos and not the first user's",
+        "passed": true,
+        "notes": "titles: todo-b-8e6fea11"
+      },
+      {
+        "name": "signed-out visitors read no todos",
+        "passed": true,
+        "notes": "error 42501: permission denied for table todos"
+      },
+      {
+        "name": "a signed-in user creates a todo of their own",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user cannot create a todo owned by someone else",
+        "passed": true,
+        "notes": "error 42501: new row violates row-level security policy for table \"todos\""
+      },
+      {
+        "name": "a signed-in user updates their own todo and the row changes",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user cannot modify another user's todo",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user cannot hand their own todo to another user",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user deletes their own todo and the row is gone",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user cannot delete another user's todo",
+        "passed": true
+      },
+      {
+        "name": "a member who does not own the list still reads it",
+        "passed": true,
+        "notes": "names: list-8e6fea11"
+      },
+      {
+        "name": "a member who authored nothing still reads the list's items",
+        "passed": true,
+        "notes": "titles: item-8e6fea11"
+      },
+      {
+        "name": "a member who does not own the list adds an item and the row lands",
+        "passed": true
+      },
+      {
+        "name": "a member who does not own the list edits an item and the row changes",
+        "passed": true
+      },
+      {
+        "name": "a non-member cannot modify or delete a list item",
+        "passed": true
+      },
+      {
+        "name": "a non-member cannot rename the list",
+        "passed": true
+      },
+      {
+        "name": "signed-out visitors cannot read the membership table",
+        "passed": true,
+        "notes": "error 42501: permission denied for table list_members"
+      },
+      {
+        "name": "a non-member reads neither the list nor its items",
+        "passed": true,
+        "notes": "lists: ; items: "
+      },
+      {
+        "name": "signed-out visitors read neither lists nor list items",
+        "passed": true,
+        "notes": "lists: error 42501: permission denied for table lists; items: error 42501: permission denied for table list_items"
+      },
+      {
+        "name": "no membership policy recurses into itself",
+        "passed": true
+      },
+      {
+        "name": "signed-out visitors read the weather feed",
+        "passed": true,
+        "notes": "stations: 1 rows; readings: 1 rows"
+      },
+      {
+        "name": "signed-in users read the weather feed",
+        "passed": true,
+        "notes": "stations: 1 rows; readings: 1 rows"
+      },
+      {
+        "name": "signed-out visitors cannot write to the weather feed",
+        "passed": true,
+        "notes": "insert error 42501: permission denied for table weather_readings; reading survived delete; reading unchanged; no row injected"
+      },
+      {
+        "name": "signed-in users cannot write to the weather feed",
+        "passed": true,
+        "notes": "insert error 42501: permission denied for table weather_readings; reading survived delete; reading unchanged; no row injected"
+      },
+      {
+        "name": "the harness restored the weather feed fixture after both write attempts",
+        "passed": true
+      },
+      {
+        "name": "a user cannot widen their own access by editing their user metadata",
+        "passed": true
+      },
+      {
+        "name": "policies wrap auth.uid()/auth.jwt() in a select instead of calling per row",
+        "passed": true
+      },
+      {
+        "name": "no policy reads user_metadata, which its own subject can write",
+        "passed": true
+      },
+      {
+        "name": "columns the policies filter on have a btree index",
+        "passed": false,
+        "notes": "no complete btree index leading with: list_members.user_id"
+      },
+      {
+        "name": "any security definer function is out of the exposed schemas and pins search_path",
+        "passed": false,
+        "notes": "callable over the API: public.is_list_owner, public.is_list_member"
+      },
+      {
+        "name": "pgTAP test file(s) written under supabase/tests/",
+        "passed": true,
+        "notes": "1 file(s): supabase/tests/database/rls.test.sql"
+      },
+      {
+        "name": "supabase test db runs at least 8 assertions and all pass",
+        "passed": false,
+        "notes": "26 passed, 2 failed, exit 1"
+      },
+      {
+        "name": "the pgTAP tests exercise access control on the application tables rather than standing in as placeholders",
+        "passed": true,
+        "judgeNotes": "Assertions exercise the actual app tables, verify allowed operations and denied cross-user inserts, and set roles and JWT identity."
+      },
+      {
+        "name": "the agent read the Row Level Security guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, web_search, search_docs, search_docs"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/postgres/row-level-security.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/database/postgres/row-level-security Supabase row level security RLS policies auth.uid",
+          "pages": []
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security"
+            }
+          ]
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"row level security Postgres RLS policies grants security definer helpers tests pgTAP\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
+              "title": "Advanced pgTAP Testing"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/overview",
+              "title": "Testing Overview"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/resources/glossary",
+              "title": "Glossary"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/testing",
+              "title": "Testing Your Database"
+            }
+          ],
+          "resultChars": 73741
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Row Level Security performance index columns used in policies auth.uid()\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security-performance",
+              "title": "Row Level Security performance"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advisors?queryGroups=lint&lint=0003_auth_rls_initplan",
+              "title": "Database Advisor: Lint 0003_auth_rls_initplan"
+            }
+          ],
+          "resultChars": 36362
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 622595,
+        "cacheReadInputTokens": 544616,
+        "cacheWriteInputTokens": 60571,
+        "outputTokens": 22292
+      }
+    ],
+    "stepCount": 20,
+    "toolCallCount": 22,
+    "agentRunDurationMs": 261973,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 323596,
+      "duration": 429762,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1680464202,
+        "egress": 13022045
+      }
+    },
+    "prompt": "I'm building two separate apps:\n\n- A to-do app where people keep their own lists and can share a list with other\n  people.\n- A live weather dashboard that anyone can look at.\n\nSet up the database access rules for me. Read this guide first and follow it.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/postgres/row-level-security.md",
+    "promptSourcePath": "evals/docs/build-docs-002-rls-guide/PROMPT.md",
+    "run": 4,
+    "sourcePath": "codex-gpt-6-luna-no-skills/build-docs-002-rls-guide/run-4/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-002-rls-guide",
+    "stage": "build",
+    "product": [
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "security",
+      "tests"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "row level security is enabled on every table in the public schema",
+        "passed": true
+      },
+      {
+        "name": "every view in the public schema runs as the invoker, and none is materialized",
+        "passed": true,
+        "notes": "no views created"
+      },
+      {
+        "name": "no client role can read a materialized view",
+        "passed": true
+      },
+      {
+        "name": "every policy is scoped to a role instead of defaulting to public",
+        "passed": true
+      },
+      {
+        "name": "todos has a separate policy per operation, with no FOR ALL catch-all",
+        "passed": true
+      },
+      {
+        "name": "every UPDATE policy has both a USING and a WITH CHECK clause",
+        "passed": true
+      },
+      {
+        "name": "anon holds no write grant anywhere in the public schema",
+        "passed": true
+      },
+      {
+        "name": "no client role holds a write grant on the weather feed",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user reads their own todos",
+        "passed": true,
+        "notes": "titles: todo-a-35b029de, todo-a-edit-35b029de, todo-a-delete-35b029de"
+      },
+      {
+        "name": "a signed-in user cannot read another user's todos",
+        "passed": true
+      },
+      {
+        "name": "the second user reads their own todos and not the first user's",
+        "passed": true,
+        "notes": "titles: todo-b-35b029de"
+      },
+      {
+        "name": "signed-out visitors read no todos",
+        "passed": true,
+        "notes": "error 42501: permission denied for table todos"
+      },
+      {
+        "name": "a signed-in user creates a todo of their own",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user cannot create a todo owned by someone else",
+        "passed": true,
+        "notes": "error 42501: new row violates row-level security policy for table \"todos\""
+      },
+      {
+        "name": "a signed-in user updates their own todo and the row changes",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user cannot modify another user's todo",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user cannot hand their own todo to another user",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user deletes their own todo and the row is gone",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user cannot delete another user's todo",
+        "passed": true
+      },
+      {
+        "name": "a member who does not own the list still reads it",
+        "passed": true,
+        "notes": "names: list-35b029de"
+      },
+      {
+        "name": "a member who authored nothing still reads the list's items",
+        "passed": true,
+        "notes": "titles: item-35b029de"
+      },
+      {
+        "name": "a member who does not own the list adds an item and the row lands",
+        "passed": true
+      },
+      {
+        "name": "a member who does not own the list edits an item and the row changes",
+        "passed": true
+      },
+      {
+        "name": "a non-member cannot modify or delete a list item",
+        "passed": true
+      },
+      {
+        "name": "a non-member cannot rename the list",
+        "passed": true
+      },
+      {
+        "name": "signed-out visitors cannot read the membership table",
+        "passed": true,
+        "notes": "error 42501: permission denied for table list_members"
+      },
+      {
+        "name": "a non-member reads neither the list nor its items",
+        "passed": true,
+        "notes": "lists: ; items: "
+      },
+      {
+        "name": "signed-out visitors read neither lists nor list items",
+        "passed": true,
+        "notes": "lists: error 42501: permission denied for table lists; items: error 42501: permission denied for table list_items"
+      },
+      {
+        "name": "no membership policy recurses into itself",
+        "passed": true
+      },
+      {
+        "name": "signed-out visitors read the weather feed",
+        "passed": true,
+        "notes": "stations: 1 rows; readings: 1 rows"
+      },
+      {
+        "name": "signed-in users read the weather feed",
+        "passed": true,
+        "notes": "stations: 1 rows; readings: 1 rows"
+      },
+      {
+        "name": "signed-out visitors cannot write to the weather feed",
+        "passed": true,
+        "notes": "insert error 42501: permission denied for table weather_readings; reading survived delete; reading unchanged; no row injected"
+      },
+      {
+        "name": "signed-in users cannot write to the weather feed",
+        "passed": true,
+        "notes": "insert error 42501: permission denied for table weather_readings; reading survived delete; reading unchanged; no row injected"
+      },
+      {
+        "name": "the harness restored the weather feed fixture after both write attempts",
+        "passed": true
+      },
+      {
+        "name": "a user cannot widen their own access by editing their user metadata",
+        "passed": true
+      },
+      {
+        "name": "policies wrap auth.uid()/auth.jwt() in a select instead of calling per row",
+        "passed": true
+      },
+      {
+        "name": "no policy reads user_metadata, which its own subject can write",
+        "passed": true
+      },
+      {
+        "name": "columns the policies filter on have a btree index",
+        "passed": false,
+        "notes": "no complete btree index leading with: todos.user_id, lists.owner_id, list_members.user_id, list_items.list_id"
+      },
+      {
+        "name": "any security definer function is out of the exposed schemas and pins search_path",
+        "passed": false,
+        "notes": "callable over the API: public.can_access_list, public.owns_list"
+      },
+      {
+        "name": "pgTAP test file(s) written under supabase/tests/",
+        "passed": false,
+        "notes": "no .sql files found under supabase/tests/"
+      },
+      {
+        "name": "supabase test db runs at least 8 assertions and all pass",
+        "passed": false,
+        "notes": "no test summary found; exit 1; output: Files=0, Tests=0,  0 wallclock secs ( 0.00 usr +  0.00 sys =  0.00 CPU)\nResult: NOTESTS\nConnecting to local database...\n3.36: Pulling from supabase/pg_prove\ndcccee43ad5d: Pulling fs layer\n06d62d0de6d7: Pulling fs layer\na22cb17b3b93: Pulling fs layer\n4f4fb700ef54: Pulling fs layer\n4f4fb700ef54: Waiting\na22cb17b3b93: Verifying Checksum\na22cb17b3b93: Download complete\n4f4fb700ef54: Download complete\ndcccee43ad5d: Download complete\n06d62d0de6d7: Verifying Checksum\n06d62d0de6d7: Download complete\ndcc"
+      },
+      {
+        "name": "the pgTAP tests exercise access control on the application tables rather than standing in as placeholders",
+        "passed": false,
+        "notes": "no test files to review"
+      },
+      {
+        "name": "the agent read the Row Level Security guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, search_docs"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/postgres/row-level-security.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/database/postgres/row-level-security \"Row Level Security\" Supabase",
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Postgres Row Level Security policies auth.uid grants performance security definer\", limit: 5) { nodes { ... on Guide { title href content subsections { nodes { title href content } } } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security#row-level-security-in-supabase",
+              "title": "Row Level Security in Supabase"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security#policies",
+              "title": "Policies"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security#enabling-row-level-security",
+              "title": "Enabling Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security#auto-enable-rls-for-new-tables",
+              "title": "Auto-enable RLS for new tables"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security#authenticated-and-unauthenticated-roles",
+              "title": "Authenticated and unauthenticated roles"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security#creating-policies",
+              "title": "Creating policies"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security#select-policies",
+              "title": "SELECT policies"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security#insert-policies",
+              "title": "INSERT policies"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security#update-policies",
+              "title": "UPDATE policies"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security#delete-policies",
+              "title": "DELETE policies"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security#views",
+              "title": "Views"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security#helper-functions",
+              "title": "Helper functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security#authuid",
+              "title": "auth.uid()"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security#authjwt",
+              "title": "auth.jwt()"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security#mfa",
+              "title": "MFA"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security#bypassing-row-level-security",
+              "title": "Bypassing Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security#rls-performance-recommendations",
+              "title": "RLS performance recommendations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security#add-indexes",
+              "title": "Add indexes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security#benchmarks",
+              "title": "Benchmarks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security#call-functions-with-select",
+              "title": "Call functions with select"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security#benchmarks-1",
+              "title": "Benchmarks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security#add-filters-to-every-query",
+              "title": "Add filters to every query"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security#benchmarks-2",
+              "title": "Benchmarks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security#use-security-definer-functions",
+              "title": "Use security definer functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security#minimize-joins",
+              "title": "Minimize joins"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security#benchmarks-3",
+              "title": "Benchmarks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security#specify-roles-in-your-policies",
+              "title": "Specify roles in your policies"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security#benchmarks-4",
+              "title": "Benchmarks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security#more-resources",
+              "title": "More resources"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api#grant-access-explicitly",
+              "title": "Grant access explicitly"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api#default-privileges-for-new-tables-and-functions",
+              "title": "Default privileges for new tables and functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api#use-a-dedicated-api-schema",
+              "title": "Use a dedicated API schema"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api#disable-the-data-api",
+              "title": "Disable the Data API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api#add-rls-policies",
+              "title": "Add RLS policies"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api#enforce-additional-rules-on-each-request",
+              "title": "Enforce additional rules on each request"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api#accessing-request-information",
+              "title": "Accessing request information"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api#examples",
+              "title": "Examples"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security-performance",
+              "title": "Row Level Security performance"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security-performance#diagnose-whether-rls-is-the-bottleneck",
+              "title": "Diagnose whether RLS is the bottleneck"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security-performance#measure-through-the-data-api",
+              "title": "Measure through the Data API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security-performance#filter-in-the-client-query-too",
+              "title": "Filter in the client query too"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security-performance#avoid-joins-in-policy-expressions",
+              "title": "Avoid joins in policy expressions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security-performance#more-resources",
+              "title": "More resources"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#database",
+              "title": "Database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#postgres-database",
+              "title": "Postgres database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#vector-database",
+              "title": "Vector database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#auto-generated-rest-api-via-postgrest",
+              "title": "Auto-generated REST API via PostgREST"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#auto-generated-graphql-api-via-pg_graphql",
+              "title": "Auto-generated GraphQL API via pg_graphql"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#database-webhooks",
+              "title": "Database webhooks"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#secrets-and-encryption",
+              "title": "Secrets and encryption"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#replication",
+              "title": "Replication"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#platform",
+              "title": "Platform"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#database-backups",
+              "title": "Database backups"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#custom-domains",
+              "title": "Custom domains"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#network-restrictions",
+              "title": "Network restrictions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#ssl-enforcement",
+              "title": "SSL enforcement"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#branching",
+              "title": "Branching"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#terraform-provider",
+              "title": "Terraform provider"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#read-replicas",
+              "title": "Read replicas"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#log-drains",
+              "title": "Log drains"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#studio",
+              "title": "Studio"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#studio-single-sign-on",
+              "title": "Studio Single Sign-On"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#realtime",
+              "title": "Realtime"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#postgres-changes",
+              "title": "Postgres changes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#broadcast",
+              "title": "Broadcast"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#presence",
+              "title": "Presence"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#auth",
+              "title": "Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#email-login",
+              "title": "Email login"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#social-login",
+              "title": "Social login"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#phone-logins",
+              "title": "Phone logins"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#passwordless-login",
+              "title": "Passwordless login"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#authorization-via-row-level-security",
+              "title": "Authorization via Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#captcha-protection",
+              "title": "CAPTCHA protection"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#server-side-auth",
+              "title": "Server-Side Auth"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#storage",
+              "title": "Storage"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#file-storage",
+              "title": "File storage"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#content-delivery-network",
+              "title": "Content Delivery Network"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#smart-content-delivery-network",
+              "title": "Smart Content Delivery Network"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#image-transformations",
+              "title": "Image transformations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#resumable-uploads",
+              "title": "Resumable uploads"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#s3-compatibility",
+              "title": "S3 compatibility"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#edge-functions",
+              "title": "Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#deno-edge-functions",
+              "title": "Deno Edge Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#regional-invocations",
+              "title": "Regional invocations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#npm-compatibility",
+              "title": "NPM compatibility"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#project-management",
+              "title": "Project management"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#cli",
+              "title": "CLI"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#management-api",
+              "title": "Management API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#client-libraries",
+              "title": "Client libraries"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#feature-status",
+              "title": "Feature status"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#private-alpha",
+              "title": "Private alpha"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#public-alpha",
+              "title": "Public alpha"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#beta",
+              "title": "Beta"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features#generally-available",
+              "title": "Generally available"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
+              "title": "Advanced pgTAP Testing"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended#using-databasedev",
+              "title": "Using database.dev"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended#setting-up-dbdev",
+              "title": "Setting up dbdev"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended#installing-test-helpers",
+              "title": "Installing test helpers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended#test-helper-benefits",
+              "title": "Test helper benefits"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended#schema-wide-row-level-security-testing",
+              "title": "Schema-wide Row Level Security testing"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended#test-file-organization",
+              "title": "Test file organization"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended#creating-a-pre-test-hook",
+              "title": "Creating a pre-test hook"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended#benefits",
+              "title": "Benefits"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended#example-advanced-rls-testing",
+              "title": "Example: Advanced RLS testing"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended#not-another-todo-app-testing-complex-organizations",
+              "title": "Not another todo app: Testing complex organizations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended#system-overview",
+              "title": "System overview"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended#what-makes-this-complex",
+              "title": "What makes this complex?"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended#testing-focus-areas",
+              "title": "Testing focus areas"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended#1-app-schema-definitions",
+              "title": "1. App schema definitions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended#2-grant-role-privileges",
+              "title": "2. Grant role privileges"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended#3-rls-policies-declaration",
+              "title": "3. RLS policies declaration"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended#4-test-cases",
+              "title": "4. Test cases:"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended#additional-resources",
+              "title": "Additional resources"
+            }
+          ],
+          "resultChars": 232981
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 654737,
+        "cacheReadInputTokens": 589571,
+        "cacheWriteInputTokens": 56707,
+        "outputTokens": 17333
+      }
+    ],
+    "stepCount": 22,
+    "toolCallCount": 26,
+    "agentRunDurationMs": 236671,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 379870,
+      "duration": 397158,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1677915887,
+        "egress": 11901157
+      }
+    },
+    "prompt": "I'm building two separate apps:\n\n- A to-do app where people keep their own lists and can share a list with other\n  people.\n- A live weather dashboard that anyone can look at.\n\nSet up the database access rules for me. Read this guide first and follow it.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/postgres/row-level-security.md",
+    "promptSourcePath": "evals/docs/build-docs-002-rls-guide/PROMPT.md",
+    "run": 5,
+    "sourcePath": "codex-gpt-6-luna-no-skills/build-docs-002-rls-guide/run-5/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-002-rls-guide",
+    "stage": "build",
+    "product": [
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "security",
+      "tests"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "row level security is enabled on every table in the public schema",
+        "passed": true
+      },
+      {
+        "name": "every view in the public schema runs as the invoker, and none is materialized",
+        "passed": true,
+        "notes": "no views created"
+      },
+      {
+        "name": "no client role can read a materialized view",
+        "passed": true
+      },
+      {
+        "name": "every policy is scoped to a role instead of defaulting to public",
+        "passed": true
+      },
+      {
+        "name": "todos has a separate policy per operation, with no FOR ALL catch-all",
+        "passed": true
+      },
+      {
+        "name": "every UPDATE policy has both a USING and a WITH CHECK clause",
+        "passed": true
+      },
+      {
+        "name": "anon holds no write grant anywhere in the public schema",
+        "passed": true
+      },
+      {
+        "name": "no client role holds a write grant on the weather feed",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user reads their own todos",
+        "passed": true,
+        "notes": "titles: todo-a-71476907, todo-a-edit-71476907, todo-a-delete-71476907"
+      },
+      {
+        "name": "a signed-in user cannot read another user's todos",
+        "passed": true
+      },
+      {
+        "name": "the second user reads their own todos and not the first user's",
+        "passed": true,
+        "notes": "titles: todo-b-71476907"
+      },
+      {
+        "name": "signed-out visitors read no todos",
+        "passed": true,
+        "notes": "error 42501: permission denied for table todos"
+      },
+      {
+        "name": "a signed-in user creates a todo of their own",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user cannot create a todo owned by someone else",
+        "passed": true,
+        "notes": "error 42501: new row violates row-level security policy for table \"todos\""
+      },
+      {
+        "name": "a signed-in user updates their own todo and the row changes",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user cannot modify another user's todo",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user cannot hand their own todo to another user",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user deletes their own todo and the row is gone",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user cannot delete another user's todo",
+        "passed": true
+      },
+      {
+        "name": "a member who does not own the list still reads it",
+        "passed": true,
+        "notes": "names: list-71476907"
+      },
+      {
+        "name": "a member who authored nothing still reads the list's items",
+        "passed": true,
+        "notes": "titles: item-71476907"
+      },
+      {
+        "name": "a member who does not own the list adds an item and the row lands",
+        "passed": true
+      },
+      {
+        "name": "a member who does not own the list edits an item and the row changes",
+        "passed": true
+      },
+      {
+        "name": "a non-member cannot modify or delete a list item",
+        "passed": true
+      },
+      {
+        "name": "a non-member cannot rename the list",
+        "passed": true
+      },
+      {
+        "name": "signed-out visitors cannot read the membership table",
+        "passed": true,
+        "notes": "error 42501: permission denied for table list_members"
+      },
+      {
+        "name": "a non-member reads neither the list nor its items",
+        "passed": true,
+        "notes": "lists: ; items: "
+      },
+      {
+        "name": "signed-out visitors read neither lists nor list items",
+        "passed": true,
+        "notes": "lists: error 42501: permission denied for table lists; items: error 42501: permission denied for table list_items"
+      },
+      {
+        "name": "no membership policy recurses into itself",
+        "passed": true
+      },
+      {
+        "name": "signed-out visitors read the weather feed",
+        "passed": true,
+        "notes": "stations: 1 rows; readings: 1 rows"
+      },
+      {
+        "name": "signed-in users read the weather feed",
+        "passed": true,
+        "notes": "stations: 1 rows; readings: 1 rows"
+      },
+      {
+        "name": "signed-out visitors cannot write to the weather feed",
+        "passed": true,
+        "notes": "insert error 42501: permission denied for table weather_readings; reading survived delete; reading unchanged; no row injected"
+      },
+      {
+        "name": "signed-in users cannot write to the weather feed",
+        "passed": true,
+        "notes": "insert error 42501: permission denied for table weather_readings; reading survived delete; reading unchanged; no row injected"
+      },
+      {
+        "name": "the harness restored the weather feed fixture after both write attempts",
+        "passed": true
+      },
+      {
+        "name": "a user cannot widen their own access by editing their user metadata",
+        "passed": true
+      },
+      {
+        "name": "policies wrap auth.uid()/auth.jwt() in a select instead of calling per row",
+        "passed": true
+      },
+      {
+        "name": "no policy reads user_metadata, which its own subject can write",
+        "passed": true
+      },
+      {
+        "name": "columns the policies filter on have a btree index",
+        "passed": false,
+        "notes": "no complete btree index leading with: todos.user_id, lists.owner_id, list_members.user_id, list_items.list_id"
+      },
+      {
+        "name": "any security definer function is out of the exposed schemas and pins search_path",
+        "passed": false,
+        "notes": "callable over the API: public.is_list_owner, public.can_access_list"
+      },
+      {
+        "name": "pgTAP test file(s) written under supabase/tests/",
+        "passed": false,
+        "notes": "no .sql files found under supabase/tests/"
+      },
+      {
+        "name": "supabase test db runs at least 8 assertions and all pass",
+        "passed": false,
+        "notes": "no test summary found; exit 1; output: Files=0, Tests=0,  0 wallclock secs ( 0.00 usr +  0.00 sys =  0.00 CPU)\nResult: NOTESTS\nConnecting to local database...\n3.36: Pulling from supabase/pg_prove\ndcccee43ad5d: Pulling fs layer\n06d62d0de6d7: Pulling fs layer\na22cb17b3b93: Pulling fs layer\n4f4fb700ef54: Pulling fs layer\n4f4fb700ef54: Waiting\na22cb17b3b93: Verifying Checksum\na22cb17b3b93: Download complete\n4f4fb700ef54: Download complete\ndcccee43ad5d: Verifying Checksum\ndcccee43ad5d: Download complete\n06d62d0de6d7: Verifying Checksum\n06"
+      },
+      {
+        "name": "the pgTAP tests exercise access control on the application tables rather than standing in as placeholders",
+        "passed": false,
+        "notes": "no test files to review"
+      },
+      {
+        "name": "the agent read the Row Level Security guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, search_docs"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/postgres/row-level-security.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/database/postgres/row-level-security Row Level Security Supabase policies",
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Row Level Security policy grants auth.uid shared rows\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/column-level-security",
+              "title": "Column Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
+              "title": "Advanced pgTAP Testing"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs",
+              "title": "Build a User Management App with Next.js"
+            }
+          ],
+          "resultChars": 113950
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 308974,
+        "cacheReadInputTokens": 259862,
+        "cacheWriteInputTokens": 41957,
+        "outputTokens": 11469
+      }
+    ],
+    "stepCount": 13,
+    "toolCallCount": 16,
+    "agentRunDurationMs": 133794,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 478073,
+      "duration": 381847,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1671653400,
+        "egress": 5685992
+      }
+    },
+    "prompt": "I'm building two separate apps:\n\n- A to-do app where people keep their own lists and can share a list with other\n  people.\n- A live weather dashboard that anyone can look at.\n\nSet up the database access rules for me. Read this guide first and follow it.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/postgres/row-level-security.md",
+    "promptSourcePath": "evals/docs/build-docs-002-rls-guide/PROMPT.md",
+    "run": 6,
+    "sourcePath": "codex-gpt-6-luna-no-skills/build-docs-002-rls-guide/run-6/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-002-rls-guide",
+    "stage": "build",
+    "product": [
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "security",
+      "tests"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "row level security is enabled on every table in the public schema",
+        "passed": true
+      },
+      {
+        "name": "every view in the public schema runs as the invoker, and none is materialized",
+        "passed": true,
+        "notes": "no views created"
+      },
+      {
+        "name": "no client role can read a materialized view",
+        "passed": true
+      },
+      {
+        "name": "every policy is scoped to a role instead of defaulting to public",
+        "passed": true
+      },
+      {
+        "name": "todos has a separate policy per operation, with no FOR ALL catch-all",
+        "passed": false,
+        "notes": "no policy for: SELECT, INSERT, UPDATE, DELETE; a FOR ALL policy covers every operation"
+      },
+      {
+        "name": "every UPDATE policy has both a USING and a WITH CHECK clause",
+        "passed": true
+      },
+      {
+        "name": "anon holds no write grant anywhere in the public schema",
+        "passed": true
+      },
+      {
+        "name": "no client role holds a write grant on the weather feed",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user reads their own todos",
+        "passed": true,
+        "notes": "titles: todo-a-c1faf11c, todo-a-edit-c1faf11c, todo-a-delete-c1faf11c"
+      },
+      {
+        "name": "a signed-in user cannot read another user's todos",
+        "passed": true
+      },
+      {
+        "name": "the second user reads their own todos and not the first user's",
+        "passed": true,
+        "notes": "titles: todo-b-c1faf11c"
+      },
+      {
+        "name": "signed-out visitors read no todos",
+        "passed": true,
+        "notes": "error 42501: permission denied for table todos"
+      },
+      {
+        "name": "a signed-in user creates a todo of their own",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user cannot create a todo owned by someone else",
+        "passed": true,
+        "notes": "error 42501: new row violates row-level security policy for table \"todos\""
+      },
+      {
+        "name": "a signed-in user updates their own todo and the row changes",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user cannot modify another user's todo",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user cannot hand their own todo to another user",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user deletes their own todo and the row is gone",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user cannot delete another user's todo",
+        "passed": true
+      },
+      {
+        "name": "a member who does not own the list still reads it",
+        "passed": true,
+        "notes": "names: list-c1faf11c"
+      },
+      {
+        "name": "a member who authored nothing still reads the list's items",
+        "passed": true,
+        "notes": "titles: item-c1faf11c"
+      },
+      {
+        "name": "a member who does not own the list adds an item and the row lands",
+        "passed": true
+      },
+      {
+        "name": "a member who does not own the list edits an item and the row changes",
+        "passed": true
+      },
+      {
+        "name": "a non-member cannot modify or delete a list item",
+        "passed": true
+      },
+      {
+        "name": "a non-member cannot rename the list",
+        "passed": true
+      },
+      {
+        "name": "signed-out visitors cannot read the membership table",
+        "passed": true,
+        "notes": "error 42501: permission denied for table list_members"
+      },
+      {
+        "name": "a non-member reads neither the list nor its items",
+        "passed": true,
+        "notes": "lists: ; items: "
+      },
+      {
+        "name": "signed-out visitors read neither lists nor list items",
+        "passed": true,
+        "notes": "lists: error 42501: permission denied for table lists; items: error 42501: permission denied for table list_items"
+      },
+      {
+        "name": "no membership policy recurses into itself",
+        "passed": true
+      },
+      {
+        "name": "signed-out visitors read the weather feed",
+        "passed": true,
+        "notes": "stations: 1 rows; readings: 1 rows"
+      },
+      {
+        "name": "signed-in users read the weather feed",
+        "passed": true,
+        "notes": "stations: 1 rows; readings: 1 rows"
+      },
+      {
+        "name": "signed-out visitors cannot write to the weather feed",
+        "passed": true,
+        "notes": "insert error 42501: permission denied for table weather_readings; reading survived delete; reading unchanged; no row injected"
+      },
+      {
+        "name": "signed-in users cannot write to the weather feed",
+        "passed": true,
+        "notes": "insert error 42501: permission denied for table weather_readings; reading survived delete; reading unchanged; no row injected"
+      },
+      {
+        "name": "the harness restored the weather feed fixture after both write attempts",
+        "passed": true
+      },
+      {
+        "name": "a user cannot widen their own access by editing their user metadata",
+        "passed": true
+      },
+      {
+        "name": "policies wrap auth.uid()/auth.jwt() in a select instead of calling per row",
+        "passed": true
+      },
+      {
+        "name": "no policy reads user_metadata, which its own subject can write",
+        "passed": true
+      },
+      {
+        "name": "columns the policies filter on have a btree index",
+        "passed": false,
+        "notes": "no complete btree index leading with: todos.user_id, lists.owner_id, list_members.user_id, list_items.list_id"
+      },
+      {
+        "name": "any security definer function is out of the exposed schemas and pins search_path",
+        "passed": true,
+        "notes": "verified private.can_access_list, private.owns_list"
+      },
+      {
+        "name": "pgTAP test file(s) written under supabase/tests/",
+        "passed": false,
+        "notes": "no .sql files found under supabase/tests/"
+      },
+      {
+        "name": "supabase test db runs at least 8 assertions and all pass",
+        "passed": false,
+        "notes": "no test summary found; exit 1; output: Files=0, Tests=0,  0 wallclock secs ( 0.00 usr +  0.00 sys =  0.00 CPU)\nResult: NOTESTS\nConnecting to local database...\n3.36: Pulling from supabase/pg_prove\ndcccee43ad5d: Pulling fs layer\n06d62d0de6d7: Pulling fs layer\na22cb17b3b93: Pulling fs layer\n4f4fb700ef54: Pulling fs layer\n4f4fb700ef54: Waiting\na22cb17b3b93: Download complete\n4f4fb700ef54: Verifying Checksum\n4f4fb700ef54: Download complete\ndcccee43ad5d: Verifying Checksum\ndcccee43ad5d: Download complete\n06d62d0de6d7: Verifying Checksum\n06"
+      },
+      {
+        "name": "the pgTAP tests exercise access control on the application tables rather than standing in as placeholders",
+        "passed": false,
+        "notes": "no test files to review"
+      },
+      {
+        "name": "the agent read the Row Level Security guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, search_docs"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/postgres/row-level-security.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security.md"
+            }
+          ]
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Postgres row level security policies auth.uid security definer helper functions\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
+              "title": "Advanced pgTAP Testing"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-vue-3",
+              "title": "Build a User Management App with Vue 3"
+            }
+          ],
+          "resultChars": 111245
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 299164,
+        "cacheReadInputTokens": 258678,
+        "cacheWriteInputTokens": 40302,
+        "outputTokens": 8588
+      }
+    ],
+    "stepCount": 13,
+    "toolCallCount": 14,
+    "agentRunDurationMs": 125071,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 441145,
+      "duration": 347332,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1671223183,
+        "egress": 5825936
+      }
+    },
+    "prompt": "I'm building two separate apps:\n\n- A to-do app where people keep their own lists and can share a list with other\n  people.\n- A live weather dashboard that anyone can look at.\n\nSet up the database access rules for me. Read this guide first and follow it.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/postgres/row-level-security.md",
+    "promptSourcePath": "evals/docs/build-docs-002-rls-guide/PROMPT.md",
+    "run": 7,
+    "sourcePath": "codex-gpt-6-luna-no-skills/build-docs-002-rls-guide/run-7/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-no-skills",
+    "experimentSuite": "docs",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-002-rls-guide",
+    "stage": "build",
+    "product": [
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "security",
+      "tests"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "row level security is enabled on every table in the public schema",
+        "passed": true
+      },
+      {
+        "name": "every view in the public schema runs as the invoker, and none is materialized",
+        "passed": true,
+        "notes": "no views created"
+      },
+      {
+        "name": "no client role can read a materialized view",
+        "passed": true
+      },
+      {
+        "name": "every policy is scoped to a role instead of defaulting to public",
+        "passed": true
+      },
+      {
+        "name": "todos has a separate policy per operation, with no FOR ALL catch-all",
+        "passed": true
+      },
+      {
+        "name": "every UPDATE policy has both a USING and a WITH CHECK clause",
+        "passed": true
+      },
+      {
+        "name": "anon holds no write grant anywhere in the public schema",
+        "passed": true
+      },
+      {
+        "name": "no client role holds a write grant on the weather feed",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user reads their own todos",
+        "passed": true,
+        "notes": "titles: todo-a-bfb3adf5, todo-a-edit-bfb3adf5, todo-a-delete-bfb3adf5"
+      },
+      {
+        "name": "a signed-in user cannot read another user's todos",
+        "passed": true
+      },
+      {
+        "name": "the second user reads their own todos and not the first user's",
+        "passed": true,
+        "notes": "titles: todo-b-bfb3adf5"
+      },
+      {
+        "name": "signed-out visitors read no todos",
+        "passed": true,
+        "notes": "error 42501: permission denied for table todos"
+      },
+      {
+        "name": "a signed-in user creates a todo of their own",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user cannot create a todo owned by someone else",
+        "passed": true,
+        "notes": "error 42501: new row violates row-level security policy for table \"todos\""
+      },
+      {
+        "name": "a signed-in user updates their own todo and the row changes",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user cannot modify another user's todo",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user cannot hand their own todo to another user",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user deletes their own todo and the row is gone",
+        "passed": true
+      },
+      {
+        "name": "a signed-in user cannot delete another user's todo",
+        "passed": true
+      },
+      {
+        "name": "a member who does not own the list still reads it",
+        "passed": true,
+        "notes": "names: list-bfb3adf5"
+      },
+      {
+        "name": "a member who authored nothing still reads the list's items",
+        "passed": true,
+        "notes": "titles: item-bfb3adf5"
+      },
+      {
+        "name": "a member who does not own the list adds an item and the row lands",
+        "passed": true
+      },
+      {
+        "name": "a member who does not own the list edits an item and the row changes",
+        "passed": true
+      },
+      {
+        "name": "a non-member cannot modify or delete a list item",
+        "passed": true
+      },
+      {
+        "name": "a non-member cannot rename the list",
+        "passed": true
+      },
+      {
+        "name": "signed-out visitors cannot read the membership table",
+        "passed": true,
+        "notes": "error 42501: permission denied for table list_members"
+      },
+      {
+        "name": "a non-member reads neither the list nor its items",
+        "passed": true,
+        "notes": "lists: ; items: "
+      },
+      {
+        "name": "signed-out visitors read neither lists nor list items",
+        "passed": true,
+        "notes": "lists: error 42501: permission denied for table lists; items: error 42501: permission denied for table list_items"
+      },
+      {
+        "name": "no membership policy recurses into itself",
+        "passed": true
+      },
+      {
+        "name": "signed-out visitors read the weather feed",
+        "passed": true,
+        "notes": "stations: 1 rows; readings: 1 rows"
+      },
+      {
+        "name": "signed-in users read the weather feed",
+        "passed": true,
+        "notes": "stations: 1 rows; readings: 1 rows"
+      },
+      {
+        "name": "signed-out visitors cannot write to the weather feed",
+        "passed": true,
+        "notes": "insert error 42501: permission denied for table weather_readings; reading survived delete; reading unchanged; no row injected"
+      },
+      {
+        "name": "signed-in users cannot write to the weather feed",
+        "passed": true,
+        "notes": "insert error 42501: permission denied for table weather_readings; reading survived delete; reading unchanged; no row injected"
+      },
+      {
+        "name": "the harness restored the weather feed fixture after both write attempts",
+        "passed": true
+      },
+      {
+        "name": "a user cannot widen their own access by editing their user metadata",
+        "passed": true
+      },
+      {
+        "name": "policies wrap auth.uid()/auth.jwt() in a select instead of calling per row",
+        "passed": true
+      },
+      {
+        "name": "no policy reads user_metadata, which its own subject can write",
+        "passed": true
+      },
+      {
+        "name": "columns the policies filter on have a btree index",
+        "passed": false,
+        "notes": "no complete btree index leading with: lists.owner_id"
+      },
+      {
+        "name": "any security definer function is out of the exposed schemas and pins search_path",
+        "passed": true,
+        "notes": "verified private.user_list_ids, private.user_owned_list_ids"
+      },
+      {
+        "name": "pgTAP test file(s) written under supabase/tests/",
+        "passed": false,
+        "notes": "no .sql files found under supabase/tests/"
+      },
+      {
+        "name": "supabase test db runs at least 8 assertions and all pass",
+        "passed": false,
+        "notes": "no test summary found; exit 1; output: Files=0, Tests=0,  0 wallclock secs ( 0.00 usr +  0.00 sys =  0.00 CPU)\nResult: NOTESTS\nConnecting to local database...\n3.36: Pulling from supabase/pg_prove\ndcccee43ad5d: Pulling fs layer\n06d62d0de6d7: Pulling fs layer\na22cb17b3b93: Pulling fs layer\n4f4fb700ef54: Pulling fs layer\n4f4fb700ef54: Waiting\na22cb17b3b93: Download complete\n4f4fb700ef54: Download complete\ndcccee43ad5d: Download complete\n06d62d0de6d7: Verifying Checksum\n06d62d0de6d7: Download complete\ndcccee43ad5d: Pull complete\n06d62d0d"
+      },
+      {
+        "name": "the pgTAP tests exercise access control on the application tables rather than standing in as placeholders",
+        "passed": false,
+        "notes": "no test files to review"
+      },
+      {
+        "name": "the agent read the Row Level Security guide the prompt referenced",
+        "passed": true,
+        "notes": "search_docs, web_search"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Postgres row level security policies auth.uid security definer RLS\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
+              "title": "Advanced pgTAP Testing"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/resources/glossary",
+              "title": "Glossary"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security-performance",
+              "title": "Row Level Security performance"
+            }
+          ],
+          "resultChars": 88181
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/postgres/row-level-security.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/database/postgres/row-level-security.md RLS policies security definer function grants",
+          "pages": []
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 232688,
+        "cacheReadInputTokens": 186094,
+        "cacheWriteInputTokens": 39959,
+        "outputTokens": 8390
+      }
+    ],
+    "stepCount": 10,
+    "toolCallCount": 14,
+    "agentRunDurationMs": 109987,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 272867,
+      "duration": 273922,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1673522341,
+        "egress": 8355140
+      }
+    },
+    "prompt": "I'm building two separate apps:\n\n- A to-do app where people keep their own lists and can share a list with other\n  people.\n- A live weather dashboard that anyone can look at.\n\nSet up the database access rules for me. Read this guide first and follow it.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/postgres/row-level-security.md",
+    "promptSourcePath": "evals/docs/build-docs-002-rls-guide/PROMPT.md",
+    "run": 8,
+    "sourcePath": "codex-gpt-6-luna-no-skills/build-docs-002-rls-guide/run-8/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna-no-skills",
@@ -3655,7 +6212,7 @@
       {
         "name": "a signed-in user reads their own todos",
         "passed": true,
-        "notes": "titles: todo-a-dbde5138, todo-a-edit-dbde5138, todo-a-delete-dbde5138, todo-b-dbde5138"
+        "notes": "titles: todo-a-f0d8118b, todo-a-edit-f0d8118b, todo-a-delete-f0d8118b, todo-b-f0d8118b"
       },
       {
         "name": "a signed-in user cannot read another user's todos",
@@ -3664,7 +6221,7 @@
       {
         "name": "the second user reads their own todos and not the first user's",
         "passed": false,
-        "notes": "titles: todo-a-dbde5138, todo-a-edit-dbde5138, todo-a-delete-dbde5138, todo-b-dbde5138"
+        "notes": "titles: todo-a-f0d8118b, todo-a-edit-f0d8118b, todo-a-delete-f0d8118b, todo-b-f0d8118b"
       },
       {
         "name": "signed-out visitors read no todos",
@@ -3687,12 +6244,12 @@
       {
         "name": "a signed-in user cannot modify another user's todo",
         "passed": false,
-        "notes": "rows now: [{\"title\":\"todo-a-created-55b7ddac\",\"user_id\":\"00112ae6-37ff-4b5f-9611-57f97daa08c7\"},{\"title\":\"todo-a-forged-55b7ddac\",\"user_id\":\"187858a2-2d34-4a51-bec3-0f14c981ceb1\"},{\"title\":\"todo-a-edited-55b7ddac\",\"user_id\":\"00112ae6-37ff-4b5f-9611-57f97daa08c7\"},{\"title\":\"todo-b-hijacked-55b7ddac\",\"user_id\":\"187858a2-2d34-4a51-bec3-0f14c981ceb1\"},{\"title\":\"todo-a-dbde5138\",\"user_id\":\"187858a2-2d34-4a51-bec3-0f14c981ceb1\"}]"
+        "notes": "rows now: [{\"title\":\"todo-a-created-15460cbd\",\"user_id\":\"21d49645-3adc-4bf4-aff9-11d82b0682d4\"},{\"title\":\"todo-a-forged-15460cbd\",\"user_id\":\"875dfd09-9f4f-452e-86d9-bf2ad9059665\"},{\"title\":\"todo-a-edited-15460cbd\",\"user_id\":\"21d49645-3adc-4bf4-aff9-11d82b0682d4\"},{\"title\":\"todo-b-hijacked-15460cbd\",\"user_id\":\"875dfd09-9f4f-452e-86d9-bf2ad9059665\"},{\"title\":\"todo-a-f0d8118b\",\"user_id\":\"875dfd09-9f4f-452e-86d9-bf2ad9059665\"}]"
       },
       {
         "name": "a signed-in user cannot hand their own todo to another user",
         "passed": false,
-        "notes": "rows now: [{\"title\":\"todo-a-created-55b7ddac\",\"user_id\":\"00112ae6-37ff-4b5f-9611-57f97daa08c7\"},{\"title\":\"todo-a-forged-55b7ddac\",\"user_id\":\"187858a2-2d34-4a51-bec3-0f14c981ceb1\"},{\"title\":\"todo-a-edited-55b7ddac\",\"user_id\":\"00112ae6-37ff-4b5f-9611-57f97daa08c7\"},{\"title\":\"todo-b-hijacked-55b7ddac\",\"user_id\":\"187858a2-2d34-4a51-bec3-0f14c981ceb1\"},{\"title\":\"todo-a-dbde5138\",\"user_id\":\"187858a2-2d34-4a51-bec3-0f14c981ceb1\"}]"
+        "notes": "rows now: [{\"title\":\"todo-a-created-15460cbd\",\"user_id\":\"21d49645-3adc-4bf4-aff9-11d82b0682d4\"},{\"title\":\"todo-a-forged-15460cbd\",\"user_id\":\"875dfd09-9f4f-452e-86d9-bf2ad9059665\"},{\"title\":\"todo-a-edited-15460cbd\",\"user_id\":\"21d49645-3adc-4bf4-aff9-11d82b0682d4\"},{\"title\":\"todo-b-hijacked-15460cbd\",\"user_id\":\"875dfd09-9f4f-452e-86d9-bf2ad9059665\"},{\"title\":\"todo-a-f0d8118b\",\"user_id\":\"875dfd09-9f4f-452e-86d9-bf2ad9059665\"}]"
       },
       {
         "name": "a signed-in user deletes their own todo and the row is gone",
@@ -3706,12 +6263,12 @@
       {
         "name": "a member who does not own the list still reads it",
         "passed": true,
-        "notes": "names: list-dbde5138"
+        "notes": "names: list-f0d8118b"
       },
       {
         "name": "a member who authored nothing still reads the list's items",
         "passed": true,
-        "notes": "titles: item-dbde5138"
+        "notes": "titles: item-f0d8118b"
       },
       {
         "name": "a member who does not own the list adds an item and the row lands",
@@ -3729,7 +6286,7 @@
       {
         "name": "a non-member cannot rename the list",
         "passed": false,
-        "notes": "list is now: outsider-hijacked-a77666dd"
+        "notes": "list is now: outsider-hijacked-20b359a0"
       },
       {
         "name": "signed-out visitors cannot read the membership table",
@@ -3739,7 +6296,7 @@
       {
         "name": "a non-member reads neither the list nor its items",
         "passed": false,
-        "notes": "lists: list-dbde5138; items: item-dbde5138"
+        "notes": "lists: list-f0d8118b; items: item-f0d8118b"
       },
       {
         "name": "signed-out visitors read neither lists nor list items",
@@ -3805,7 +6362,7 @@
       {
         "name": "supabase test db runs at least 8 assertions and all pass",
         "passed": false,
-        "notes": "no test summary found; exit 1; output: Files=0, Tests=0,  0 wallclock secs ( 0.00 usr +  0.00 sys =  0.00 CPU)\nResult: NOTESTS\nConnecting to local database...\n3.36: Pulling from supabase/pg_prove\ndcccee43ad5d: Pulling fs layer\n06d62d0de6d7: Pulling fs layer\na22cb17b3b93: Pulling fs layer\n4f4fb700ef54: Pulling fs layer\n4f4fb700ef54: Waiting\na22cb17b3b93: Verifying Checksum\na22cb17b3b93: Download complete\n4f4fb700ef54: Verifying Checksum\n4f4fb700ef54: Download complete\ndcccee43ad5d: Download complete\n06d62d0de6d7: Verifying Checksum\n06"
+        "notes": "no test summary found; exit 1; output: Files=0, Tests=0,  0 wallclock secs ( 0.00 usr +  0.00 sys =  0.00 CPU)\nResult: NOTESTS\nConnecting to local database...\n3.36: Pulling from supabase/pg_prove\ndcccee43ad5d: Pulling fs layer\n06d62d0de6d7: Pulling fs layer\na22cb17b3b93: Pulling fs layer\n4f4fb700ef54: Pulling fs layer\n4f4fb700ef54: Waiting\na22cb17b3b93: Verifying Checksum\na22cb17b3b93: Download complete\n4f4fb700ef54: Download complete\ndcccee43ad5d: Verifying Checksum\ndcccee43ad5d: Download complete\n06d62d0de6d7: Verifying Checksum\n06"
       },
       {
         "name": "the pgTAP tests exercise access control on the application tables rather than standing in as placeholders",
@@ -3815,7 +6372,7 @@
       {
         "name": "the agent read the Row Level Security guide the prompt referenced",
         "passed": true,
-        "notes": "search_docs"
+        "notes": "web_search, search_docs"
       }
     ],
     "skills": {
@@ -3825,8 +6382,18 @@
     "docs": {
       "calls": [
         {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/postgres/row-level-security.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security.md"
+            }
+          ]
+        },
+        {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"row level security enable RLS policies auth.uid public tables\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "query": "query { searchDocs(query: \"Postgres row level security policies auth.uid enable row level security public tables anon authenticated\", limit: 5) { nodes { ... on Guide { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
@@ -3834,27 +6401,27 @@
               "title": "Row Level Security"
             },
             {
+              "url": "https://supabase.com/docs/guides/realtime/authorization",
+              "title": "Realtime Authorization"
+            },
+            {
               "url": "https://supabase.com/docs/guides/api/securing-your-api",
               "title": "Securing your API"
             },
             {
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
+            },
+            {
               "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
               "title": "Advanced pgTAP Testing"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security",
-              "title": "Token Security and Row Level Security"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/resources/glossary",
-              "title": "Glossary"
             }
           ],
-          "resultChars": 95914
+          "resultChars": 99513
         },
         {
           "source": "web_search",
-          "query": "site:docs-git-docs-test-rls-pgtap-supabase.vercel.app/docs/guides/database/postgres/row-level-security.md \"Row Level Security\"",
+          "query": "site:supabase.com/docs/guides/database/postgres/row-level-security Row Level Security Supabase auth.uid grants RLS",
           "pages": []
         }
       ]
@@ -3862,28 +6429,28 @@
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 81080,
-        "cacheReadInputTokens": 44769,
-        "cacheWriteInputTokens": 34711,
-        "outputTokens": 7262
+        "inputTokens": 152794,
+        "cacheReadInputTokens": 112021,
+        "cacheWriteInputTokens": 35803,
+        "outputTokens": 6722
       }
     ],
-    "stepCount": 5,
-    "toolCallCount": 8,
-    "agentRunDurationMs": 87061,
+    "stepCount": 8,
+    "toolCallCount": 9,
+    "agentRunDurationMs": 84125,
     "sandboxUsage": {
-      "activeCpuDurationMs": 252121,
-      "duration": 243085,
+      "activeCpuDurationMs": 485979,
+      "duration": 353236,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 1673744857,
-        "egress": 8252525
+        "ingress": 1669693367,
+        "egress": 4282311
       }
     },
-    "prompt": "I'm building two separate apps:\n\n- A to-do app where people keep their own lists and can share a list with other\n  people.\n- A live weather dashboard that anyone can look at.\n\nSet up the database access rules for me. Read this guide first and follow it.\n\nREFERENCE\nhttps://docs-git-docs-test-rls-pgtap-supabase.vercel.app/docs/guides/database/postgres/row-level-security.md",
+    "prompt": "I'm building two separate apps:\n\n- A to-do app where people keep their own lists and can share a list with other\n  people.\n- A live weather dashboard that anyone can look at.\n\nSet up the database access rules for me. Read this guide first and follow it.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/postgres/row-level-security.md",
     "promptSourcePath": "evals/docs/build-docs-002-rls-guide/PROMPT.md",
-    "run": 2,
-    "sourcePath": "codex-gpt-6-luna-no-skills/build-docs-002-rls-guide/run-2/result.json"
+    "run": 9,
+    "sourcePath": "codex-gpt-6-luna-no-skills/build-docs-002-rls-guide/run-9/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna-no-skills",
@@ -3908,198 +6475,12 @@
     "suite": "docs",
     "interface": "cli",
     "cliVersion": "2.117.0",
-    "passed": true,
+    "passed": false,
     "checks": [
       {
-        "name": "row level security is enabled on every table in the public schema",
-        "passed": true
-      },
-      {
-        "name": "every view in the public schema runs as the invoker, and none is materialized",
-        "passed": true,
-        "notes": "no views created"
-      },
-      {
-        "name": "no client role can read a materialized view",
-        "passed": true
-      },
-      {
-        "name": "every policy is scoped to a role instead of defaulting to public",
-        "passed": true
-      },
-      {
-        "name": "todos has a separate policy per operation, with no FOR ALL catch-all",
-        "passed": true
-      },
-      {
-        "name": "every UPDATE policy has both a USING and a WITH CHECK clause",
-        "passed": true
-      },
-      {
-        "name": "anon holds no write grant anywhere in the public schema",
-        "passed": true
-      },
-      {
-        "name": "no client role holds a write grant on the weather feed",
-        "passed": true
-      },
-      {
-        "name": "a signed-in user reads their own todos",
-        "passed": true,
-        "notes": "titles: todo-a-5c0a7b67, todo-a-edit-5c0a7b67, todo-a-delete-5c0a7b67"
-      },
-      {
-        "name": "a signed-in user cannot read another user's todos",
-        "passed": true
-      },
-      {
-        "name": "the second user reads their own todos and not the first user's",
-        "passed": true,
-        "notes": "titles: todo-b-5c0a7b67"
-      },
-      {
-        "name": "signed-out visitors read no todos",
-        "passed": true,
-        "notes": "error 42501: permission denied for table todos"
-      },
-      {
-        "name": "a signed-in user creates a todo of their own",
-        "passed": true
-      },
-      {
-        "name": "a signed-in user cannot create a todo owned by someone else",
-        "passed": true,
-        "notes": "error 42501: new row violates row-level security policy for table \"todos\""
-      },
-      {
-        "name": "a signed-in user updates their own todo and the row changes",
-        "passed": true
-      },
-      {
-        "name": "a signed-in user cannot modify another user's todo",
-        "passed": true
-      },
-      {
-        "name": "a signed-in user cannot hand their own todo to another user",
-        "passed": true
-      },
-      {
-        "name": "a signed-in user deletes their own todo and the row is gone",
-        "passed": true
-      },
-      {
-        "name": "a signed-in user cannot delete another user's todo",
-        "passed": true
-      },
-      {
-        "name": "a member who does not own the list still reads it",
-        "passed": true,
-        "notes": "names: list-5c0a7b67"
-      },
-      {
-        "name": "a member who authored nothing still reads the list's items",
-        "passed": true,
-        "notes": "titles: item-5c0a7b67"
-      },
-      {
-        "name": "a member who does not own the list adds an item and the row lands",
-        "passed": true
-      },
-      {
-        "name": "a member who does not own the list edits an item and the row changes",
-        "passed": true
-      },
-      {
-        "name": "a non-member cannot modify or delete a list item",
-        "passed": true
-      },
-      {
-        "name": "a non-member cannot rename the list",
-        "passed": true
-      },
-      {
-        "name": "signed-out visitors cannot read the membership table",
-        "passed": true,
-        "notes": "error 42501: permission denied for table list_members"
-      },
-      {
-        "name": "a non-member reads neither the list nor its items",
-        "passed": true,
-        "notes": "lists: ; items: "
-      },
-      {
-        "name": "signed-out visitors read neither lists nor list items",
-        "passed": true,
-        "notes": "lists: error 42501: permission denied for table lists; items: error 42501: permission denied for table list_items"
-      },
-      {
-        "name": "no membership policy recurses into itself",
-        "passed": true
-      },
-      {
-        "name": "signed-out visitors read the weather feed",
-        "passed": true,
-        "notes": "stations: 1 rows; readings: 1 rows"
-      },
-      {
-        "name": "signed-in users read the weather feed",
-        "passed": true,
-        "notes": "stations: 1 rows; readings: 1 rows"
-      },
-      {
-        "name": "signed-out visitors cannot write to the weather feed",
-        "passed": true,
-        "notes": "insert error 42501: permission denied for table weather_readings; reading survived delete; reading unchanged; no row injected"
-      },
-      {
-        "name": "signed-in users cannot write to the weather feed",
-        "passed": true,
-        "notes": "insert error 42501: permission denied for table weather_readings; reading survived delete; reading unchanged; no row injected"
-      },
-      {
-        "name": "the harness restored the weather feed fixture after both write attempts",
-        "passed": true
-      },
-      {
-        "name": "a user cannot widen their own access by editing their user metadata",
-        "passed": true
-      },
-      {
-        "name": "policies wrap auth.uid()/auth.jwt() in a select instead of calling per row",
-        "passed": true
-      },
-      {
-        "name": "no policy reads user_metadata, which its own subject can write",
-        "passed": true
-      },
-      {
-        "name": "columns the policies filter on have a btree index",
-        "passed": true
-      },
-      {
-        "name": "any security definer function is out of the exposed schemas and pins search_path",
-        "passed": true,
-        "notes": "verified private.user_accessible_list_ids, private.user_owned_list_ids"
-      },
-      {
-        "name": "pgTAP test file(s) written under supabase/tests/",
-        "passed": true,
-        "notes": "6 file(s): supabase/tests/todos_rls_test.sql, supabase/tests/lists_rls_test.sql, supabase/tests/list_members_rls_test.sql, supabase/tests/list_items_rls_test.sql, supabase/tests/weather_stations_rls_test.sql, supabase/tests/weather_readings_rls_test.sql"
-      },
-      {
-        "name": "supabase test db runs at least 8 assertions and all pass",
-        "passed": true,
-        "notes": "68 passed, 0 failed, exit 0"
-      },
-      {
-        "name": "the pgTAP tests exercise access control on the application tables rather than standing in as placeholders",
-        "passed": true,
-        "judgeNotes": "Assertions target the app tables, verify allowed and denied access, and explicitly set roles and user identities."
-      },
-      {
-        "name": "the agent read the Row Level Security guide the prompt referenced",
-        "passed": true,
-        "notes": "web_search, shell_fetch"
+        "name": "scorer evaluated RLS policies and tests",
+        "passed": false,
+        "notes": "could not read DB_URL from `supabase status -o json` after 5 attempts — the local stack must be running. Last status: WARN: config section [inbucket] is deprecated. Please use [local_smtp] instead.\nfailed to inspect container health: Error: No such container: supabase_db_sandbox-rls-guide\nTry rerunning the command with --debug to troubleshoot the error.\n"
       }
     ],
     "skills": {
@@ -4110,52 +6491,90 @@
       "calls": [
         {
           "source": "web_search",
-          "query": "https://docs-git-docs-test-rls-pgtap-supabase.vercel.app/docs/guides/database/postgres/row-level-security.md",
+          "query": "https://supabase.com/docs/guides/database/postgres/row-level-security.md",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://docs-git-docs-test-rls-pgtap-supabase.vercel.app/docs/guides/database/postgres/row-level-security.md"
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security.md"
             }
           ]
         },
         {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc \"curl -fsSL 'https://docs-git-docs-test-rls-pgtap-supabase.vercel.app/docs/guides/database/postgres/row-level-security.md'\"",
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/database/postgres/row-level-security row level security Supabase policies",
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Row Level Security policies enable RLS grants authenticated anon\", limit: 5) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content } } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://docs-git-docs-test-rls-pgtap-supabase.vercel.app/docs/guides/database/postgres/row-level-security.md"
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
+              "title": "Advanced pgTAP Testing"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-anonymous",
+              "title": "Anonymous Sign-Ins"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/resources/glossary",
+              "title": "Glossary"
             }
           ],
-          "resultChars": 31353
+          "resultChars": 96959
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"security definer function row level security helper policy search_path\", limit: 3) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
+              "title": "Advanced pgTAP Testing"
+            }
+          ],
+          "resultChars": 51707
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 1199465,
-        "cacheReadInputTokens": 1136923,
-        "cacheWriteInputTokens": 62109,
-        "outputTokens": 20202
+        "inputTokens": 461420,
+        "cacheReadInputTokens": 404592,
+        "cacheWriteInputTokens": 48373,
+        "outputTokens": 13036
       }
     ],
-    "stepCount": 34,
-    "toolCallCount": 23,
-    "agentRunDurationMs": 293972,
+    "stepCount": 17,
+    "toolCallCount": 16,
+    "agentRunDurationMs": 166967,
     "sandboxUsage": {
-      "activeCpuDurationMs": 344637,
-      "duration": 451630,
+      "activeCpuDurationMs": 375876,
+      "duration": 364069,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 1683418754,
-        "egress": 17327466
+        "ingress": 1655335100,
+        "egress": 6926710
       }
     },
-    "prompt": "I'm building two separate apps:\n\n- A to-do app where people keep their own lists and can share a list with other\n  people.\n- A live weather dashboard that anyone can look at.\n\nSet up the database access rules for me. Read this guide first and follow it.\n\nREFERENCE\nhttps://docs-git-docs-test-rls-pgtap-supabase.vercel.app/docs/guides/database/postgres/row-level-security.md",
+    "prompt": "I'm building two separate apps:\n\n- A to-do app where people keep their own lists and can share a list with other\n  people.\n- A live weather dashboard that anyone can look at.\n\nSet up the database access rules for me. Read this guide first and follow it.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/postgres/row-level-security.md",
     "promptSourcePath": "evals/docs/build-docs-002-rls-guide/PROMPT.md",
-    "run": 3,
-    "sourcePath": "codex-gpt-6-luna-no-skills/build-docs-002-rls-guide/run-3/result.json"
+    "run": 10,
+    "sourcePath": "codex-gpt-6-luna-no-skills/build-docs-002-rls-guide/run-10/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna-no-skills",
