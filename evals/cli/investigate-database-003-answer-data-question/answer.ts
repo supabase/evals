@@ -4,11 +4,19 @@ import type {
   ToolCallRecord,
   TranscriptPart,
 } from '@supabase-evals/core';
+import type { ParseEntry } from 'shell-quote';
 import {
+  findSupabaseInvocations,
   invocationPositionals,
   type SupabaseInvocation,
 } from '../lib/cli-invocations.js';
-import { commandToolCalls, extractCommandEntries } from '../lib/detours.js';
+import {
+  commandToolCalls,
+  extractCommandEntries,
+  leadingWord,
+  scopedCommandSegments,
+  tryShellQuoteParse,
+} from '../lib/detours.js';
 import { truncate } from '../lib/shell.js';
 import { collectStringValues } from '../lib/stack-list.js';
 import { SEEDED } from './fixtures.js';
@@ -40,11 +48,19 @@ const ANSWER_PROSE_RE = new RegExp(
   `(?<![\\w]|\\d[.,])${SEEDED.neverOrdered}(?![\\w]|[.,]\\d)`
 );
 
+/** Whether `text` holds the number of customers who never ordered as a value token, not part of an email, uuid or longer number. */
+export const showsAnswerValue = (text: string): boolean =>
+  ANSWER_VALUE_RE.test(text);
+
 const HELP_FLAGS = new Set(['--help', '-h']);
 const ANSI_RE = /\u001b\[[0-9;?]*[ -/]*[@-~]/g;
-const REDIRECT_RE = /(?<![->])&?>>?\s*(?![&=])(["']?)([^\s"'|;&<>()]+)\1/g;
-const TEE_RE = /\btee((?:\s+["']?[^\s"'|;&<>()]+["']?)+)/g;
 const PATH_SEPARATORS_RE = /[\s"'`|;&<>()=]+/;
+const SHELL_WRAPPERS = new Set(['bash', 'sh', 'zsh']);
+const WRAPPER_FLAG_RE = /^-\S*c\S*$/;
+const MAX_UNWRAP_DEPTH = 3;
+const FILE_REDIRECTS = new Set(['>', '>>']);
+// The segmenter drops its delimiters, so a pipe is read from the text between two segments.
+const PIPE_GAP_RE = /^\s*\|&?\s*$/;
 
 /** Whether `reply` states the number of customers who never ordered as a whole number. */
 export const replyStatesCount = (reply: string): boolean =>
@@ -94,7 +110,7 @@ function describeCall(
     command,
     output,
     errored: error !== undefined,
-    showsAnswer: ANSWER_VALUE_RE.test(output),
+    showsAnswer: showsAnswerValue(output),
   };
 }
 
@@ -106,24 +122,97 @@ const withoutDotSlash = (path: string): string => path.replace(/^\.\//, '');
 const isOutputPath = (path: string): boolean =>
   /\w/.test(path) && !/^\d+$/.test(path) && path !== '/dev/null';
 
-/** The files a command writes with `>`, `>>`, `&>` or `tee`, in the order written; fd duplications such as `2>&1` and `/dev/null` are not files. */
+/** The script of a leading `bash|sh|zsh -c` wrapper, unwrapped as deep as the shared segmenter does; undefined when the text does not tokenize. */
+function unwrapShell(command: string): string | undefined {
+  let text = command;
+  for (let depth = 0; depth < MAX_UNWRAP_DEPTH; depth++) {
+    const tokens = tryShellQuoteParse(text);
+    if (tokens === undefined) return undefined;
+    const [binary, flags, script] = tokens;
+    if (
+      tokens.length !== 3 ||
+      typeof binary !== 'string' ||
+      typeof flags !== 'string' ||
+      typeof script !== 'string' ||
+      !SHELL_WRAPPERS.has(basename(binary)) ||
+      !WRAPPER_FLAG_RE.test(flags)
+    ) {
+      return text;
+    }
+    text = script;
+  }
+  return text;
+}
+
+type Stage = {
+  segment: string;
+  tokens: ParseEntry[];
+  /** Joined to the previous stage by a plain `|`. */
+  piped: boolean;
+};
+
+/** The executable segments of `command`, each tokenized and marked when a pipe joins it to the one before; undefined when anything fails to parse or locate. */
+function commandStages(command: string): Stage[] | undefined {
+  const text = unwrapShell(command);
+  if (text === undefined) return undefined;
+  const stages: Stage[] = [];
+  let cursor = 0;
+  for (const { segment } of scopedCommandSegments(command)) {
+    const at = text.indexOf(segment, cursor);
+    const tokens = tryShellQuoteParse(segment);
+    if (at === -1 || tokens === undefined) return undefined;
+    stages.push({
+      segment,
+      tokens,
+      piped: stages.length > 0 && PIPE_GAP_RE.test(text.slice(cursor, at)),
+    });
+    cursor = at + segment.length;
+  }
+  return stages;
+}
+
+function teeFiles(tokens: readonly ParseEntry[]): string[] {
+  const words: string[] = [];
+  for (const token of tokens) {
+    if (typeof token !== 'string') break;
+    words.push(token);
+  }
+  const at = words.findIndex((word) => basename(word) === 'tee');
+  return at === -1
+    ? []
+    : words.slice(at + 1).filter((arg) => !arg.startsWith('-'));
+}
+
+function writtenFiles({ segment, tokens }: Stage): string[] {
+  const redirected = tokens.flatMap((token, i) => {
+    const target = tokens[i + 1];
+    return typeof token === 'object' &&
+      'op' in token &&
+      FILE_REDIRECTS.has(token.op) &&
+      typeof target === 'string'
+      ? [target]
+      : [];
+  });
+  return leadingWord(segment) === 'tee'
+    ? [...redirected, ...teeFiles(tokens)]
+    : redirected;
+}
+
+const isDbQuerySegment = (segment: string): boolean =>
+  findSupabaseInvocations([segment]).some(isDbQueryInvocation);
+
+/** The files the `supabase db query` segment of `command`, and the pipeline stages after it, write with `>`, `>>`, `&>` or `tee`, in the order written; fd duplications such as `2>&1`, `/dev/null` and other commands' redirects are not. */
 export function savedOutputPaths(command: string): string[] {
-  const text = unescapeQuotes(command);
-  const redirected = [...text.matchAll(REDIRECT_RE)].map(
-    ([, , target]) => target
-  );
-  const teed = [...text.matchAll(TEE_RE)].flatMap(([, args]) =>
-    args
-      .trim()
-      .split(/\s+/)
-      .map((arg) => arg.replace(/^["']|["']$/g, ''))
-      .filter((arg) => !arg.startsWith('-'))
-  );
-  return [
-    ...new Set(
-      [...redirected, ...teed].map(withoutDotSlash).filter(isOutputPath)
-    ),
-  ];
+  const stages = commandStages(command);
+  if (stages === undefined) return [];
+  const paths: string[] = [];
+  let downstream = false;
+  for (const stage of stages) {
+    if (!stage.piped) downstream = false;
+    if (isDbQuerySegment(stage.segment)) downstream = true;
+    if (downstream) paths.push(...writtenFiles(stage));
+  }
+  return [...new Set(paths.map(withoutDotSlash).filter(isOutputPath))];
 }
 
 /** Whether `command` names `path` as a whole token, as written or by its basename since the reader may `cd` first. */

@@ -8,6 +8,7 @@ import {
   migrationCreatesTable,
   stripSqlComments,
 } from '../lib/migrations.js';
+import { showsAnswerValue } from './answer.js';
 import {
   CUSTOMERS_TABLE,
   MIGRATION_FILE,
@@ -200,10 +201,6 @@ describe('the seeded customers as a listing shows them', () => {
     };
   });
 
-  const answerAsValue = new RegExp(
-    `(?<![\\w.-])${SEEDED.neverOrdered}(?![\\w-]|\\.\\d)`
-  );
-
   it('draws names from 12 first names and 10 last names', () => {
     expect([firstNames.length, lastNames.length]).toEqual([12, 10]);
   });
@@ -223,12 +220,12 @@ describe('the seeded customers as a listing shows them', () => {
 
   it('never prints 263 as a value in a row, so a listing of customers cannot pass for the answer', () => {
     expect(
-      customerRows.filter((row) => answerAsValue.test(JSON.stringify(row)))
+      customerRows.filter((row) => showsAnswerValue(JSON.stringify(row)))
     ).toEqual([]);
   });
 
   it('would print it for the old customer-263 style rows, so the guard can fail', () => {
-    expect(answerAsValue.test('{"full_name":"Customer 263"}')).toBe(true);
+    expect(showsAnswerValue('{"full_name":"Customer 263"}')).toBe(true);
   });
 });
 

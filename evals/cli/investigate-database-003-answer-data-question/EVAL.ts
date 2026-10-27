@@ -128,7 +128,7 @@ async function checkAnswerSource(
       rubric: stripIndent`
         The agent was asked how many customers of a local Supabase project have never placed an order, using the Supabase CLI. The right answer is ${SEEDED.neverOrdered}. Below are the supabase db query runs the harness found, each with its full command and output, followed by the later tool calls that name a file one of those runs saved (a redirect or tee target), labelled with the file and the run.
 
-        Pass only if the output of these calls gives ${SEEDED.neverOrdered} directly or by simple arithmetic on numbers they printed (for example ${SEEDED.customers} customers minus ${SEEDED.customersWithOrders} with orders). A number printed by a listed call that processes a file a db query run saved (jq, awk, wc, a short script over that file) counts the same as the run's own output. A number from psql or any other database client does not count, even if the db query ran a trivial statement.
+        Pass only if the output of these calls gives ${SEEDED.neverOrdered} directly or by simple arithmetic on numbers they printed (for example a customer total minus a count of customers with orders). Every number the arithmetic uses must appear in the output of these calls; a number from the seed file, the agent's own messages or any other tool does not count. A number printed by a listed call that processes a file a db query run saved (jq, awk, wc, a short script over that file) counts the same as the run's own output. A number from psql or any other database client does not count, even if the db query ran a trivial statement.
       `,
     });
     return { name, passed: verdict.passed, judgeNotes: verdict.notes };

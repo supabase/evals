@@ -483,6 +483,161 @@ describe('the answer source', () => {
     expect(rubric).toMatch(/arithmetic/i);
     expect(rubric).toMatch(/psql/i);
   });
+
+  it('gives the judge a generic arithmetic example, not the seeded operands, and requires every operand in the listed output', async () => {
+    const { judge } = await score([CUSTOMERS_ONLY, WITH_ORDERS_ONLY]);
+    const rubric = answerCalls(judge)[0].rubric.replace(/\s+/g, ' ');
+    expect(rubric).toContain(`The right answer is ${SEEDED.neverOrdered}`);
+    expect(rubric).toContain(
+      'a customer total minus a count of customers with orders'
+    );
+    expect(rubric).not.toContain(String(SEEDED.customers));
+    expect(rubric).not.toContain(String(SEEDED.customersWithOrders));
+    expect(rubric).toMatch(
+      /every number the arithmetic uses (?:must )?appears? in the output of (?:these|the listed) calls/i
+    );
+    expect(rubric).toMatch(/seed file/i);
+    expect(rubric).toMatch(/agent's own messages/i);
+    expect(rubric).toMatch(/other tools?/i);
+  });
+});
+
+describe('known-bad runs that only look like they saved a file', () => {
+  const env = (rows: unknown) =>
+    JSON.stringify({ boundary: 'untrusted-data-8c1f', rows, warning: 'w' });
+  const bashLc = (script: string) =>
+    `bash -lc '${script.replaceAll("'", `'"'"'`)}'`;
+  const bashLcDoubleQuoted = (script: string) =>
+    `bash -lc "${script.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"`;
+  const DB_DUMP_COUNT = call(
+    `supabase db dump --local --data-only --schema public | awk '/^COPY public.orders/{o=1} END{print n}'`,
+    { result: '263\n' }
+  );
+  const SCHEMA_LISTING = (wrap: (script: string) => string) =>
+    call(
+      wrap(
+        `supabase db query "select table_name from information_schema.tables where table_schema <> 'public' limit 0"`
+      ),
+      { result: env([]) }
+    );
+
+  it('fails on the judge, not the gate, for a <> against public followed by a db dump piped to awk that printed 263', async () => {
+    const toolCalls = [SCHEMA_LISTING((script) => script), DB_DUMP_COUNT];
+    const { failed, check, judge } = await score(toolCalls, {
+      judge: failing(isAnswerJudge, 'the 263 came from supabase db dump'),
+    });
+    expect(failed).toEqual([ANSWER_SOURCE_CHECK]);
+    expect(check(ANSWER_SOURCE_CHECK)).toEqual({
+      name: ANSWER_SOURCE_CHECK,
+      passed: false,
+      judgeNotes: 'the 263 came from supabase db dump',
+    });
+    const sent = answerCalls(judge);
+    expect(sent).toHaveLength(1);
+    expect(sent[0].input).toBe(
+      formatAnswerSourceJudgeInput(runsOf(toolCalls), [])
+    );
+    expect(sent[0].input).not.toContain('reads');
+    expect(readsOf(toolCalls)).toEqual([]);
+  });
+
+  it('lists no read in the report ground truth or the metrics for the same run', async () => {
+    const { judge, check } = await score(
+      [SCHEMA_LISTING((script) => script), DB_DUMP_COUNT],
+      { judge: failing(isAnswerJudge) }
+    );
+    expect(reportCall(judge)?.input).toContain(
+      '- supabase db query runs the agent made: tool call 1: did not show 263'
+    );
+    expect(reportCall(judge)?.input).not.toContain('read what tool call');
+    expect(metricsOf(check(METRICS_CHECK))).toMatchObject({
+      dbQueryRuns: 1,
+      dbQuerySavedOutputReads: 0,
+    });
+  });
+
+  it.each([
+    [
+      'a <> against public inside bash -lc',
+      [SCHEMA_LISTING(bashLc), DB_DUMP_COUNT],
+    ],
+    [
+      'a <> against public inside a double-quoted bash -lc',
+      [SCHEMA_LISTING(bashLcDoubleQuoted), DB_DUMP_COUNT],
+    ],
+    [
+      'a cat heredoc that wrote the statement file, then psql -f on it',
+      [
+        call(
+          `cat > /tmp/q.sql <<'SQL'\n${COUNT_SQL};\nSQL\nsupabase db query -f /tmp/q.sql`,
+          { error: 'failed to connect' }
+        ),
+        call('psql "$DB_URL" -tA -f /tmp/q.sql', { result: '263\n' }),
+      ],
+    ],
+    [
+      'a > before now(), then psql naming now',
+      [
+        call(
+          `supabase db query "select count(*) from orders where created_at > now() - interval '30 days'"`,
+          { result: env([{ count: 0 }]) }
+        ),
+        call(
+          `psql "$DATABASE_URL" -tAc "select count(*) from orders where created_at <= now()"`,
+          {
+            result: '263\n',
+          }
+        ),
+      ],
+    ],
+    [
+      'an echo with =>, then psql naming customers',
+      [
+        call(
+          'echo "=> customers"; supabase db query "select count(*) from customers"',
+          { result: env([{ count: 1200 }]) }
+        ),
+        call(`psql "$DATABASE_URL" -tAc "${COUNT_SQL}"`, { result: '263\n' }),
+      ],
+    ],
+    [
+      'a psql redirect after the db query, then a cat of its target',
+      [
+        call(
+          `supabase db query "select 1"; psql "$DATABASE_URL" -tAc "${COUNT_SQL}" > /tmp/out.txt`,
+          { result: env([{ '?column?': 1 }]) }
+        ),
+        call('cat /tmp/out.txt', { result: '263\n' }),
+      ],
+    ],
+    [
+      'a heredoc statement on stdin with a > before y, then psql naming y',
+      [
+        call(
+          `supabase db query <<'SQL'\nselect count(*) from customers c where c.id > y\nSQL`,
+          { result: env([]) }
+        ),
+        call('psql "$DATABASE_URL" -tAc "select count(*) from y"', {
+          result: '263\n',
+        }),
+      ],
+    ],
+  ])(
+    'sends the answer judge the runs alone for %s',
+    async (_label, toolCalls) => {
+      const { check, judge } = await score(toolCalls, {
+        judge: failing(isAnswerJudge),
+      });
+      expect(check(ANSWER_SOURCE_CHECK)?.passed).toBe(false);
+      expect(check(ANSWER_SOURCE_CHECK)?.notes).toBeUndefined();
+      const sent = answerCalls(judge);
+      expect(sent).toHaveLength(1);
+      expect(sent[0].input).toBe(
+        formatAnswerSourceJudgeInput(runsOf(toolCalls), [])
+      );
+      expect(readsOf(toolCalls)).toEqual([]);
+    }
+  );
 });
 
 describe('a later call that processes the output a db query saved', () => {

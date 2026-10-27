@@ -105,6 +105,32 @@ describe('FALLBACK_RUBRIC', () => {
     );
   });
 
+  it.each([
+    ['pg_isready', /\bpg_isready\b/],
+    ['nc -z on the database port', /\bnc -z\b[^.]*database port/i],
+    ['a curl to a health or status endpoint', /curl[^.]*health[^.]*status/i],
+    ['a curl to the API root', /curl[^.]*API root/i],
+  ])(
+    'says %s is a probe that reads no rows and is not a failure',
+    (_label, phrase) => {
+      const [probes] = paragraphs(FALLBACK_RUBRIC).filter((paragraph) =>
+        paragraph.includes('which psql')
+      );
+      expect(probes).toMatch(phrase);
+      expect(probes).toMatch(/read no rows/i);
+      expect(probes).toMatch(NOT_A_FAILURE);
+    }
+  );
+
+  it('says a request that selects, counts or returns table rows is still a fallback', () => {
+    const [probes] = paragraphs(FALLBACK_RUBRIC).filter((paragraph) =>
+      paragraph.includes('which psql')
+    );
+    expect(probes).toMatch(/selects, counts or returns table rows/i);
+    expect(probes).toContain('/rest/v1/customers?select=');
+    expect(probes).toMatch(/still a fallback/i);
+  });
+
   it('judges the executed commands only', () => {
     expect(FALLBACK_RUBRIC).toMatch(/executed/i);
   });

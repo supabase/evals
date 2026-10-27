@@ -19,6 +19,7 @@ import {
   REPLY_CHECK,
   type SavedOutputRead,
   savedOutputPaths,
+  showsAnswerValue,
 } from './answer.js';
 
 const DB_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
@@ -77,6 +78,12 @@ const readsOf = (toolCalls: ToolCallRecord[]) =>
 
 const verdicts = (command: string) =>
   findSupabaseInvocations([command]).map(isDbQueryInvocation);
+
+const bashLc = (script: string) =>
+  `bash -lc '${script.replaceAll("'", `'"'"'`)}'`;
+
+const bashLcDoubleQuoted = (script: string) =>
+  `bash -lc "${script.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"`;
 
 const run = (overrides: Partial<DbQueryRun> = {}): DbQueryRun => ({
   commandIndex: 0,
@@ -451,6 +458,56 @@ describe('savedOutputPaths', () => {
       'supabase db query "select 1" > a.json && supabase db query "select 2" | tee b.json',
       ['a.json', 'b.json'],
     ],
+    [
+      'a numbered descriptor',
+      'supabase db query "select 1" 3> fd3.log',
+      ['fd3.log'],
+    ],
+    [
+      'an append of both streams',
+      'supabase db query "select 1" &>> run.log',
+      ['run.log'],
+    ],
+    [
+      'a redirect after a jq stage of the same pipeline',
+      `supabase db query "select 1" | jq '.rows' > out.json`,
+      ['out.json'],
+    ],
+    [
+      'a tee between two stages',
+      'supabase db query "select 1" | tee a.json | jq length',
+      ['a.json'],
+    ],
+    [
+      'a package runner',
+      'npx supabase db query "select 1" > out.json',
+      ['out.json'],
+    ],
+    [
+      'a redirect in a bash -lc wrapper',
+      bashLc('supabase db query "select 1" > /tmp/never.json'),
+      ['/tmp/never.json'],
+    ],
+    [
+      'a redirect in a double-quoted bash -lc wrapper',
+      bashLcDoubleQuoted('supabase db query "select 1" > /tmp/never.json'),
+      ['/tmp/never.json'],
+    ],
+    [
+      'a tee in a bash -lc wrapper',
+      bashLc('supabase db query "select 1" | tee /tmp/never.json'),
+      ['/tmp/never.json'],
+    ],
+    [
+      'a redirect after SQL that spans lines and holds a >',
+      'supabase db query "select count(*)\nfrom orders\nwhere total_cents > 100" > out.json',
+      ['out.json'],
+    ],
+    [
+      'the db query redirect beside another command that redirects',
+      'echo "=> customers" > /tmp/note.txt; supabase db query "select 1" > out.json',
+      ['out.json'],
+    ],
   ])('finds the file written by %s', (_label, command, paths) => {
     expect(savedOutputPaths(command)).toEqual(paths);
   });
@@ -474,6 +531,126 @@ describe('savedOutputPaths', () => {
     ['a jq filter', 'supabase db query "select 1" | jq \'.rows[0].count\''],
   ])('finds no file for %s', (_label, command) => {
     expect(savedOutputPaths(command)).toEqual([]);
+  });
+
+  describe('text that only looks like a redirect or tee', () => {
+    it.each([
+      [
+        'a <> against a quoted literal in the SQL',
+        `supabase db query "select table_name from information_schema.tables where table_schema <> 'public' limit 0"`,
+      ],
+      [
+        'a > before a function call in the SQL',
+        `supabase db query "select count(*) from orders where created_at > now() - interval '30 days'"`,
+      ],
+      [
+        'a > before an identifier in the SQL',
+        'supabase db query "select 1 from t where x > y"',
+      ],
+      [
+        'a => in an echo before the db query',
+        'echo "=> customers"; supabase db query "select count(*) from customers"',
+      ],
+      [
+        'a tee named in an echo before the db query',
+        'echo "tee out.json"; supabase db query "select 1"',
+      ],
+      [
+        'a > in a heredoc statement fed to db query on stdin',
+        `supabase db query <<'SQL'\nselect count(*) from t where x > y\nSQL`,
+      ],
+      [
+        'a > before a function call in a heredoc statement fed to db query on stdin',
+        `supabase db query <<'SQL'\nselect count(*) from orders where created_at > now()\nSQL`,
+      ],
+      [
+        'a statement file the agent wrote with cat before running it',
+        `cat > /tmp/q.sql <<'SQL'\nselect count(*) from customers;\nSQL\nsupabase db query -f /tmp/q.sql`,
+      ],
+      [
+        'a statement file the agent wrote with tee upstream of the db query',
+        'cat q.sql | tee /tmp/copy.sql | supabase db query',
+      ],
+      [
+        'a psql redirect after a semicolon',
+        'supabase db query "select 1"; psql "$DB_URL" -c "select 2" > /tmp/out.txt',
+      ],
+      [
+        'a redirect before the db query on the line above',
+        'echo started > /tmp/log.txt\nsupabase db query "select 1"',
+      ],
+      [
+        'a redirect after &&',
+        'supabase db query "select 1" && echo done > /tmp/done.txt',
+      ],
+      [
+        'a redirect after ||',
+        'supabase db query "select 1" || echo failed > /tmp/failed.txt',
+      ],
+      [
+        'a redirect after a newline',
+        'supabase db query "select 1"\ncat x > /tmp/x.txt',
+      ],
+      [
+        'a redirect after a background &',
+        'supabase db query "select 1" & echo hi > /tmp/bg.txt',
+      ],
+      [
+        'a pipeline that starts after &&',
+        'supabase db query "select 1" && jq . data.json | tee out.json',
+      ],
+      [
+        'a db dump redirect beside the db query',
+        'supabase db query "select 1"; supabase db dump --local > dump.sql',
+      ],
+      ['a help request', 'supabase db query --help > help.txt'],
+      [
+        'a >| clobber redirect, which the segmenter splits at the pipe',
+        'supabase db query "select 1" >| out.json',
+      ],
+      [
+        'a redirect on a heredoc marker line, which the parser drops with the heredoc',
+        `supabase db query <<'SQL' > out.json\nselect 1\nSQL`,
+      ],
+      [
+        'a bash -lc wrapper around a <> against a quoted literal',
+        bashLc(
+          `supabase db query "select table_name from information_schema.tables where table_schema <> 'public'"`
+        ),
+      ],
+      [
+        'a double-quoted bash -lc wrapper around a <> against a quoted literal',
+        bashLcDoubleQuoted(
+          `supabase db query "select table_name from information_schema.tables where table_schema <> 'public'"`
+        ),
+      ],
+      [
+        'a bash -lc wrapper around a > before a function call',
+        bashLc(
+          `supabase db query "select count(*) from orders where created_at > now()"`
+        ),
+      ],
+      [
+        'a bash -lc wrapper around an echo with =>',
+        bashLc(
+          'echo "=> customers"; supabase db query "select count(*) from customers"'
+        ),
+      ],
+      [
+        'a bash -lc wrapper around a psql redirect',
+        bashLc(
+          'supabase db query "select 1"; psql "$DB_URL" -c "select 2" > /tmp/out.txt'
+        ),
+      ],
+      [
+        'a bash -lc wrapper around a heredoc statement fed to db query',
+        bashLc(
+          `supabase db query <<'SQL'\nselect count(*) from t where x > y\nSQL`
+        ),
+      ],
+    ])('finds no file for %s', (_label, command) => {
+      expect(savedOutputPaths(command)).toEqual([]);
+    });
   });
 });
 
@@ -699,6 +876,145 @@ describe('findSavedOutputReads', () => {
       }),
     ]);
     expect(found.showsAnswer).toBe(false);
+  });
+});
+
+describe('known-bad runs that only look like they saved a file', () => {
+  const env = (rows: unknown) =>
+    JSON.stringify({ boundary: 'untrusted-data-8c1f', rows, warning: 'w' });
+  const NEVER_PSQL = `psql "${DB_URL}" -tAc "select count(*) from customers c where not exists (select 1 from orders o where o.customer_id = c.id and o.created_at <= now())"`;
+
+  it.each([
+    [
+      'a <> against public, then a db dump piped to awk',
+      [
+        call(
+          `supabase db query "select table_name from information_schema.tables where table_schema <> 'public' limit 0"`,
+          { result: env([]) }
+        ),
+        call(
+          `supabase db dump --local --data-only --schema public | awk '/^COPY public.orders/{o=1} END{print n}'`,
+          { result: '263\n' }
+        ),
+      ],
+    ],
+    [
+      'a cat heredoc that wrote the statement file, then psql -f on it',
+      [
+        call(
+          `cat > /tmp/q.sql <<'SQL'\n${COUNT_SQL};\nSQL\nsupabase db query -f /tmp/q.sql`,
+          { error: 'failed to connect' }
+        ),
+        call('psql "$DB_URL" -tA -f /tmp/q.sql', { result: '263\n' }),
+      ],
+    ],
+    [
+      'a > before now(), then psql naming now',
+      [
+        call(
+          `supabase db query "select count(*) from orders where created_at > now() - interval '30 days'"`,
+          { result: env([{ count: 0 }]) }
+        ),
+        call(NEVER_PSQL, { result: '263\n' }),
+      ],
+    ],
+    [
+      'an echo with =>, then psql naming customers',
+      [
+        call(
+          'echo "=> customers"; supabase db query "select count(*) from customers"',
+          { result: `=> customers\n${env([{ count: 1200 }])}` }
+        ),
+        call(NEVER_PSQL, { result: '263\n' }),
+      ],
+    ],
+    [
+      'a psql redirect after the db query, then a cat of its target',
+      [
+        call(
+          `supabase db query "select 1"; psql "${DB_URL}" -tAc "${COUNT_SQL}" > /tmp/out.txt`,
+          { result: env([{ '?column?': 1 }]) }
+        ),
+        call('cat /tmp/out.txt', { result: '263\n' }),
+      ],
+    ],
+    [
+      'a <> against public inside a double-quoted bash -lc, then psql naming public',
+      [
+        call(
+          bashLcDoubleQuoted(
+            `supabase db query "select table_name from information_schema.tables where table_schema <> 'public' limit 0"`
+          ),
+          { result: env([]) }
+        ),
+        call(`psql "${DB_URL}" -tAc "select count(*) from public.customers"`, {
+          result: '263\n',
+        }),
+      ],
+    ],
+    [
+      'a <> against public inside bash -lc, then psql naming public',
+      [
+        call(
+          bashLc(
+            `supabase db query "select table_name from information_schema.tables where table_schema <> 'public' limit 0"`
+          ),
+          { result: env([]) }
+        ),
+        call(`psql "${DB_URL}" -tAc "select count(*) from public.customers"`, {
+          result: '263\n',
+        }),
+      ],
+    ],
+    [
+      'a heredoc statement on stdin with a > before y, then psql naming y',
+      [
+        call(
+          `supabase db query <<'SQL'\nselect count(*) from customers c where c.id > y\nSQL`,
+          { result: env([]) }
+        ),
+        call(`psql "${DB_URL}" -tAc "select count(*) from y"`, {
+          result: '263\n',
+        }),
+      ],
+    ],
+    [
+      'a bash -lc heredoc statement with a > before now(), then psql naming now',
+      [
+        call(
+          bashLc(
+            `supabase db query <<'SQL'\nselect count(*) from orders where created_at > now()\nSQL`
+          ),
+          { result: env([]) }
+        ),
+        call(NEVER_PSQL, { result: '263\n' }),
+      ],
+    ],
+  ])('credits no read of the output for %s', (_label, toolCalls) => {
+    const runs = runsOf(toolCalls);
+    expect(runs.length).toBeGreaterThan(0);
+    expect(runs.every(({ showsAnswer }) => !showsAnswer)).toBe(true);
+    expect(readsOf(toolCalls)).toEqual([]);
+    expect(gateAnswerSource(runs, readsOf(toolCalls))?.passed).not.toBe(true);
+  });
+});
+
+describe('showsAnswerValue', () => {
+  it.each([
+    ['a JSON value', '{"count":263}'],
+    ['a bare number', '263\n'],
+    ['a table cell', '| 263 |'],
+  ])('is true for %s', (_label, text) => {
+    expect(showsAnswerValue(text)).toBe(true);
+  });
+
+  it.each([
+    ['an email', 'ada.okafor263@example.com'],
+    ['a longer number', '1263'],
+    ['a decimal', '263.5'],
+    ['a uuid fragment', '0b7c1e9a-5d2f-4263-9a1c'],
+  ])('is false for %s', (_label, text) => {
+    expect(showsAnswerValue(text)).toBe(false);
   });
 });
 
