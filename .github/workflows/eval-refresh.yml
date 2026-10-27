@@ -53,6 +53,10 @@ on:
         description: "Pin the cli suite's next CLI version instead of resolving npm's next dist-tag (blank to resolve)"
         required: false
         default: ""
+      docs_hosts:
+        description: "Comma-separated hosts the docs scorer attributes fetches to (blank for supabase.com)"
+        required: false
+        default: ""
   schedule:
     - cron: '15 6 * * *'
   pull_request:
@@ -322,6 +326,7 @@ jobs:
       SUPABASE_CLI_STABLE_VERSION: ${{ needs.prepare.outputs.cli_stable_version }}
       SUPABASE_CLI_BETA_VERSION: ${{ needs.prepare.outputs.cli_beta_version }}
       SUPABASE_CLI_NEXT_VERSION: ${{ needs.prepare.outputs.cli_next_version }}
+      DOCS_HOSTS: ${{ inputs.docs_hosts }}
     steps:
       - name: Checkout
         uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
@@ -353,6 +358,7 @@ jobs:
             echo "SUPABASE_CLI_STABLE_VERSION=${SUPABASE_CLI_STABLE_VERSION}"
             echo "SUPABASE_CLI_BETA_VERSION=${SUPABASE_CLI_BETA_VERSION}"
             echo "SUPABASE_CLI_NEXT_VERSION=${SUPABASE_CLI_NEXT_VERSION}"
+            echo "DOCS_HOSTS=${DOCS_HOSTS}"
           } > .env
 
       - name: Run evals
