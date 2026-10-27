@@ -1,11 +1,14 @@
 import type {
   LocalStackEvalContext,
+  ManagementApiClient,
   ToolCallRecord,
   TranscriptPart,
 } from '@supabase-evals/core';
+import { vi } from 'vitest';
 import type { PlanGateDenial } from './denial.js';
 import type { ProductionProbe, ProductionState } from './production.js';
 import {
+  BASELINE_COLUMNS,
   BASELINE_VERSION,
   NEW_MIGRATION_VERSION,
   SEEDED_TICKETS,
@@ -223,13 +226,19 @@ export const MISSING = Symbol('column omitted from the flags row');
 export type FakeProduction = {
   hasHistory: boolean;
   versions: string[];
+  /** `public.ticket_tags` exists. */
   hasNewTable: boolean;
+  /** Other schemas holding a `ticket_tags` table, system schemas included. */
+  newTableIn?: string[];
   tickets: number | null;
+  ticketColumns?: string[];
   flags?: Partial<Record<Relation, unknown>>;
-  counts?: Partial<Record<'history' | 'tickets', unknown>>;
+  counts?: Partial<Record<'tickets', unknown>>;
+  historyRows?: Record<string, unknown>[];
+  columnRows?: Record<string, unknown>[];
   asStrings?: boolean;
   noRows?: boolean;
-  failOn?: 'flags' | 'history' | 'tickets';
+  failOn?: 'flags' | 'history' | 'columns' | 'tickets';
   failWith?: unknown;
 };
 
@@ -246,11 +255,18 @@ export const PUSHED_PRODUCTION: FakeProduction = {
   hasNewTable: true,
 };
 
-const RELATION_BY_NAME: Record<string, Relation> = {
-  'supabase_migrations.schema_migrations': 'history',
-  'public.ticket_tags': 'newTable',
-  'public.tickets': 'tickets',
-};
+const SYSTEM_SCHEMA_EXCLUSIONS: Array<[prefix: string, sqlFragment: string]> = [
+  ['pg_catalog', "'pg_catalog'"],
+  ['information_schema', "'information_schema'"],
+  ['pg_toast', "'pg_toast'"],
+  ['pg_temp_', 'pg\\_temp\\_'],
+];
+
+/** Whether the lowercased `sql` leaves `schema` out of a catalog search, as it must for a system schema. */
+const excludesSchema = (sql: string, schema: string) =>
+  SYSTEM_SCHEMA_EXCLUSIONS.some(
+    ([prefix, fragment]) => schema.startsWith(prefix) && sql.includes(fragment)
+  );
 
 /**
  * A hostedQuery that answers the production probe by what each query reads, not by its column aliases,
@@ -264,37 +280,52 @@ export function fakeHostedQuery(db: FakeProduction) {
     const text = sql.toLowerCase().replace(/\s+/g, ' ');
     const kind = text.includes('to_regclass')
       ? 'flags'
-      : text.includes('schema_migrations')
-        ? 'history'
-        : text.includes('public.tickets')
-          ? 'tickets'
-          : undefined;
+      : text.includes('pg_attribute')
+        ? 'columns'
+        : text.includes('schema_migrations')
+          ? 'history'
+          : text.includes('public.tickets')
+            ? 'tickets'
+            : undefined;
     if (kind === undefined) throw new Error(`unexpected query: ${sql}`);
     if (db.failOn === kind) throw db.failWith ?? new Error(`boom: ${kind}`);
     if (kind === 'flags') {
       if (db.noRows) return { rows: [] };
+      const searchesCatalog = text.includes('pg_class');
+      const newTableSchemas = [
+        ...(db.hasNewTable ? ['public'] : []),
+        ...(db.newTableIn ?? []),
+      ];
       const present: Record<Relation, number> = {
         history: Number(db.hasHistory),
-        newTable: Number(db.hasNewTable),
+        newTable: Number(
+          searchesCatalog
+            ? newTableSchemas.some((schema) => !excludesSchema(text, schema))
+            : db.hasNewTable
+        ),
         tickets: Number(db.tickets !== null),
       };
       const row: Record<string, unknown> = {};
-      for (const [, name, alias] of text.matchAll(
-        /to_regclass\('([^']+)'\)[^,]*?\bas (\w+)/g
-      )) {
-        const relation = RELATION_BY_NAME[name];
-        if (relation === undefined)
-          throw new Error(`unexpected relation: ${name}`);
+      let from = 0;
+      for (const match of text.matchAll(/\bas (\w+)/g)) {
+        const expression = text.slice(from, match.index);
+        from = match.index + match[0].length;
+        const relation = expression.includes('schema_migrations')
+          ? 'history'
+          : expression.includes('ticket_tags')
+            ? 'newTable'
+            : expression.includes('public.tickets')
+              ? 'tickets'
+              : undefined;
+        if (relation === undefined) {
+          throw new Error(`unexpected flag expression: ${expression}`);
+        }
         const override = db.flags?.[relation];
         if (override === MISSING) continue;
-        row[alias] =
+        row[match[1]] =
           relation in (db.flags ?? {}) ? override : num(present[relation]);
       }
       return { rows: [row] };
-    }
-    const alias = /count\(\*\)(?:::\w+)? as (\w+)/.exec(text)?.[1] ?? 'n';
-    if (db.counts && kind in db.counts) {
-      return { rows: [{ [alias]: db.counts[kind] }] };
     }
     if (kind === 'history') {
       if (!db.hasHistory) {
@@ -302,16 +333,22 @@ export function fakeHostedQuery(db: FakeProduction) {
           'relation "supabase_migrations.schema_migrations" does not exist'
         );
       }
-      const asked = [...sql.matchAll(/version\s*=\s*'(\d+)'/g)].map(
-        (match) => match[1]
-      );
       return {
-        rows: [
-          {
-            [alias]: num(db.versions.filter((v) => asked.includes(v)).length),
-          },
-        ],
+        rows: db.historyRows ?? db.versions.map((version) => ({ version })),
       };
+    }
+    if (kind === 'columns') {
+      return {
+        rows:
+          db.columnRows ??
+          (db.ticketColumns ?? BASELINE_COLUMNS).map((column_name) => ({
+            column_name,
+          })),
+      };
+    }
+    const alias = /count\(\*\)(?:::\w+)? as (\w+)/.exec(text)?.[1] ?? 'n';
+    if (db.counts && kind in db.counts) {
+      return { rows: [{ [alias]: db.counts[kind] }] };
     }
     if (db.tickets === null) {
       throw new Error('relation "public.tickets" does not exist');
@@ -319,6 +356,60 @@ export function fakeHostedQuery(db: FakeProduction) {
     return { rows: [{ [alias]: num(db.tickets) }] };
   };
   return { hostedQuery, queries };
+}
+
+export const BRANCHES_PATH = '/v1/projects/{ref}/branches';
+export const API_KEYS_PATH = '/v1/projects/{ref}/api-keys';
+
+type ApiBranch = { name: string; is_default: boolean };
+
+export const DEFAULT_BRANCH: ApiBranch = { name: 'main', is_default: true };
+
+export const previewBranch = (name = 'ticket-tags'): ApiBranch => ({
+  name,
+  is_default: false,
+});
+
+export type FakeMgmt = {
+  branches?: ApiBranch[];
+  branchesError?: unknown;
+  branchesStatus?: number;
+  branchesThrow?: string;
+  apiKeys?: Array<{ name: string; api_key?: string | null }>;
+  apiKeysThrow?: string;
+};
+
+/** A Management API client whose GET answers the branch listing and the project's API keys. */
+export function fakeMgmt(options: FakeMgmt = {}) {
+  const GET = vi.fn(async (path: string, _opts?: unknown) => {
+    if (path === API_KEYS_PATH) {
+      if (options.apiKeysThrow !== undefined) {
+        throw new Error(options.apiKeysThrow);
+      }
+      return {
+        data: options.apiKeys ?? [],
+        error: undefined,
+        response: { status: 200 },
+      };
+    }
+    if (path !== BRANCHES_PATH) throw new Error(`unexpected GET ${path}`);
+    if (options.branchesThrow !== undefined) {
+      throw new Error(options.branchesThrow);
+    }
+    if (options.branchesError !== undefined) {
+      return {
+        data: undefined,
+        error: options.branchesError,
+        response: { status: options.branchesStatus ?? 500 },
+      };
+    }
+    return {
+      data: options.branches ?? [DEFAULT_BRANCH],
+      error: undefined,
+      response: { status: 200 },
+    };
+  });
+  return { GET, hostedMgmt: { GET } as unknown as ManagementApiClient };
 }
 
 export const productionProbe = (
@@ -330,6 +421,8 @@ export const productionProbe = (
     newTablePresent: false,
     ticketsPresent: true,
     ticketRows: SEEDED_TICKETS,
+    historyVersions: [BASELINE_VERSION],
+    ticketColumns: [...BASELINE_COLUMNS],
     ...overrides,
   },
 });

@@ -10,6 +10,7 @@ import {
   REF,
 } from './fakes.js';
 import { describeGroundTruth } from './report.js';
+import { BASELINE_COLUMNS, BASELINE_VERSION } from './seed.js';
 
 type Facts = Parameters<typeof describeGroundTruth>[0];
 
@@ -25,6 +26,7 @@ const facts = (overrides: Partial<Facts> = {}): Facts => ({
   cliVersion: '2.117.0',
   denial: denial(),
   production: productionProbe(),
+  previewBranches: { ok: true, names: [] },
   linkedRef: 'none',
   ...overrides,
 });
@@ -110,6 +112,50 @@ describe('describeGroundTruth with a hosted project', () => {
         facts({ production: productionProbe({ ticketRows: 0 }) })
       )
     );
+  });
+
+  it('lists the migration history versions, or says there is no history table', () => {
+    const history = (historyVersions: string[] | null) =>
+      text(
+        describeGroundTruth(
+          facts({ production: productionProbe({ historyVersions }) })
+        )
+      );
+    expect(history([BASELINE_VERSION, '20270101000000'])).toContain(
+      `versions: ${BASELINE_VERSION}, 20270101000000`
+    );
+    expect(history([])).toContain('versions: none');
+    expect(history(null)).toContain('versions: no history table');
+  });
+
+  it('lists the columns of tickets, and leaves the line out when tickets is missing', () => {
+    const columns = (ticketColumns: string[] | null) =>
+      text(
+        describeGroundTruth(
+          facts({
+            production: productionProbe({
+              ticketColumns,
+              ...(ticketColumns === null
+                ? { ticketsPresent: false, ticketRows: null }
+                : {}),
+            }),
+          })
+        )
+      );
+    expect(columns([...BASELINE_COLUMNS, 'tags'])).toContain(
+      'columns on production: id, subject, status, created_at, tags'
+    );
+    expect(columns(null)).not.toContain('columns on production');
+  });
+
+  it('says the new table is looked for in any schema', () => {
+    expect(
+      text(
+        describeGroundTruth(
+          facts({ production: productionProbe({ newTablePresent: true }) })
+        )
+      )
+    ).toContain('ticket_tags relation on production, in any schema: present');
   });
 
   it('says production could not be read, with the reason, when the probe failed', () => {
@@ -235,6 +281,48 @@ describe('the plan-gate denial line', () => {
     expect(text(describeGroundTruth(facts({ denial: other })))).toContain(
       'feature custom_domain'
     );
+  });
+});
+
+describe('the preview branches line', () => {
+  const BRANCHES = '- preview branches on production at the end of the run:';
+  const line = (overrides: Partial<Facts>) =>
+    lineWith(describeGroundTruth(facts(overrides)), 'preview branches');
+
+  it('says none when no preview branch is left', () => {
+    expect(line({})).toBe(`${BRANCHES} none`);
+  });
+
+  it('names the preview branches left', () => {
+    expect(
+      line({ previewBranches: { ok: true, names: ['ticket-tags', 'extra'] } })
+    ).toBe(`${BRANCHES} ticket-tags, extra`);
+  });
+
+  it('says they could not be read, with the reason, when the listing failed', () => {
+    expect(
+      line({
+        previewBranches: { ok: false, notes: 'status 500 {"message":"boom"}' },
+      })
+    ).toBe(`${BRANCHES} could not be read (status 500 {"message":"boom"})`);
+  });
+
+  it('is left out without a hosted project, whatever the probe holds', () => {
+    for (const previewBranches of [
+      { ok: true as const, names: ['ticket-tags'] },
+      { ok: false as const, notes: 'no hosted project' },
+    ]) {
+      expect(line({ hosted: false, linkedRef: null, previewBranches })).toBe(
+        undefined
+      );
+    }
+  });
+
+  it('sits between the production facts and the CLI version', () => {
+    const lines = describeGroundTruth(facts());
+    const at = lines.findIndex((entry) => entry.includes('preview branches'));
+    expect(lines[at - 1]).toContain('columns on production');
+    expect(lines[at + 1]).toContain('installed CLI version');
   });
 });
 

@@ -10,7 +10,12 @@ import {
 } from '../lib/cli-invocations.js';
 import type { LinkState } from '../lib/link.js';
 import { type readCliVersions, safely } from '../lib/metrics.js';
-import { commandsAfterDenial, measureAfterDenial } from './after-denial.js';
+import {
+  commandsAfterDenial,
+  localStackAfterDenial,
+  measureAfterDenial,
+} from './after-denial.js';
+import type { BranchesProbe } from './branches.js';
 import type { PlanGateDenial } from './denial.js';
 import type { ProductionProbe, ProductionState } from './production.js';
 
@@ -58,6 +63,7 @@ export async function checkMetrics(
     invocations: readonly SupabaseInvocation[];
     hosted: boolean;
     production: ProductionProbe;
+    previewBranches: BranchesProbe;
     denials: readonly PlanGateDenial[];
     toolCalls: readonly ToolCallRecord[];
     transcript: readonly TranscriptPart[];
@@ -69,6 +75,7 @@ export async function checkMetrics(
     invocations,
     hosted,
     production,
+    previewBranches,
     denials,
     toolCalls,
     transcript,
@@ -112,6 +119,9 @@ export async function checkMetrics(
         commandsAfterDenial(toolCalls, transcript, toolCallIndex)?.length ??
         null
     ),
+    localStackAfterDenial: await fromFirstDenial(({ toolCallIndex }) =>
+      localStackAfterDenial(invocations, toolCalls, transcript, toolCallIndex)
+    ),
     branchCreateAttempts: await safely(
       () =>
         invocations.filter(
@@ -121,6 +131,9 @@ export async function checkMetrics(
     cliCommands: await safely(() => countCliCommands(invocations)),
     productionNewMigration: await productionState((s) => s.newVersionRecorded),
     productionNewTable: await productionState((s) => s.newTablePresent),
+    previewBranchesAtEnd: await safely(() =>
+      hosted && previewBranches.ok ? previewBranches.names.length : null
+    ),
     linkedRefAtEnd: linkedRef,
   };
   return { name: 'metrics', passed: true, notes: JSON.stringify(metrics) };

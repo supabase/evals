@@ -3,6 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { migrationCreatesTable, stripSqlComments } from '../lib/migrations.js';
 import {
+  BASELINE_COLUMNS,
   BASELINE_TABLE,
   BASELINE_VERSION,
   NEW_MIGRATION_FILE,
@@ -91,6 +92,16 @@ describe('seed constants', () => {
       'supabase/migrations/20261022110000_add_ticket_tags.sql'
     );
     expect(NEW_TABLE).toBe('ticket_tags');
+  });
+
+  it('name the columns of the baseline tickets table, in the order it declares them', () => {
+    const declared = CREATE_TICKETS.slice(
+      CREATE_TICKETS.indexOf('(') + 1,
+      CREATE_TICKETS.lastIndexOf(')')
+    )
+      .split(', ')
+      .map((definition) => definition.split(' ')[0]);
+    expect(BASELINE_COLUMNS).toEqual(declared);
   });
 
   it('put the version at the front of each file name', () => {

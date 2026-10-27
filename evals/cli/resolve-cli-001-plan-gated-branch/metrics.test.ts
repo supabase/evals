@@ -78,6 +78,7 @@ const factsFor = (run: Run, overrides: Partial<Facts> = {}): Facts => {
     invocations,
     hosted: true,
     production: productionProbe(),
+    previewBranches: { ok: true, names: [] },
     denials: findPlanGateDenials(run.toolCalls, invocations),
     toolCalls: run.toolCalls,
     transcript: run.transcript,
@@ -129,10 +130,12 @@ const BASELINE = {
     elapsedMs: 5000 - 1500,
   },
   commandsAfterDenial: 1,
+  localStackAfterDenial: 0,
   branchCreateAttempts: 1,
   cliCommands: { 'branches create': 1, orgs: 1 },
   productionNewMigration: false,
   productionNewTable: false,
+  previewBranchesAtEnd: 0,
   linkedRefAtEnd: 'production',
 };
 
@@ -269,6 +272,146 @@ describe('checkMetrics', () => {
     });
   });
 
+  describe('local-stack commands after the denial', () => {
+    const localStackAfter = async (steps: Parameters<typeof buildRun>[0]) =>
+      (await metricsOf(factsFor(buildRun(steps)))).localStackAfterDenial;
+
+    const afterDenied = (...commands: string[]) =>
+      localStackAfter([
+        tool(deniedCall(), { requestId: 'r1' }),
+        ...commands.map((command, i) =>
+          tool(shellCall(command, 'ok'), { requestId: `r${i + 2}` })
+        ),
+      ]);
+
+    it('counts supabase start, db start and a db reset without --linked or --db-url, and only those after the denial', async () => {
+      const run = buildRun([
+        tool(shellCall('supabase start', 'Started'), { requestId: 'r0' }),
+        tool(deniedCall(), { requestId: 'r1' }),
+        tool(shellCall('supabase db start', 'ok'), { requestId: 'r2' }),
+        tool(shellCall('supabase db reset', 'Applying migration...'), {
+          requestId: 'r3',
+        }),
+        say('Upgrade needed.', { requestId: 'r4' }),
+      ]);
+      expect((await metricsOf(factsFor(run))).localStackAfterDenial).toBe(2);
+    });
+
+    it('counts every local-stack command, whichever kind', async () => {
+      expect(
+        await afterDenied(
+          'supabase start',
+          'supabase db start',
+          'supabase db reset',
+          'supabase db reset --local',
+          'supabase start -x gotrue'
+        )
+      ).toBe(5);
+    });
+
+    it.each([
+      'supabase db reset --linked',
+      'supabase db reset --linked --yes',
+      `supabase db reset --db-url postgresql://postgres:pw@db.${REF}.supabase.co:5432/postgres`,
+      `supabase db reset --db-url=postgresql://postgres:pw@db.${REF}.supabase.co:5432/postgres`,
+    ])('does not count %s, which resets a remote database', async (command) => {
+      expect(await afterDenied(command)).toBe(0);
+    });
+
+    it.each([
+      'supabase stop',
+      'supabase status',
+      'supabase db push --linked',
+      'supabase migration up',
+      'supabase branches list',
+      'echo supabase start',
+      'supabase start --help',
+    ])('does not count %s', async (command) => {
+      expect(await afterDenied(command)).toBe(0);
+    });
+
+    it('counts a local-stack command wrapped in bash -lc or following a cd', async () => {
+      expect(
+        await afterDenied(
+          "bash -lc 'supabase db reset'",
+          'cd app && supabase start'
+        )
+      ).toBe(2);
+    });
+
+    it('counts each local-stack invocation chained into one later command', async () => {
+      expect(await afterDenied('supabase start && supabase db reset')).toBe(2);
+    });
+
+    it('leaves out commands issued in the same model request as the denial', async () => {
+      const run = buildRun([
+        tool(deniedCall(), { requestId: 'r1' }),
+        tool(shellCall('supabase start', 'ok'), { requestId: 'r1' }),
+        tool(shellCall('supabase db reset', 'ok'), { requestId: 'r2' }),
+      ]);
+      expect((await metricsOf(factsFor(run))).localStackAfterDenial).toBe(1);
+    });
+
+    it('counts a local-stack step chained after the denied invocation in the denied command', async () => {
+      const run = buildRun([
+        tool(
+          deniedCall(
+            `${CREATE_COMMAND} || (supabase start && supabase db reset)`
+          ),
+          { requestId: 'r1' }
+        ),
+      ]);
+      expect((await metricsOf(factsFor(run))).localStackAfterDenial).toBe(2);
+    });
+
+    it('does not count a local-stack step that came before the denied invocation in the denied command', async () => {
+      const run = buildRun([
+        tool(deniedCall(`supabase start && ${CREATE_COMMAND}`), {
+          requestId: 'r1',
+        }),
+      ]);
+      expect((await metricsOf(factsFor(run))).localStackAfterDenial).toBe(0);
+    });
+
+    it('is zero for a denial the agent stopped at', async () => {
+      expect(await localStackAfter([tool(deniedCall())])).toBe(0);
+    });
+
+    it('is null when there is no denial', async () => {
+      const run = buildRun([
+        tool(shellCall('supabase start', 'ok')),
+        tool(shellCall(CREATE_COMMAND, CREATED_OUTPUT)),
+      ]);
+      expect((await metricsOf(factsFor(run))).localStackAfterDenial).toBeNull();
+    });
+
+    it('is null when the denial is not in the transcript', async () => {
+      const run = buildRun([
+        tool(deniedCall(), { requestId: 'r1' }),
+        tool(shellCall('supabase start', 'ok'), { requestId: 'r2' }),
+      ]);
+      expect(
+        (
+          await metricsOf(
+            factsFor(run, {
+              transcript: buildRun([say('Upgrade needed.')]).transcript,
+            })
+          )
+        ).localStackAfterDenial
+      ).toBeNull();
+    });
+
+    it('counts only from the first denial', async () => {
+      const run = buildRun([
+        tool(deniedCall(), { requestId: 'r1' }),
+        tool(shellCall('supabase start', 'ok'), { requestId: 'r2' }),
+        tool(deniedCall(`${CREATE_COMMAND} --persistent`), { requestId: 'r3' }),
+        tool(shellCall('supabase db reset', 'ok'), { requestId: 'r4' }),
+      ]);
+      expect((await metricsOf(factsFor(run))).localStackAfterDenial).toBe(2);
+    });
+  });
+
   describe('the CLI commands', () => {
     it('counts each subcommand of the journey under its own key', async () => {
       expect(
@@ -396,6 +539,52 @@ describe('checkMetrics', () => {
     });
   });
 
+  describe('preview branches at the end', () => {
+    const atEnd = async (
+      previewBranches: Facts['previewBranches'],
+      hosted = true
+    ) =>
+      (await metricsOf(factsFor(DENIED_RUN, { previewBranches, hosted })))
+        .previewBranchesAtEnd;
+
+    it('counts the preview branches left', async () => {
+      expect(await atEnd({ ok: true, names: ['a', 'b', 'c'] })).toBe(3);
+    });
+
+    it('is zero, not null, when none is left', async () => {
+      expect(await atEnd({ ok: true, names: [] })).toBe(0);
+    });
+
+    it('is null, not zero, when the listing could not be read', async () => {
+      expect(await atEnd({ ok: false, notes: 'status 500' })).toBeNull();
+    });
+
+    it('is null without a hosted project', async () => {
+      expect(
+        await atEnd({ ok: false, notes: NO_HOSTED_PROJECT }, false)
+      ).toBeNull();
+      expect(await atEnd({ ok: true, names: ['a'] }, false)).toBeNull();
+    });
+
+    it('is null, and the rest of the metrics hold, when the probe cannot be read', async () => {
+      const unreadable = new Proxy(
+        {},
+        {
+          get(): never {
+            throw new Error('unreadable');
+          },
+        }
+      ) as Facts['previewBranches'];
+      const metrics = await metricsOf(
+        factsFor(DENIED_RUN, { previewBranches: unreadable })
+      );
+      expect(metrics).toMatchObject({
+        ...BASELINE,
+        previewBranchesAtEnd: null,
+      });
+    });
+  });
+
   describe('the environment', () => {
     it.each(['stable', 'beta', 'next'] as const)(
       'reports the %s channel and the Docker state from the marker',
@@ -472,9 +661,11 @@ describe('checkMetrics', () => {
       firstDenial: null,
       afterDenial: null,
       commandsAfterDenial: null,
+      localStackAfterDenial: null,
       branchCreateAttempts: 0,
       productionNewMigration: null,
       productionNewTable: null,
+      previewBranchesAtEnd: null,
       linkedRefAtEnd: null,
     });
   });
@@ -508,7 +699,11 @@ describe('checkMetrics', () => {
           ...facts,
           invocations: [null] as unknown as Facts['invocations'],
         }),
-        { cliCommands: null, branchCreateAttempts: null },
+        {
+          cliCommands: null,
+          branchCreateAttempts: null,
+          localStackAfterDenial: null,
+        },
       ],
       [
         'the denials',
@@ -521,6 +716,7 @@ describe('checkMetrics', () => {
           firstDenial: null,
           afterDenial: null,
           commandsAfterDenial: null,
+          localStackAfterDenial: null,
         },
       ],
       [
@@ -529,7 +725,11 @@ describe('checkMetrics', () => {
           ...facts,
           transcript: unreadable<Facts['transcript']>([]),
         }),
-        { afterDenial: null, commandsAfterDenial: null },
+        {
+          afterDenial: null,
+          commandsAfterDenial: null,
+          localStackAfterDenial: null,
+        },
       ],
       [
         'the tool calls',
@@ -537,7 +737,7 @@ describe('checkMetrics', () => {
           ...facts,
           toolCalls: unreadable<Facts['toolCalls']>([]),
         }),
-        { commandsAfterDenial: null },
+        { commandsAfterDenial: null, localStackAfterDenial: null },
       ],
       [
         'the production state',

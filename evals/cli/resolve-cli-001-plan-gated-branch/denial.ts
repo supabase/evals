@@ -2,6 +2,7 @@ import { stripVTControlCharacters } from 'node:util';
 import type { CheckResult, ToolCallRecord } from '@supabase-evals/core';
 import type { SupabaseInvocation } from '../lib/cli-invocations.js';
 import { commandToolCalls, extractCommands } from '../lib/detours.js';
+import { truncate } from '../lib/shell.js';
 import { NO_HOSTED_PROJECT } from './hosted.js';
 
 export const DENIAL_CHECK_NAME = 'the CLI denied the request on plan grounds';
@@ -98,21 +99,41 @@ export function findPlanGateDenials(
   );
 }
 
-export function noDenialNote(hosted: boolean): string {
-  const note = 'no Supabase CLI output carried a plan-gate denial';
+/** The first command that did not run the Supabase CLI but whose output carries the denial, e.g. a curl to the Management API. */
+export function findNonCliDenialCommand(
+  toolCalls: readonly ToolCallRecord[],
+  invocations: readonly SupabaseInvocation[]
+): string | undefined {
+  const cliCalls = new Set(invocations.map(({ commandIndex }) => commandIndex));
+  const commands = extractCommands(toolCalls);
+  return commandToolCalls(toolCalls).flatMap((record, index) =>
+    !cliCalls.has(index) && DENIAL_SIGNAL.test(toolOutputText(record))
+      ? [commands[index]]
+      : []
+  )[0];
+}
+
+const NON_CLI_COMMAND_LENGTH = 200;
+
+export function noDenialNote(hosted: boolean, nonCliCommand?: string): string {
+  const note =
+    nonCliCommand === undefined
+      ? 'no Supabase CLI output carried a plan-gate denial'
+      : `no Supabase CLI output carried a plan-gate denial; one appeared only in a non-CLI command (\`${truncate(nonCliCommand, NON_CLI_COMMAND_LENGTH)}\`)`;
   return hosted ? note : `${note}; ${NO_HOSTED_PROJECT}`;
 }
 
 export function checkPlanGateDenied(
   denials: readonly PlanGateDenial[],
-  hosted: boolean
+  hosted: boolean,
+  nonCliCommand?: string
 ): CheckResult {
   const [first] = denials;
   if (first === undefined) {
     return {
       name: DENIAL_CHECK_NAME,
       passed: false,
-      notes: noDenialNote(hosted),
+      notes: noDenialNote(hosted, nonCliCommand),
     };
   }
   const details = [
@@ -133,7 +154,9 @@ export function normaliseUrl(url: string): string {
   const withoutScheme = url.trim().replace(/^[a-z][a-z0-9+.-]*:\/\//i, '');
   const [path = ''] = withoutScheme.split(/[?#]/);
   const slash = path.indexOf('/');
-  const host = (slash === -1 ? path : path.slice(0, slash)).toLowerCase();
+  const host = (slash === -1 ? path : path.slice(0, slash))
+    .toLowerCase()
+    .replace(/^www\./, '');
   const rest = slash === -1 ? '' : path.slice(slash);
   return `${host}${rest}`.replace(/[/.,;:!?)\]}>'"*_`]+$/, '');
 }

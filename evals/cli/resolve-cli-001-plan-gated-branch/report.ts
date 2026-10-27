@@ -1,6 +1,7 @@
 import type { TranscriptPart } from '@supabase-evals/core';
 import { redactSecrets } from '../lib/redact.js';
 import { formatGroundTruthJudgeInput } from '../lib/report.js';
+import { type BranchesProbe, describePreviewBranches } from './branches.js';
 import type { PlanGateDenial } from './denial.js';
 import type { LinkedRef } from './metrics.js';
 import { describeProduction, type ProductionProbe } from './production.js';
@@ -44,14 +45,23 @@ export function describeGroundTruth(facts: {
   cliVersion: string | null;
   denial: PlanGateDenial | undefined;
   production: ProductionProbe;
+  previewBranches: BranchesProbe;
   linkedRef: LinkedRef | null;
 }): string[] {
-  const { hosted, hostedRef, cliVersion, denial, production, linkedRef } =
-    facts;
+  const {
+    hosted,
+    hostedRef,
+    cliVersion,
+    denial,
+    production,
+    previewBranches,
+    linkedRef,
+  } = facts;
   return [
     describeHostedProject(hosted, hostedRef, denial !== undefined, linkedRef),
     describeDenial(denial),
     ...(hosted ? describeProduction(production) : []),
+    ...(hosted ? [describePreviewBranches(previewBranches)] : []),
     `- installed CLI version: ${cliVersion ?? 'unknown'}`,
   ];
 }

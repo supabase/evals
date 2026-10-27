@@ -27,6 +27,7 @@ import {
   checkPlanGateDenied,
   checkUpgradeLinkPassedOn,
   DENIAL_CHECK_NAME,
+  findNonCliDenialCommand,
   findPlanGateDenials,
   LINK_CHECK_NAME,
   normaliseUrl,
@@ -45,6 +46,14 @@ const denialsOf = (toolCalls: ToolCallRecord[]) =>
     toolCalls,
     findSupabaseInvocations(extractCommandEntries(toolCalls))
   );
+
+const nonCliCommandOf = (toolCalls: ToolCallRecord[]) =>
+  findNonCliDenialCommand(
+    toolCalls,
+    findSupabaseInvocations(extractCommandEntries(toolCalls))
+  );
+
+const CURL_COMMAND = `curl -sS -X POST https://api.supabase.com/v1/projects/abcdefghijklmnopqrst/branches -d '{"branch_name":"ticket-tags"}'`;
 
 const quoted = (url: string) => `{"upgrade_url":"${url}"}`;
 
@@ -455,6 +464,53 @@ describe('findPlanGateDenials', () => {
   });
 });
 
+describe('findNonCliDenialCommand', () => {
+  it('names the command of a curl whose output carries the denial', () => {
+    expect(nonCliCommandOf([shellCall(CURL_COMMAND, JSON_DENIAL)])).toBe(
+      CURL_COMMAND
+    );
+  });
+
+  it('finds the first of several commands that carry it', () => {
+    expect(
+      nonCliCommandOf([
+        shellCall('curl -s https://api.supabase.com/v1/projects', '[]'),
+        shellCall(CURL_COMMAND, JSON_DENIAL),
+        shellCall('cat notes/denial.txt', TEXT_DENIAL),
+      ])
+    ).toBe(CURL_COMMAND);
+  });
+
+  it('matches the hint text as well as the code', () => {
+    expect(nonCliCommandOf([shellCall('cat notes.txt', HINT_ONLY)])).toBe(
+      'cat notes.txt'
+    );
+  });
+
+  it('skips a call that ran the Supabase CLI, which is a denial itself', () => {
+    expect(
+      nonCliCommandOf([deniedCall(), shellCall(CURL_COMMAND, JSON_DENIAL)])
+    ).toBe(CURL_COMMAND);
+    expect(nonCliCommandOf([deniedCall()])).toBeUndefined();
+  });
+
+  it('finds nothing when no command output carries the denial', () => {
+    expect(
+      nonCliCommandOf([
+        shellCall(CURL_COMMAND, '[]'),
+        failedCall(CREATE_COMMAND, AUTH_FAILURE),
+      ])
+    ).toBeUndefined();
+    expect(nonCliCommandOf([])).toBeUndefined();
+  });
+
+  it('skips a tool call that carries no command, which has none to name', () => {
+    expect(
+      nonCliCommandOf([{ ...readCall('docs/billing.md'), result: TEXT_DENIAL }])
+    ).toBeUndefined();
+  });
+});
+
 describe('checkPlanGateDenied', () => {
   it('passes naming the first denial: its command, feature and upgrade link', () => {
     const check = checkPlanGateDenied([denial()], true);
@@ -504,6 +560,38 @@ describe('checkPlanGateDenied', () => {
       passed: false,
       notes: `${NO_DENIAL}; ${NO_HOSTED_PROJECT}`,
     });
+  });
+
+  it('names a non-CLI command that carried the denial when no CLI output did', () => {
+    expect(checkPlanGateDenied([], true, CURL_COMMAND)).toEqual({
+      name: DENIAL_CHECK_NAME,
+      passed: false,
+      notes: `${NO_DENIAL}; one appeared only in a non-CLI command (\`${CURL_COMMAND}\`)`,
+    });
+  });
+
+  it('adds the missing hosted project after the non-CLI command', () => {
+    expect(checkPlanGateDenied([], false, CURL_COMMAND).notes).toBe(
+      `${NO_DENIAL}; one appeared only in a non-CLI command (\`${CURL_COMMAND}\`); ${NO_HOSTED_PROJECT}`
+    );
+  });
+
+  it('cuts a very long non-CLI command short in the note', () => {
+    const command = `curl -s https://api.supabase.com/v1/projects/x/branches -d '${'x'.repeat(1_000)}TAIL'`;
+    const { notes } = checkPlanGateDenied([], true, command);
+    expect(notes).toContain(command.slice(0, 100));
+    expect(notes).not.toContain('TAIL');
+    expect(notes?.length).toBeLessThan(400);
+  });
+
+  it('ignores the non-CLI command once a CLI denial was found', () => {
+    expect(checkPlanGateDenied([denial()], true, CURL_COMMAND).notes).toBe(
+      checkPlanGateDenied([denial()], true).notes
+    );
+  });
+
+  it('keeps the plain no-denial note when there is no non-CLI command either', () => {
+    expect(checkPlanGateDenied([], true, undefined).notes).toBe(NO_DENIAL);
   });
 
   it('fails, saying what it found and then the missing hosted project, when a denial appeared without a hosted project', () => {
@@ -576,9 +664,68 @@ describe('normaliseUrl', () => {
     ).toBe('supabase.com/dashboard/org/my_org.dev-1/billing');
   });
 
+  it('treats a leading www. on the host as absent', () => {
+    expect(
+      normaliseUrl('https://www.supabase.com/dashboard/org/acme/billing')
+    ).toBe(BILLING_PATH);
+    expect(
+      normaliseUrl('HTTPS://WWW.Supabase.com/dashboard/org/acme/billing/')
+    ).toBe(BILLING_PATH);
+    expect(normaliseUrl('www.supabase.com/dashboard/org/acme/billing')).toBe(
+      BILLING_PATH
+    );
+  });
+
+  it('strips www. from the host only, not from a longer label or the path', () => {
+    expect(normaliseUrl('https://wwwx.supabase.com/a')).toBe(
+      'wwwx.supabase.com/a'
+    );
+    expect(normaliseUrl('https://supabase.com/www.page')).toBe(
+      'supabase.com/www.page'
+    );
+    expect(normaliseUrl('https://docs.www.supabase.com/a')).toBe(
+      'docs.www.supabase.com/a'
+    );
+  });
+
   it('keeps a longer last segment longer', () => {
     expect(normaliseUrl(`${BILLING_URL}-old`)).not.toBe(BILLING_PATH);
     expect(normaliseUrl(`${BILLING_URL}/invoices`)).not.toBe(BILLING_PATH);
+  });
+});
+
+describe('checkUpgradeLinkPassedOn with a www. host', () => {
+  it.each([
+    [
+      'the message has www. and the denial does not',
+      BILLING_URL,
+      'https://www.supabase.com/dashboard/org/acme/billing',
+    ],
+    [
+      'the denial has www. and the message does not',
+      'https://www.supabase.com/dashboard/org/acme/billing',
+      BILLING_URL,
+    ],
+  ])('passes when %s', (_label, denialUrl, given) => {
+    expect(
+      checkUpgradeLinkPassedOn(
+        denial({ upgradeUrls: [denialUrl] }),
+        [`Upgrade here: ${given}`],
+        true
+      ).passed
+    ).toBe(true);
+  });
+
+  it('still fails for a different path on the www. host', () => {
+    expect(
+      checkUpgradeLinkPassedOn(
+        denial(),
+        [
+          'Upgrade here: https://www.supabase.com/dashboard/org/acme/billing-old',
+        ],
+        true
+      ).passed
+    ).toBe(false);
   });
 });
 
