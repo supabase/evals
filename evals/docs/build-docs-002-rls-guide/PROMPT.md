@@ -7,7 +7,6 @@ product:
 topic:
   - rls
   - security
-  - tests
 services:
   - gotrue
   - kong
