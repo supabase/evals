@@ -610,7 +610,9 @@ describe('readDbActivity: a --db-url from a shell variable', () => {
     ['set -a with eval', 'set -a; eval "$(supabase status -o env)"; set +a'],
   ])('targets a query after loading status with %s as local', (_, load) => {
     expect(
-      queryTargetOf(`${load} && supabase db query --db-url "$DB_URL" "select 1"`)
+      queryTargetOf(
+        `${load} && supabase db query --db-url "$DB_URL" "select 1"`
+      )
     ).toBe('local');
   });
 
