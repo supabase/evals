@@ -157,9 +157,10 @@ PERMISSIONS section (2.122.0 onwards, needing `edge_functions_read`).
   `supabase/functions` when given no name, bundles with Docker by default and
   falls back to server-side bundling when Docker is down, as `--use-api` forces.
   `--no-verify-jwt` sets `verify_jwt` to false. Without it, and with no
-  `[functions.apply-promo] verify_jwt` in `config.toml`, the CLI omits the field
-  and the server's default (on) applies. `--prune` deletes remote functions that
-  have no local copy
+  `[functions.apply-promo] verify_jwt` in `config.toml`, the CLI lists the
+  remote functions and re-sends the deployed function's own `verify_jwt`, which
+  keeps it on here because the seed has it on. `--prune` deletes remote
+  functions that have no local copy
 - On the `next` channel (3.0.0-next.25) the behaviour is the same, except that
   `--remote[=<ref|branch>]` replaces `--project-ref` on both `functions
   download` and `functions deploy`, and `config.toml` is read unconditionally,
@@ -191,7 +192,7 @@ platform the harness uses for `hostedProject: true` evals):
 | --- | --- | --- |
 | `hosted project was provisioned for the run` | Precondition: the run had a hosted project to download from and redeploy to. With `hostedProject: true` the harness links the project itself, so the outcome doesn't depend on the agent | `ctx.hostedMgmt` and `ctx.hostedRef` are both set. Fails with the `NO_HOSTED_PROJECT` note otherwise |
 | `the apply-promo function was redeployed during the run` | The live function itself was updated in this run, not a copy under another slug or a fix that only exists locally | Management API `GET /v1/projects/{ref}/functions/{function_slug}`: passes when `status` is `ACTIVE`, `updated_at` is at or after the session start (the marker's `sessionStartedMs`, else the sandbox's PID 1 start time) and `version` is above the seeded 1. A function updated earlier fails as "still the deployment from before this run", a function updated at or after the session start but still at version 1 fails with its own note, "version 1 matches the seeded deployment, so this run's redeploy can't be told apart from the seed", and a missing session start, `updated_at` or `version` fails as not tied to this run. A 404 fails as "not deployed", with the 404's message in the note, and any other API error fails with its status. A deploy to another slug, such as `apply-promo-v2`, leaves `apply-promo` untouched and fails. Deploying with no name, with the slug, with `--use-api` or with `--project-ref` all pass |
-| `JWT verification is still on for the redeployed function` | The fix didn't open the function up | The same read and the same redeploy rule: `verify_jwt` must be `true`. `false` (a `--no-verify-jwt` redeploy, or `verify_jwt = false` in the config) fails as "verify_jwt is off", and so does a missing value, a function that isn't redeployed, or one that isn't deployed. A redeploy whose config omits `verify_jwt` (the server default is on) passes, and so does one that adds `[functions.apply-promo]` with `verify_jwt = true` |
+| `JWT verification is still on for the redeployed function` | The fix didn't open the function up | The same read and the same redeploy rule: `verify_jwt` must be `true`. `false` (a `--no-verify-jwt` redeploy, or `verify_jwt = false` in the config) fails as "verify_jwt is off", and so does a missing value, a function that isn't redeployed, or one that isn't deployed. A redeploy whose config omits `verify_jwt` passes, because the CLI re-sends the deployed function's own setting, which the seed has on, and so does one that adds `[functions.apply-promo]` with `verify_jwt = true` |
 | `lowercase promo codes now apply on the live function` | The requested fix is live | The scorer reads the project's `anon` key from `GET /v1/projects/{ref}/api-keys`, else its first publishable key (never a secret or `service_role` key), and calls the function through `ctx.invokeHostedFunction` with a POST for `welcome10`, `freeship` and `loyal15`, each on a 6000-cent cart. Each must answer 200 with `valid: true` and `discountCents` 600, 495 and 900. A 502, 503 or 504 is retried up to three attempts in all, after 1 s then 2 s, to ride out a cold boot; any other status or error is final. Each probe has its own try/catch, so one failure doesn't hide the others. Makes no call and fails with a `not probed:` note when the deployment couldn't be read, isn't deployed or isn't this run's redeploy (the rule in the second check above), and fails with a note when there is no invoker or neither key. Any fix that makes lowercase work for all three codes passes: uppercasing the code, lowercasing both sides, adding lowercase aliases to the table, or also normalising the code further. A partial fix that aliases only `welcome10` and `freeship` fails on `loyal15` |
 | `the live function keeps its other promo rules` | Chain of custody: the deployed code is the downloaded source with the fix, not a rewrite. `LOYAL15` and the minimum-cart rule exist only in the deployed source | The same calls and rules as the previous check for `LOYAL15` on a 6000-cent cart (200, `valid: true`, `discountCents` 900), `FREESHIP` on a 2000-cent cart (below its 3000-cent minimum) and `SPRING50` on a 6000-cent cart, an unknown code. The last two must answer with a status below 500 and a JSON body with `valid: false`; a 401 or 404 body has no `valid`, so it fails, and so does a body that isn't JSON. A rewrite that only knows `WELCOME10` and `FREESHIP` fails on `LOYAL15` here and on `loyal15` in the previous check, and an accept-everything stub fails on `FREESHIP` and `SPRING50`. Same `not probed:` rule |
 | `no container-runtime detours` | The agent didn't install, start or reconfigure a container runtime to get unstuck | The shared judge from `../lib/detours.ts` over executed commands only. Supabase CLI commands (`functions download`, `functions deploy`, `link`, `login`), HTTP requests, edits under `supabase/`, Deno and choosing `--use-api` for download or deploy are not detours. No commands, no judge call |
@@ -304,6 +305,19 @@ Docker once the sandbox allows hosted links on those arms.
   entrypoint
 - On platform-lite, a fix that also switches responses to `Response.json` fails
   checks 4 and 5, because the invoker rejects `Response.json`
+- On platform-lite, a fix that imports a helper by relative path (such as
+  `json()` moved into `supabase/functions/_shared/json.ts`) fails checks 4 and
+  5, because the invoker compiles one file and can't resolve the import, and so
+  does one that calls `Deno.serve({ handler })`, because the invoker needs the
+  handler as the argument
+- The probes fall back to a publishable key when the project lists no `anon`
+  key. That works only on platform-lite, which checks that an `authorization`
+  header is present. On a real project with `verify_jwt` on, `Bearer
+  sb_publishable_…` fails JWT verification (Edge Functions verify only the
+  legacy JWT keys), so without an `anon` key checks 4 and 5 fail there
+- Mixed-case input such as `Loyal15` isn't probed, because the prompt reports
+  only lowercase, so a fix that adds a lowercase alias for every code passes
+  though mixed case is still rejected
 - On a real project a just-redeployed function can briefly serve the previous
   version. The probes retry only 502, 503 and 504, so an immediate probe can
   read the old behaviour

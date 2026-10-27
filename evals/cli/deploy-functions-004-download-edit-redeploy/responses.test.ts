@@ -728,8 +728,12 @@ describe('probePromos gate on the deployment', () => {
         sessionStartMs: SESSION_START as number | null,
         ...overrides,
       };
+      const { deployment } = options;
+      if (!deployment.ok || deployment.deployed === null) {
+        throw new Error('gated cases deploy a function');
+      }
       const verdict = judgeRedeploy(
-        (options.deployment as { deployed: never }).deployed,
+        deployment.deployed,
         options.sessionStartMs
       );
       expect(verdict.redeployed).toBe(false);

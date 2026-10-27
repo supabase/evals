@@ -56,6 +56,23 @@ const RESPONSE_JSON_SOURCE = UPPERCASED_SOURCE.replace(
   'return Response.json(body, { status });'
 );
 
+const JSON_HELPER = /function json\([\s\S]*?\n\}\n\n/;
+
+const SHARED_JSON_ENTRYPOINT = UPPERCASED_SOURCE.replace(
+  JSON_HELPER,
+  ''
+).replace(
+  "import 'jsr:@supabase/functions-js/edge-runtime.d.ts';\n",
+  "import 'jsr:@supabase/functions-js/edge-runtime.d.ts';\nimport { json } from '../_shared/json.ts';\n"
+);
+
+const SHARED_JSON_MODULE = `export ${SEED_SOURCE.match(JSON_HELPER)?.[0].trimEnd()}\n`;
+
+const OPTIONS_FORM_SOURCE = UPPERCASED_SOURCE.replace(
+  'Deno.serve(async (req) => {',
+  'Deno.serve({ handler: async (req: Request) => {'
+).replace(/\}\);\n$/, '}});\n');
+
 const JSON_HEADERS = "{ 'content-type': 'application/json' }";
 
 const REWRITE_SOURCE = `
@@ -478,6 +495,53 @@ describe('platform-lite limits that fail a correct fix', () => {
     });
     expect(verdicts(scored)).toEqual([true, true, false, false]);
     expect(scored.lowercase.notes).toContain('did not return a Response');
+  }, 30_000);
+
+  it.each([
+    [
+      'the entrypoint is uploaded first',
+      ['apply-promo/index.ts', '_shared/json.ts'],
+      'is not available',
+    ],
+    [
+      'the shared module is uploaded first',
+      ['_shared/json.ts', 'apply-promo/index.ts'],
+      'must call Deno.serve',
+    ],
+  ])(
+    'fails the probe checks when the fix imports a relative helper from _shared/ and %s, because the invoker compiles one file',
+    async (_label, order, note) => {
+      expect(SHARED_JSON_ENTRYPOINT).toContain("from '../_shared/json.ts'");
+      expect(SHARED_JSON_ENTRYPOINT).not.toContain('function json(');
+      expect(SHARED_JSON_MODULE).toContain('export function json(');
+      const sources: Record<string, string> = {
+        'apply-promo/index.ts': SHARED_JSON_ENTRYPOINT,
+        '_shared/json.ts': SHARED_JSON_MODULE,
+      };
+      const booted = await bootSeeded();
+      await postDeploy(
+        booted,
+        FUNCTION_SLUG,
+        { entrypoint_path: 'supabase/functions/apply-promo/index.ts' },
+        order.map((name) => ({
+          name: `supabase/functions/${name}`,
+          content: sources[name],
+        }))
+      );
+      const scored = await score(booted, booted.bootedMs);
+      expect(verdicts(scored)).toEqual([true, true, false, false]);
+      expect(scored.lowercase.notes).toContain(note);
+    },
+    30_000
+  );
+
+  it('fails the probe checks when the fix passes Deno.serve an options object with a handler, because the invoker needs the handler as the argument', async () => {
+    expect(OPTIONS_FORM_SOURCE).toContain('Deno.serve({ handler:');
+    const { scored } = await deployAndScore(OPTIONS_FORM_SOURCE, {
+      verifyJwt: true,
+    });
+    expect(verdicts(scored)).toEqual([true, true, false, false]);
+    expect(scored.lowercase.notes).toContain('Deno.serve requires a handler');
   }, 30_000);
 
   it('fails the lowercase check after a Docker-bundled redeploy, because the PATCH keeps the seeded files', async () => {

@@ -593,7 +593,7 @@ describe('checkMetrics', () => {
     commands: [] as string[],
     invocations: [] as SupabaseInvocation[],
     hosted: true,
-    deployment: DEPLOYED,
+    deployment: DEPLOYED as DeploymentProbe,
     localSource: true as boolean | null,
   };
 
