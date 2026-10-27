@@ -13309,7 +13309,7 @@
     "suite": "docs",
     "interface": "cli",
     "cliVersion": "2.117.0",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "the seeded policies and helper functions are unchanged",
@@ -13317,28 +13317,28 @@
       },
       {
         "name": "pgTAP test file(s) written under supabase/tests/",
-        "passed": false,
-        "notes": "no .sql files found under supabase/tests/"
+        "passed": true,
+        "notes": "1 file(s): supabase/tests/rls_test.sql"
       },
       {
         "name": "the pgTAP tests exercise access control on the application tables rather than standing in as placeholders",
-        "passed": false,
-        "notes": "no test files to review"
+        "passed": true,
+        "judgeNotes": "Tests set roles and identities, assert allowed operations on application tables, and assert denied access using throws_ok and is_empty."
       },
       {
         "name": "supabase test db runs at least 8 assertions and all pass",
-        "passed": false,
-        "notes": "no test summary found; exit 1; output: Files=0, Tests=0,  0 wallclock secs ( 0.00 usr +  0.00 sys =  0.00 CPU)\nResult: NOTESTS\nConnecting to local database...\n3.36: Pulling from supabase/pg_prove\ndcccee43ad5d: Pulling fs layer\n06d62d0de6d7: Pulling fs layer\na22cb17b3b93: Pulling fs layer\n4f4fb700ef54: Pulling fs layer\n4f4fb700ef54: Waiting\na22cb17b3b93: Verifying Checksum\na22cb17b3b93: Download complete\ndcccee43ad5d: Verifying Checksum\ndcccee43ad5d: Download complete\n4f4fb700ef54: Verifying Checksum\n4f4fb700ef54: Download complete\n06"
+        "passed": true,
+        "notes": "69 passed, 0 failed, exit 0"
       },
       {
         "name": "the suite fails when any signed-in user can read every todo",
-        "passed": false,
-        "notes": "could not measure: the suite does not pass before the read is opened"
+        "passed": true,
+        "notes": "3 of 69 assertions failed with the read opened, exit 1"
       },
       {
         "name": "the suite fails when any signed-in user can read every list item",
-        "passed": false,
-        "notes": "could not measure: the suite does not pass before the read is opened"
+        "passed": true,
+        "notes": "5 of 69 assertions failed with the read opened, exit 1"
       },
       {
         "name": "the agent read the RLS testing guide the prompt referenced",
@@ -13364,39 +13364,46 @@
         },
         {
           "source": "shell_fetch",
-          "query": "/bin/bash -lc \"curl -L --fail --silent --show-error 'https://docs-git-docs-test-rls-pgtap-supabase.vercel.app/docs/guides/database/postgres/testing-row-level-security.md' | head -300\"",
+          "query": "/bin/bash -lc \"curl -L --fail --silent --show-error 'https://docs-git-docs-test-rls-pgtap-supabase.vercel.app/docs/guides/database/postgres/testing-row-level-security.md' | sed -n '1,260p'\"",
           "hasContent": true,
           "pages": [
             {
               "url": "https://docs-git-docs-test-rls-pgtap-supabase.vercel.app/docs/guides/database/postgres/testing-row-level-security.md"
             }
           ],
-          "resultChars": 10538
+          "resultChars": 8556
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Postgres testing row level security pgTAP Supabase\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [],
+          "resultChars": 73033
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 46659,
-        "cacheReadInputTokens": 15725,
-        "cacheWriteInputTokens": 30644,
-        "outputTokens": 1323
+        "inputTokens": 585886,
+        "cacheReadInputTokens": 528338,
+        "cacheWriteInputTokens": 57224,
+        "outputTokens": 19994
       }
     ],
-    "stepCount": 3,
-    "toolCallCount": 6,
-    "agentRunDurationMs": 25606,
+    "stepCount": 17,
+    "toolCallCount": 18,
+    "agentRunDurationMs": 187527,
     "sandboxUsage": {
-      "activeCpuDurationMs": 366358,
-      "duration": 231273,
+      "activeCpuDurationMs": 474614,
+      "duration": 430772,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 1668763627,
-        "egress": 3588348
+        "ingress": 1674347148,
+        "egress": 7401628
       }
     },
-    "prompt": "I run a small to-do app where people can share lists, plus a public weather\ndashboard, both on the same Supabase project. The access rules are already in\nthe migrations.\n\nLast month a change to those rules let people keep seeing items on a list\nafter they had been removed from it, and nobody noticed for a week. I want\ntests in the repository that would have caught that, covering who can read and\nchange each table. I've heard you can run these inside the database, but I\ndon't know which tool Supabase uses for it.\n\nDon't change the rules themselves. I want tests for the app as it is now.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://docs-git-docs-test-rls-pgtap-supabase.vercel.app/docs/guides/database/postgres/testing-row-level-security.md",
+    "prompt": "I run a small to-do app where people can share lists, plus a public weather\ndashboard, both on the same Supabase project. The access rules are already in\nthe migrations.\n\nLast month a change to those rules let people keep seeing items on a list\nafter they had been removed from it, and nobody noticed for a week. I want\ntests in the repository that would have caught that, covering who can read and\nchange each table. I've heard you can run these inside the database, but I\ndon't know which tool Supabase uses for it.\n\nDon't change the rules themselves. I want tests for the app as it is now.\n\nI'm offline after I send this, so I can't answer questions. If you'd check\nthe rules with me first, take the ones the migrations already enforce as\nagreed, list them in the test files, and carry on. The one I care about most is\nthat someone removed from a list can no longer see the list or its items.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://docs-git-docs-test-rls-pgtap-supabase.vercel.app/docs/guides/database/postgres/testing-row-level-security.md",
     "promptSourcePath": "evals/docs/build-docs-014-rls-testing-guide/PROMPT.md",
     "run": 1,
     "sourcePath": "codex-gpt-6-luna-no-skills/build-docs-014-rls-testing-guide/run-1/result.json"
@@ -13423,7 +13430,7 @@
     "suite": "docs",
     "interface": "cli",
     "cliVersion": "2.117.0",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "the seeded policies and helper functions are unchanged",
@@ -13431,28 +13438,28 @@
       },
       {
         "name": "pgTAP test file(s) written under supabase/tests/",
-        "passed": false,
-        "notes": "no .sql files found under supabase/tests/"
+        "passed": true,
+        "notes": "2 file(s): supabase/tests/todo_sharing_rls_test.sql, supabase/tests/weather_rls_test.sql"
       },
       {
         "name": "the pgTAP tests exercise access control on the application tables rather than standing in as placeholders",
-        "passed": false,
-        "notes": "no test files to review"
+        "passed": true,
+        "judgeNotes": "Tests assert allowed and denied access on the actual app and weather tables, with roles and JWT identities explicitly set."
       },
       {
         "name": "supabase test db runs at least 8 assertions and all pass",
-        "passed": false,
-        "notes": "no test summary found; exit 1; output: Files=0, Tests=0,  0 wallclock secs ( 0.00 usr +  0.00 sys =  0.00 CPU)\nResult: NOTESTS\nConnecting to local database...\n3.36: Pulling from supabase/pg_prove\ndcccee43ad5d: Pulling fs layer\n06d62d0de6d7: Pulling fs layer\na22cb17b3b93: Pulling fs layer\n4f4fb700ef54: Pulling fs layer\n4f4fb700ef54: Waiting\na22cb17b3b93: Verifying Checksum\na22cb17b3b93: Download complete\n4f4fb700ef54: Verifying Checksum\n4f4fb700ef54: Download complete\ndcccee43ad5d: Download complete\n06d62d0de6d7: Verifying Checksum\ndc"
+        "passed": true,
+        "notes": "69 passed, 0 failed, exit 0"
       },
       {
         "name": "the suite fails when any signed-in user can read every todo",
-        "passed": false,
-        "notes": "could not measure: the suite does not pass before the read is opened"
+        "passed": true,
+        "notes": "2 of 69 assertions failed with the read opened, exit 1"
       },
       {
         "name": "the suite fails when any signed-in user can read every list item",
-        "passed": false,
-        "notes": "could not measure: the suite does not pass before the read is opened"
+        "passed": true,
+        "notes": "3 of 69 assertions failed with the read opened, exit 1"
       },
       {
         "name": "the agent read the RLS testing guide the prompt referenced",
@@ -13478,39 +13485,46 @@
         },
         {
           "source": "shell_fetch",
-          "query": "/bin/bash -lc \"curl -L --fail --silent --show-error 'https://docs-git-docs-test-rls-pgtap-supabase.vercel.app/docs/guides/database/postgres/testing-row-level-security.md'\"",
+          "query": "/bin/bash -lc \"curl -L --fail --silent --show-error 'https://docs-git-docs-test-rls-pgtap-supabase.vercel.app/docs/guides/database/postgres/testing-row-level-security.md' | head -240\"",
           "hasContent": true,
           "pages": [
             {
               "url": "https://docs-git-docs-test-rls-pgtap-supabase.vercel.app/docs/guides/database/postgres/testing-row-level-security.md"
             }
           ],
-          "resultChars": 10538
+          "resultChars": 7820
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"pgTAP throws_ok testing row level security\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [],
+          "resultChars": 70562
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 47115,
-        "cacheReadInputTokens": 15884,
-        "cacheWriteInputTokens": 30933,
-        "outputTokens": 1770
+        "inputTokens": 554334,
+        "cacheReadInputTokens": 483625,
+        "cacheWriteInputTokens": 64818,
+        "outputTokens": 24369
       }
     ],
-    "stepCount": 3,
-    "toolCallCount": 7,
-    "agentRunDurationMs": 32567,
+    "stepCount": 15,
+    "toolCallCount": 20,
+    "agentRunDurationMs": 248549,
     "sandboxUsage": {
-      "activeCpuDurationMs": 356275,
-      "duration": 237000,
+      "activeCpuDurationMs": 385099,
+      "duration": 454057,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 1668715537,
-        "egress": 3502029
+        "ingress": 1673923498,
+        "egress": 7776343
       }
     },
-    "prompt": "I run a small to-do app where people can share lists, plus a public weather\ndashboard, both on the same Supabase project. The access rules are already in\nthe migrations.\n\nLast month a change to those rules let people keep seeing items on a list\nafter they had been removed from it, and nobody noticed for a week. I want\ntests in the repository that would have caught that, covering who can read and\nchange each table. I've heard you can run these inside the database, but I\ndon't know which tool Supabase uses for it.\n\nDon't change the rules themselves. I want tests for the app as it is now.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://docs-git-docs-test-rls-pgtap-supabase.vercel.app/docs/guides/database/postgres/testing-row-level-security.md",
+    "prompt": "I run a small to-do app where people can share lists, plus a public weather\ndashboard, both on the same Supabase project. The access rules are already in\nthe migrations.\n\nLast month a change to those rules let people keep seeing items on a list\nafter they had been removed from it, and nobody noticed for a week. I want\ntests in the repository that would have caught that, covering who can read and\nchange each table. I've heard you can run these inside the database, but I\ndon't know which tool Supabase uses for it.\n\nDon't change the rules themselves. I want tests for the app as it is now.\n\nI'm offline after I send this, so I can't answer questions. If you'd check\nthe rules with me first, take the ones the migrations already enforce as\nagreed, list them in the test files, and carry on. The one I care about most is\nthat someone removed from a list can no longer see the list or its items.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://docs-git-docs-test-rls-pgtap-supabase.vercel.app/docs/guides/database/postgres/testing-row-level-security.md",
     "promptSourcePath": "evals/docs/build-docs-014-rls-testing-guide/PROMPT.md",
     "run": 2,
     "sourcePath": "codex-gpt-6-luna-no-skills/build-docs-014-rls-testing-guide/run-2/result.json"
@@ -13537,7 +13551,7 @@
     "suite": "docs",
     "interface": "cli",
     "cliVersion": "2.117.0",
-    "passed": false,
+    "passed": true,
     "checks": [
       {
         "name": "the seeded policies and helper functions are unchanged",
@@ -13545,33 +13559,33 @@
       },
       {
         "name": "pgTAP test file(s) written under supabase/tests/",
-        "passed": false,
-        "notes": "no .sql files found under supabase/tests/"
+        "passed": true,
+        "notes": "6 file(s): supabase/tests/database/todos_rls.test.sql, supabase/tests/database/lists_rls.test.sql, supabase/tests/database/list_members_rls.test.sql, supabase/tests/database/list_items_rls.test.sql, supabase/tests/database/weather_stations_rls.test.sql, supabase/tests/database/weather_readings_rls.test.sql"
       },
       {
         "name": "the pgTAP tests exercise access control on the application tables rather than standing in as placeholders",
-        "passed": false,
-        "notes": "no test files to review"
+        "passed": true,
+        "judgeNotes": "Assertions target the app tables, test both allowed and denied access, and explicitly set roles and user identities."
       },
       {
         "name": "supabase test db runs at least 8 assertions and all pass",
-        "passed": false,
-        "notes": "no test summary found; exit 1; output: Files=0, Tests=0,  0 wallclock secs ( 0.00 usr +  0.00 sys =  0.00 CPU)\nResult: NOTESTS\nConnecting to local database...\n3.36: Pulling from supabase/pg_prove\ndcccee43ad5d: Pulling fs layer\n06d62d0de6d7: Pulling fs layer\na22cb17b3b93: Pulling fs layer\n4f4fb700ef54: Pulling fs layer\n4f4fb700ef54: Waiting\na22cb17b3b93: Download complete\ndcccee43ad5d: Verifying Checksum\ndcccee43ad5d: Download complete\n4f4fb700ef54: Verifying Checksum\n4f4fb700ef54: Download complete\n06d62d0de6d7: Verifying Checksum\n06"
+        "passed": true,
+        "notes": "66 passed, 0 failed, exit 0"
       },
       {
         "name": "the suite fails when any signed-in user can read every todo",
-        "passed": false,
-        "notes": "could not measure: the suite does not pass before the read is opened"
+        "passed": true,
+        "notes": "1 of 66 assertions failed with the read opened, exit 1"
       },
       {
         "name": "the suite fails when any signed-in user can read every list item",
-        "passed": false,
-        "notes": "could not measure: the suite does not pass before the read is opened"
+        "passed": true,
+        "notes": "1 of 66 assertions failed with the read opened, exit 1"
       },
       {
         "name": "the agent read the RLS testing guide the prompt referenced",
         "passed": true,
-        "notes": "web_search, shell_fetch"
+        "notes": "web_search"
       }
     ],
     "skills": {
@@ -13592,44 +13606,40 @@
         },
         {
           "source": "web_search",
-          "query": "site:docs-git-docs-test-rls-pgtap-supabase.vercel.app/docs/guides/database/postgres/testing-row-level-security testing row level security Supabase pgTAP",
+          "query": "site:docs-git-docs-test-rls-pgtap-supabase.vercel.app/docs/guides/database/postgres/testing-row-level-security.md testing row level security pgTAP Supabase",
           "pages": []
         },
         {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc \"curl -L --fail --silent --show-error 'https://docs-git-docs-test-rls-pgtap-supabase.vercel.app/docs/guides/database/postgres/testing-row-level-security.md'\"",
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Row Level Security pgTAP testing supabase test db RLS test files\", limit: 5) { nodes { ... on Guide { title href content } ... on CLICommandReference { title href content } } } }",
           "hasContent": true,
-          "pages": [
-            {
-              "url": "https://docs-git-docs-test-rls-pgtap-supabase.vercel.app/docs/guides/database/postgres/testing-row-level-security.md"
-            }
-          ],
-          "resultChars": 10538
+          "pages": [],
+          "resultChars": 49130
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 46972,
-        "cacheReadInputTokens": 15853,
-        "cacheWriteInputTokens": 30676,
-        "outputTokens": 1706
+        "inputTokens": 385238,
+        "cacheReadInputTokens": 323417,
+        "cacheWriteInputTokens": 53451,
+        "outputTokens": 20090
       }
     ],
-    "stepCount": 3,
-    "toolCallCount": 5,
-    "agentRunDurationMs": 36183,
+    "stepCount": 13,
+    "toolCallCount": 17,
+    "agentRunDurationMs": 167620,
     "sandboxUsage": {
-      "activeCpuDurationMs": 279302,
-      "duration": 203661,
+      "activeCpuDurationMs": 443095,
+      "duration": 393457,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 1672939933,
-        "egress": 5779889
+        "ingress": 1675036473,
+        "egress": 6487218
       }
     },
-    "prompt": "I run a small to-do app where people can share lists, plus a public weather\ndashboard, both on the same Supabase project. The access rules are already in\nthe migrations.\n\nLast month a change to those rules let people keep seeing items on a list\nafter they had been removed from it, and nobody noticed for a week. I want\ntests in the repository that would have caught that, covering who can read and\nchange each table. I've heard you can run these inside the database, but I\ndon't know which tool Supabase uses for it.\n\nDon't change the rules themselves. I want tests for the app as it is now.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://docs-git-docs-test-rls-pgtap-supabase.vercel.app/docs/guides/database/postgres/testing-row-level-security.md",
+    "prompt": "I run a small to-do app where people can share lists, plus a public weather\ndashboard, both on the same Supabase project. The access rules are already in\nthe migrations.\n\nLast month a change to those rules let people keep seeing items on a list\nafter they had been removed from it, and nobody noticed for a week. I want\ntests in the repository that would have caught that, covering who can read and\nchange each table. I've heard you can run these inside the database, but I\ndon't know which tool Supabase uses for it.\n\nDon't change the rules themselves. I want tests for the app as it is now.\n\nI'm offline after I send this, so I can't answer questions. If you'd check\nthe rules with me first, take the ones the migrations already enforce as\nagreed, list them in the test files, and carry on. The one I care about most is\nthat someone removed from a list can no longer see the list or its items.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://docs-git-docs-test-rls-pgtap-supabase.vercel.app/docs/guides/database/postgres/testing-row-level-security.md",
     "promptSourcePath": "evals/docs/build-docs-014-rls-testing-guide/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-6-luna-no-skills/build-docs-014-rls-testing-guide/run-3/result.json"
