@@ -3763,7 +3763,7 @@
       {
         "name": "user A's update actually checks off their own task",
         "passed": true,
-        "notes": "saw: [{\"id\":\"7b89abef-bc80-4393-a997-991af6874b2e\",\"is_done\":true}]"
+        "notes": "saw: [{\"id\":\"64e85a5d-baec-475e-aadb-1232f9ca8d58\",\"is_done\":true}]"
       },
       {
         "name": "user B cannot update user A's task",
@@ -3772,7 +3772,181 @@
       {
         "name": "diagnosed the missing USING clause and added it",
         "passed": true,
-        "judgeNotes": "Diagnoses the missing UPDATE USING clause and applies an authenticated-only owner-scoped USING condition while retaining the owner-scoped WITH CHECK and leaving RLS enabled."
+        "judgeNotes": "Diagnosed the missing UPDATE USING clause and applied an authenticated-only ownership predicate while retaining WITH CHECK and leaving RLS enabled."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 11952
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Monitoring and Debugging Supabase zero rows update RLS policy UPDATE RETURNING PostgREST\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security",
+              "title": "Token Security and Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/schema/helper-functions",
+              "title": "Storage Helper Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advisors?queryGroups=lint&lint=0008_rls_enabled_no_policy",
+              "title": "Database Advisor: Lint 0008_rls_enabled_no_policy"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/access-control",
+              "title": "Storage Access Control"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/authorization",
+              "title": "Realtime Authorization"
+            }
+          ],
+          "resultChars": 36457
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase monitoring debugging RLS UPDATE returns zero rows no error PostgREST\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/ai/rag-with-permissions",
+              "title": "RAG with Permissions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/secure-data",
+              "title": "Securing your data"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/authorization",
+              "title": "Realtime Authorization"
+            }
+          ],
+          "resultChars": 28616
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL https://supabase.com/docs/guides/monitoring-and-debugging.md | rg -n -C 3 'RLS|zero|row|update|policy' | head -100\"",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/monitoring-and-debugging.md"
+            }
+          ],
+          "resultChars": 733
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Row Level Security UPDATE USING WITH CHECK policy existing rows\", limit: 4) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advisors?queryGroups=lint&lint=0024_permissive_rls_policy",
+              "title": "Database Advisor: Lint 0024_permissive_rls_policy"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security",
+              "title": "Token Security and Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/column-level-security",
+              "title": "Column Level Security"
+            }
+          ],
+          "resultChars": 51497
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 227932,
+        "cacheReadInputTokens": 179010,
+        "cacheWriteInputTokens": 48895,
+        "outputTokens": 4306
+      }
+    ],
+    "stepCount": 9,
+    "toolCallCount": 17,
+    "agentRunDurationMs": 72148,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 206910,
+      "duration": 216345,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 772812654,
+        "egress": 3518479
+      }
+    },
+    "prompt": "Our app lets signed-in users manage a personal `tasks` list. Users can create tasks and check them off (`is_done`).\n\nCreating a task works fine, and I can see the row in the table. But when a user checks off a task, the app's update call succeeds with no error, yet `is_done` never actually changes, and the API doesn't return the updated row either.\n\nFind out why the update has no effect and fix it.",
+    "promptSourcePath": "evals/regression/resolve-dataapi-002-update-zero-rows-affected/PROMPT.md",
+    "run": 1,
+    "sourcePath": "regression/codex-gpt-6-luna/resolve-dataapi-002-update-zero-rows-affected/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-dataapi-002-update-zero-rows-affected",
+    "stage": "resolve",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "rls"
+    ],
+    "suite": "regression",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on tasks",
+        "passed": true
+      },
+      {
+        "name": "user A's update actually checks off their own task",
+        "passed": true,
+        "notes": "saw: [{\"id\":\"c7189f70-d7ae-4462-a063-f78cb9ce3045\",\"is_done\":true}]"
+      },
+      {
+        "name": "user B cannot update user A's task",
+        "passed": true
+      },
+      {
+        "name": "diagnosed the missing USING clause and added it",
+        "passed": true,
+        "judgeNotes": "Diagnosed the missing UPDATE USING clause and recreated the policy for authenticated users with owner-scoped USING and WITH CHECK clauses, leaving RLS enabled."
       }
     ],
     "skills": {
@@ -3789,7 +3963,94 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"PostgREST update returns no rows RLS UPDATE policy USING WITH CHECK returning select\", limit: 5) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content methodName } } } }",
+          "query": "query { searchDocs(query: \"Supabase troubleshooting updates returning no rows RLS UPDATE policy SELECT policy PostgREST\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/schema/helper-functions",
+              "title": "Storage Helper Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/access-control",
+              "title": "Storage Access Control"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advisors?queryGroups=lint&lint=0008_rls_enabled_no_policy",
+              "title": "Database Advisor: Lint 0008_rls_enabled_no_policy"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/secure-data",
+              "title": "Securing your data"
+            }
+          ],
+          "resultChars": 36284
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 5000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 5011
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase Monitoring and Debugging RLS UPDATE policy no rows updated PostgREST\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/observability/advisors?queryGroups=lint&lint=0008_rls_enabled_no_policy",
+              "title": "Database Advisor: Lint 0008_rls_enabled_no_policy"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/schema/helper-functions",
+              "title": "Storage Helper Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/security/access-control",
+              "title": "Storage Access Control"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/authorization",
+              "title": "Realtime Authorization"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security-performance",
+              "title": "Row Level Security performance"
+            }
+          ],
+          "resultChars": 28724
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Monitoring and Debugging Supabase troubleshoot Row Level Security policies database logs\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/overview",
+              "title": "Testing Overview"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/reports",
+              "title": "Realtime Reports"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/audit-logs",
+              "title": "Auth Audit Logs"
+            }
+          ],
+          "resultChars": 66540
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"PostgreSQL Row Level Security UPDATE USING WITH CHECK policy no USING UPDATE row\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -3797,27 +4058,197 @@
               "title": "Row Level Security"
             },
             {
-              "url": "https://supabase.com/docs/guides/api/securing-your-api",
-              "title": "Securing your API"
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
+              "title": "Advanced pgTAP Testing"
             },
             {
-              "url": "https://supabase.com/docs/guides/getting-started/the-supabase-way-to-build",
-              "title": "The Supabase way to build"
+              "url": "https://supabase.com/docs/guides/self-hosting/docker",
+              "title": "Self-Hosting with Docker"
             },
             {
-              "url": "https://supabase.com/docs/guides/queues/quickstart",
-              "title": "Quickstart"
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advisors?queryGroups=lint&lint=0007_policy_exists_rls_disabled",
+              "title": "Database Advisor: Lint 0007_policy_exists_rls_disabled"
+            }
+          ],
+          "resultChars": 100150
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"supabase-js update select return updated rows update().select() default return representation\", limit: 4) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/reference/javascript/using-modifiers-select"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/update"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/rest/generating-types",
+              "title": "Generating TypeScript Types"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/subscribing-to-database-changes",
+              "title": "Subscribing to Database Changes"
+            }
+          ],
+          "resultChars": 19576
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 381547,
+        "cacheReadInputTokens": 324634,
+        "cacheWriteInputTokens": 56877,
+        "outputTokens": 6560
+      }
+    ],
+    "stepCount": 12,
+    "toolCallCount": 23,
+    "agentRunDurationMs": 95320,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 171887,
+      "duration": 219396,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 772668848,
+        "egress": 4556404
+      }
+    },
+    "prompt": "Our app lets signed-in users manage a personal `tasks` list. Users can create tasks and check them off (`is_done`).\n\nCreating a task works fine, and I can see the row in the table. But when a user checks off a task, the app's update call succeeds with no error, yet `is_done` never actually changes, and the API doesn't return the updated row either.\n\nFind out why the update has no effect and fix it.",
+    "promptSourcePath": "evals/regression/resolve-dataapi-002-update-zero-rows-affected/PROMPT.md",
+    "run": 2,
+    "sourcePath": "regression/codex-gpt-6-luna/resolve-dataapi-002-update-zero-rows-affected/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-dataapi-002-update-zero-rows-affected",
+    "stage": "resolve",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "rls"
+    ],
+    "suite": "regression",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on tasks",
+        "passed": true
+      },
+      {
+        "name": "user A's update actually checks off their own task",
+        "passed": true,
+        "notes": "saw: [{\"id\":\"c2db84f4-1fae-4a6d-bb1d-3e3cb5ef0ac9\",\"is_done\":true}]"
+      },
+      {
+        "name": "user B cannot update user A's task",
+        "passed": true
+      },
+      {
+        "name": "diagnosed the missing USING clause and added it",
+        "passed": true,
+        "judgeNotes": "Diagnosed the missing UPDATE USING clause and applied an authenticated, owner-scoped policy retaining WITH CHECK. RLS was not disabled, and the update was verified."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Row Level Security UPDATE policy PostgreSQL Supabase USING WITH CHECK UPDATE RETURNING SELECT policy\", limit: 5) { nodes { title href content } }",
+          "hasContent": true,
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Monitoring and Debugging RLS update returns no rows policy UPDATE select policy\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security-performance",
+              "title": "Row Level Security performance"
             },
             {
               "url": "https://supabase.com/docs/guides/observability/advisors?queryGroups=lint&lint=0008_rls_enabled_no_policy",
               "title": "Database Advisor: Lint 0008_rls_enabled_no_policy"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/production/scaling",
+              "title": "Storage Optimizations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security",
+              "title": "Token Security and Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/column-level-security",
+              "title": "Column Level Security"
             }
           ],
-          "resultChars": 71260
+          "resultChars": 31053
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase monitoring debugging no rows affected RLS UPDATE returns empty response\", limit: 4) { nodes { ... on Guide { title href content } ... on TroubleshootingGuide { title href content } } } }",
+          "query": "query { searchDocs(query: \"Row Level Security update policy using with check update returning\", limit: 5) { nodes { title href content } }",
+          "hasContent": true,
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Monitoring and Debugging\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/observability/reports",
+              "title": "Reports"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/data-deletion",
+              "title": "Deleting data and dropping objects safely"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/performance",
+              "title": "Performance Tuning"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/replication/pipelines-monitoring",
+              "title": "Monitor pipeline status"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/reports",
+              "title": "Realtime Reports"
+            }
+          ],
+          "resultChars": 118397
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Monitoring debugging database RLS\", limit: 3) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -3825,89 +4256,107 @@
               "title": "Realtime Reports"
             },
             {
-              "url": "https://supabase.com/docs/guides/local-development/testing/overview",
-              "title": "Testing Overview"
+              "url": "https://supabase.com/docs/guides/observability/reports",
+              "title": "Reports"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/testing",
-              "title": "Testing Your Database"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/storage/schema/helper-functions",
-              "title": "Storage Helper Functions"
+              "url": "https://supabase.com/docs/guides/realtime/authorization",
+              "title": "Realtime Authorization"
             }
           ],
-          "resultChars": 68344
+          "resultChars": 99809
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Postgres UPDATE policy USING WITH CHECK UPDATE RETURNING PostgREST rows affected response\", limit: 4) { nodes { ... on Guide { title href content } } } }",
+          "query": "query { searchDocs(query: \"Row Level Security\", limit: 1) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
               "title": "Row Level Security"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/replication/pipelines/bigquery",
-              "title": "BigQuery destination"
             }
           ],
-          "resultChars": 42555
-        },
-        {
-          "source": "web_search",
-          "query": "site:supabase.com/changelog.md Supabase changelog breaking change 2026",
-          "pages": []
-        },
-        {
-          "source": "web_search",
-          "query": "https://supabase.com/docs/guides/monitoring-and-debugging",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/monitoring-and-debugging"
-            }
-          ]
+          "resultChars": 27158
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Supabase update select returns rows only when chaining select after update\", limit: 2) { nodes { ... on ClientLibraryFunctionReference { title href content methodName } } } }",
+          "query": "query { searchDocs(query: \"Monitoring and Debugging\", limit: 1) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/reference/javascript/update"
+              "url": "https://supabase.com/docs/guides/database/postgres/data-deletion",
+              "title": "Deleting data and dropping objects safely"
             }
           ],
-          "resultChars": 1203
+          "resultChars": 7584
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -80'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 4082
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"UPDATE policies USING clause WITH CHECK clause\", limit: 2) { nodes { title href content } }",
+          "hasContent": true,
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Monitoring and debugging Postgres API RLS troubleshooting\", limit: 2) { nodes { title href content } }",
+          "hasContent": true,
+          "pages": []
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/docs/guides/monitoring-and-debugging.md | head -120'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/monitoring-and-debugging.md"
+            }
+          ],
+          "resultChars": 3434
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"update data supabase javascript returning select\", limit: 2) { nodes { title href content } }",
+          "hasContent": true,
+          "pages": []
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 204256,
-        "cacheReadInputTokens": 151385,
-        "cacheWriteInputTokens": 44337,
-        "outputTokens": 4954
+        "inputTokens": 906503,
+        "cacheReadInputTokens": 828085,
+        "cacheWriteInputTokens": 73604,
+        "outputTokens": 14554
       }
     ],
-    "stepCount": 8,
-    "toolCallCount": 19,
-    "agentRunDurationMs": 90687,
+    "stepCount": 20,
+    "toolCallCount": 54,
+    "agentRunDurationMs": 205351,
     "sandboxUsage": {
-      "activeCpuDurationMs": 119782,
-      "duration": 186223,
+      "activeCpuDurationMs": 200440,
+      "duration": 344148,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 774957229,
-        "egress": 5660762
+        "ingress": 775164802,
+        "egress": 8823531
       }
     },
     "prompt": "Our app lets signed-in users manage a personal `tasks` list. Users can create tasks and check them off (`is_done`).\n\nCreating a task works fine, and I can see the row in the table. But when a user checks off a task, the app's update call succeeds with no error, yet `is_done` never actually changes, and the API doesn't return the updated row either.\n\nFind out why the update has no effect and fix it.",
     "promptSourcePath": "evals/regression/resolve-dataapi-002-update-zero-rows-affected/PROMPT.md",
-    "run": 1,
-    "sourcePath": "regression/codex-gpt-6-luna/resolve-dataapi-002-update-zero-rows-affected/run-1/result.json"
+    "run": 3,
+    "sourcePath": "regression/codex-gpt-6-luna/resolve-dataapi-002-update-zero-rows-affected/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna",
