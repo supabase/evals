@@ -24,8 +24,7 @@ export function ExperimentRationale() {
         Why these experiments
       </h2>
       <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-        Where an agent has a default model and effort, we use it. Where we
-        picked one ourselves, we say why.
+        Why we chose the model and effort for each benchmark experiment.
       </p>
       <ul className="mt-4 divide-y divide-border rounded-lg border border-border bg-card">
         {experiments.map((experiment) => {
@@ -56,6 +55,11 @@ export function ExperimentRationale() {
               <p className="leading-6 text-muted-foreground">
                 {rationale?.summary}
               </p>
+              {rationale && (
+                <p className="text-xs text-muted-foreground">
+                  As of <time dateTime={rationale.asOf}>{rationale.asOf}</time>
+                </p>
+              )}
             </li>
           )
         })}

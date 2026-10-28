@@ -431,7 +431,6 @@ const evalResultShape = {
   experimentSuite: experimentSuiteSchema.optional(),
   profile: experimentSuiteSchema.optional(),
   experimentDisplay: experimentDisplayMetadataSchema.optional(),
-  experimentRationale: experimentRationaleSchema.optional(),
   eval: z.string(),
   stage: evalStageSchema.optional(),
   product: z.array(evalProductSchema).optional(),

@@ -4,6 +4,10 @@ import {
   type EvalResult,
 } from "@supabase-evals/core/eval-metadata"
 import rawResults from "@/data/eval-results.json"
+import {
+  experimentRationales,
+  sameExperimentDisplay,
+} from "@/lib/experiment-rationales"
 
 /**
  * The exported eval results and the queries the site runs over them. Everything
@@ -123,9 +127,24 @@ export function getExperimentDisplay(experiment: string) {
     ?.experimentDisplay
 }
 
-export function getExperimentRationale(experiment: string) {
-  return sortedResults.find((result) => result.experiment === experiment)
-    ?.experimentRationale
+export function getExperimentRationale(
+  experiment: string,
+  sourceResults = sortedResults
+) {
+  const results = sourceResults.filter(
+    (result) => result.experiment === experiment
+  )
+  if (!results.length) return undefined
+
+  return experimentRationales.find(
+    (entry) =>
+      entry.experiment === experiment &&
+      results.every(
+        ({ experimentDisplay }) =>
+          experimentDisplay &&
+          sameExperimentDisplay(experimentDisplay, entry.display)
+      )
+  )?.rationale
 }
 
 export function getExperimentResults(

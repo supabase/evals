@@ -32,39 +32,3 @@ describe('toEvalResult cliVersion precedence', () => {
     expect(result.cliVersion).toBe('2.109.1');
   });
 });
-
-describe('toEvalResult experimentRationale', () => {
-  const display = {
-    agent: 'claude-code',
-    modelProvider: 'anthropic',
-    modelId: 'claude-opus-5-5',
-    reasoningEffort: 'medium',
-  } as const;
-  const experimentData = {
-    display,
-    rationale: { summary: 'Default model.', sources: [] },
-    suites: [],
-  };
-
-  const build = async (experimentDisplay: Record<string, unknown>) =>
-    toEvalResult(
-      rawEvalResultSchema.parse({
-        experiment: 'test-experiment',
-        eval: PINNED_EVAL_ID,
-        interface: 'cli',
-        experimentDisplay,
-      }),
-      'test-experiment/run-1/result.json',
-      await readPrompt(PINNED_EVAL_ID),
-      experimentData
-    );
-
-  it('attaches the rationale when the run matches the config', async () => {
-    expect((await build(display)).experimentRationale).toBeDefined();
-  });
-
-  it('drops the rationale when the run used a different effort', async () => {
-    const result = await build({ ...display, reasoningEffort: 'high' });
-    expect(result.experimentRationale).toBeUndefined();
-  });
-});

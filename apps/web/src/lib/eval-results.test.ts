@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest"
 
 import { makeResult } from "@/lib/eval-results.fixture"
+import { missingBenchmarkRationales } from "@/lib/experiment-rationales"
 import {
   EXPERIMENT_SUITES,
   JOURNEY_STAGES,
   UNASSIGNED_PRODUCT,
   getEvalIds,
+  getExperimentRationale,
   getProductKeys,
   getProductResults,
   getVisibleExperiments,
@@ -216,5 +218,80 @@ describe("the exported results", () => {
       .map(([experiment]) => experiment)
 
     expect(inconsistent).toEqual([])
+  })
+})
+
+describe("getExperimentRationale", () => {
+  const display = {
+    agent: "opencode",
+    modelProvider: "moonshotai",
+    modelId: "moonshotai/kimi-k3",
+  } as const
+  const match = makeResult({
+    experiment: "opencode-kimi-k3",
+    experimentDisplay: display,
+  })
+
+  it("shows current rationale for matching results", () => {
+    expect(
+      getExperimentRationale(match.experiment, [match])?.summary
+    ).toContain("open-weight")
+  })
+
+  it("hides rationale for mixed or missing metadata", () => {
+    const other = makeResult({
+      experiment: match.experiment,
+      experimentDisplay: { ...display, modelId: "other" },
+    })
+    const missing = makeResult({ experiment: match.experiment })
+    expect(
+      getExperimentRationale(match.experiment, [match, other])
+    ).toBeUndefined()
+    expect(
+      getExperimentRationale(match.experiment, [match, missing])
+    ).toBeUndefined()
+    expect(
+      getExperimentRationale("removed-experiment", [match])
+    ).toBeUndefined()
+  })
+})
+
+describe("benchmark rationale coverage", () => {
+  const kimi = {
+    agent: "opencode",
+    modelProvider: "moonshotai",
+    modelId: "moonshotai/kimi-k3",
+  } as const
+
+  it("requires an entry matching each current benchmark model and effort", () => {
+    expect(
+      missingBenchmarkRationales([
+        ["opencode-kimi-k3", { display: kimi, suites: ["benchmark"] }],
+        ["new-experiment", { display: kimi, suites: ["benchmark"] }],
+        [
+          "opencode-kimi-k3",
+          {
+            display: { ...kimi, reasoningEffort: "high" },
+            suites: ["benchmark"],
+          },
+        ],
+        ["other", { display: kimi, suites: ["no-skills"] }],
+      ])
+    ).toEqual(["new-experiment", "opencode-kimi-k3"])
+  })
+
+  it("shows the historical Sonnet rationale when its results are present", () => {
+    const old = makeResult({
+      experiment: "claude-code-sonnet-5",
+      experimentDisplay: {
+        agent: "claude-code",
+        modelProvider: "anthropic",
+        modelId: "claude-sonnet-5",
+        reasoningEffort: "high",
+      },
+    })
+    expect(getExperimentRationale(old.experiment, [old])?.asOf).toBe(
+      "2026-07-02"
+    )
   })
 })

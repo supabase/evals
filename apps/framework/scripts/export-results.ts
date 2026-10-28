@@ -7,7 +7,6 @@ import { rawEvalResultSchema } from '@supabase-evals/core/eval-metadata';
 import type {
   EvalResult,
   EvalSuite,
-  ExperimentDisplayMetadata,
   ExperimentSuite,
 } from '@supabase-evals/core/eval-metadata';
 import {
@@ -55,14 +54,6 @@ const EXPECTED_RUNS_FLAG = readFlag(rawArgs, 'runs');
 const OUTPUT_FLAG = readRepeatedFlag(rawArgs, 'output')[0];
 const outputPath = OUTPUT_FLAG ? resolve(ROOT, OUTPUT_FLAG) : OUTPUT_PATH;
 
-/** True when the run used the model and effort the experiment config names today. */
-function sameModelAndEffort(
-  a: ExperimentDisplayMetadata,
-  b: ExperimentDisplayMetadata | undefined
-) {
-  return a.modelId === b?.modelId && a.reasoningEffort === b?.reasoningEffort;
-}
-
 export function toEvalResult(
   parsedResult: ReturnType<typeof rawEvalResultSchema.parse>,
   sourcePath: string,
@@ -79,14 +70,6 @@ export function toEvalResult(
     experimentSuite,
     experimentDisplay:
       parsedResult.experimentDisplay ?? experimentData?.display,
-    experimentRationale:
-      !parsedResult.experimentDisplay ||
-      sameModelAndEffort(
-        parsedResult.experimentDisplay,
-        experimentData?.display
-      )
-        ? experimentData?.rationale
-        : undefined,
     eval: parsedResult.eval,
     stage: promptData?.stage ?? parsedResult.stage,
     product: promptData?.product ?? parsedResult.product,

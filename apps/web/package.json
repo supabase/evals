@@ -4,13 +4,13 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "node -e \"console.log('Node.js version:', process.version)\" && tsc -b && vite build && vite build --ssr src/entry-server.tsx --outDir dist-ssr && node scripts/prerender.ts",
+    "dev": "pnpm --filter @supabase-evals/framework exec node --import tsx/esm scripts/check-experiment-rationales.ts && vite",
+    "build": "pnpm --filter @supabase-evals/framework exec node --import tsx/esm scripts/check-experiment-rationales.ts && node -e \"console.log('Node.js version:', process.version)\" && tsc -b && vite build && vite build --ssr src/entry-server.tsx --outDir dist-ssr && node scripts/prerender.ts",
     "lint": "eslint .",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx}\"",
-    "typecheck": "tsc -b --noEmit",
-    "test": "vitest run",
+    "typecheck": "pnpm --filter @supabase-evals/framework exec node --import tsx/esm scripts/check-experiment-rationales.ts && tsc -b --noEmit",
+    "test": "pnpm --filter @supabase-evals/framework exec node --import tsx/esm scripts/check-experiment-rationales.ts && vitest run",
     "preview": "vite preview"
   },
   "dependencies": {
