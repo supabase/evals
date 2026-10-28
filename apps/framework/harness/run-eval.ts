@@ -708,19 +708,22 @@ async function main() {
   );
 
   const allWork: Array<{
-    name: string;
+    experimentPath: string;
+    experiment: string;
     config: ExperimentConfig;
     ev: EvalManifest;
     run: number;
   }> = [];
 
-  for (const { name: shortName, suite, config } of experiments) {
-    const name = `${suite}/${shortName}`;
+  for (const { name: experiment, suite, config } of experiments) {
+    const experimentPath = `${suite}/${experiment}`;
     if (!DRY) {
       try {
         config.agent.assertReady();
       } catch (e) {
-        stderr(`SKIP ${name} (${e instanceof Error ? e.message : String(e)})`);
+        stderr(
+          `SKIP ${experimentPath} (${e instanceof Error ? e.message : String(e)})`
+        );
         continue;
       }
     }
@@ -730,27 +733,29 @@ async function main() {
       if (ev.suite !== suite) continue;
       if (ev.mode === 'local-stack' && !config.localStack) {
         console.log(
-          `SKIP ${name} x ${ev.id} (no local stack runtime — add \`localStack: localStackRuntime()\` from "@supabase-evals/sandbox" to experiments/<team>/${name}.experiment.ts)`
+          `SKIP ${experimentPath} x ${ev.id} (no local stack runtime — add \`localStack: localStackRuntime()\` from "@supabase-evals/sandbox" to experiments/<team>/${experimentPath}.experiment.ts)`
         );
         continue;
       }
       if (config.skipEval?.(ev)) {
-        console.log(`SKIP ${name} x ${ev.id} (skipEval)`);
+        console.log(`SKIP ${experimentPath} x ${ev.id} (skipEval)`);
         continue;
       }
       const smokeKey = `${ev.suite}/${ev.stage}`;
       if (SMOKE && smokeStages.has(smokeKey)) continue;
       if (SMOKE) smokeStages.add(smokeKey);
       if (DRY) {
-        console.log(formatPlanLine(name, config, ev));
+        console.log(formatPlanLine(experimentPath, config, ev));
         continue;
       }
       for (const run of RUN_INDEXES) {
-        if (!FORCE && existsSync(resultPath(name, ev.id, run))) {
-          console.log(`SKIP ${name} x ${ev.id} run ${run} (already ran)`);
+        if (!FORCE && existsSync(resultPath(experimentPath, ev.id, run))) {
+          console.log(
+            `SKIP ${experimentPath} x ${ev.id} run ${run} (already ran)`
+          );
           continue;
         }
-        allWork.push({ name, config, ev, run });
+        allWork.push({ experimentPath, experiment, config, ev, run });
       }
     }
   }
@@ -759,28 +764,30 @@ async function main() {
   const errored: Error[] = [];
 
   const runWork = async ({
-    name,
+    experimentPath,
+    experiment,
     config,
     ev,
     run: runIndex,
   }: (typeof allWork)[number]) => {
-    const out = resultPath(name, ev.id, runIndex);
-    const label = `${name} x ${ev.id} run ${runIndex}`;
+    const out = resultPath(experimentPath, ev.id, runIndex);
+    const label = `${experimentPath} x ${ev.id} run ${runIndex}`;
     const start = Date.now();
     console.log(`⏳ RUN  ${label}`);
     const run = async () => {
       try {
-        const res = await runOne(name, config, ev, runIndex);
+        const res = await runOne(experimentPath, config, ev, runIndex);
         mkdirSync(dirname(out), { recursive: true });
         const experimentDisplay = getExperimentDisplayMetadata(config);
         writeFileSync(
           out,
           JSON.stringify(
             {
-              experiment: name,
+              experiment,
               experimentDisplay,
               eval: ev.id,
               ...ev.metadata,
+              suite: ev.suite,
               ...res,
             },
             null,

@@ -6,7 +6,7 @@ import { collectResultFiles, readPrompt } from './result-files.js';
 import { splitBySampleSetCompleteness } from './sample-sets.js';
 
 const validResult = JSON.stringify({
-  experiment: 'benchmark/visible',
+  experiment: 'visible',
   eval: 'eval',
   interface: 'cli',
 });
@@ -38,7 +38,8 @@ describe('collectResultFiles', () => {
         await writeFile(
           path,
           JSON.stringify({
-            experiment: `${suite}/visible`,
+            experiment: 'visible',
+            suite,
             eval: 'eval',
             interface: 'cli',
             run: 1,
@@ -47,8 +48,8 @@ describe('collectResultFiles', () => {
       }
       const files = await collectResultFiles({ resultsDir });
       expect(files.map(({ result }) => result.experiment)).toEqual([
-        'benchmark/visible',
-        'regression/visible',
+        'visible',
+        'visible',
       ]);
       expect(
         splitBySampleSetCompleteness(
@@ -56,6 +57,41 @@ describe('collectResultFiles', () => {
           1
         ).complete
       ).toHaveLength(2);
+    } finally {
+      await rm(resultsDir, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects results that disagree with their suite or experiment folder', async () => {
+    const resultsDir = await mkdtemp(join(tmpdir(), 'result-files-'));
+    try {
+      const path = join(
+        resultsDir,
+        'regression',
+        'visible',
+        'eval',
+        'run-1',
+        'result.json'
+      );
+      await mkdir(dirname(path), { recursive: true });
+      for (const result of [
+        { experiment: 'regression/visible', suite: 'regression' },
+        { experiment: 'visible', suite: 'benchmark' },
+      ]) {
+        await writeFile(
+          path,
+          JSON.stringify({ ...result, eval: 'eval', interface: 'cli' })
+        );
+        expect(
+          await collectResultFiles({
+            resultsDir,
+            includeSuite: (suite) => suite === 'cli',
+          })
+        ).toEqual([]);
+        await expect(collectResultFiles({ resultsDir })).rejects.toThrow(
+          'Rerun the eval'
+        );
+      }
     } finally {
       await rm(resultsDir, { recursive: true, force: true });
     }
@@ -85,7 +121,7 @@ describe('collectResultFiles', () => {
       const onUnparseable = vi.fn();
       const files = await collectResultFiles({
         resultsDir,
-        includeExperiment: (experiment) => experiment === 'benchmark/visible',
+        includeExperiment: (experiment) => experiment === 'visible',
         includeEval: (evalId) => evalId === 'eval',
         onUnparseable,
       });

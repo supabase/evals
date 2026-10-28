@@ -91,12 +91,6 @@ describe('experimentName', () => {
     ).toBe('benchmark-grok-4.6@aefa834-20260923T1339Z');
   });
 
-  it('includes the suite once', () => {
-    expect(
-      experimentName('benchmark/grok-4.6', 'benchmark', undefined, 'stamp')
-    ).toBe('benchmark-grok-4.6-stamp');
-  });
-
   it('omits the sha outside a git checkout', () => {
     expect(
       experimentName('grok-4.6', 'benchmark', undefined, '20260923T1339Z')

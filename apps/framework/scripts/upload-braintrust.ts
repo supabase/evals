@@ -159,7 +159,7 @@ export function experimentName(
   stamp: string
 ) {
   const sha = commit ? `@${commit.slice(0, 7)}` : '';
-  return `${suite}-${experiment.split('/').at(-1)}${sha}-${stamp}`;
+  return `${suite}-${experiment}${sha}-${stamp}`;
 }
 
 // 20260923T1339Z. UTC so runs from different zones sort against each other.
@@ -323,9 +323,9 @@ async function collectRows(
   const files = await collectResultFiles({
     includeExperiment: (experiment) =>
       EXPERIMENT_FILTERS.length === 0 ||
-      EXPERIMENT_FILTERS.includes(
-        normalizeExperimentName(experiment.split('/').at(-1) ?? '')
-      ),
+      EXPERIMENT_FILTERS.includes(normalizeExperimentName(experiment)),
+    includeSuite: (suite) =>
+      SUITE_FILTERS.length === 0 || SUITE_FILTERS.includes(suite),
     includeEval: (evalId) =>
       EVAL_FILTERS.length === 0 || EVAL_FILTERS.includes(evalId),
     onUnparseable: (sourcePath, message) =>
@@ -350,7 +350,7 @@ async function collectRows(
       continue;
     }
 
-    const meta = experimentMetadata.get(result.experiment);
+    const meta = experimentMetadata.get(`${suite}/${result.experiment}`);
     const display = result.experimentDisplay ?? meta?.display;
     const durationMs =
       result.agentRunDurationMs ??
@@ -786,7 +786,7 @@ async function main() {
   const uploaded: { name: string; url: string }[] = [];
 
   for (const { experiment, suite, rows } of byExperiment.values()) {
-    const meta = experimentMetadata.get(experiment);
+    const meta = experimentMetadata.get(`${suite}/${experiment}`);
     const bt = init({
       projectId,
       experiment: experimentName(experiment, suite, info?.commit, stamp),
