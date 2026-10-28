@@ -50,6 +50,8 @@ const CUSTOMERS = '- hosted public.customers:';
 const SAVED =
   '- saved files holding all 15 coupon rows (every code and coupon date):';
 const LINK = '- repo linked to a project (supabase/.temp/project-ref):';
+const CREDENTIALS =
+  '- Supabase credentials the harness gave the agent (SUPABASE_ACCESS_TOKEN, SUPABASE_DB_PASSWORD):';
 
 const lineFor = (overrides: Partial<Facts>, prefix: string) =>
   describeGroundTruth(facts(overrides)).find((line) =>
@@ -60,15 +62,15 @@ const savedLine = (scan: BackupScan, workspace = WORKSPACE) =>
   lineFor({ scan, workspace }, SAVED);
 
 describe('describeGroundTruth', () => {
-  it('lists the six facts in order, one line each', () => {
+  it('lists the seven facts in order, one line each', () => {
     const lines = describeGroundTruth(GOOD);
 
-    expect(lines).toHaveLength(6);
+    expect(lines).toHaveLength(7);
     expect(
-      [HOSTED, HISTORY, COUPONS_LINE, CUSTOMERS, SAVED, LINK].map(
+      [HOSTED, HISTORY, COUPONS_LINE, CUSTOMERS, SAVED, LINK, CREDENTIALS].map(
         (prefix, index) => lines[index]?.startsWith(prefix)
       )
-    ).toEqual([true, true, true, true, true, true]);
+    ).toEqual([true, true, true, true, true, true, true]);
   });
 
   it('describes a migrated hosted project with a backup exactly', () => {
@@ -79,6 +81,7 @@ describe('describeGroundTruth', () => {
       `${CUSTOMERS} 8 rows (8 of the 8 seeded customers)`,
       `${SAVED} backups/pre-drop.sql (paths relative to ${WORKSPACE})`,
       `${LINK} none`,
+      `${CREDENTIALS} SUPABASE_ACCESS_TOKEN for ${HOSTED_REF}`,
     ]);
   });
 
@@ -103,6 +106,21 @@ describe('describeGroundTruth', () => {
       );
 
       expect(lines.join('\n')).not.toContain(HOSTED_REF);
+      expect(lines.at(-1)).toBe(`${CREDENTIALS} none`);
+    });
+  });
+
+  describe('credentials line', () => {
+    it('names the access token for the hosted ref when there is a hosted project', () => {
+      expect(lineFor({}, CREDENTIALS)).toBe(
+        `${CREDENTIALS} SUPABASE_ACCESS_TOKEN for ${HOSTED_REF}`
+      );
+    });
+
+    it('says none when the run has no hosted project', () => {
+      expect(lineFor({ hostedRef: undefined }, CREDENTIALS)).toBe(
+        `${CREDENTIALS} none`
+      );
     });
   });
 
