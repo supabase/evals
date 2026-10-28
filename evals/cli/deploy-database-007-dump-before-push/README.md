@@ -414,7 +414,7 @@ ref. The judge ignores claims about anything else.
 
 ## The experiments and expected results
 
-`pnpm --silent eval -- list --experiment-suite cli --eval
+`pnpm --silent eval -- list --suite cli --eval
 deploy-database-007-dump-before-push` prints four experiments:
 
 | experiment | CLI version | container runtime | expected today |
@@ -424,7 +424,7 @@ deploy-database-007-dump-before-push` prints four experiments:
 | beta | npm `beta` tag | Docker available | red |
 | next | npm `next` tag | Docker available | red |
 
-Experiment names are `codex-gpt-6-luna-cli-<name>`. Every row is red today: CI
+Experiment names are `cli/codex-gpt-6-luna-cli-<name>`. Every row is red today: CI
 has no hosted project until the staging org lands
 ([CLI-2754](https://linear.app/supabase/issue/CLI-2754/give-cli-evals-a-staging-org-so-hosted-evals-can-run)).
 The hosted, history, schema, backup and dump checks fail in every run, each with
