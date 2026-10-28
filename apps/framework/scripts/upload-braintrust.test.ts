@@ -86,15 +86,21 @@ describe('sandboxMetrics', () => {
 
 describe('experimentName', () => {
   it('appends the short sha and stamp', () => {
-    expect(experimentName('grok-4.6', 'aefa8348abc', '20260923T1339Z')).toBe(
-      'grok-4.6@aefa834-20260923T1339Z'
-    );
+    expect(
+      experimentName('grok-4.6', 'benchmark', 'aefa8348abc', '20260923T1339Z')
+    ).toBe('benchmark-grok-4.6@aefa834-20260923T1339Z');
+  });
+
+  it('includes the suite once', () => {
+    expect(
+      experimentName('benchmark/grok-4.6', 'benchmark', undefined, 'stamp')
+    ).toBe('benchmark-grok-4.6-stamp');
   });
 
   it('omits the sha outside a git checkout', () => {
-    expect(experimentName('grok-4.6', undefined, '20260923T1339Z')).toBe(
-      'grok-4.6-20260923T1339Z'
-    );
+    expect(
+      experimentName('grok-4.6', 'benchmark', undefined, '20260923T1339Z')
+    ).toBe('benchmark-grok-4.6-20260923T1339Z');
   });
 });
 

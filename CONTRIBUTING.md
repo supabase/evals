@@ -9,7 +9,7 @@ First, determine the eval suite for your scenario:
 - **Regression** evals are suitable for most scenarios. If we notice agents make a narrow mistake, we track it here to reproduce the issue, verify a fix, and monitor for regression. These scenarios are not included in the benchmark so they don't inflate scores.
 - **Benchmark** evals are scenarios we've intentionally selected for the published benchmark report. These should be representative of the user journey on Supabase to cover a breadth of dimensions.
 - **Docs** evals are owned by docs team for their own analysis of how agents interpret docs pages, refreshed as-needed.
-- **CLI** evals are owned by the CLI team: one scenario run unchanged across forced CLI environments (Docker available / daemon unreachable / absent; pinned, stable, beta and next CLI) via the `cli` experiment suite.
+- **CLI** evals are owned by the CLI team: one scenario run unchanged across forced CLI environments (Docker available / daemon unreachable / absent; pinned, stable, beta and next CLI) via the `experiments/cli/` experiments.
 
 Then add a folder under `evals/<suite>/` containing:
 
@@ -42,9 +42,9 @@ Prefer building checks declaratively and returning the list in one place instead
 
 ## Adding an experiment
 
-Add a `*.experiment.ts` file under `experiments/<owner>/` for the agent, model, and runtime setup you want to compare. Experiment discovery only scans this owner directory depth, so supporting files can live beside experiments or in nested directories. Reuse the base configs exported from `experiments/presets.ts` where they fit.
+Add a `*.experiment.ts` file under `experiments/<suite>/` for the agent, model, and runtime setup you want to compare. Experiment discovery only scans this suite directory depth, so supporting files can live beside experiments or in nested directories. Reuse the base configs exported from `experiments/presets.ts` where they fit.
 
-Select the experiment's `suite:` depending on your use case. If this experiment should be part of our published benchmark, assign `suite: ["benchmark"]` and include a corresponding `*-no-skills` variant to compare results with and without skills. You can also assign custom experiment suites for grouping related experiments for other head-to-head comparisons as desired.
+The suite folder decides which evals the experiment runs: `experiments/<suite>/` runs the evals in `evals/<suite>/`. If this experiment should be part of our published benchmark, put it in `experiments/benchmark/` and include a corresponding `*-no-skills` variant (`skills: []`) to compare results with and without skills. To run one experiment in several suites, export a shared preset from `experiments/presets.ts` and spread it in a file under each suite folder.
 
 ## Submitting evals for review
 
@@ -55,7 +55,7 @@ When you create a PR, use GitHub Actions to refresh the results in CI so we can 
 You have a few options to run evals in CI:
 
 - Add the `run-evals-changed` label to your PR to refresh only the `evals/` changed in that PR and commit merged results directly to your branch.
-- Add the `run-evals` label to run every benchmark eval across the `benchmark` and `no-skills` experiment suites. Use this when a change can affect results broadly, such as framework changes.
+- Add the `run-evals` label to run every benchmark eval across the experiments in `experiments/benchmark/`. Use this when a change can affect results broadly, such as framework changes.
 - Dispatch the [Refresh eval results](https://github.com/supabase/evals/actions/workflows/eval-refresh.yml) workflow manually to target any branch and choose specific evals, experiments, or other options. It can commit results directly to the selected branch or open a separate results PR.
 
 Include refreshed results for PRs with new/changed evals so a reviewer can see results directly from your PR or Vercel preview build.
@@ -74,12 +74,12 @@ Tag #team-ai on Slack only for framework, runtime, experiment, result schema, or
 
 ## Docs evals
 
-The docs team owns `evals/docs/` and its results. Docs evals run without skills on a single experiment (`codex-gpt-6-luna-no-skills`).
+The docs team owns `evals/docs/` and its results. Docs evals run without skills on a single experiment (`codex-gpt-6-luna-no-skills`, under `experiments/docs/`).
 
 Common workflows:
 
 - **Add or change a docs eval.** Add the scenario under `evals/docs/<id>/` (see [Adding an eval](#adding-an-eval)), open a PR, and add the `run-evals-changed` label. Results for the changed evals are committed back to your branch and viewable in the Vercel preview.
-- **Refresh every docs eval.** Dispatch the [Refresh eval results](https://github.com/supabase/evals/actions/workflows/eval-refresh.yml) workflow on `main` with `suite: docs` and `experiment_suite: docs`. It opens a draft PR with the updated `docs-eval-results.json` for you to review and merge.
+- **Refresh every docs eval.** Dispatch the [Refresh eval results](https://github.com/supabase/evals/actions/workflows/eval-refresh.yml) workflow on `main` with `suite: docs`. It opens a draft PR with the updated `docs-eval-results.json` for you to review and merge.
 - **Analyze results over time.** Every merge that changes `docs-eval-results.json` appends a snapshot to [`docs-results.jsonl`](https://supabase.github.io/evals/docs-results.jsonl) on GitHub Pages, alongside the [benchmark](https://supabase.github.io/evals/results.jsonl) and [regression](https://supabase.github.io/evals/regression-results.jsonl) histories.
 
 ## CLI evals
@@ -94,6 +94,6 @@ Which evals each arm picks up:
 Common workflows:
 
 - **Add or change a CLI eval.** Add the scenario under `evals/cli/<id>/` (see [Adding an eval](#adding-an-eval)); set `needsDocker: false` in its `PROMPT.md` frontmatter if it can run without Docker, open a PR, and add the `run-evals-changed` label. Results for the changed evals are committed back to your branch and viewable in the Vercel preview.
-- **Refresh every CLI eval.** Dispatch the [Refresh eval results](https://github.com/supabase/evals/actions/workflows/eval-refresh.yml) workflow on `main` with `suite: cli` and `experiment_suite: cli`. It opens a draft PR with the updated `cli-eval-results.json` for you to review and merge. Leave `cli_stable_version`/`cli_beta_version`/`cli_next_version` blank to resolve npm's latest dist-tags, or pin them to reproduce a specific run.
+- **Refresh every CLI eval.** Dispatch the [Refresh eval results](https://github.com/supabase/evals/actions/workflows/eval-refresh.yml) workflow on `main` with `suite: cli`. It opens a draft PR with the updated `cli-eval-results.json` for you to review and merge. Leave `cli_stable_version`/`cli_beta_version`/`cli_next_version` blank to resolve npm's latest dist-tags, or pin them to reproduce a specific run.
 - **Analyze results over time.** Every merge that changes `cli-eval-results.json` appends a snapshot to [`cli-results.jsonl`](https://supabase.github.io/evals/cli-results.jsonl) on GitHub Pages, alongside the [benchmark](https://supabase.github.io/evals/results.jsonl), [regression](https://supabase.github.io/evals/regression-results.jsonl), and [docs](https://supabase.github.io/evals/docs-results.jsonl) histories.
 - **Run the unit tests.** `pnpm --filter @supabase-evals/framework test:cli-lib` (the CLI skip predicates in `experiments/cli/lib/` plus every CLI eval's scorer tests) — also part of `pnpm test`.

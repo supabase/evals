@@ -13,18 +13,18 @@ afterEach(async () => {
 });
 
 describe('discoverExperimentFiles', () => {
-  it('discovers one owner layer and keeps experiment IDs stable', async () => {
+  it('discovers one suite layer and keeps experiment IDs stable', async () => {
     root = await mkdtemp(join(tmpdir(), 'eval-experiments-'));
-    await mkdir(join(root, 'ai', 'lib'), { recursive: true });
+    await mkdir(join(root, 'regression', 'lib'), { recursive: true });
     await mkdir(join(root, '_private'));
     await writeFile(join(root, 'presets.ts'), 'export {};');
     await writeFile(
-      join(root, 'ai', 'model.experiment.ts'),
+      join(root, 'regression', 'model.experiment.ts'),
       'export default {};'
     );
-    await writeFile(join(root, 'ai', 'support.ts'), 'export {};');
+    await writeFile(join(root, 'regression', 'support.ts'), 'export {};');
     await writeFile(
-      join(root, 'ai', 'lib', 'nested.experiment.ts'),
+      join(root, 'regression', 'lib', 'nested.experiment.ts'),
       'export default {};'
     );
     await writeFile(
@@ -35,17 +35,18 @@ describe('discoverExperimentFiles', () => {
     expect(await discoverExperimentFiles(root)).toEqual([
       {
         name: 'model',
-        path: join(root, 'ai', 'model.experiment.ts'),
+        suite: 'regression',
+        path: join(root, 'regression', 'model.experiment.ts'),
       },
     ]);
   });
 
-  it('rejects duplicate experiment IDs across owners', async () => {
+  it('keeps the same experiment ID in several suite folders', async () => {
     root = await mkdtemp(join(tmpdir(), 'eval-experiments-'));
-    await mkdir(join(root, 'ai'));
+    await mkdir(join(root, 'benchmark'));
     await mkdir(join(root, 'docs'));
     await writeFile(
-      join(root, 'ai', 'model.experiment.ts'),
+      join(root, 'benchmark', 'model.experiment.ts'),
       'export default {};'
     );
     await writeFile(
@@ -53,8 +54,24 @@ describe('discoverExperimentFiles', () => {
       'export default {};'
     );
 
-    await expect(discoverExperimentFiles(root)).rejects.toThrow(
-      'Duplicate experiment ID "model"'
-    );
+    expect(await discoverExperimentFiles(root)).toEqual([
+      {
+        name: 'model',
+        suite: 'benchmark',
+        path: join(root, 'benchmark', 'model.experiment.ts'),
+      },
+      {
+        name: 'model',
+        suite: 'docs',
+        path: join(root, 'docs', 'model.experiment.ts'),
+      },
+    ]);
+  });
+
+  it('rejects a folder that is not an eval suite', async () => {
+    root = await mkdtemp(join(tmpdir(), 'eval-experiments-'));
+    await mkdir(join(root, 'ai'));
+
+    await expect(discoverExperimentFiles(root)).rejects.toThrow();
   });
 });
