@@ -1,8 +1,6 @@
 import {
   evalSuiteSchema,
-  experimentSuiteSchema,
   type EvalSuite,
-  type ExperimentSuite,
 } from '@supabase-evals/core/eval-metadata';
 import { z } from 'zod';
 
@@ -82,16 +80,13 @@ export function readSuiteFilters(rawArgs: string[]): EvalSuite[] {
   });
 }
 
-export function readExperimentSuiteFilters(
-  rawArgs: string[]
-): ExperimentSuite[] {
-  return readRepeatedFlag(rawArgs, 'experiment-suite').map((value) => {
-    const parsed = experimentSuiteSchema.safeParse(value.trim().toLowerCase());
-    if (!parsed.success) {
+export function readExperimentFilters(rawArgs: string[]): string[] {
+  return readRepeatedFlag(rawArgs, 'experiment').map((name) => {
+    if (name.includes('/') || name === '.' || name === '..') {
       throw new Error(
-        `invalid experiment-suite "${value}". Expected one of: ${experimentSuiteSchema.options.join(', ')}`
+        `invalid experiment "${name}". Expected an experiment name`
       );
     }
-    return parsed.data;
+    return name;
   });
 }

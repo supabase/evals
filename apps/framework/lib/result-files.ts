@@ -12,7 +12,6 @@ import {
   type ExperimentConfig,
   type ExperimentDisplayMetadata,
 } from '@supabase-evals/core';
-import type { ExperimentSuite } from '@supabase-evals/core/eval-metadata';
 import { discoverExperimentFiles } from './experiment-files.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -23,7 +22,7 @@ const EXPERIMENTS_DIR = join(ROOT, 'experiments');
 
 export interface ExperimentMetadata {
   display: ExperimentDisplayMetadata;
-  suites: ExperimentSuite[];
+  skills: string[];
 }
 
 export async function loadExperimentMetadata(): Promise<
@@ -33,9 +32,9 @@ export async function loadExperimentMetadata(): Promise<
   for (const experiment of await discoverExperimentFiles(EXPERIMENTS_DIR)) {
     const mod = await import(pathToFileURL(experiment.path).href);
     const config: ExperimentConfig = mod.default;
-    map.set(experiment.name, {
+    map.set(`${experiment.suite}/${experiment.name}`, {
       display: getExperimentDisplayMetadata(config),
-      suites: config.suite ?? [],
+      skills: config.skills ?? [],
     });
   }
   return map;
@@ -86,7 +85,7 @@ export interface CollectOptions {
   resultsDir?: string;
 }
 
-/** Reads the canonical `results/<experiment>/<eval>/run-<n>/result.json` layout. */
+/** Reads results from `results/<suite>/<experiment>/<eval>/run-<n>/result.json`. */
 export async function collectResultFiles({
   includeExperiment,
   includeEval,
@@ -100,15 +99,20 @@ export async function collectResultFiles({
   const paths: string[] = [];
   // Two patterns because `*` alone skips dot-prefixed eval directories.
   for await (const absolutePath of glob([
-    join(resultsDir, '*', '*', 'run-*', 'result.json'),
-    join(resultsDir, '*', '.*', 'run-*', 'result.json'),
+    join(resultsDir, '*', '*', '*', 'run-*', 'result.json'),
+    join(resultsDir, '*', '*', '.*', 'run-*', 'result.json'),
   ])) {
     paths.push(absolutePath);
   }
   for (const absolutePath of paths.sort()) {
     const sourcePath = relative(resultsDir, absolutePath).split(sep).join('/');
-    const [experiment, evalId, runEntry] = sourcePath.split('/');
-    if (experiment.startsWith('.') || experiment.startsWith('_')) {
+    const [suite, name, evalId, runEntry] = sourcePath.split('/');
+    const experiment = `${suite}/${name}`;
+    if (
+      !evalSuiteSchema.safeParse(suite).success ||
+      name.startsWith('.') ||
+      name.startsWith('_')
+    ) {
       continue;
     }
     if (!/^run-\d+$/.test(runEntry)) {

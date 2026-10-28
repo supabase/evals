@@ -37,9 +37,11 @@ function streamJson(subtype: string, isError = false): string {
 }
 
 /** The `claude` invocation from one exec, with a fake sandbox. */
-async function captureRunCommand(): Promise<string> {
+async function captureRunCommand(
+  runner: typeof claudeCodeRunner = claudeCodeRunner
+): Promise<string> {
   let runCommand = '';
-  await claudeCodeRunner.exec({
+  await runner.exec({
     sandbox: {
       workspace: '/w',
       exec: async (cmd) => {
@@ -63,6 +65,16 @@ describe('claudeCodeRunner.exec', () => {
     const command = await captureRunCommand();
     expect(command).toContain('cat "$HOME/.eval/user-prompt.txt" |');
     expect(command).not.toContain('system-prompt');
+  });
+
+  it('turns off every built-in tool when tools is empty', async () => {
+    const command = await captureRunCommand({ ...claudeCodeRunner, tools: [] });
+    expect(command).toContain("--tools ''");
+  });
+
+  it('keeps the full built-in toolset when tools is omitted', async () => {
+    const command = await captureRunCommand();
+    expect(command).not.toContain('--tools');
   });
 });
 

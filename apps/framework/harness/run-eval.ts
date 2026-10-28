@@ -20,10 +20,9 @@ import {
   stripFrontmatter,
 } from '@supabase-evals/sandbox';
 import {
-  normalizeExperimentName,
   positiveInteger,
-  readExperimentSuiteFilters,
   readFlag,
+  readExperimentFilters,
   readRepeatedFlag,
   readSuiteFilters,
 } from '../lib/cli-args.js';
@@ -71,16 +70,9 @@ const args = new Set(rawArgs);
 const FORCE = !args.has('--skip-existing');
 const SMOKE = args.has('--smoke');
 const DRY = args.has('--dry');
-const EXPERIMENT_FILTERS = readRepeatedFlag(rawArgs, 'experiment').map(
-  normalizeExperimentName
-);
+const EXPERIMENT_FILTERS = readExperimentFilters(rawArgs);
 const EVAL_FILTERS = readRepeatedFlag(rawArgs, 'eval');
 const SUITE_FILTERS = readSuiteFilters(rawArgs);
-const EXPERIMENT_SUITE_FILTERS = readExperimentSuiteFilters(rawArgs);
-const SELECTED_EXPERIMENT_SUITE =
-  EXPERIMENT_SUITE_FILTERS.length === 1
-    ? EXPERIMENT_SUITE_FILTERS[0]
-    : undefined;
 const RUNS = positiveInteger(readFlag(rawArgs, 'runs') ?? '1', 'runs');
 // Lets the Vercel controller run one specific index in its own Sandbox.
 const RUN_INDEX_FLAG = readFlag(rawArgs, 'run-index');
@@ -103,11 +95,16 @@ const DEBUG = args.has('--debug');
 
 async function loadExperiments() {
   const dir = join(ROOT, 'experiments');
-  const out: Array<{ name: string; config: ExperimentConfig }> = [];
+  const out: Array<{
+    name: string;
+    suite: EvalSuite;
+    config: ExperimentConfig;
+  }> = [];
   for (const experiment of await discoverExperimentFiles(dir)) {
     const mod = await import(pathToFileURL(experiment.path).href);
     out.push({
       name: experiment.name,
+      suite: experiment.suite,
       config: mod.default as ExperimentConfig,
     });
   }
@@ -636,14 +633,8 @@ async function main() {
   if (rawArgs.filter((a) => a !== '--')[0] === 'list') {
     const experiments = await loadExperiments();
     let filtered =
-      EXPERIMENT_SUITE_FILTERS.length > 0
-        ? experiments.filter(
-            (e) =>
-              e.config.suite !== undefined &&
-              e.config.suite.some((suite) =>
-                EXPERIMENT_SUITE_FILTERS.includes(suite)
-              )
-          )
+      SUITE_FILTERS.length > 0
+        ? experiments.filter((e) => SUITE_FILTERS.includes(e.suite))
         : experiments;
     if (EVAL_FILTERS.length > 0) {
       // Drop experiments that would skipEval every requested eval, so callers
@@ -653,43 +644,15 @@ async function main() {
       const evals = discoverEvals().filter((ev) =>
         EVAL_FILTERS.includes(ev.id)
       );
-      filtered = filtered.filter(({ config }) =>
-        evals.some((ev) => !config.skipEval?.(ev))
+      filtered = filtered.filter(({ config, suite }) =>
+        evals.some((ev) => ev.suite === suite && !config.skipEval?.(ev))
       );
     }
-    console.log(JSON.stringify(filtered.map((e) => e.name)));
+    console.log(JSON.stringify(filtered.map((e) => `${e.suite}/${e.name}`)));
     return;
   }
 
   const allExperiments = await loadExperiments();
-  if (EXPERIMENT_FILTERS.length > 0) {
-    const experimentNames = new Set(allExperiments.map(({ name }) => name));
-    const missing = EXPERIMENT_FILTERS.filter(
-      (name) => !experimentNames.has(name)
-    );
-    if (missing.length > 0) {
-      throw new Error(`no experiment matched: ${missing.join(',')}`);
-    }
-  }
-
-  const experiments = allExperiments.filter(({ name, config }) => {
-    if (EXPERIMENT_FILTERS.length > 0 && !EXPERIMENT_FILTERS.includes(name))
-      return false;
-    if (
-      EXPERIMENT_SUITE_FILTERS.length > 0 &&
-      (config.suite === undefined ||
-        !config.suite.some((suite) => EXPERIMENT_SUITE_FILTERS.includes(suite)))
-    )
-      return false;
-    return true;
-  });
-  if (EXPERIMENT_FILTERS.length > 0) {
-    if (experiments.length === 0) {
-      throw new Error(
-        `no experiments matched experiment=${EXPERIMENT_FILTERS.join(',')}`
-      );
-    }
-  }
   const evals = discoverEvals();
   if (EVAL_FILTERS.length > 0) {
     const evalIds = new Set(evals.map((e) => e.id));
@@ -699,20 +662,11 @@ async function main() {
     }
   }
 
-  const filtered = SMOKE
-    ? Object.values(
-        evals.reduce<Record<string, EvalManifest>>((acc, e) => {
-          acc[e.stage] ??= e;
-          return acc;
-        }, {})
-      )
-    : EVAL_FILTERS.length > 0
-      ? evals.filter((e) => EVAL_FILTERS.includes(e.id))
-      : evals;
-  const suiteFiltered =
-    SUITE_FILTERS.length > 0
-      ? filtered.filter((e) => SUITE_FILTERS.includes(e.suite))
-      : filtered;
+  const suiteFiltered = evals.filter(
+    (ev) =>
+      (EVAL_FILTERS.length === 0 || EVAL_FILTERS.includes(ev.id)) &&
+      (SUITE_FILTERS.length === 0 || SUITE_FILTERS.includes(ev.suite))
+  );
 
   if (suiteFiltered.length === 0) {
     const filter = [
@@ -723,6 +677,25 @@ async function main() {
       .join(' ');
     throw new Error(`no evals matched ${filter}`);
   }
+
+  const suites = new Set(suiteFiltered.map((ev) => ev.suite));
+  const missing = [...suites].flatMap((suite) =>
+    EXPERIMENT_FILTERS.filter(
+      (name) =>
+        !allExperiments.some(
+          (experiment) => experiment.suite === suite && experiment.name === name
+        )
+    ).map((name) => `${suite}/${name}`)
+  );
+  if (missing.length > 0) {
+    throw new Error(`no experiment matched: ${missing.join(', ')}`);
+  }
+  const experiments = allExperiments.filter(
+    (experiment) =>
+      suites.has(experiment.suite) &&
+      (EXPERIMENT_FILTERS.length === 0 ||
+        EXPERIMENT_FILTERS.includes(experiment.name))
+  );
 
   // Suppress noisy supabase-js logs from expected failures; --debug keeps them visible.
   const stderr = console.error;
@@ -741,7 +714,8 @@ async function main() {
     run: number;
   }> = [];
 
-  for (const { name, config } of experiments) {
+  for (const { name: shortName, suite, config } of experiments) {
+    const name = `${suite}/${shortName}`;
     if (!DRY) {
       try {
         config.agent.assertReady();
@@ -751,7 +725,9 @@ async function main() {
       }
     }
 
+    const smokeStages = new Set<string>();
     for (const ev of suiteFiltered) {
+      if (ev.suite !== suite) continue;
       if (ev.mode === 'local-stack' && !config.localStack) {
         console.log(
           `SKIP ${name} x ${ev.id} (no local stack runtime — add \`localStack: localStackRuntime()\` from "@supabase-evals/sandbox" to experiments/<team>/${name}.experiment.ts)`
@@ -762,6 +738,9 @@ async function main() {
         console.log(`SKIP ${name} x ${ev.id} (skipEval)`);
         continue;
       }
+      const smokeKey = `${ev.suite}/${ev.stage}`;
+      if (SMOKE && smokeStages.has(smokeKey)) continue;
+      if (SMOKE) smokeStages.add(smokeKey);
       if (DRY) {
         console.log(formatPlanLine(name, config, ev));
         continue;
@@ -799,7 +778,6 @@ async function main() {
           JSON.stringify(
             {
               experiment: name,
-              experimentSuite: SELECTED_EXPERIMENT_SUITE ?? config.suite?.[0],
               experimentDisplay,
               eval: ev.id,
               ...ev.metadata,

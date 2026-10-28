@@ -46,7 +46,6 @@ import type {
   EvalMetadata,
   EvalSuite,
   ExperimentDisplayMetadata,
-  ExperimentSuite,
   JudgeCall,
   ModelProvider,
   ReasoningEffortLevel,
@@ -82,7 +81,6 @@ export {
   EVAL_PRODUCTS,
   EVAL_SUITES,
   EVAL_STAGES,
-  EXPERIMENT_SUITES,
   agentHarnessIdSchema,
   checkResultSchema,
   evalInterfaceSchema,
@@ -91,7 +89,6 @@ export {
   evalResultSchema,
   evalStageSchema,
   evalSuiteSchema,
-  experimentSuiteSchema,
   experimentDisplayMetadataSchema,
   modelProviderSchema,
   rawEvalResultSchema,
@@ -144,7 +141,6 @@ export type {
   EvalSuite,
   EvalStage,
   ExperimentDisplayMetadata,
-  ExperimentSuite,
   ModelProvider,
   ParsedEvalMarkdown,
   ReasoningEffortLevel,
@@ -642,8 +638,6 @@ export type LocalStackRuntime = {
 };
 
 export type ExperimentConfig = {
-  /** Named experiment suites this experiment belongs to. */
-  suite?: ExperimentSuite[];
   agent: AgentHarness;
   runtime: EvalRuntime;
   /** Local-stack environment (e.g. localStackRuntime() from @supabase-evals/sandbox). */
