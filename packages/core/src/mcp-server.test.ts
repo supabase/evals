@@ -39,8 +39,8 @@ beforeAll(() => {
   // container mount view), so unresolved tmpdir paths (macOS /var symlink)
   // would fail every exact-path assertion below.
   fixtureDir = realpathSync(mkdtempSync(join(tmpdir(), 'mcp-override-')));
-  fixtureEntry = join(fixtureDir, 'dist', 'transports', 'stdio.js');
-  mkdirSync(join(fixtureDir, 'dist', 'transports'), { recursive: true });
+  fixtureEntry = join(fixtureDir, 'dist', 'cli.js');
+  mkdirSync(join(fixtureDir, 'dist'), { recursive: true });
   writeFileSync(fixtureEntry, '');
 });
 afterAll(() => rmSync(fixtureDir, { recursive: true, force: true }));
@@ -137,8 +137,8 @@ describe('supabaseMcpServerMounts', () => {
     try {
       execFileSync('git', ['init', '-q'], { cwd: checkout });
       const pkgDir = join(checkout, 'packages', 'server');
-      mkdirSync(join(pkgDir, 'dist', 'transports'), { recursive: true });
-      writeFileSync(join(pkgDir, 'dist', 'transports', 'stdio.js'), '');
+      mkdirSync(join(pkgDir, 'dist'), { recursive: true });
+      writeFileSync(join(pkgDir, 'dist', 'cli.js'), '');
       vi.stubEnv('SUPABASE_MCP_SERVER_PATH', pkgDir);
       expect(supabaseMcpServerMounts()).toEqual([
         { hostPath: checkout, readonly: true },

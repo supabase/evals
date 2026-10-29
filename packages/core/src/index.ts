@@ -1166,9 +1166,7 @@ function resolveLocalMcpServer(): LocalMcpServer | null {
     gitToplevel(dirname(fileURLToPath(import.meta.url))) ?? process.cwd();
   const isEntryFile = /\.[cm]?js$/.test(localServerPath);
   const base = resolve(anchor, localServerPath);
-  const probe = isEntryFile
-    ? base
-    : join(base, 'dist', 'transports', 'stdio.js');
+  const probe = isEntryFile ? base : join(base, 'dist', 'cli.js');
   if (!existsSync(probe)) {
     throw new Error(
       `SUPABASE_MCP_SERVER_PATH resolved to ${probe}, which does not exist — ` +
@@ -1186,9 +1184,7 @@ function resolveLocalMcpServer(): LocalMcpServer | null {
   const realBase = realpathSync(base);
   const baseDir = isEntryFile ? dirname(realBase) : realBase;
   const value: LocalMcpServer = {
-    entry: isEntryFile
-      ? realBase
-      : join(realBase, 'dist', 'transports', 'stdio.js'),
+    entry: isEntryFile ? realBase : join(realBase, 'dist', 'cli.js'),
     baseDir,
     // The whole git toplevel (not just dist/) because the build is unbundled:
     // it requires its node_modules at runtime.
@@ -1384,7 +1380,7 @@ async function getAvailablePort(): Promise<number> {
 }
 
 export const ACCESS_TOKEN = 'eval-token';
-export const MCP_SERVER_VERSION = '0.12.0';
+export const MCP_SERVER_VERSION = '0.15.0';
 // Well-formed but inert PAT used when a Supabase MCP server is docs-only: the
 // server requires a token to boot but never authenticates without a platform.
 const THROWAWAY_ACCESS_TOKEN = `sbp_${'0'.repeat(40)}`;
