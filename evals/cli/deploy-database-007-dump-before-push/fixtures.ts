@@ -122,6 +122,11 @@ export const readLinkRoute = (respond: Respond): Route => [
   respond,
 ];
 
+export const readPoolerUrlRoute = (respond: Respond): Route => [
+  'cat supabase/.temp/pooler-url',
+  respond,
+];
+
 export const versionRoute = (respond: Respond): Route => [
   /supabase --version$/,
   respond,
@@ -156,7 +161,7 @@ export function activityOf(...calls: Call[]) {
   const invocations = findSupabaseInvocations(extractCommandEntries(toolCalls));
   return {
     invocations,
-    dumps: readDbDumps(invocations, toolCalls),
+    dumps: readDbDumps(invocations, toolCalls, { workspace: WORKSPACE }),
     pushes: readDbPushes(invocations, toolCalls),
   };
 }
@@ -167,6 +172,7 @@ export const dumpOf = (overrides: Partial<DbDump> = {}): DbDump => ({
   roleOnly: false,
   dataOnly: false,
   explicitlyLocal: false,
+  files: [],
   failed: false,
   ...overrides,
 });

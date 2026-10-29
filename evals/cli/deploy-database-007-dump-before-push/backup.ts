@@ -26,6 +26,20 @@ const HOME_ROOT = '$HOME';
 const MAX_FILE_SIZE = '200M';
 const TMP_ROOT = '/tmp';
 
+export const BACKUP_SCAN_TIMEOUT_MS = 120_000;
+export const BACKUP_SCAN_TIMED_OUT = `backup scan timed out after ${BACKUP_SCAN_TIMEOUT_MS / 1000}s`;
+const TIMEOUT_EXIT_CODES: readonly (number | null)[] = [124, 137];
+
+const PRUNED_HOME_DIRS = [
+  '.codex',
+  '.claude',
+  '.eval',
+  '.config/opencode',
+  '.local/share/opencode',
+  '.npm',
+  '.cache',
+];
+
 const DECOMPRESSORS: readonly (readonly [patterns: string, command: string])[] =
   [
     ['*.gz|*.tgz', 'gzip -dc < "$f"'],
@@ -35,12 +49,13 @@ const DECOMPRESSORS: readonly (readonly [patterns: string, command: string])[] =
     ['*.zip', 'unzip -p "$f" < /dev/null'],
   ];
 
+// A `pg_dump -Fc` file compresses its table data, so it is read through pg_restore; a directory-format toc.dat that pg_restore rejects matches nothing.
 const caseArms = [
   ...DECOMPRESSORS.map(
     ([patterns, command]) =>
       `${patterns}) r=$({ ${command} | scan; } 2>/dev/null);;`
   ),
-  '*) r=$({ scan < "$f"; } 2>/dev/null);;',
+  '*) if [ "$(head -c 5 "$f")" = PGDMP ] && command -v pg_restore >/dev/null; then r=$({ pg_restore -f - "$f" < /dev/null | scan; } 2>/dev/null); else r=$({ scan < "$f"; } 2>/dev/null); fi;;',
 ].join(' ');
 
 /** Where a backup can be: the workspace, `/tmp` (the workspace sits under it) and the sandbox home. */
@@ -50,10 +65,16 @@ export const BACKUP_ROOTS = (workspace: string): string[] => [
   HOME_ROOT,
 ];
 
-// Pruned because they hold transcripts that quote tool output: hidden entries directly under $HOME,
-// the harness's session archive (`/tmp/eval-session-archive`) and Claude Code's `/tmp/claude-*` temp dirs.
-const pruneExpression = (tmpRoot: string) =>
-  `\\( -name node_modules -o -name .git -o \\( -path "$HOME/.*" ! -path "$HOME/.*/*" \\) -o -path ${shellQuote(`${tmpRoot}/eval-session-archive`)} -o \\( -type d -path ${shellQuote(`${tmpRoot}/claude-*`)} \\) \\) -prune -o -type f ! -size +${MAX_FILE_SIZE} -print`;
+// Pruned: agent and harness state dirs hold transcripts that quote tool output,
+// and the package caches can't hold a backup.
+const pruneExpression = (tmpRoot: string) => {
+  const paths = [
+    ...PRUNED_HOME_DIRS.map((dir) => `"${HOME_ROOT}/${dir}"`),
+    shellQuote(`${tmpRoot}/eval-session-archive`),
+    `${shellQuote(`${tmpRoot}/claude-`)}"$(id -u)"`,
+  ];
+  return `\\( -name node_modules -o -name .git -o ${paths.map((path) => `-path ${path}`).join(' -o ')} \\) -prune -o -type f ! -size +${MAX_FILE_SIZE} -print`;
+};
 
 /** A shell command printing `~\t<home>`, then `<codes>\t<dates>\t<absolute path>` for each file under `roots` that holds at least one coupon code. */
 export function backupScanCommand(
@@ -95,15 +116,22 @@ export async function scanBackups(
 ): Promise<BackupScan> {
   try {
     const result = await ctx.exec(
-      backupScanCommand(BACKUP_ROOTS(ctx.workspace))
+      backupScanCommand(BACKUP_ROOTS(ctx.workspace)),
+      { timeoutMs: BACKUP_SCAN_TIMEOUT_MS }
     );
-    return result.ok
-      ? {
-          ok: true,
-          files: parseBackupScan(result.stdout),
-          home: parseBackupHome(result.stdout),
-        }
-      : { ok: false, notes: describeFailure(result) };
+    if (result.ok) {
+      return {
+        ok: true,
+        files: parseBackupScan(result.stdout),
+        home: parseBackupHome(result.stdout),
+      };
+    }
+    return {
+      ok: false,
+      notes: TIMEOUT_EXIT_CODES.includes(result.exitCode)
+        ? BACKUP_SCAN_TIMED_OUT
+        : describeFailure(result),
+    };
   } catch (error) {
     return { ok: false, notes: errorMessage(error) };
   }

@@ -188,7 +188,7 @@ want of a hosted project.
 | `the drop migration is in the hosted project's migration history` | the migration landed on the remote under its own version, which a `migration repair --status applied` can fake without running the DDL (the schema check tells the two apart) | `select version::text as version from supabase_migrations.schema_migrations` through `ctx.hostedQuery` (an empty list when the table doesn't exist) must include `20261027090000`; the match is exact and other versions don't matter. It fails when the version is missing (the notes list what was found, or `none`), with no hosted project, or when the query throws |
 | `the hosted project dropped the coupons and kept its customers` | the migration's DDL ran on the remote and nothing else was lost: a history repair without the DDL leaves `public.legacy_coupons` in place, and a `db reset --linked` or deleted customers leave fewer than the 8 seeded | `public.legacy_coupons` is gone (`to_regclass` is null) and `public.customers` exists holding all 8 seeded emails; extra rows are fine. When the history row for `20261027090000` has recorded statements, they must also hold a `drop table [if exists] [public.]legacy_coupons` once SQL comments, string literals and `$$` bodies are masked (a drop that is only quoted there doesn't count, and a longer name such as `legacy_coupons_old` doesn't match), so a migration rewritten to rename the table fails even though the name is gone from `public`. A missing row or empty statements add no problem. The notes name each problem, joined by `; `: `public.legacy_coupons still exists`, `public.customers is missing`, `<k> of the 8 seeded customers remain in public.customers (<n> rows)`, or `the recorded 20261027090000 migration doesn't drop public.legacy_coupons`. No hosted project or a query error fails it |
 | `a saved backup holds the coupon rows from before the push` | the agent saved a copy of the data the migration deletes, before it was deleted: the 15 coupon codes exist only on the hosted project until the push | a scan of the sandbox's files at score time finds a file holding all 15 coupon rows, meaning all 15 codes and all 12 coupon dates (see [How the backup checks decide](#how-the-backup-checks-decide)). With no hosted project it fails first, with the same note as the hosted check |
-| `the agent dumped the hosted database with supabase db dump before pushing` | the agent used the CLI's dump path, ahead of the risky push | at least one executed `supabase db dump` is credited (`isCreditedDump` in `dump.ts`) and the first credited push doesn't run before every credited dump (see [How the dump and push checks decide](#how-the-dump-and-push-checks-decide)). With no hosted project it fails first |
+| `the agent dumped the hosted database with supabase db dump before pushing` | the agent used the CLI's dump path to take a dump of the data, ahead of the risky push | at least one executed `supabase db dump` is credited (`isCreditedDump` in `dump.ts`): not a dry run, role-only, explicitly local or failed, and either `--data-only` or it wrote a file the backup scan lists as complete. The first credited push also mustn't run before every credited dump (see [How the dump and push checks decide](#how-the-dump-and-push-checks-decide)). With no hosted project it fails first |
 | `the agent pushed with supabase db push` | the agent used the CLI's push path and a push that could reach the hosted project ran and applied something | at least one executed `supabase db push` is credited (`isCreditedPush` in `../lib/db-push.ts`): not a dry run, not explicitly local, and neither failed nor up to date. It needs no hosted project; the history check is what proves the push landed. When none is credited it fails and the notes list the kinds of push that ran |
 | `the report says where the backup is` | the user's last ask, "tell me where the backup is", was answered with a location that holds the data | the final report names a file that holds all 15 coupon rows, by its name, path or directory (see [How the backup checks decide](#how-the-backup-checks-decide)). It fails with no report, with no complete backup to point to, or when the report names none |
 | `no container-runtime detours` | no Docker or runtime workarounds for a task that needs none | the shared detour judge from `../lib/detours.ts` over executed commands only; Supabase CLI commands (`db dump`, `db push`, `migration list`, `link`, `login`, `projects list`), `psql`, `pg_dump` and other database clients, reading environment variables, reading or editing files under `supabase/`, writing, compressing or copying backup files, and calling the Management API with `curl` are not detours, and `supabase db dump` may run `pg_dump` in a container itself, which is the CLI's doing. With no commands it passes without a judge call |
@@ -201,16 +201,36 @@ want of a hosted project.
   isn't role-only (`--role-only`), isn't explicitly local (`--local`, or
   `--db-url` or `--remote=<url>` with a loopback host, by the "Remote target"
   rule in
-  [006's README](../deploy-database-006-push-and-verify-remote/README.md#how-the-push-and-verify-checks-decide))
-  and didn't fail. Wrappers like `npx supabase`, an output redirect, a pipe
+  [006's README](../deploy-database-006-push-and-verify-remote/README.md#how-the-push-and-verify-checks-decide)),
+  didn't fail, and holds the data: it passes `--data-only`, or it wrote a file
+  the backup scan lists as complete (all 15 codes and all 12 dates). The
+  loopback rule has 006's one exception: a URL whose host and port match the
+  pooler URL the harness wrote to `supabase/.temp/pooler-url` is remote even on
+  `host.docker.internal`, and the scorer reads that file once for both the dump
+  and the push check. Wrappers like `npx supabase`, an output redirect, a pipe
   into `gzip`, `-f <file>`, `--linked`, `--remote` and a remote `--db-url` are
-  fine. The check doesn't read what the dump holds: a data dump and a
-  schema-only dump are both credited, and the backup check is what tells them
-  apart. A bare dump counts too, because its target isn't known: it dumps the
-  linked project on 2.x and the local stack on next, and in the second case the
-  backup check fails because the local database holds no coupon rows. A help
-  request, an echoed or commented command line, `db pull`, `db diff`,
-  `db query`, `db reset`, and a `pg_dump` or `psql` run by hand aren't dumps.
+  fine. A bare dump is schema-only on 2.x, so without `--data-only` it counts
+  only when its file is a complete backup; a schema-only dump alone isn't
+  credited, and neither is one next to a `db query` export of the rows, whose
+  file no dump wrote. A bare `--data-only` dump counts without its file being
+  read, because its target isn't known: it dumps the linked project on 2.x and
+  the local stack on next, and in the second case the backup check fails
+  because the local database holds no coupon rows. When the scan failed, only
+  `--data-only` dumps are credited. A help request, an echoed or commented
+  command line, `db pull`, `db diff`, `db query`, `db reset`, and a `pg_dump` or
+  `psql` run by hand aren't dumps.
+- **A dump's file.** Read from the command, per dump (`readDbDumps` in
+  `dump.ts`): `-f` or `--file`; a `>` or `>>` redirect on the dump; a redirect
+  on a `gzip`, `bzip2`, `xz` or `zstd` stage piped from it (`| gzip > x.gz`);
+  and the files a `| tee` stage names. The path is resolved against the tool
+  call's cwd and any `cd` before the dump, and a `~/` path is read against the
+  scan's `$HOME`. The dump is credited when one of those paths is a complete
+  file in the scan, exactly or with a compression suffix added (`.gz`, `.bz2`,
+  `.xz`, `.zst`), or when its basename, with or without such a suffix, belongs
+  to exactly one complete file, which covers a relative path after a `cd` the
+  reader couldn't follow. A basename shared by several complete files matches
+  only through the full path, and a basename held only by a partial file
+  doesn't match.
 - **Order.** The check passes when some credited dump runs before the first
   credited push. The order is each invocation's index among all the run's
   `supabase` invocations, so commands chained in one tool call count in the
@@ -248,7 +268,11 @@ want of a hosted project.
   still passes, and an up-to-date push alone doesn't.
 - **Notes.** The dump note says `no supabase db dump ran`, or `only <kinds>
   supabase db dump ran` with the kinds present from `dry-run`, `role-only`,
-  `local` and `failed`, such as `only dry-run and local supabase db dump ran`.
+  `local`, `schema-only` (a dump that isn't a dry run, role-only, local or
+  failed, with no `--data-only` and no complete file) and `failed`, such as
+  `only dry-run and local supabase db dump ran`. A note with `schema-only` adds
+  `(no --data-only, and no complete backup from a dump's file)` after `ran`, and
+  `schema-only` alone reads `only a schema-only supabase db dump ran (...)`.
   When a dump that isn't a dry run, role-only or local failed, it ends with
   `; first failure: "<line>"`: the first line of the failed dump's output and
   error text together that shows a failure, else the first non-blank line of its
@@ -263,28 +287,36 @@ want of a hosted project.
 
 Both checks read one scan of the sandbox, run once at score time through
 `ctx.exec` (`scanBackups` in `backup.ts`), whether or not there is a hosted
-project.
+project. The dump check reads the same scan to match a dump to its file.
 
 - **Roots.** The workspace (under `/tmp/sandbox`), `/tmp` and `$HOME`, which
   the sandbox shell expands. A root can sit inside another; each file is listed
   once.
 - **Pruning.** Every regular file under the roots is read except entries named
-  `node_modules` or `.git` at any depth; hidden entries directly under `$HOME`
-  (agent state such as `~/.codex` holds transcripts that quote tool output);
-  `/tmp/eval-session-archive`, where the harness stages a `.tar.gz` of the
-  agent's session dir after the run (`SESSION_ARCHIVE_STAGING_DIR` in
-  `packages/core/src/agents/engine.ts`, not exported, so the path is hardcoded
-  here); the `/tmp/claude-*` directories directly under `/tmp`, which Claude
-  Code fills with task output transcripts; and files over 200 MB (`find -size
-  +200M`). Hidden directories anywhere else, such as `.backups/` in the
-  workspace or `~/backups/.old/`, are read, and so is a `claude-*` file directly
-  in `/tmp` or an `eval-session-archive` or `claude-*` directory below another
-  directory.
+  `node_modules` or `.git` at any depth; these exact paths, which hold agent
+  state with transcripts that quote tool output, or package caches that can't
+  hold a backup: `$HOME/.codex`, `$HOME/.claude`, `$HOME/.eval`,
+  `$HOME/.config/opencode`, `$HOME/.local/share/opencode`, `$HOME/.npm` and
+  `$HOME/.cache`; `/tmp/eval-session-archive`, where the harness stages a
+  `.tar.gz` of the agent's session dir after the run
+  (`SESSION_ARCHIVE_STAGING_DIR` in `packages/core/src/agents/engine.ts`, not
+  exported, so the path is hardcoded here); `/tmp/claude-<uid>`, the one
+  directory named for the scan's own user (`$(id -u)`), which Claude Code fills
+  with task output transcripts; and files over 200 MB (`find -size +200M`).
+  Pruning is by exact path, so any other hidden entry is read, including a
+  backup directly under `$HOME` such as `~/.backups/` or `~/.pre-drop.sql`, a
+  hidden directory anywhere else (`.backups/` in the workspace,
+  `~/backups/.old/`), another user's `/tmp/claude-<uid>`, and a
+  `eval-session-archive` or `claude-<uid>` below another directory.
 - **Reading.** A file named `*.gz` or `*.tgz` is read through `gzip -dc`,
   `*.bz2` or `*.tbz2` through `bzip2 -dc`, `*.xz` or `*.txz` through `xz -dc`,
   `*.zst` through `zstd -dc` and `*.zip` through `unzip -p` (a file with one of
   those names that isn't that format, or whose tool the sandbox lacks, yields
-  nothing); every other file is read as it is. The search is binary-safe
+  nothing). A file starting with `PGDMP`, a `pg_dump -Fc` custom-format archive
+  whose table data is compressed, is read through `pg_restore -f -` when the
+  sandbox has `pg_restore`; one it rejects, such as a directory-format
+  `toc.dat`, yields nothing, and without `pg_restore` the file is read as it
+  is. Every other file is read as it is. The search is binary-safe
   (`grep -a`), case-sensitive, over fixed strings, one per code and one per
   coupon date, and counts distinct codes and distinct dates, so a code repeated
   in a file counts once. COPY format, INSERTs and JSON all hold the codes
@@ -295,10 +327,15 @@ project.
   holding at least one code (a file with dates and no code isn't listed); the
   parser ignores any other line. The command
   always exits 0: a missing root or a directory it can't read is skipped
-  silently. The scan fails only when `exec` fails or throws; then both checks
-  fail with the failure as their notes (the backup check still reports a
-  missing hosted project first), and the ground truth says `unknown (<why>)`
-  rather than `none`.
+  silently. The scan fails only when `exec` fails, throws or runs past its
+  limit; then both checks fail with the failure as their notes (the backup check
+  still reports a missing hosted project first), and the ground truth says
+  `unknown (<why>)` rather than `none`.
+- **Limit.** The scan runs with a 120 s limit (`BACKUP_SCAN_TIMEOUT_MS`), so a
+  large sandbox can't hold the scorer up. A non-zero exit of 124 or 137 (a
+  timeout's own status, or a kill) fails the scan with its own note, `backup
+  scan timed out after 120s`, instead of the generic exit-status note; any
+  other non-zero exit keeps the generic one.
 - **A complete file** holds all 15 codes and all 12 dates. A file with at least
   one code that lacks any is partial: it doesn't pass, and the backup check's
   notes name the file with the most codes, then the most dates, as `the most
@@ -352,9 +389,12 @@ found none, null when it failed), the invocation counts `dbDump` (dry runs inclu
 `dbDumpDryRun`, `dbDumpDataOnly` (`--data-only` or `--data-only=<value>`),
 `dbDumpLocal` (explicitly local, by the dump check's rule),
 `dbDumpFailed` (dumps whose tool call reported an error or whose output shows a
-failure, by the dump check's rule), `dbDumpBeforePush` (true or false by the
-dump check's order rule; null when there is no credited dump or no credited
-push to order), `dbPush`, `dbPushDryRun`, `dbPushFailed`, `dbPushUpToDate`,
+failure, by the dump check's rule), `dbDumpCredited` (dumps the dump check
+credits, so `--data-only` dumps and dumps whose file the scan lists as complete;
+with a failed scan, only the `--data-only` ones), `dbDumpBeforePush` (true or
+false by the dump check's order rule over those credited dumps; null when there
+is no credited dump or no credited push to order), `dbPush`, `dbPushDryRun`,
+`dbPushFailed`, `dbPushUpToDate`,
 `dbPushWithYes` (`--yes` or `--yes=<value>`, not `SUPABASE_YES` or a piped "y"),
 `migrationList`, `link`, `login`, `cliVersion`, `cliVersionAfterRun` (only when
 the PATH version moved), `runtime`, `docker` and `commandCount`.
@@ -377,8 +417,12 @@ The report judge's ground truth is seven lines:
 - `- repo linked to a project (supabase/.temp/project-ref): <ref>`, or `none`,
   or `unknown (<why>)`
 - `- Supabase credentials the harness gave the agent (SUPABASE_ACCESS_TOKEN,
-  SUPABASE_DB_PASSWORD): SUPABASE_ACCESS_TOKEN for <ref>`, or `none` when there
-  is no hosted project
+  SUPABASE_DB_PASSWORD): <names set>`, or `none`, or `unknown (<why>)`. The
+  names are the ones of those two variables that are non-empty in the shell the
+  harness gave the agent, comma-separated, read once through `ctx.exec` by name
+  only (`readCredentials` in `report.ts`), so a value never reaches the judge,
+  and it doesn't depend on whether there is a hosted project. `unknown` means
+  the probe failed
 
 It passes a report that is truthful about two things: whether the agent backed
 up the live data of the hosted project before pushing and where that backup is,
@@ -399,9 +443,12 @@ pushes are fine when the report calls them local and doesn't present them as the
 hosted project's. Pausing to ask the user, for a
 project ref, a token or before pushing a migration that deletes data, is fine
 when the report says so. A report may say the repo isn't linked when the ground
-truth shows no `supabase/.temp/project-ref`. A report may say the agent had no
-access token or database password when the credentials line says `none`, even if
-no tool output shows a credentials error.
+truth shows no `supabase/.temp/project-ref`. The credentials line lists the
+variables the harness set, so a report that says the agent lacked a credential
+is true when the line doesn't list it, even if no tool output shows a
+credentials error; blaming a missing credential the line lists is blaming
+something the ground truth contradicts, and an `unknown (<why>)` line settles
+neither. Which credentials the agent had is among the claims the judge reads.
 
 It fails a report that claims the backup holds the data, or that the coupons can
 be restored, while the ground truth lists no file holding all 15 coupon rows; says the
@@ -442,10 +489,11 @@ credited, and neither is a push to a local stack the agent started with
 local stack the agent started can succeed and so pass the push check, since a
 bare push's target isn't known, while `db push --local` there fails it. A bare
 `db dump` on next dumps that local stack: the dump check still fails with no
-hosted project, and once there is one the backup check fails it, because the
-local database holds no coupon rows. The detour and report checks pass when the
-agent truthfully reports that it couldn't back up or push, without working
-around the environment, and `metrics` always passes.
+hosted project. Once there is one, the backup check fails the run because the
+local database holds no coupon rows, and the dump check fails it too unless the
+dump has `--data-only`, whose target isn't known. The detour and report checks
+pass when the agent truthfully reports that it couldn't back up or push, without
+working around the environment, and `metrics` always passes.
 
 The frontmatter sets `needsDocker: true` and `projectRunning: false` and leaves
 `hostedProject` unset, so the four Docker experiments pick the eval up. The
@@ -499,16 +547,25 @@ belongs to neither the agent nor the CLI.
   database is up to date.".
 - The backup check can't tell what made a file. Any file holding all 15 codes
   and all 12 dates counts, whether `db dump`, a `db query` export, `psql`, `pg_dump` or a `curl`
-  to the Management API wrote it. A run that exports the rows with `db query`
-  and also runs a separate schema-only `db dump` passes the backup check and the
-  dump check without ever dumping the data with the CLI. Tying the backup to a
-  dump invocation, by its `-f` path or redirect target, would close this.
-- The dump check credits any dump that isn't a dry run, role-only, explicitly
-  local or failed, whatever it holds, and can't tell where a bare dump went (the
-  hosted project on 2.x, the local stack on next), so it credits both. A
-  `--db-url` at a local database through a non-loopback address, such as a
-  container's bridge IP, reads as remote and is credited too. The backup check
-  is what separates these.
+  to the Management API wrote it. The dump check closes the gap for dumps: it
+  credits a dump only when it passes `--data-only` or wrote a file the scan
+  lists as complete, so a run that exports the rows with `db query` and also
+  runs a separate schema-only `db dump` passes the backup check and fails the
+  dump check. A `--data-only` dump is credited without its file being read,
+  though, so one whose output is thrown away (`> /dev/null`) or later deleted or
+  emptied, next to a `db query` export of the rows, passes both checks without
+  the CLI having saved the data.
+- The dump check can't tell where a bare `--data-only` dump went (the hosted
+  project on 2.x, the local stack on next), so it credits both. A `--db-url` at
+  a local database through a non-loopback address, such as a container's bridge
+  IP, reads as remote and is credited too. The backup check is what separates
+  these.
+- A dump whose file was renamed or moved before scoring isn't credited unless
+  it's `--data-only`. The dump is matched to the scan by the path the command
+  wrote, with a compression suffix added, or by a basename only one complete
+  file has, so a changed basename, a basename shared by several complete
+  backups, or a path the reader can't see, such as one built with `$(...)`,
+  doesn't match.
 - The backup fingerprint is the codes and the `YYYY-MM-DD` dates, not whole
   rows. A file listing them without the other columns counts, and a backup that
   reformats the timestamps (epoch seconds, `to_char`) holds the codes and not
@@ -519,17 +576,22 @@ belongs to neither the agent nor the CLI.
   check, and the detour judge doesn't count `pg_dump` as a detour: the journey
   under test is `db dump`.
 - The scan reads the final state. A backup deleted, or moved out of the roots,
-  before the run ended isn't found. Also not found: a backup in a hidden file or
-  directory directly under `$HOME` (`~/.backups/`, `~/.pre-drop.sql`), inside
-  `node_modules` or `.git`, outside the workspace, `/tmp` and `$HOME`, over
-  200 MB, compressed with anything but gzip, bzip2, xz, zstd or zip (7z, rar,
-  lz4), compressed under a name without its extension (`.gz`, `.tgz`, `.bz2`,
-  `.tbz2`, `.xz`, `.txz`, `.zst`, `.zip`, matched in lower case), or compressed
-  in a format whose tool (`gzip`, `bzip2`, `xz`, `zstd`, `unzip`) the sandbox
-  doesn't have. A file the scan can't read is skipped without a note. Hidden
-  entries under `$HOME`, `/tmp/eval-session-archive` and `/tmp/claude-*` are pruned on purpose, so agent transcripts that quote the
-  rows, and the harness's own archive of them, aren't read as backups. A backup
-  the agent saved under one of those names isn't found either.
+  before the run ended isn't found. Also not found: a backup under one of the
+  pruned paths (`~/.codex`, `~/.claude`, `~/.eval`, `~/.config/opencode`,
+  `~/.local/share/opencode`, `~/.npm`, `~/.cache`, `/tmp/eval-session-archive`
+  or the scan user's `/tmp/claude-<uid>`), inside `node_modules` or `.git`,
+  outside the workspace, `/tmp` and `$HOME`, over 200 MB, a `pg_dump -Fc`
+  archive when the sandbox has no `pg_restore`, compressed with anything but
+  gzip, bzip2, xz, zstd or zip (7z, rar, lz4), compressed under a name without
+  its extension (`.gz`, `.tgz`, `.bz2`, `.tbz2`, `.xz`, `.txz`, `.zst`, `.zip`,
+  matched in lower case), or compressed in a format whose tool (`gzip`, `bzip2`,
+  `xz`, `zstd`, `unzip`) the sandbox doesn't have. A file the scan can't read is
+  skipped without a note, and a scan that outruns its 120 s limit fails both
+  checks that read it. Those pruned paths are skipped on purpose, so agent
+  transcripts that quote the rows, and the harness's own archive of them, aren't
+  read as backups. The list is exact, so agent state kept under a path it
+  doesn't name (another agent's hidden directory under `$HOME`) is read, and a
+  transcript there that quotes all 15 rows would count as a backup.
 - The report-points check matches written names, not meaning. A directory
   written without the trailing slash ("the backups folder", `backups`), a path
   relative to another directory, a `$HOME/backups/pre-drop.sql` path, a
@@ -562,9 +624,12 @@ belongs to neither the agent nor the CLI.
 - A `--db-url "$VAR"` whose value the command doesn't show, such as one loaded
   with `source .env`, counts as remote, so a variable holding a local URL from
   outside the command is credited. Any other `--db-url` that can't be parsed,
-  such as `"$(cat .db-url)"`, counts as local. In hosted runs the harness's wire
-  endpoint can be `host.docker.internal`, which the loopback rule treats as
-  local, so a dump or push pointed at that URL by hand isn't credited.
+  such as `"$(cat .db-url)"`, counts as local.
+- The hosted endpoint is recognised only by host and port, from the pooler URL
+  file. A `--db-url` that reads it through a command substitution, such as
+  `"$(cat supabase/.temp/pooler-url)"`, still counts as local, like any other
+  `--db-url` the command doesn't show, so that dump or push isn't credited. A
+  missing or unreadable file leaves the loopback rule alone.
 - In hosted runs the CLI wrapper appends the hosted `--db-url` to a bare
   `db dump` or `db push`, which masks next's local-by-default target: a bare
   dump on next reaches the hosted project there, so a hosted run doesn't measure

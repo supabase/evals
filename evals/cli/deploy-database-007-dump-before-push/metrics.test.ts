@@ -65,6 +65,7 @@ const NO_ACTIVITY = {
   dbDumpDataOnly: 0,
   dbDumpLocal: 0,
   dbDumpFailed: 0,
+  dbDumpCredited: 0,
   dbDumpBeforePush: null,
   dbPush: 0,
   dbPushDryRun: 0,
@@ -89,6 +90,7 @@ const GOOD_METRICS = {
   dbDumpDataOnly: 1,
   dbDumpLocal: 0,
   dbDumpFailed: 0,
+  dbDumpCredited: 1,
   dbDumpBeforePush: true,
   dbPush: 1,
   dbPushDryRun: 0,
@@ -395,6 +397,61 @@ describe('checkMetrics', () => {
       ).toMatchObject({ dbDump: 1, dbDumpDataOnly: 0 });
     });
 
+    it('counts a --data-only dump as credited', async () => {
+      expect(await metricsFor('supabase db dump --data-only')).toMatchObject({
+        dbDump: 1,
+        dbDumpCredited: 1,
+      });
+    });
+
+    it('counts a schema-only dump as a dump but not as credited, even when a complete backup exists', async () => {
+      expect(
+        await metricsFor('supabase db dump -f schema.sql', PUSH)
+      ).toMatchObject({
+        dbDump: 1,
+        dbDumpDataOnly: 0,
+        dbDumpCredited: 0,
+        dbDumpBeforePush: null,
+      });
+    });
+
+    it.each([
+      ['-f', 'supabase db dump -f backups/pre-drop.sql'],
+      ['a redirect', 'supabase db dump > backups/pre-drop.sql'],
+      ['a gzip pipe', 'supabase db dump | gzip > backups/pre-drop.sql.gz'],
+    ])(
+      'counts a dump written to a complete backup with %s as credited',
+      async (_, command) => {
+        const facts = factsFor([command, PUSH]);
+        const scan = scanOf(
+          file(
+            command.includes('.gz')
+              ? 'backups/pre-drop.sql.gz'
+              : 'backups/pre-drop.sql'
+          )
+        );
+
+        expect(await metricsOf({ ...facts, scan })).toMatchObject({
+          dbDump: 1,
+          dbDumpDataOnly: 0,
+          dbDumpCredited: 1,
+          dbDumpBeforePush: true,
+        });
+      }
+    );
+
+    it('counts only the dumps that took data as credited', async () => {
+      expect(
+        await metricsFor(
+          DUMP,
+          'supabase db dump -f schema.sql',
+          'supabase db dump --data-only --dry-run',
+          failedShellCall(DUMP),
+          'supabase db dump --data-only --role-only'
+        )
+      ).toMatchObject({ dbDump: 5, dbDumpCredited: 1 });
+    });
+
     it('counts a dump whose tool call errored, or whose piped output shows the CLI failing, as failed', async () => {
       expect(
         await metricsFor(
@@ -518,6 +575,16 @@ describe('checkMetrics', () => {
       ],
       ['a push, a dump, then another push', [PUSH, DUMP, PUSH], false],
       [
+        'a dump written to a complete backup, then a push',
+        ['supabase db dump -f backups/pre-drop.sql', PUSH],
+        true,
+      ],
+      [
+        'a push, then a dump written to a complete backup',
+        [PUSH, 'supabase db dump -f backups/pre-drop.sql'],
+        false,
+      ],
+      [
         'a dump that failed, a push, then a dump that worked',
         [failedShellCall(DUMP), PUSH, DUMP],
         false,
@@ -570,6 +637,10 @@ describe('checkMetrics', () => {
         ['supabase db dump --local -f x.sql', PUSH],
       ],
       ['only a failed dump and a push', [failedShellCall(DUMP), PUSH]],
+      [
+        'only a schema-only dump and a push',
+        ['supabase db dump -f schema.sql', PUSH],
+      ],
       ['a dump and only a dry-run push', [DUMP, 'supabase db push --dry-run']],
       ['a dump and only a local push', [DUMP, 'supabase db push --local']],
       ['a dump and only a failed push', [DUMP, failedShellCall(PUSH)]],
@@ -711,6 +782,7 @@ describe('checkMetrics', () => {
           dbDumpDataOnly: null,
           dbDumpLocal: null,
           dbDumpFailed: null,
+          dbDumpCredited: null,
           dbDumpBeforePush: null,
         },
       ],
@@ -766,6 +838,19 @@ describe('checkMetrics', () => {
       );
       expect(JSON.parse(check.notes ?? '{}').bestBackupCodes).toBeNull();
       expect(JSON.parse(check.notes ?? '{}').bestBackupDates).toBeNull();
+    });
+
+    it('nulls the credited dump count and the order when reading the scan throws for a dump that needs it', async () => {
+      const check = await checkMetrics(MARKER, {
+        ...factsFor(['supabase db dump -f backups/pre-drop.sql', PUSH]),
+        scan: exploding<Facts['scan']>(),
+      });
+
+      expect(JSON.parse(check.notes ?? '{}')).toMatchObject({
+        dbDump: 1,
+        dbDumpCredited: null,
+        dbDumpBeforePush: null,
+      });
     });
 
     it('keeps every other field when reading the CLI facts throws', async () => {

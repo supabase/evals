@@ -10,7 +10,7 @@ import {
 import type { DbPush } from '../lib/db-push.js';
 import { type readCliVersions, safely } from '../lib/metrics.js';
 import { type BackupScan, bestBackup, completeBackups } from './backup.js';
-import { type DbDump, dumpedBeforePush } from './dump.js';
+import { type DbDump, dumpedBeforePush, isCreditedDump } from './dump.js';
 import type { Probe, RemoteState } from './remote.js';
 import { DROP_MIGRATION_VERSION } from './seed.js';
 
@@ -80,7 +80,10 @@ export async function checkMetrics(
     dbDumpFailed: await safely(
       () => dumps.filter((dump) => dump.failed).length
     ),
-    dbDumpBeforePush: await safely(() => dumpedBeforePush(dumps, pushes)),
+    dbDumpCredited: await safely(
+      () => dumps.filter((dump) => isCreditedDump(dump, scan)).length
+    ),
+    dbDumpBeforePush: await safely(() => dumpedBeforePush(dumps, pushes, scan)),
     dbPush: await safely(() => pushes.length),
     dbPushDryRun: await safely(
       () => pushes.filter((push) => push.dryRun).length

@@ -7,8 +7,10 @@ import {
   mkdirSync,
   mkdtempSync,
   openSync,
+  readFileSync,
   realpathSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
   writeSync,
 } from 'node:fs';
@@ -16,9 +18,13 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { CommandResult } from '@supabase-evals/core';
+import { describeFailure, shellQuote } from '../lib/shell.js';
 import {
   BACKUP_CHECK_NAME,
   BACKUP_ROOTS,
+  BACKUP_SCAN_TIMED_OUT,
+  BACKUP_SCAN_TIMEOUT_MS,
   type BackupFile,
   type BackupScan,
   backupScanCommand,
@@ -37,6 +43,7 @@ import {
   COUPONS,
   commandResult,
   crash,
+  type ExecCtx,
   failure,
   fakeExec,
   file,
@@ -119,6 +126,11 @@ describe('constants', () => {
 
   it('scans the workspace, /tmp and the sandbox home', () => {
     expect(BACKUP_ROOTS(WORKSPACE)).toEqual([WORKSPACE, '/tmp', '$HOME']);
+  });
+
+  it('gives the scan two minutes and says so when it runs out', () => {
+    expect(BACKUP_SCAN_TIMEOUT_MS).toBe(120_000);
+    expect(BACKUP_SCAN_TIMED_OUT).toBe('backup scan timed out after 120s');
   });
 });
 
@@ -351,6 +363,20 @@ describe('backupScanCommand run in bash', () => {
         9,
         8,
       ],
+      [
+        'a complete file under $HOME/.backups',
+        'home',
+        '.backups/pre.sql',
+        15,
+        12,
+      ],
+      [
+        'a complete file in a $HOME/.config directory that is not opencode',
+        'home',
+        '.config/backups/pre.sql',
+        15,
+        12,
+      ],
     ];
 
     const NOT_LISTED: [label: string, where: Where, relativePath: string][] = [
@@ -380,7 +406,24 @@ describe('backupScanCommand run in bash', () => {
         'home',
         '.codex/sessions/transcript.jsonl',
       ],
-      ['a complete hidden file directly under $HOME', 'home', '.bash_history'],
+      [
+        'a complete file under $HOME/.claude',
+        'home',
+        '.claude/projects/x/session.jsonl',
+      ],
+      ['a complete file under $HOME/.eval', 'home', '.eval/mcp.json'],
+      [
+        'a complete file under $HOME/.config/opencode',
+        'home',
+        '.config/opencode/state.json',
+      ],
+      [
+        'a complete file under $HOME/.local/share/opencode',
+        'home',
+        '.local/share/opencode/storage/session.json',
+      ],
+      ['a complete file under $HOME/.npm', 'home', '.npm/_cacache/content.sql'],
+      ['a complete file under $HOME/.cache', 'home', '.cache/pip/pre.sql'],
       [
         'a complete file in node_modules below $HOME/backups',
         'home',
@@ -439,8 +482,15 @@ describe('backupScanCommand run in bash', () => {
         ['workspace', 'app/node_modules/pkg/leaked.sql', complete],
         ['workspace', '.git/leaked.sql', complete],
         ['workspace', 'app/.git/leaked.sql', complete],
+        ['home', '.backups/pre.sql', complete],
+        ['home', '.config/backups/pre.sql', complete],
         ['home', '.codex/sessions/transcript.jsonl', complete],
-        ['home', '.bash_history', complete],
+        ['home', '.claude/projects/x/session.jsonl', complete],
+        ['home', '.eval/mcp.json', complete],
+        ['home', '.config/opencode/state.json', complete],
+        ['home', '.local/share/opencode/storage/session.json', complete],
+        ['home', '.npm/_cacache/content.sql', complete],
+        ['home', '.cache/pip/pre.sql', complete],
         ['home', 'backups/node_modules/leaked.sql', complete],
       ];
       for (const [where, relativePath, content] of files) {
@@ -644,7 +694,93 @@ describe('backupScanCommand run in bash', () => {
     );
   });
 
+  describe('over pg_dump custom-format backups', () => {
+    const PGDMP = Buffer.concat([
+      Buffer.from('PGDMP'),
+      Buffer.from([1, 14, 0, 0xff, 0x9c, 0x3e, 0x00, 0x8b]),
+    ]);
+    const SCAN_TOOLS = ['bash', 'find', 'grep', 'awk', 'sort', 'head', 'id'];
+    let withStub: string;
+    let withoutPgRestore: string;
+    let log: string;
+
+    beforeAll(() => {
+      const stubBin = join(base, 'pg-bin');
+      log = join(stubBin, 'calls.log');
+      put(stubBin, 'restored.sql', insertSql(COUPONS));
+      put(stubBin, 'calls.log', '');
+      const stub = put(
+        stubBin,
+        'pg_restore',
+        `#!/bin/sh
+[ "$1" = -f ] && [ "$2" = - ] || exit 2
+for f; do :; done
+printf '%s\\n' "$f" >> ${shellQuote(log)}
+[ "$(head -c 5 "$f")" = PGDMP ] || exit 1
+case "$f" in */toc.dat) echo 'pg_restore: error: not a valid archive' >&2; exit 1;; esac
+cat ${shellQuote(join(stubBin, 'restored.sql'))}
+`
+      );
+      chmodSync(stub, 0o755);
+      withStub = `${stubBin}:${process.env.PATH}`;
+
+      const bare = join(base, 'bare-bin');
+      mkdirSync(bare);
+      for (const tool of SCAN_TOOLS) {
+        symlinkSync(
+          execFileSync('which', [tool], { encoding: 'utf8' }).trim(),
+          join(bare, tool)
+        );
+      }
+      withoutPgRestore = bare;
+    });
+
+    it('lists a PGDMP file with no plain-text codes, read through pg_restore', () => {
+      const dir = join(base, 'pg-custom');
+      const target = put(dir, 'pre-drop.dump', PGDMP);
+
+      const result = scan([dir], { PATH: withStub });
+
+      expect(result.status).toBe(0);
+      expect(result.files).toEqual([{ path: target, codes: 15, dates: 12 }]);
+    });
+
+    it('reads a file that does not start with PGDMP as text, not through pg_restore', () => {
+      const dir = join(base, 'pg-plain');
+      const target = put(dir, 'partial.sql', insertSql(some(9)));
+
+      expect(scan([dir], { PATH: withStub }).files).toEqual([
+        { path: target, codes: 9, dates: 8 },
+      ]);
+    });
+
+    it('skips a PGDMP file, still exiting 0, when pg_restore is not on PATH', () => {
+      const dir = join(base, 'pg-no-restore');
+      put(dir, 'pre-drop.dump', PGDMP);
+      const sibling = put(dir, 'pre-drop.sql', insertSql(COUPONS));
+
+      const result = scan([dir], { PATH: withoutPgRestore });
+
+      expect(result.status).toBe(0);
+      expect(result.files).toEqual([{ path: sibling, codes: 15, dates: 12 }]);
+    });
+
+    it('still lists the siblings of a directory-format toc.dat that pg_restore rejects', () => {
+      const dir = join(base, 'pg-directory');
+      const toc = put(dir, 'toc.dat', PGDMP);
+      const data = put(dir, '3456.dat.gz', gzipSync(copySql(COUPONS)));
+      const sql = put(dir, 'schema-and-data.sql', insertSql(COUPONS));
+
+      const result = scan([dir], { PATH: withStub });
+
+      expect(result.status).toBe(0);
+      expect(readFileSync(log, 'utf8').split('\n')).toContain(toc);
+      expect(pathsOf(result.files)).toEqual([data, sql].sort());
+    });
+  });
+
   describe('over a tmp root holding agent transcripts', () => {
+    const claudeDir = `claude-${execFileSync('id', ['-u'], { encoding: 'utf8' }).trim()}`;
     let tmpRoot: string;
     let archive: string;
     let result: ReturnType<typeof scan>;
@@ -658,11 +794,12 @@ describe('backupScanCommand run in bash', () => {
       mkdirSync(dirname(archive), { recursive: true });
       execFileSync('tar', ['-czf', archive, '-C', staged, '.']);
 
-      put(tmpRoot, 'claude-501/x/tasks/a.output', complete);
+      put(tmpRoot, `${claudeDir}/x/tasks/a.output`, complete);
       put(tmpRoot, 'pre-drop.sql', complete);
       put(tmpRoot, 'claude-notes.sql', complete);
+      put(tmpRoot, 'claude-backup/pre.sql', complete);
       put(tmpRoot, 'eval-session-archive-old/pre-drop.sql', complete);
-      put(tmpRoot, 'work/claude-501/pre-drop.sql', complete);
+      put(tmpRoot, `work/${claudeDir}/pre-drop.sql`, complete);
       put(tmpRoot, 'work/eval-session-archive/pre-drop.sql', complete);
 
       result = scan([tmpRoot], {}, tmpRoot);
@@ -671,7 +808,7 @@ describe('backupScanCommand run in bash', () => {
     it('does not list the harness session archive or Claude Code temp output', () => {
       expect(pathsOf(result.files)).not.toContain(archive);
       expect(pathsOf(result.files)).not.toContain(
-        join(tmpRoot, 'claude-501/x/tasks/a.output')
+        join(tmpRoot, claudeDir, 'x/tasks/a.output')
       );
     });
 
@@ -680,8 +817,9 @@ describe('backupScanCommand run in bash', () => {
         [
           'pre-drop.sql',
           'claude-notes.sql',
+          'claude-backup/pre.sql',
           'eval-session-archive-old/pre-drop.sql',
-          'work/claude-501/pre-drop.sql',
+          `work/${claudeDir}/pre-drop.sql`,
           'work/eval-session-archive/pre-drop.sql',
         ]
           .map((relativePath) => join(tmpRoot, relativePath))
@@ -694,7 +832,7 @@ describe('backupScanCommand run in bash', () => {
 
       expect(pathsOf(unpruned.files)).toContain(archive);
       expect(pathsOf(unpruned.files)).toContain(
-        join(tmpRoot, 'claude-501/x/tasks/a.output')
+        join(tmpRoot, claudeDir, 'x/tasks/a.output')
       );
     });
   });
@@ -704,6 +842,15 @@ describe('scanBackups', () => {
   const scanWith = (respond: Parameters<typeof scanRoute>[0]) => {
     const { ctx, calls } = fakeExec([scanRoute(respond)]);
     return { run: () => scanBackups({ ...ctx, workspace: WORKSPACE }), calls };
+  };
+
+  const execOptions = (result: CommandResult) => {
+    const calls: Parameters<ExecCtx['exec']>[] = [];
+    const exec: ExecCtx['exec'] = async (...args) => {
+      calls.push(args);
+      return result;
+    };
+    return { run: () => scanBackups({ exec, workspace: WORKSPACE }), calls };
   };
 
   it('runs the scan command for the workspace, /tmp and $HOME, once', async () => {
@@ -747,6 +894,37 @@ describe('scanBackups', () => {
       notes: expect.stringContaining('Permission denied'),
     });
   });
+
+  it('gives the scan command the scan timeout', async () => {
+    const { run, calls } = execOptions(commandResult(''));
+    await run();
+    expect(calls).toEqual([
+      [
+        backupScanCommand(BACKUP_ROOTS(WORKSPACE)),
+        { timeoutMs: BACKUP_SCAN_TIMEOUT_MS },
+      ],
+    ]);
+  });
+
+  it.each([124, 137])(
+    'fails with the timeout note when the command exits %i',
+    async (exitCode) => {
+      const { run } = execOptions(failure(exitCode, 'Terminated'));
+      expect(await run()).toEqual({ ok: false, notes: BACKUP_SCAN_TIMED_OUT });
+    }
+  );
+
+  it.each([1, 2, 125, 143])(
+    'describes the failure, not a timeout, when the command exits %i',
+    async (exitCode) => {
+      const result = stderrFailure(exitCode, 'Permission denied');
+      const { run } = execOptions(result);
+      expect(await run()).toEqual({
+        ok: false,
+        notes: describeFailure(result),
+      });
+    }
+  );
 
   it('fails when the command exits non-zero even though it printed a file', async () => {
     const { run } = scanWith(failure(1, scanOutput(file('pre-drop.sql'))));

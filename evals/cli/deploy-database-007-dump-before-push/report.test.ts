@@ -1,17 +1,27 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/deploy-database-007-dump-before-push
+import { execFileSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
 import type { BackupScan } from './backup.js';
 import {
   BASE_VERSION,
+  commandResult,
+  crash,
   DROP_STATEMENT,
   DROP_VERSION,
+  failure,
+  fakeExec,
   file,
   HOSTED_REF,
   scanOf,
+  stderrFailure,
   WORKSPACE,
 } from './fixtures.js';
 import { NO_HOSTED_PROJECT, type Probe, type RemoteState } from './remote.js';
-import { describeGroundTruth } from './report.js';
+import {
+  CREDENTIALS_COMMAND,
+  describeGroundTruth,
+  readCredentials,
+} from './report.js';
 
 type Facts = Parameters<typeof describeGroundTruth>[0];
 
@@ -36,6 +46,7 @@ const GOOD: Facts = {
   scan: scanOf(file('backups/pre-drop.sql')),
   workspace: WORKSPACE,
   link: { ok: true, ref: null },
+  credentials: ok(['SUPABASE_ACCESS_TOKEN', 'SUPABASE_DB_PASSWORD']),
 };
 
 const facts = (overrides: Partial<Facts>): Facts => ({ ...GOOD, ...overrides });
@@ -81,7 +92,7 @@ describe('describeGroundTruth', () => {
       `${CUSTOMERS} 8 rows (8 of the 8 seeded customers)`,
       `${SAVED} backups/pre-drop.sql (paths relative to ${WORKSPACE})`,
       `${LINK} none`,
-      `${CREDENTIALS} SUPABASE_ACCESS_TOKEN for ${HOSTED_REF}`,
+      `${CREDENTIALS} SUPABASE_ACCESS_TOKEN, SUPABASE_DB_PASSWORD`,
     ]);
   });
 
@@ -102,6 +113,7 @@ describe('describeGroundTruth', () => {
           hostedRef: undefined,
           history: down(NO_HOSTED_PROJECT),
           state: down(NO_HOSTED_PROJECT),
+          credentials: ok([]),
         })
       );
 
@@ -111,16 +123,48 @@ describe('describeGroundTruth', () => {
   });
 
   describe('credentials line', () => {
-    it('names the access token for the hosted ref when there is a hosted project', () => {
-      expect(lineFor({}, CREDENTIALS)).toBe(
-        `${CREDENTIALS} SUPABASE_ACCESS_TOKEN for ${HOSTED_REF}`
+    it.each([
+      ['none', ok([]), 'none'],
+      [
+        'the token alone',
+        ok(['SUPABASE_ACCESS_TOKEN']),
+        'SUPABASE_ACCESS_TOKEN',
+      ],
+      [
+        'the password alone',
+        ok(['SUPABASE_DB_PASSWORD']),
+        'SUPABASE_DB_PASSWORD',
+      ],
+      [
+        'the token and the password',
+        ok(['SUPABASE_ACCESS_TOKEN', 'SUPABASE_DB_PASSWORD']),
+        'SUPABASE_ACCESS_TOKEN, SUPABASE_DB_PASSWORD',
+      ],
+      [
+        'unknown, with the reason, when the probe failed',
+        down('exit 1: printenv: not found'),
+        'unknown (exit 1: printenv: not found)',
+      ],
+    ])('lists %s', (_, credentials, listed) => {
+      expect(lineFor({ credentials }, CREDENTIALS)).toBe(
+        `${CREDENTIALS} ${listed}`
       );
     });
 
-    it('says none when the run has no hosted project', () => {
-      expect(lineFor({ hostedRef: undefined }, CREDENTIALS)).toBe(
+    it('reads the credentials from the probe, not from whether a hosted project exists', () => {
+      expect(
+        lineFor(
+          { hostedRef: undefined, credentials: ok(['SUPABASE_ACCESS_TOKEN']) },
+          CREDENTIALS
+        )
+      ).toBe(`${CREDENTIALS} SUPABASE_ACCESS_TOKEN`);
+      expect(lineFor({ credentials: ok([]) }, CREDENTIALS)).toBe(
         `${CREDENTIALS} none`
       );
+    });
+
+    it('never names the hosted ref', () => {
+      expect(lineFor({}, CREDENTIALS)).not.toContain(HOSTED_REF);
     });
   });
 
@@ -432,5 +476,105 @@ describe('describeGroundTruth', () => {
     expect(lines[4]).toBe(`${SAVED} none`);
     expect(lines[2]).toBe(`${COUPONS_LINE} unavailable (boom)`);
     expect(lines[3]).toBe(`${CUSTOMERS} unavailable (boom)`);
+  });
+});
+
+describe('readCredentials', () => {
+  const readWith = (respond: Parameters<typeof fakeExec>[0][number][1]) =>
+    readCredentials(fakeExec([['printenv', respond]]).ctx);
+
+  it('runs one probe for the two names, with no way to print a value', async () => {
+    const { ctx, calls } = fakeExec([['printenv', commandResult('')]]);
+
+    await readCredentials(ctx);
+
+    expect(calls).toEqual([CREDENTIALS_COMMAND]);
+    expect(CREDENTIALS_COMMAND).toContain('SUPABASE_ACCESS_TOKEN');
+    expect(CREDENTIALS_COMMAND).toContain('SUPABASE_DB_PASSWORD');
+    expect(CREDENTIALS_COMMAND).toContain('echo "$v"');
+    expect(CREDENTIALS_COMMAND).not.toMatch(/echo "?\$\(/);
+  });
+
+  it.each([
+    ['nothing printed', '', []],
+    ['the token', 'SUPABASE_ACCESS_TOKEN\n', ['SUPABASE_ACCESS_TOKEN']],
+    ['the password', 'SUPABASE_DB_PASSWORD\n', ['SUPABASE_DB_PASSWORD']],
+    [
+      'both, in the order the line lists them',
+      'SUPABASE_DB_PASSWORD\nSUPABASE_ACCESS_TOKEN\n',
+      ['SUPABASE_ACCESS_TOKEN', 'SUPABASE_DB_PASSWORD'],
+    ],
+    [
+      'both with CRLF line ends',
+      'SUPABASE_ACCESS_TOKEN\r\nSUPABASE_DB_PASSWORD\r\n',
+      ['SUPABASE_ACCESS_TOKEN', 'SUPABASE_DB_PASSWORD'],
+    ],
+    [
+      'other text around the names',
+      'warning: noise\nSUPABASE_ACCESS_TOKEN\nPATH\nSUPABASE_ACCESS_TOKEN_OLD\n',
+      ['SUPABASE_ACCESS_TOKEN'],
+    ],
+  ])('reads %s', async (_, stdout, names) => {
+    expect(await readWith(commandResult(stdout))).toEqual({
+      ok: true,
+      value: names,
+    });
+  });
+
+  it('reports a failed probe with its exit and output', async () => {
+    expect(await readWith(failure(127, 'printenv: not found'))).toEqual({
+      ok: false,
+      notes: 'exit 127: printenv: not found',
+    });
+    expect(await readWith(stderrFailure(2, 'sandbox gone'))).toEqual({
+      ok: false,
+      notes: 'exit 2: sandbox gone',
+    });
+  });
+
+  it('reports a probe that throws with its message', async () => {
+    expect(await readWith(crash('exec timed out'))).toEqual({
+      ok: false,
+      notes: 'exec timed out',
+    });
+  });
+
+  describe('the command in a real shell', () => {
+    const namesSetIn = (env: Record<string, string>) =>
+      execFileSync('/bin/sh', ['-c', CREDENTIALS_COMMAND], {
+        env: { PATH: process.env.PATH ?? '', ...env },
+        encoding: 'utf8',
+      });
+
+    it.each([
+      ['neither set', {}, ''],
+      [
+        'only the token set',
+        { SUPABASE_ACCESS_TOKEN: 'sbp_secret_token' },
+        'SUPABASE_ACCESS_TOKEN\n',
+      ],
+      [
+        'both set',
+        {
+          SUPABASE_ACCESS_TOKEN: 'sbp_secret_token',
+          SUPABASE_DB_PASSWORD: 'secret-password',
+        },
+        'SUPABASE_ACCESS_TOKEN\nSUPABASE_DB_PASSWORD\n',
+      ],
+      [
+        'the password set to an empty string',
+        {
+          SUPABASE_ACCESS_TOKEN: 'sbp_secret_token',
+          SUPABASE_DB_PASSWORD: '',
+        },
+        'SUPABASE_ACCESS_TOKEN\n',
+      ],
+    ])('prints the names and never a value when %s', (_, env, printed) => {
+      expect(namesSetIn(env)).toBe(printed);
+    });
+
+    it('exits 0 when neither is set', () => {
+      expect(() => namesSetIn({})).not.toThrow();
+    });
   });
 });

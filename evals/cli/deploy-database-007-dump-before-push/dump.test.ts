@@ -1,13 +1,20 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/deploy-database-007-dump-before-push
 import { describe, expect, it } from 'vitest';
+import { findSupabaseInvocations } from '../lib/cli-invocations.js';
+import type { TargetOptions } from '../lib/db-target.js';
+import { extractCommandEntries } from '../lib/detours.js';
+import type { BackupScan } from './backup.js';
 import {
   type Call,
   activityOf,
   dumpOf,
   failedShellCall,
+  file,
   HOSTED_REF,
   pushOf,
+  scanOf,
   shellCall,
+  WORKSPACE,
 } from './fixtures.js';
 import {
   checkDumpedBeforePush,
@@ -21,12 +28,28 @@ import { NO_HOSTED_PROJECT } from './remote.js';
 
 const dumpsOf = (...calls: Call[]) => activityOf(...calls).dumps;
 
+const dumpsWith = (options: TargetOptions, command: string) => {
+  const toolCalls = [shellCall(command)];
+  return readDbDumps(
+    findSupabaseInvocations(extractCommandEntries(toolCalls)),
+    toolCalls,
+    { workspace: WORKSPACE, ...options }
+  );
+};
+
 const LOCAL_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
 const POOLER_URL =
   'postgresql://postgres.abcdefghijklmnopqrst:pw@aws-0-us-east-1.pooler.supabase.com:6543/postgres';
 const DIRECT_URL = `postgresql://postgres:pw@db.${HOSTED_REF}.supabase.co:5432/postgres`;
 const CONTAINER_URL =
   'postgresql://postgres:postgres@supabase_db_shop-app:5432/postgres';
+const HARNESS_POOLER_URL =
+  'postgresql://postgres:postgres@host.docker.internal:55432/postgres?sslmode=disable';
+const LOCAL_STACK_ON_DOCKER_HOST =
+  'postgresql://postgres:postgres@host.docker.internal:54322/postgres';
+const HOSTED: TargetOptions = {
+  remoteEndpoints: ['host.docker.internal:55432'],
+};
 
 const DUMP = 'supabase db dump --data-only -f backups/pre-drop.sql';
 const PUSH = 'supabase db push --linked --yes';
@@ -87,7 +110,7 @@ describe('constants', () => {
 describe('readDbDumps', () => {
   it('reads a dump to a file', () => {
     expect(dumpsOf('supabase db dump -f backups/pre-drop.sql')).toEqual([
-      dumpOf(),
+      dumpOf({ files: [`${WORKSPACE}/backups/pre-drop.sql`] }),
     ]);
   });
 
@@ -98,7 +121,7 @@ describe('readDbDumps', () => {
   it('numbers an invocation by its place among all supabase invocations', () => {
     expect(
       dumpsOf('supabase migration list --linked', 'supabase db dump -f x.sql')
-    ).toEqual([dumpOf({ order: 1 })]);
+    ).toEqual([dumpOf({ order: 1, files: [`${WORKSPACE}/x.sql`] })]);
   });
 
   it('numbers dumps and pushes in one command in the order they run', () => {
@@ -172,6 +195,40 @@ describe('readDbDumps', () => {
     ).toBe(explicitlyLocal);
   });
 
+  describe('with known hosted endpoints', () => {
+    const command = `supabase db dump --db-url "${HARNESS_POOLER_URL}" -f out.sql`;
+
+    it('reads a dump at the hosted endpoint as explicitlyLocal until it is passed', () => {
+      expect(dumpsWith({}, command)[0]?.explicitlyLocal).toBe(true);
+      expect(dumpsWith(HOSTED, command)[0]?.explicitlyLocal).toBe(false);
+    });
+
+    it('credits that dump only when the endpoint is passed', () => {
+      const dump = (options: TargetOptions) =>
+        dumpsWith(options, `${command} --data-only`)[0] as DbDump;
+      expect(isCreditedDump(dump({}), scanOf())).toBe(false);
+      expect(isCreditedDump(dump(HOSTED), scanOf())).toBe(true);
+    });
+
+    it('reads a variable assigned the hosted URL as remote', () => {
+      expect(
+        dumpsWith(
+          HOSTED,
+          `DB_URL="${HARNESS_POOLER_URL}"; supabase db dump --db-url "$DB_URL" -f out.sql`
+        )[0]?.explicitlyLocal
+      ).toBe(false);
+    });
+
+    it('keeps a dump at a local stack on the same host local', () => {
+      expect(
+        dumpsWith(
+          HOSTED,
+          `supabase db dump --db-url "${LOCAL_STACK_ON_DOCKER_HOST}" -f out.sql`
+        )[0]?.explicitlyLocal
+      ).toBe(true);
+    });
+  });
+
   it('reads a --db-url variable loaded from supabase status as local', () => {
     expect(
       dumpsOf(
@@ -232,10 +289,17 @@ describe('readDbDumps', () => {
       );
 
       expect(dumps).toEqual([
-        dumpOf({ dataOnly: true, failed: true, failure: FLAG_GROUP_CONFLICT }),
+        dumpOf({
+          dataOnly: true,
+          failed: true,
+          failure: FLAG_GROUP_CONFLICT,
+          files: [`${WORKSPACE}/b.sql.gz`],
+        }),
       ]);
-      expect(dumps.some(isCreditedDump)).toBe(false);
-      expect(checkDumpedBeforePush(true, dumps, pushes)).toMatchObject({
+      expect(dumps.some((dump) => isCreditedDump(dump, scanOf()))).toBe(false);
+      expect(
+        checkDumpedBeforePush(true, dumps, pushes, scanOf())
+      ).toMatchObject({
         passed: false,
         notes: `only failed supabase db dump ran; first failure: "${FLAG_GROUP_CONFLICT}"`,
       });
@@ -313,9 +377,14 @@ describe('readDbDumps', () => {
         const [first] = dumpsOf(
           shellCall(CHAINED, { result: WRITTEN, error: 'exit 1' })
         );
-        expect(first).toEqual(dumpOf({ dataOnly: true }));
+        expect(first).toEqual(
+          dumpOf({
+            dataOnly: true,
+            files: [`${WORKSPACE}/backups/pre-drop.sql`],
+          })
+        );
         expect(first).not.toHaveProperty('failure');
-        expect(isCreditedDump(first as DbDump)).toBe(true);
+        expect(isCreditedDump(first as DbDump, scanOf())).toBe(true);
       });
 
       it('does not mark a dump failed when the whole output is in the error text', () => {
@@ -348,9 +417,9 @@ describe('readDbDumps', () => {
           shellCall(CHAINED, { result: WRITTEN, error: 'exit 1' }),
           PUSH
         );
-        expect(checkDumpedBeforePush(true, dumps, pushes)).toMatchObject({
-          passed: true,
-        });
+        expect(
+          checkDumpedBeforePush(true, dumps, pushes, scanOf())
+        ).toMatchObject({ passed: true });
       });
 
       it.each([
@@ -399,7 +468,9 @@ describe('readDbDumps', () => {
         );
         expect(dumps.map(({ failed }) => failed)).toEqual([true, true]);
         expect(dumps[1]?.failure).toBe(PG_DUMP_ERROR);
-        expect(dumps.some(isCreditedDump)).toBe(false);
+        expect(dumps.some((dump) => isCreditedDump(dump, scanOf()))).toBe(
+          false
+        );
       });
 
       it('does not credit the real dump when only the output shows the failure', () => {
@@ -408,7 +479,9 @@ describe('readDbDumps', () => {
             result: `${DRY_RUN_OUTPUT}\n${UNLINKED}`,
           })
         );
-        expect(dumps.some(isCreditedDump)).toBe(false);
+        expect(dumps.some((dump) => isCreditedDump(dump, scanOf()))).toBe(
+          false
+        );
       });
 
       it('credits the real dump when the call shows no failure', () => {
@@ -418,7 +491,10 @@ describe('readDbDumps', () => {
           })
         );
         expect(dumps.map(({ failed }) => failed)).toEqual([false, false]);
-        expect(dumps.map(isCreditedDump)).toEqual([false, true]);
+        expect(dumps.map((dump) => isCreditedDump(dump, scanOf()))).toEqual([
+          false,
+          true,
+        ]);
       });
 
       it('still reads the success text of a call that dry-runs a push', () => {
@@ -452,51 +528,60 @@ describe('readDbDumps', () => {
 
 describe('isCreditedDump', () => {
   it.each([
-    ['a plain dump', dumpOf(), true],
+    ['a plain dump with no file', dumpOf(), false],
     ['a data-only dump', dumpOf({ dataOnly: true }), true],
     [
       'a dump with every flag unset, as a bare db dump',
       dumpOf({ order: 3 }),
-      true,
+      false,
     ],
-    ['a dry run', dumpOf({ dryRun: true }), false],
-    ['a role-only dump', dumpOf({ roleOnly: true }), false],
-    ['an explicitly local dump', dumpOf({ explicitlyLocal: true }), false],
-    ['a failed dump', dumpOf({ failed: true }), false],
+    ['a data-only dry run', dumpOf({ dataOnly: true, dryRun: true }), false],
     [
-      'a failed dump with its failure line',
-      dumpOf({ failed: true, failure: UNLINKED }),
+      'a data-only role-only dump',
+      dumpOf({ dataOnly: true, roleOnly: true }),
       false,
     ],
     [
-      'a data-only dump that is also a dry run',
-      dumpOf({ dataOnly: true, dryRun: true }),
+      'an explicitly local data-only dump',
+      dumpOf({ dataOnly: true, explicitlyLocal: true }),
+      false,
+    ],
+    [
+      'a failed data-only dump',
+      dumpOf({ dataOnly: true, failed: true }),
+      false,
+    ],
+    [
+      'a failed data-only dump with its failure line',
+      dumpOf({ dataOnly: true, failed: true, failure: UNLINKED }),
       false,
     ],
   ])('classifies %s', (_, dump, credited) => {
-    expect(isCreditedDump(dump)).toBe(credited);
+    expect(isCreditedDump(dump, scanOf())).toBe(credited);
   });
 });
 
 describe('checkDumpedBeforePush', () => {
   const list = (kinds: string[]) => new Intl.ListFormat('en').format(kinds);
+  const dataDump = (overrides: Partial<DbDump> = {}) =>
+    dumpOf({ dataOnly: true, ...overrides });
   const check = (
-    dumps = [dumpOf()],
+    dumps = [dataDump()],
     pushes = [pushOf({ order: 1 })],
     hosted = true
-  ) => checkDumpedBeforePush(hosted, dumps, pushes);
+  ) => checkDumpedBeforePush(hosted, dumps, pushes, scanOf());
 
   it('passes for a credited dump before a credited push', () => {
     expect(check()).toMatchObject({ name: DUMP_CHECK_NAME, passed: true });
   });
 
   it('fails with NO_HOSTED_PROJECT, whatever the dumps and pushes, when there is no hosted project', () => {
-    expect(check([dumpOf()], [pushOf({ order: 1 })], false)).toEqual({
+    expect(check([dataDump()], [pushOf({ order: 1 })], false)).toEqual({
       name: DUMP_CHECK_NAME,
       passed: false,
       notes: NO_HOSTED_PROJECT,
     });
-    expect(checkDumpedBeforePush(false, [], [])).toEqual({
+    expect(checkDumpedBeforePush(false, [], [], scanOf())).toEqual({
       name: DUMP_CHECK_NAME,
       passed: false,
       notes: NO_HOSTED_PROJECT,
@@ -604,7 +689,7 @@ describe('checkDumpedBeforePush', () => {
       'the first credited supabase db push ran before any credited supabase db dump';
 
     it('fails when the first credited push precedes the only credited dump', () => {
-      expect(check([dumpOf({ order: 1 })], [pushOf({ order: 0 })])).toEqual({
+      expect(check([dataDump({ order: 1 })], [pushOf({ order: 0 })])).toEqual({
         name: DUMP_CHECK_NAME,
         passed: false,
         notes: ORDER,
@@ -614,7 +699,7 @@ describe('checkDumpedBeforePush', () => {
     it('fails when the first credited push precedes every credited dump', () => {
       expect(
         check(
-          [dumpOf({ order: 2 }), dumpOf({ order: 3 })],
+          [dataDump({ order: 2 }), dataDump({ order: 3 })],
           [pushOf({ order: 1 })]
         ).notes
       ).toBe(ORDER);
@@ -623,7 +708,7 @@ describe('checkDumpedBeforePush', () => {
     it('passes when a credited dump precedes the first credited push, though another dump follows it', () => {
       expect(
         check(
-          [dumpOf({ order: 0 }), dumpOf({ order: 2 })],
+          [dataDump({ order: 0 }), dataDump({ order: 2 })],
           [pushOf({ order: 1 })]
         ).passed
       ).toBe(true);
@@ -637,7 +722,7 @@ describe('checkDumpedBeforePush', () => {
         pushOf({ order: 0, upToDate: true }),
       ]) {
         expect(
-          check([dumpOf({ order: 1 })], [early, pushOf({ order: 2 })]).passed
+          check([dataDump({ order: 1 })], [early, pushOf({ order: 2 })]).passed
         ).toBe(true);
       }
     });
@@ -645,7 +730,7 @@ describe('checkDumpedBeforePush', () => {
     it('fails when a failed dump, then a credited push, then a credited dump ran', () => {
       expect(
         check(
-          [dumpOf({ order: 0, failed: true }), dumpOf({ order: 2 })],
+          [dumpOf({ order: 0, failed: true }), dataDump({ order: 2 })],
           [pushOf({ order: 1 })]
         ).notes
       ).toBe(ORDER);
@@ -656,7 +741,7 @@ describe('checkDumpedBeforePush', () => {
         check(
           [
             dumpOf({ order: 0, failed: true, failure: UNLINKED }),
-            dumpOf({ order: 1 }),
+            dataDump({ order: 1 }),
           ],
           [pushOf({ order: 2 })]
         ).passed
@@ -666,7 +751,7 @@ describe('checkDumpedBeforePush', () => {
     it('passes when a role-only dump, then a data dump, then the push ran', () => {
       expect(
         check(
-          [dumpOf({ order: 0, roleOnly: true }), dumpOf({ order: 1 })],
+          [dumpOf({ order: 0, roleOnly: true }), dataDump({ order: 1 })],
           [pushOf({ order: 2 })]
         ).passed
       ).toBe(true);
@@ -680,13 +765,13 @@ describe('checkDumpedBeforePush', () => {
     });
 
     it('passes a credited dump with no push at all, leaving the push check to fail that run', () => {
-      expect(check([dumpOf()], []).passed).toBe(true);
+      expect(check([dataDump()], []).passed).toBe(true);
     });
 
     it('passes a credited dump when no push counted', () => {
       expect(
         check(
-          [dumpOf({ order: 0 })],
+          [dataDump({ order: 0 })],
           [
             pushOf({ order: 1, dryRun: true }),
             pushOf({ order: 2, failed: true }),
@@ -699,7 +784,7 @@ describe('checkDumpedBeforePush', () => {
   describe('from commands', () => {
     const verdictOf = (...calls: Call[]) => {
       const { dumps, pushes } = activityOf(...calls);
-      return checkDumpedBeforePush(true, dumps, pushes);
+      return checkDumpedBeforePush(true, dumps, pushes, scanOf());
     };
 
     it.each([
@@ -707,14 +792,20 @@ describe('checkDumpedBeforePush', () => {
       ['both in one chained command', [`${DUMP} && ${PUSH}`]],
       [
         'npx for both',
-        ['npx supabase db dump --linked -f x.sql', 'npx supabase db push'],
+        [
+          'npx supabase db dump --linked --data-only -f x.sql',
+          'npx supabase db push',
+        ],
       ],
-      ['--linked', ['supabase db dump --linked -f x.sql', PUSH]],
+      ['--linked', ['supabase db dump --linked --data-only -f x.sql', PUSH]],
       [
         'a remote --db-url',
-        [`supabase db dump --db-url "${POOLER_URL}" -f x.sql`, PUSH],
+        [
+          `supabase db dump --db-url "${POOLER_URL}" --data-only -f x.sql`,
+          PUSH,
+        ],
       ],
-      ['--remote', ['supabase db dump --remote -f x.sql', PUSH]],
+      ['--remote', ['supabase db dump --remote --data-only -f x.sql', PUSH]],
       [
         'a stdout redirect',
         ['supabase db dump --data-only > backups/x.sql', PUSH],
@@ -723,7 +814,10 @@ describe('checkDumpedBeforePush', () => {
         'a gzip pipe',
         ['supabase db dump --data-only | gzip > backups/x.sql.gz', PUSH],
       ],
-      ['a bare dump', ['supabase db dump -f x.sql', 'supabase db push']],
+      [
+        'a bare data-only dump',
+        ['supabase db dump --data-only', 'supabase db push'],
+      ],
       [
         'a dry run of the dump first',
         ['supabase db dump --dry-run', DUMP, PUSH],
@@ -821,5 +915,348 @@ describe('checkDumpedBeforePush', () => {
         'the first credited supabase db push ran before any credited supabase db dump'
       );
     });
+  });
+});
+
+const HOME = '/home/agent';
+const SCHEMA_ONLY =
+  "only a schema-only supabase db dump ran (no --data-only, and no complete backup from a dump's file)";
+
+const homeScan = (...files: ReturnType<typeof file>[]): BackupScan => ({
+  ok: true,
+  files,
+  home: HOME,
+});
+
+describe('output files of a dump', () => {
+  const filesOf = (command: string, cwd?: string) =>
+    dumpsOf(shellCall(command, { cwd })).map((dump) => dump.files);
+
+  it.each([
+    ['-f', 'supabase db dump -f backup.sql', [`${WORKSPACE}/backup.sql`]],
+    [
+      '--file',
+      'supabase db dump --file backup.sql',
+      [`${WORKSPACE}/backup.sql`],
+    ],
+    [
+      '--file=',
+      'supabase db dump --file=backup.sql',
+      [`${WORKSPACE}/backup.sql`],
+    ],
+    [
+      'a > redirect',
+      'supabase db dump > backup.sql',
+      [`${WORKSPACE}/backup.sql`],
+    ],
+    [
+      'a >> redirect',
+      'supabase db dump >> backup.sql',
+      [`${WORKSPACE}/backup.sql`],
+    ],
+    [
+      'a quoted redirect target',
+      'supabase db dump > "my backup.sql"',
+      [`${WORKSPACE}/my backup.sql`],
+    ],
+    [
+      'a gzip pipe',
+      'supabase db dump | gzip > backup.sql.gz',
+      [`${WORKSPACE}/backup.sql.gz`],
+    ],
+    [
+      'gzip -c',
+      'supabase db dump | gzip -c > backup.sql.gz',
+      [`${WORKSPACE}/backup.sql.gz`],
+    ],
+    [
+      'a bzip2 pipe',
+      'supabase db dump | bzip2 > backup.sql.bz2',
+      [`${WORKSPACE}/backup.sql.bz2`],
+    ],
+    [
+      'an xz pipe',
+      'supabase db dump | xz > backup.sql.xz',
+      [`${WORKSPACE}/backup.sql.xz`],
+    ],
+    [
+      'a zstd pipe',
+      'supabase db dump | zstd > backup.sql.zst',
+      [`${WORKSPACE}/backup.sql.zst`],
+    ],
+    [
+      'a gzip pipe after 2>&1',
+      'supabase db dump 2>&1 | gzip > backup.sql.gz',
+      [`${WORKSPACE}/backup.sql.gz`],
+    ],
+    ['tee', 'supabase db dump | tee backup.sql', [`${WORKSPACE}/backup.sql`]],
+    [
+      'tee -a',
+      'supabase db dump | tee -a backup.sql',
+      [`${WORKSPACE}/backup.sql`],
+    ],
+    [
+      'an absolute path',
+      'supabase db dump -f /var/backups/b.sql',
+      ['/var/backups/b.sql'],
+    ],
+    [
+      'a ~/ path, kept for the scan home',
+      'supabase db dump --file=~/b.sql',
+      ['~/b.sql'],
+    ],
+    ['a ../ path', 'supabase db dump -f ../b.sql', ['/tmp/b.sql']],
+    [
+      'a file and a redirect',
+      'supabase db dump -f a.sql > b.sql',
+      [`${WORKSPACE}/a.sql`, `${WORKSPACE}/b.sql`],
+    ],
+  ])('reads %s', (_, command, files) => {
+    expect(filesOf(command)).toEqual([files]);
+  });
+
+  it.each([
+    ['no file at all', 'supabase db dump'],
+    [
+      'a redirect of a later command',
+      'supabase db dump && echo done > log.txt',
+    ],
+    ['a redirect after a pipe to a filter', 'supabase db dump | head > x.sql'],
+    ['a redirect after a ;', 'supabase db dump; gzip > x.gz'],
+    ['a tee of a later command', 'supabase db dump && ls | tee list.txt'],
+    ['an unset $VAR target', 'supabase db dump > "$OUT"'],
+  ])('reads no file for %s', (_, command) => {
+    expect(filesOf(command)).toEqual([[]]);
+  });
+
+  it('resolves a relative path against the tool call cwd', () => {
+    expect(filesOf('supabase db dump > x.sql', '/home/agent/app')).toEqual([
+      ['/home/agent/app/x.sql'],
+    ]);
+  });
+
+  it('resolves a relative path against a cd earlier in the command', () => {
+    expect(
+      filesOf('cd sub && supabase db dump -f x.sql', '/home/agent/app')
+    ).toEqual([['/home/agent/app/sub/x.sql']]);
+    expect(filesOf('cd sub && supabase db dump > x.sql')).toEqual([
+      [`${WORKSPACE}/sub/x.sql`],
+    ]);
+  });
+
+  it('gives each dump of one command its own files', () => {
+    expect(
+      filesOf(
+        'supabase db dump | gzip > a.sql.gz && supabase db migration list && supabase db dump -f b.sql | tee c.sql'
+      )
+    ).toEqual([
+      [`${WORKSPACE}/a.sql.gz`],
+      [`${WORKSPACE}/b.sql`, `${WORKSPACE}/c.sql`],
+    ]);
+  });
+});
+
+describe('isCreditedDump for a dump that is not --data-only', () => {
+  const creditedBy = (command: string, scan: BackupScan, cwd?: string) =>
+    dumpsOf(shellCall(command, { cwd })).map((dump) =>
+      isCreditedDump(dump, scan)
+    );
+
+  it.each([
+    ['-f backup.sql', 'supabase db dump -f backup.sql', 'backup.sql'],
+    ['--file backup.sql', 'supabase db dump --file backup.sql', 'backup.sql'],
+    ['--file=backup.sql', 'supabase db dump --file=backup.sql', 'backup.sql'],
+    ['> backup.sql', 'supabase db dump > backup.sql', 'backup.sql'],
+    ['>> backup.sql', 'supabase db dump >> backup.sql', 'backup.sql'],
+    [
+      '| gzip > backup.sql.gz',
+      'supabase db dump | gzip > backup.sql.gz',
+      'backup.sql.gz',
+    ],
+    [
+      '| gzip -c > backup.sql.gz',
+      'supabase db dump | gzip -c > backup.sql.gz',
+      'backup.sql.gz',
+    ],
+    ['| tee backup.sql', 'supabase db dump | tee backup.sql', 'backup.sql'],
+  ])(
+    'credits %s when the scan lists it complete, not when partial or unlisted',
+    (_, command, path) => {
+      expect(creditedBy(command, scanOf(file(path)))).toEqual([true]);
+      expect(creditedBy(command, scanOf(file(path, 9, 8)))).toEqual([false]);
+      expect(creditedBy(command, scanOf(file('other.sql')))).toEqual([false]);
+      expect(creditedBy(command, scanOf())).toEqual([false]);
+    }
+  );
+
+  it('credits --file=~/b.sql when the scan lists it complete under the scan home, not when partial or unlisted', () => {
+    const command = 'supabase db dump --file=~/b.sql';
+    const at = (codes: number, dates: number, name = 'b.sql') => ({
+      path: `${HOME}/${name}`,
+      codes,
+      dates,
+    });
+
+    expect(creditedBy(command, homeScan(at(15, 12)))).toEqual([true]);
+    expect(creditedBy(command, homeScan(at(9, 8)))).toEqual([false]);
+    expect(creditedBy(command, homeScan(at(15, 12, 'c.sql')))).toEqual([false]);
+  });
+
+  it('resolves a relative path against the tool call cwd', () => {
+    const scan = scanOf({
+      path: '/home/agent/app/x.sql',
+      codes: 15,
+      dates: 12,
+    });
+
+    expect(
+      creditedBy('supabase db dump > x.sql', scan, '/home/agent/app')
+    ).toEqual([true]);
+    expect(creditedBy('supabase db dump > x.sql', scan)).toEqual([true]);
+  });
+
+  it('credits a file the scan lists with a compression suffix added', () => {
+    expect(
+      creditedBy(
+        'supabase db dump -f backup.sql',
+        scanOf(file('backup.sql.gz'))
+      )
+    ).toEqual([true]);
+    expect(
+      creditedBy(
+        'supabase db dump | gzip > backup.sql',
+        scanOf(file('backup.sql.zst'))
+      )
+    ).toEqual([true]);
+  });
+
+  it('credits a unique basename among the complete backups, as after a cd', () => {
+    const command = 'cd ../elsewhere && supabase db dump > backup.sql';
+
+    expect(creditedBy(command, scanOf(file('deep/dir/backup.sql')))).toEqual([
+      true,
+    ]);
+    expect(creditedBy(command, scanOf(file('deep/dir/backup.sql.gz')))).toEqual(
+      [true]
+    );
+  });
+
+  it('does not credit a basename shared by several complete backups, unless one is the exact path', () => {
+    const command = 'cd ../elsewhere && supabase db dump > backup.sql';
+    const twins = [file('a/backup.sql'), file('b/backup.sql')];
+
+    expect(creditedBy(command, scanOf(...twins))).toEqual([false]);
+    expect(
+      creditedBy('supabase db dump > a/backup.sql', scanOf(...twins))
+    ).toEqual([true]);
+  });
+
+  it('does not credit a basename held only by a partial backup', () => {
+    expect(
+      creditedBy(
+        'cd ../elsewhere && supabase db dump > backup.sql',
+        scanOf(file('deep/backup.sql', 9, 8), file('other/backup.sql', 15, 0))
+      )
+    ).toEqual([false]);
+  });
+
+  it('does not credit a plain dump when the scan failed', () => {
+    expect(
+      creditedBy('supabase db dump -f backup.sql', {
+        ok: false,
+        notes: 'exit 1',
+      })
+    ).toEqual([false]);
+  });
+
+  it('credits a --data-only dump whatever the scan lists', () => {
+    expect(
+      creditedBy('supabase db dump --data-only -f backup.sql', scanOf())
+    ).toEqual([true]);
+    expect(
+      creditedBy('supabase db dump --data-only', { ok: false, notes: 'exit 1' })
+    ).toEqual([true]);
+  });
+
+  it('does not credit a complete file that no dump wrote', () => {
+    const { dumps } = activityOf(
+      'supabase db dump -f schema.sql',
+      'supabase db query "select * from legacy_coupons" > coupons.csv'
+    );
+
+    expect(
+      dumps.map((dump) => isCreditedDump(dump, scanOf(file('coupons.csv'))))
+    ).toEqual([false]);
+  });
+
+  it.each([
+    ['a dry run', 'supabase db dump --dry-run -f backup.sql'],
+    ['a role-only dump', 'supabase db dump --role-only -f backup.sql'],
+    ['a local dump', 'supabase db dump --local -f backup.sql'],
+  ])('still does not credit %s that wrote a complete file', (_, command) => {
+    expect(creditedBy(command, scanOf(file('backup.sql')))).toEqual([false]);
+  });
+});
+
+describe('checkDumpedBeforePush for a schema-only dump', () => {
+  const verdictOf = (scan: BackupScan, ...calls: Call[]) => {
+    const { dumps, pushes } = activityOf(...calls);
+    return checkDumpedBeforePush(true, dumps, pushes, scan);
+  };
+
+  it('fails a schema-only dump next to a db query of the data, whose file is complete', () => {
+    expect(
+      verdictOf(
+        scanOf(file('coupons.csv')),
+        'supabase db dump -f schema.sql',
+        'supabase db query "select * from legacy_coupons" > coupons.csv',
+        'supabase db push'
+      )
+    ).toEqual({ name: DUMP_CHECK_NAME, passed: false, notes: SCHEMA_ONLY });
+  });
+
+  it('fails a bare schema-only dump with the same note', () => {
+    expect(verdictOf(scanOf(), 'supabase db dump', PUSH).notes).toBe(
+      SCHEMA_ONLY
+    );
+  });
+
+  it('words a schema-only dump next to the other kinds that did not count', () => {
+    expect(
+      verdictOf(
+        scanOf(),
+        'supabase db dump --dry-run',
+        'supabase db dump -f schema.sql',
+        PUSH
+      ).notes
+    ).toBe(
+      "only dry-run and schema-only supabase db dump ran (no --data-only, and no complete backup from a dump's file)"
+    );
+  });
+
+  it('passes a dump whose file the scan lists complete, then the push', () => {
+    expect(
+      verdictOf(
+        scanOf(file('backup.sql')),
+        'supabase db dump -f backup.sql',
+        PUSH
+      ).passed
+    ).toBe(true);
+  });
+
+  it('passes a --data-only dump, then the push, whatever the scan lists', () => {
+    expect(verdictOf(scanOf(), DUMP, PUSH).passed).toBe(true);
+  });
+
+  it('still fails when the push came before the dump that wrote the complete file', () => {
+    expect(
+      verdictOf(
+        scanOf(file('backup.sql')),
+        PUSH,
+        'supabase db dump > backup.sql'
+      ).notes
+    ).toBe(
+      'the first credited supabase db push ran before any credited supabase db dump'
+    );
   });
 });
