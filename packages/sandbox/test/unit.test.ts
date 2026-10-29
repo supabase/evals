@@ -41,6 +41,9 @@ describe('sandbox Dockerfile', () => {
     // Common tooling shared by both eval modes.
     expect(dockerfile).toContain('postgresql-client');
     expect(dockerfile).toContain('docker.io');
+    // Python toolchain for Python-SDK evals, in the node-owned bin dir on PATH.
+    expect(dockerfile).toContain('python3');
+    expect(dockerfile).toContain('UV_INSTALL_DIR=/home/node/.npm-global/bin');
     // The Supabase CLI is NOT baked in — it's a local-stack component installed
     // at setup time (installSupabaseCli), so tools-mode sandboxes genuinely lack
     // it. The base image is therefore shared across modes and CLI versions.
