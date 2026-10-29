@@ -1,0 +1,580 @@
+// Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/deploy-database-007-dump-before-push
+import { execFileSync } from 'node:child_process';
+import { describe, expect, it } from 'vitest';
+import type { BackupScan } from './backup.js';
+import {
+  BASE_VERSION,
+  commandResult,
+  crash,
+  DROP_STATEMENT,
+  DROP_VERSION,
+  failure,
+  fakeExec,
+  file,
+  HOSTED_REF,
+  scanOf,
+  stderrFailure,
+  WORKSPACE,
+} from './fixtures.js';
+import { NO_HOSTED_PROJECT, type Probe, type RemoteState } from './remote.js';
+import {
+  CREDENTIALS_COMMAND,
+  describeGroundTruth,
+  readCredentials,
+} from './report.js';
+
+type Facts = Parameters<typeof describeGroundTruth>[0];
+
+const ok = <T>(value: T): Probe<T> => ({ ok: true, value });
+const down = (notes: string): { ok: false; notes: string } => ({
+  ok: false,
+  notes,
+});
+
+const GOOD_STATE: RemoteState = {
+  couponsTable: false,
+  customersTable: true,
+  customers: 8,
+  seededCustomers: 8,
+  dropStatements: DROP_STATEMENT,
+};
+
+const GOOD: Facts = {
+  hostedRef: HOSTED_REF,
+  history: ok([BASE_VERSION, DROP_VERSION]),
+  state: ok(GOOD_STATE),
+  scan: scanOf(file('backups/pre-drop.sql')),
+  workspace: WORKSPACE,
+  link: { ok: true, ref: null },
+  credentials: ok(['SUPABASE_ACCESS_TOKEN', 'SUPABASE_DB_PASSWORD']),
+};
+
+const facts = (overrides: Partial<Facts>): Facts => ({ ...GOOD, ...overrides });
+const stateWith = (overrides: Partial<RemoteState>) =>
+  ok({ ...GOOD_STATE, ...overrides });
+
+const HOSTED = '- hosted project available:';
+const HISTORY =
+  '- hosted migration history includes 20261027090000_drop_legacy_coupons:';
+const COUPONS_LINE = '- hosted public.legacy_coupons:';
+const CUSTOMERS = '- hosted public.customers:';
+const SAVED =
+  '- saved files holding all 15 coupon rows (every code and coupon date):';
+const LINK = '- repo linked to a project (supabase/.temp/project-ref):';
+const CREDENTIALS =
+  '- Supabase credentials the harness gave the agent (SUPABASE_ACCESS_TOKEN, SUPABASE_DB_PASSWORD):';
+
+const lineFor = (overrides: Partial<Facts>, prefix: string) =>
+  describeGroundTruth(facts(overrides)).find((line) =>
+    line.startsWith(prefix)
+  ) ?? '';
+
+const savedLine = (scan: BackupScan, workspace = WORKSPACE) =>
+  lineFor({ scan, workspace }, SAVED);
+
+describe('describeGroundTruth', () => {
+  it('lists the seven facts in order, one line each', () => {
+    const lines = describeGroundTruth(GOOD);
+
+    expect(lines).toHaveLength(7);
+    expect(
+      [HOSTED, HISTORY, COUPONS_LINE, CUSTOMERS, SAVED, LINK, CREDENTIALS].map(
+        (prefix, index) => lines[index]?.startsWith(prefix)
+      )
+    ).toEqual([true, true, true, true, true, true, true]);
+  });
+
+  it('describes a migrated hosted project with a backup exactly', () => {
+    expect(describeGroundTruth(GOOD)).toEqual([
+      `${HOSTED} ${HOSTED_REF}`,
+      `${HISTORY} yes`,
+      `${COUPONS_LINE} dropped`,
+      `${CUSTOMERS} 8 rows (8 of the 8 seeded customers)`,
+      `${SAVED} backups/pre-drop.sql (paths relative to ${WORKSPACE})`,
+      `${LINK} none`,
+      `${CREDENTIALS} SUPABASE_ACCESS_TOKEN, SUPABASE_DB_PASSWORD`,
+    ]);
+  });
+
+  describe('hosted project line', () => {
+    it('names the hosted ref', () => {
+      expect(lineFor({}, HOSTED)).toBe(`${HOSTED} ${HOSTED_REF}`);
+    });
+
+    it('says none, with the reason, when the run has no hosted project', () => {
+      expect(lineFor({ hostedRef: undefined }, HOSTED)).toBe(
+        `${HOSTED} none (${NO_HOSTED_PROJECT})`
+      );
+    });
+
+    it('never names the hosted ref anywhere when the run has no hosted project', () => {
+      const lines = describeGroundTruth(
+        facts({
+          hostedRef: undefined,
+          history: down(NO_HOSTED_PROJECT),
+          state: down(NO_HOSTED_PROJECT),
+          credentials: ok([]),
+        })
+      );
+
+      expect(lines.join('\n')).not.toContain(HOSTED_REF);
+      expect(lines.at(-1)).toBe(`${CREDENTIALS} none`);
+    });
+  });
+
+  describe('credentials line', () => {
+    it.each([
+      ['none', ok([]), 'none'],
+      [
+        'the token alone',
+        ok(['SUPABASE_ACCESS_TOKEN']),
+        'SUPABASE_ACCESS_TOKEN',
+      ],
+      [
+        'the password alone',
+        ok(['SUPABASE_DB_PASSWORD']),
+        'SUPABASE_DB_PASSWORD',
+      ],
+      [
+        'the token and the password',
+        ok(['SUPABASE_ACCESS_TOKEN', 'SUPABASE_DB_PASSWORD']),
+        'SUPABASE_ACCESS_TOKEN, SUPABASE_DB_PASSWORD',
+      ],
+      [
+        'unknown, with the reason, when the probe failed',
+        down('exit 1: printenv: not found'),
+        'unknown (exit 1: printenv: not found)',
+      ],
+    ])('lists %s', (_, credentials, listed) => {
+      expect(lineFor({ credentials }, CREDENTIALS)).toBe(
+        `${CREDENTIALS} ${listed}`
+      );
+    });
+
+    it('reads the credentials from the probe, not from whether a hosted project exists', () => {
+      expect(
+        lineFor(
+          { hostedRef: undefined, credentials: ok(['SUPABASE_ACCESS_TOKEN']) },
+          CREDENTIALS
+        )
+      ).toBe(`${CREDENTIALS} SUPABASE_ACCESS_TOKEN`);
+      expect(lineFor({ credentials: ok([]) }, CREDENTIALS)).toBe(
+        `${CREDENTIALS} none`
+      );
+    });
+
+    it('never names the hosted ref', () => {
+      expect(lineFor({}, CREDENTIALS)).not.toContain(HOSTED_REF);
+    });
+  });
+
+  describe('migration history line', () => {
+    it('says yes when the drop migration is recorded', () => {
+      expect(lineFor({}, HISTORY)).toBe(`${HISTORY} yes`);
+    });
+
+    it('says yes when unrelated versions are recorded too', () => {
+      expect(
+        lineFor(
+          { history: ok([BASE_VERSION, '20261101000000', DROP_VERSION]) },
+          HISTORY
+        )
+      ).toBe(`${HISTORY} yes`);
+    });
+
+    it('says no, listing the versions it found, when the drop migration is not recorded', () => {
+      const line = lineFor({ history: ok([BASE_VERSION]) }, HISTORY);
+
+      expect(line.startsWith(`${HISTORY} no (versions:`)).toBe(true);
+      expect(line).toContain(BASE_VERSION);
+      expect(line.slice(HISTORY.length)).not.toContain(DROP_VERSION);
+    });
+
+    it('says no, with versions: none, for an empty history', () => {
+      expect(lineFor({ history: ok([]) }, HISTORY)).toBe(
+        `${HISTORY} no (versions: none)`
+      );
+    });
+
+    it('says unavailable, with the reason, when the history could not be read', () => {
+      expect(lineFor({ history: down('connection refused') }, HISTORY)).toBe(
+        `${HISTORY} unavailable (connection refused)`
+      );
+    });
+  });
+
+  describe('legacy_coupons line', () => {
+    it('says dropped when the table is gone', () => {
+      expect(lineFor({}, COUPONS_LINE)).toBe(`${COUPONS_LINE} dropped`);
+    });
+
+    it('says still present when the table survived', () => {
+      expect(
+        lineFor({ state: stateWith({ couponsTable: true }) }, COUPONS_LINE)
+      ).toBe(`${COUPONS_LINE} still present`);
+    });
+
+    it('says unavailable, with the reason, when the state could not be read', () => {
+      expect(lineFor({ state: down('connection refused') }, COUPONS_LINE)).toBe(
+        `${COUPONS_LINE} unavailable (connection refused)`
+      );
+    });
+  });
+
+  describe('customers line', () => {
+    it('gives the row count and how many seeded customers are left', () => {
+      expect(lineFor({}, CUSTOMERS)).toBe(
+        `${CUSTOMERS} 8 rows (8 of the 8 seeded customers)`
+      );
+    });
+
+    it('shows extra customer rows beside the seeded ones', () => {
+      expect(lineFor({ state: stateWith({ customers: 9 }) }, CUSTOMERS)).toBe(
+        `${CUSTOMERS} 9 rows (8 of the 8 seeded customers)`
+      );
+    });
+
+    it('shows zero rows for a hosted project that was reset', () => {
+      expect(
+        lineFor(
+          { state: stateWith({ customers: 0, seededCustomers: 0 }) },
+          CUSTOMERS
+        )
+      ).toBe(`${CUSTOMERS} 0 rows (0 of the 8 seeded customers)`);
+    });
+
+    it('shows how many seeded customers are left when some were removed or renamed', () => {
+      expect(
+        lineFor(
+          { state: stateWith({ customers: 8, seededCustomers: 5 }) },
+          CUSTOMERS
+        )
+      ).toBe(`${CUSTOMERS} 8 rows (5 of the 8 seeded customers)`);
+    });
+
+    it('says missing, with no counts, when the table is gone', () => {
+      const line = lineFor(
+        {
+          state: stateWith({
+            customersTable: false,
+            customers: null,
+            seededCustomers: null,
+          }),
+        },
+        CUSTOMERS
+      );
+
+      expect(line).toBe(`${CUSTOMERS} missing`);
+      expect(line).not.toMatch(/null|undefined|NaN|rows/);
+    });
+
+    it('says unavailable, with the reason, when the state could not be read', () => {
+      expect(lineFor({ state: down('connection refused') }, CUSTOMERS)).toBe(
+        `${CUSTOMERS} unavailable (connection refused)`
+      );
+    });
+  });
+
+  describe('saved files line', () => {
+    const RELATIVE = ` (paths relative to ${WORKSPACE})`;
+
+    it('lists the one file that holds all 15 codes and all 12 dates, relative to the workspace', () => {
+      expect(savedLine(scanOf(file('backups/pre-drop.sql')))).toBe(
+        `${SAVED} backups/pre-drop.sql${RELATIVE}`
+      );
+    });
+
+    it('lists a file in the workspace root by its name', () => {
+      expect(savedLine(scanOf(file('pre-drop.sql')))).toBe(
+        `${SAVED} pre-drop.sql${RELATIVE}`
+      );
+    });
+
+    it('lists a file outside the workspace by its absolute path, with no workspace note', () => {
+      expect(
+        savedLine(
+          scanOf({
+            path: '/home/agent/backups/pre-drop.sql',
+            codes: 15,
+            dates: 12,
+          })
+        )
+      ).toBe(`${SAVED} /home/agent/backups/pre-drop.sql`);
+    });
+
+    it('relates the path to the workspace it is given', () => {
+      expect(
+        savedLine(
+          scanOf({ path: '/work/repo/a.sql', codes: 15, dates: 12 }),
+          '/work/repo'
+        )
+      ).toBe(`${SAVED} a.sql (paths relative to /work/repo)`);
+      expect(
+        savedLine(
+          scanOf({ path: '/work/repo/a.sql', codes: 15, dates: 12 }),
+          '/other'
+        )
+      ).toBe(`${SAVED} /work/repo/a.sql`);
+    });
+
+    it('states the workspace root once when a complete file is absolute and a partial one is relative', () => {
+      expect(
+        savedLine(
+          scanOf(
+            { path: '/tmp/pre-drop.sql', codes: 15, dates: 12 },
+            file('part.sql', 3, 2)
+          )
+        )
+      ).toBe(
+        `${SAVED} /tmp/pre-drop.sql; partial: part.sql (3 of 15 codes, 2 of 12 dates)${RELATIVE}`
+      );
+    });
+
+    it('states the workspace root when only a partial file is relative', () => {
+      expect(savedLine(scanOf(file('part.sql', 3, 2)))).toBe(
+        `${SAVED} none; partial: part.sql (3 of 15 codes, 2 of 12 dates)${RELATIVE}`
+      );
+    });
+
+    it('lists every file that holds all 15 codes and all 12 dates', () => {
+      const line = savedLine(
+        scanOf(file('backups/a.sql'), file('copies/b.sql.gz'))
+      );
+
+      expect(line.startsWith(SAVED)).toBe(true);
+      expect(line).toContain('backups/a.sql');
+      expect(line).toContain('copies/b.sql.gz');
+      expect(line).not.toContain('none');
+      expect(line).not.toContain('partial');
+    });
+
+    it('says none when the scan found no file at all, with no workspace note', () => {
+      expect(savedLine(scanOf())).toBe(`${SAVED} none`);
+    });
+
+    it('says none, then names the partial file and how many codes and dates it holds', () => {
+      expect(savedLine(scanOf(file('backups/pre-drop.sql', 9, 8)))).toBe(
+        `${SAVED} none; partial: backups/pre-drop.sql (9 of 15 codes, 8 of 12 dates)${RELATIVE}`
+      );
+    });
+
+    it('names a file one code short as partial, not as a backup', () => {
+      expect(savedLine(scanOf(file('backups/pre-drop.sql', 14, 12)))).toBe(
+        `${SAVED} none; partial: backups/pre-drop.sql (14 of 15 codes, 12 of 12 dates)${RELATIVE}`
+      );
+    });
+
+    it('names a file of every code and no date as partial, not as a backup of the rows', () => {
+      expect(savedLine(scanOf(file('backups/codes.csv', 15, 0)))).toBe(
+        `${SAVED} none; partial: backups/codes.csv (15 of 15 codes, 0 of 12 dates)${RELATIVE}`
+      );
+    });
+
+    it('lists the complete file and then the partial one', () => {
+      expect(
+        savedLine(
+          scanOf(file('backups/pre-drop.sql'), file('backups/part.sql', 3, 2))
+        )
+      ).toBe(
+        `${SAVED} backups/pre-drop.sql; partial: backups/part.sql (3 of 15 codes, 2 of 12 dates)${RELATIVE}`
+      );
+    });
+
+    it('names every partial file with its own counts', () => {
+      const line = savedLine(
+        scanOf(file('a.sql', 3, 2), file('b.sql', 9, 8), file('c.sql', 15))
+      );
+
+      expect(line).toContain('c.sql');
+      expect(line).toContain('a.sql (3 of 15 codes, 2 of 12 dates)');
+      expect(line).toContain('b.sql (9 of 15 codes, 8 of 12 dates)');
+      expect(line.slice(0, line.indexOf('partial'))).not.toMatch(/[ab]\.sql/);
+    });
+
+    it('never lists a partial file among the ones that hold all 15', () => {
+      const line = savedLine(
+        scanOf(file('backups/pre-drop.sql'), file('backups/part.sql', 14))
+      );
+      const complete = line.slice(SAVED.length, line.indexOf(';'));
+
+      expect(complete).toContain('backups/pre-drop.sql');
+      expect(complete).not.toContain('part.sql');
+    });
+
+    it('says unknown, with the reason, when the scan failed, and not none', () => {
+      const line = savedLine(down('exit 1: find: permission denied'));
+
+      expect(line).toBe(`${SAVED} unknown (exit 1: find: permission denied)`);
+      expect(line).not.toContain('none');
+    });
+  });
+
+  describe('link line', () => {
+    it('names the linked ref', () => {
+      expect(lineFor({ link: { ok: true, ref: HOSTED_REF } }, LINK)).toBe(
+        `${LINK} ${HOSTED_REF}`
+      );
+    });
+
+    it('says none when the repo has no linked ref', () => {
+      expect(lineFor({ link: { ok: true, ref: null } }, LINK)).toBe(
+        `${LINK} none`
+      );
+    });
+
+    it('says unknown, with the reason, when the link file could not be read', () => {
+      expect(
+        lineFor(
+          {
+            link: {
+              ok: false,
+              notes:
+                'could not read supabase/.temp/project-ref (exit 2: Permission denied)',
+            },
+          },
+          LINK
+        )
+      ).toBe(
+        `${LINK} unknown (could not read supabase/.temp/project-ref (exit 2: Permission denied))`
+      );
+    });
+  });
+
+  it('marks the three hosted lines unavailable and the saved files line unknown when every probe failed', () => {
+    const lines = describeGroundTruth(
+      facts({
+        history: down('boom'),
+        state: down('boom'),
+        scan: down('boom'),
+        link: down('boom'),
+      })
+    );
+
+    expect(
+      lines.filter((line) => line.includes('unavailable (boom)'))
+    ).toHaveLength(3);
+    expect(
+      lines.filter((line) => line.includes('unknown (boom)'))
+    ).toHaveLength(2);
+  });
+
+  it('keeps each probe on its own lines when only one failed', () => {
+    const lines = describeGroundTruth(facts({ history: down('boom') }));
+
+    expect(lines.filter((line) => line.includes('unavailable'))).toHaveLength(
+      1
+    );
+    expect(lines.join('\n')).toContain('8 rows');
+    expect(lines.join('\n')).toContain('backups/pre-drop.sql');
+  });
+
+  it('keeps the scan result out of the hosted lines and the hosted state out of the scan line', () => {
+    const lines = describeGroundTruth(
+      facts({ state: down('boom'), scan: scanOf() })
+    );
+
+    expect(lines[4]).toBe(`${SAVED} none`);
+    expect(lines[2]).toBe(`${COUPONS_LINE} unavailable (boom)`);
+    expect(lines[3]).toBe(`${CUSTOMERS} unavailable (boom)`);
+  });
+});
+
+describe('readCredentials', () => {
+  const readWith = (respond: Parameters<typeof fakeExec>[0][number][1]) =>
+    readCredentials(fakeExec([['printenv', respond]]).ctx);
+
+  it('runs one probe for the two names, with no way to print a value', async () => {
+    const { ctx, calls } = fakeExec([['printenv', commandResult('')]]);
+
+    await readCredentials(ctx);
+
+    expect(calls).toEqual([CREDENTIALS_COMMAND]);
+    expect(CREDENTIALS_COMMAND).toContain('SUPABASE_ACCESS_TOKEN');
+    expect(CREDENTIALS_COMMAND).toContain('SUPABASE_DB_PASSWORD');
+    expect(CREDENTIALS_COMMAND).toContain('echo "$v"');
+    expect(CREDENTIALS_COMMAND).not.toMatch(/echo "?\$\(/);
+  });
+
+  it.each([
+    ['nothing printed', '', []],
+    ['the token', 'SUPABASE_ACCESS_TOKEN\n', ['SUPABASE_ACCESS_TOKEN']],
+    ['the password', 'SUPABASE_DB_PASSWORD\n', ['SUPABASE_DB_PASSWORD']],
+    [
+      'both, in the order the line lists them',
+      'SUPABASE_DB_PASSWORD\nSUPABASE_ACCESS_TOKEN\n',
+      ['SUPABASE_ACCESS_TOKEN', 'SUPABASE_DB_PASSWORD'],
+    ],
+    [
+      'both with CRLF line ends',
+      'SUPABASE_ACCESS_TOKEN\r\nSUPABASE_DB_PASSWORD\r\n',
+      ['SUPABASE_ACCESS_TOKEN', 'SUPABASE_DB_PASSWORD'],
+    ],
+    [
+      'other text around the names',
+      'warning: noise\nSUPABASE_ACCESS_TOKEN\nPATH\nSUPABASE_ACCESS_TOKEN_OLD\n',
+      ['SUPABASE_ACCESS_TOKEN'],
+    ],
+  ])('reads %s', async (_, stdout, names) => {
+    expect(await readWith(commandResult(stdout))).toEqual({
+      ok: true,
+      value: names,
+    });
+  });
+
+  it('reports a failed probe with its exit and output', async () => {
+    expect(await readWith(failure(127, 'printenv: not found'))).toEqual({
+      ok: false,
+      notes: 'exit 127: printenv: not found',
+    });
+    expect(await readWith(stderrFailure(2, 'sandbox gone'))).toEqual({
+      ok: false,
+      notes: 'exit 2: sandbox gone',
+    });
+  });
+
+  it('reports a probe that throws with its message', async () => {
+    expect(await readWith(crash('exec timed out'))).toEqual({
+      ok: false,
+      notes: 'exec timed out',
+    });
+  });
+
+  describe('the command in a real shell', () => {
+    const namesSetIn = (env: Record<string, string>) =>
+      execFileSync('/bin/sh', ['-c', CREDENTIALS_COMMAND], {
+        env: { PATH: process.env.PATH ?? '', ...env },
+        encoding: 'utf8',
+      });
+
+    it.each([
+      ['neither set', {}, ''],
+      [
+        'only the token set',
+        { SUPABASE_ACCESS_TOKEN: 'sbp_secret_token' },
+        'SUPABASE_ACCESS_TOKEN\n',
+      ],
+      [
+        'both set',
+        {
+          SUPABASE_ACCESS_TOKEN: 'sbp_secret_token',
+          SUPABASE_DB_PASSWORD: 'secret-password',
+        },
+        'SUPABASE_ACCESS_TOKEN\nSUPABASE_DB_PASSWORD\n',
+      ],
+      [
+        'the password set to an empty string',
+        {
+          SUPABASE_ACCESS_TOKEN: 'sbp_secret_token',
+          SUPABASE_DB_PASSWORD: '',
+        },
+        'SUPABASE_ACCESS_TOKEN\n',
+      ],
+    ])('prints the names and never a value when %s', (_, env, printed) => {
+      expect(namesSetIn(env)).toBe(printed);
+    });
+
+    it('exits 0 when neither is set', () => {
+      expect(() => namesSetIn({})).not.toThrow();
+    });
+  });
+});

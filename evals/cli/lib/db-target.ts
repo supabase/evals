@@ -1,0 +1,208 @@
+import type {
+  LocalStackEvalContext,
+  ToolCallRecord,
+} from '@supabase-evals/core';
+import {
+  invocationFlag,
+  invocationSubcommand,
+  invocationVerb,
+  type SupabaseInvocation,
+} from './cli-invocations.js';
+
+export const CLI_FAILURE_RE =
+  /"_tag"\s*:\s*"Error"|Cannot find project ref|Access token not provided|Confirmation required|failed to connect|unknown flag|command not found|unexpected status \d{3}|failed to execute query|if any flags in the group/i;
+
+const FAILURE_NOTE_LENGTH = 200;
+const DEFAULT_PG_PORT = '5432';
+
+export const POOLER_URL_PATH = 'supabase/.temp/pooler-url';
+
+/** `remoteEndpoints` are `host:port` pairs that are hosted databases even when the host looks like loopback. */
+export type TargetOptions = { remoteEndpoints?: readonly string[] };
+
+const LOOPBACK_HOSTS = new Set([
+  'localhost',
+  '0.0.0.0',
+  '::1',
+  'host.docker.internal',
+]);
+const LOOPBACK_IPV4_RE = /^127(?:\.\d{1,3}){3}$/;
+const VARIABLE_REFERENCE = /^\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?$/;
+const LOADS_STATUS_ENV_RE =
+  /(?:^|[\s;&|(])(?:eval|source|\.|export)\s+["']?(?:\$\(|<\()[^)]*\bsupabase\b[^)]*\bstatus\b[^)]*(?:-o|--output)(?:\s+|=)["']?env\b/;
+
+/** Whether `flag` is on in `argv`: bare, or `--flag=<v>` with a value other than `''`, `0` or `false`; the last occurrence wins. */
+export function booleanFlag(argv: readonly string[], flag: string): boolean {
+  let value = false;
+  for (const token of argv) {
+    if (token === flag) {
+      value = true;
+    } else if (token.startsWith(`${flag}=`)) {
+      value = !['', '0', 'false'].includes(token.slice(flag.length + 1));
+    }
+  }
+  return value;
+}
+
+/** Whether `url` points at this machine; a URL that doesn't parse or has a dotless host (a container name) counts as local. */
+export function isLoopbackUrl(url: string): boolean {
+  let host: string;
+  try {
+    host = new URL(url).hostname.toLowerCase();
+  } catch {
+    return true;
+  }
+  const name = host.replace(/^\[|\]$/g, '');
+  if (name.includes(':')) return name === '::1';
+  return (
+    LOOPBACK_HOSTS.has(name) ||
+    name.endsWith('.localhost') ||
+    LOOPBACK_IPV4_RE.test(name) ||
+    !name.includes('.')
+  );
+}
+
+function endpointOf(url: string): string | undefined {
+  try {
+    const { hostname, port } = new URL(url);
+    const host = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+    return host === '' ? undefined : `${host}:${port || DEFAULT_PG_PORT}`;
+  } catch {
+    return undefined;
+  }
+}
+
+/** The `host:port` a connection URL dials (port 5432 when it names none), or undefined when it has no host. */
+export function hostedEndpoint(poolerUrl: string): string | undefined {
+  return endpointOf(poolerUrl.trim());
+}
+
+/** The hosted endpoint in the harness's `supabase/.temp/pooler-url`; empty when the file is missing, unreadable or not a URL. */
+export async function readHostedEndpoints(
+  ctx: Pick<LocalStackEvalContext, 'exec'>
+): Promise<string[]> {
+  try {
+    const result = await ctx.exec(`cat ${POOLER_URL_PATH}`);
+    const endpoint = result.ok ? hostedEndpoint(result.stdout) : undefined;
+    return endpoint === undefined ? [] : [endpoint];
+  } catch {
+    return [];
+  }
+}
+
+/** The value of `--remote=<v>`; a bare `--remote` takes no value, so it never reads the next token. */
+export function remoteValue(argv: readonly string[]): string | undefined {
+  const values = argv.filter((token) => token.startsWith('--remote='));
+  return values[values.length - 1]?.slice('--remote='.length);
+}
+
+function assignedValue(command: string, name: string): string | undefined {
+  const assignment = new RegExp(
+    `(?:^|[\\s;&|(])(?:export\\s+)?${name}=(?:"([^"]*)"|'([^']*)'|([^\\s;&|)]*))`,
+    'g'
+  );
+  let value: string | undefined;
+  for (const match of command.matchAll(assignment)) {
+    value = match[1] ?? match[2] ?? match[3];
+  }
+  return value;
+}
+
+function isLocalTarget(
+  url: string,
+  options: TargetOptions | undefined
+): boolean {
+  const endpoint = endpointOf(url);
+  if (endpoint !== undefined && options?.remoteEndpoints?.includes(endpoint)) {
+    return false;
+  }
+  return isLoopbackUrl(url);
+}
+
+// Argv keeps `$VAR` unexpanded: it takes its last literal assignment in the same
+// command, and with none it's the remote unless the command loads `supabase status -o env`.
+function isLocalUrl(
+  url: string,
+  command: string,
+  options: TargetOptions | undefined
+): boolean {
+  const name = VARIABLE_REFERENCE.exec(url)?.[1];
+  if (name === undefined) return isLocalTarget(url, options);
+  const assigned = assignedValue(command, name);
+  if (assigned !== undefined) return isLocalTarget(assigned, options);
+  return LOADS_STATUS_ENV_RE.test(command);
+}
+
+/** Only `--local` or a loopback `--db-url`/`--remote=<url>`: a bare `db push` or `db dump` targets the linked project on CLI 2.x but the local stack on next. */
+export function isExplicitlyLocal(
+  inv: SupabaseInvocation,
+  command: string,
+  options?: TargetOptions
+): boolean {
+  if (booleanFlag(inv.argv, '--local')) return true;
+  const remote = remoteValue(inv.argv);
+  return [
+    invocationFlag(inv, '--db-url'),
+    remote?.includes('://') ? remote : undefined,
+  ].some((url) => url !== undefined && isLocalUrl(url, command, options));
+}
+
+/** The tool calls that also run `supabase db <subcommand> --dry-run`, whose output repeats the real run's success text. */
+export function dryRunCommandIndexes(
+  invocations: readonly SupabaseInvocation[],
+  subcommand: string
+): Set<number> {
+  return new Set(
+    invocations
+      .filter(
+        (inv) =>
+          invocationVerb(inv) === 'db' &&
+          invocationSubcommand(inv) === subcommand &&
+          booleanFlag(inv.argv, '--dry-run')
+      )
+      .map((inv) => inv.commandIndex)
+  );
+}
+
+/** Output and error text together, since a call that exited non-zero keeps its output in `error`. */
+function callText(call: ToolCallRecord | undefined): string {
+  return `${typeof call?.result === 'string' ? call.result : ''}\n${call?.error ?? ''}`;
+}
+
+/**
+ * A piped or `|| true` command exits 0 whatever the CLI did, so its own failure text counts too;
+ * `success` is the command's own success text, which wins over a later command in the same call failing.
+ */
+export function toolCallFailed(
+  call: ToolCallRecord | undefined,
+  extra?: RegExp,
+  success?: RegExp
+): boolean {
+  if (call === undefined || success?.test(callText(call)) === true) {
+    return false;
+  }
+  const output = typeof call.result === 'string' ? call.result : '';
+  return (
+    call.error !== undefined ||
+    CLI_FAILURE_RE.test(output) ||
+    extra?.test(output) === true
+  );
+}
+
+/** A failed call's output is in `error` with no `result`, and can open with warnings, so both are searched for the failure line. */
+export function toolCallFailureLine(
+  call: ToolCallRecord | undefined,
+  extra?: RegExp,
+  success?: RegExp
+): string | undefined {
+  if (success?.test(callText(call)) === true) return undefined;
+  const line =
+    callText(call)
+      .split('\n')
+      .find(
+        (candidate) =>
+          CLI_FAILURE_RE.test(candidate) || extra?.test(candidate) === true
+      ) ??
+    call?.error?.split('\n').find((candidate) => candidate.trim() !== '');
+  return line?.trim().slice(0, FAILURE_NOTE_LENGTH);
+}

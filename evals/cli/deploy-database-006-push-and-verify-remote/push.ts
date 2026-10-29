@@ -12,6 +12,20 @@ import {
   type SupabaseInvocation,
 } from '../lib/cli-invocations.js';
 import {
+  type DbPush,
+  describePushes,
+  isCreditedPush,
+  isRealPush,
+  readDbPushes,
+} from '../lib/db-push.js';
+import {
+  booleanFlag,
+  isExplicitlyLocal,
+  remoteValue,
+  type TargetOptions,
+  toolCallFailed,
+} from '../lib/db-target.js';
+import {
   commandToolCalls,
   extractCommandEntries,
   scopedCommandSegments,
@@ -24,19 +38,6 @@ import {
 import { inProjectDir, shellQuote } from '../lib/shell.js';
 import { NO_HOSTED_PROJECT } from './remote.js';
 import { CHANGED_TABLES } from './seed.js';
-
-export type DbPush = {
-  order: number;
-  dryRun: boolean;
-  /** Only `--local` or a loopback `--db-url`/`--remote=<url>`: a bare `db push` targets the linked project on CLI 2.x but the local stack on 3.x. */
-  explicitlyLocal: boolean;
-  yes: boolean;
-  failed: boolean;
-  /** The push's tool call printed that there was nothing to apply, so it changed nothing. */
-  upToDate: boolean;
-  /** The first failure line the push's tool call showed, when it failed. */
-  failure?: string;
-};
 
 /** `default` is no target flag: `db query` reads the local database on every CLI channel. */
 export type QueryTarget = 'remote' | 'local' | 'default';
@@ -54,7 +55,6 @@ export type DbQuery = {
 
 export type DbActivity = { pushes: DbPush[]; queries: DbQuery[] };
 
-export const PUSH_CHECK_NAME = 'the agent pushed with supabase db push';
 export const VERIFY_CHECK_NAME =
   'the agent checked the hosted project with supabase db query after pushing';
 
@@ -79,25 +79,11 @@ const STDIN_FILES = new Set(['-', '/dev/stdin']);
 const CAT_SUBSTITUTION =
   /^\s*\$\(\s*(?:cat\s+|<\s*)(['"]?)([^\s'"`$()]+)\1\s*\)\s*$/;
 const SHELL_EXPANSION = /^\s*(?:\$\(|\$\{?[A-Za-z_]|`)/;
-const CLI_FAILURE_RE =
-  /"_tag"\s*:\s*"Error"|Cannot find project ref|Access token not provided|Confirmation required|failed to connect|unknown flag|command not found|unexpected status \d{3}|failed to execute query/i;
-const UP_TO_DATE_RE = /\bis up to date\b|"upToDate"\s*:\s*true/i;
-const FAILURE_NOTE_LENGTH = 200;
 
 const WRITE_WORD_RE =
   /\b(?:insert|update|delete|merge|create|alter|drop|truncate|grant|revoke|comment|copy|into|call|do)\b/i;
 const READ_STATEMENT_RE =
   /^\s*\(*\s*(?:select|with|table|values|explain|show|begin|start|commit|rollback|end|set)\b/i;
-const LOOPBACK_HOSTS = new Set([
-  'localhost',
-  '0.0.0.0',
-  '::1',
-  'host.docker.internal',
-]);
-const LOOPBACK_IPV4_RE = /^127(?:\.\d{1,3}){3}$/;
-const VARIABLE_REFERENCE = /^\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?$/;
-const LOADS_STATUS_ENV_RE =
-  /(?:^|[\s;&|(])(?:eval|source|\.|export)\s+["']?(?:\$\(|<\()[^)]*\bsupabase\b[^)]*\bstatus\b[^)]*(?:-o|--output)(?:\s+|=)["']?env\b/;
 
 function wholeIdentifier(names: readonly string[]): RegExp {
   return new RegExp(
@@ -122,73 +108,12 @@ function positionals(argv: readonly string[]): string[] {
   return out;
 }
 
-function booleanFlag(argv: readonly string[], flag: string): boolean {
-  let value = false;
-  for (const token of argv) {
-    if (token === flag) {
-      value = true;
-    } else if (token.startsWith(`${flag}=`)) {
-      value = !['', '0', 'false'].includes(token.slice(flag.length + 1));
-    }
-  }
-  return value;
-}
-
-function isLoopback(url: string): boolean {
-  let host: string;
-  try {
-    host = new URL(url).hostname.toLowerCase();
-  } catch {
-    return true;
-  }
-  const name = host.replace(/^\[|\]$/g, '');
-  if (name.includes(':')) return name === '::1';
-  return (
-    LOOPBACK_HOSTS.has(name) ||
-    name.endsWith('.localhost') ||
-    LOOPBACK_IPV4_RE.test(name) ||
-    !name.includes('.')
-  );
-}
-
-/** The value of `--remote=<v>`; a bare `--remote` takes no value, so it never reads the next token. */
-function remoteValue(argv: readonly string[]): string | undefined {
-  const values = argv.filter((token) => token.startsWith('--remote='));
-  return values[values.length - 1]?.slice('--remote='.length);
-}
-
-function assignedValue(command: string, name: string): string | undefined {
-  const assignment = new RegExp(
-    `(?:^|[\\s;&|(])(?:export\\s+)?${name}=(?:"([^"]*)"|'([^']*)'|([^\\s;&|)]*))`,
-    'g'
-  );
-  let value: string | undefined;
-  for (const match of command.matchAll(assignment)) {
-    value = match[1] ?? match[2] ?? match[3];
-  }
-  return value;
-}
-
-/** Argv keeps `$VAR` unexpanded: it takes its last literal assignment in the same command, and with none it's the remote unless the command loads `supabase status -o env` (by `eval`, `source` or `export`), which holds the local stack's URLs. */
-function isLocalUrl(url: string, command: string): boolean {
-  const name = VARIABLE_REFERENCE.exec(url)?.[1];
-  if (name === undefined) return isLoopback(url);
-  const assigned = assignedValue(command, name);
-  if (assigned !== undefined) return isLoopback(assigned);
-  return LOADS_STATUS_ENV_RE.test(command);
-}
-
-function isExplicitlyLocal(inv: SupabaseInvocation, command: string): boolean {
-  if (booleanFlag(inv.argv, '--local')) return true;
-  const remote = remoteValue(inv.argv);
-  return [
-    invocationFlag(inv, '--db-url'),
-    remote?.includes('://') ? remote : undefined,
-  ].some((url) => url !== undefined && isLocalUrl(url, command));
-}
-
-function queryTarget(inv: SupabaseInvocation, command: string): QueryTarget {
-  if (isExplicitlyLocal(inv, command)) return 'local';
+function queryTarget(
+  inv: SupabaseInvocation,
+  command: string,
+  options: TargetOptions | undefined
+): QueryTarget {
+  if (isExplicitlyLocal(inv, command, options)) return 'local';
   const remote =
     invocationFlag(inv, '--db-url') !== undefined ||
     invocationFlag(inv, '--project-ref') !== undefined ||
@@ -196,28 +121,6 @@ function queryTarget(inv: SupabaseInvocation, command: string): QueryTarget {
     booleanFlag(inv.argv, '--remote') ||
     remoteValue(inv.argv) !== undefined;
   return remote ? 'remote' : 'default';
-}
-
-/** A piped or `|| true` command exits 0 whatever the CLI did, so its own failure text counts too. */
-function callFailed(call: ToolCallRecord | undefined): boolean {
-  if (call === undefined) return false;
-  const output = typeof call.result === 'string' ? call.result : '';
-  return call.error !== undefined || CLI_FAILURE_RE.test(output);
-}
-
-function pushedNothing(call: ToolCallRecord | undefined): boolean {
-  return typeof call?.result === 'string' && UP_TO_DATE_RE.test(call.result);
-}
-
-/** A failed call's output is in `error` with no `result`, and can open with warnings, so both are searched for the CLI's failure line. */
-function failureLine(call: ToolCallRecord | undefined): string | undefined {
-  const output = typeof call?.result === 'string' ? call.result : '';
-  const line =
-    `${output}\n${call?.error ?? ''}`
-      .split('\n')
-      .find((candidate) => CLI_FAILURE_RE.test(candidate)) ??
-    call?.error?.split('\n').find((candidate) => candidate.trim() !== '');
-  return line?.trim().slice(0, FAILURE_NOTE_LENGTH);
 }
 
 function redirectedFile(segment: string): string | undefined {
@@ -267,12 +170,13 @@ function readQuery(
   order: number,
   ordinal: number,
   command: string | undefined,
-  call: ToolCallRecord | undefined
+  call: ToolCallRecord | undefined,
+  options: TargetOptions | undefined
 ): DbQuery {
   const base = {
     order,
-    target: queryTarget(inv, command ?? ''),
-    failed: callFailed(call),
+    target: queryTarget(inv, command ?? '', options),
+    failed: toolCallFailed(call),
   };
   const withFile = (file: string): DbQuery => {
     const dir = invocationDirectory(inv);
@@ -309,48 +213,31 @@ function readQuery(
 
 export function readDbActivity(
   invocations: readonly SupabaseInvocation[],
-  toolCalls: readonly ToolCallRecord[]
+  toolCalls: readonly ToolCallRecord[],
+  options?: TargetOptions
 ): DbActivity {
   const entries = extractCommandEntries(toolCalls);
   const calls = commandToolCalls(toolCalls);
-  const activity: DbActivity = { pushes: [], queries: [] };
+  const queries: DbQuery[] = [];
   invocations.forEach((inv, order) => {
-    if (invocationVerb(inv) !== 'db') return;
-    switch (invocationSubcommand(inv)) {
-      case 'push': {
-        const call = calls[inv.commandIndex];
-        const command = entries[inv.commandIndex]?.command ?? '';
-        const failed = callFailed(call);
-        const failure = failed ? failureLine(call) : undefined;
-        activity.pushes.push({
-          order,
-          dryRun: booleanFlag(inv.argv, '--dry-run'),
-          explicitlyLocal: isExplicitlyLocal(inv, command),
-          yes: booleanFlag(inv.argv, '--yes'),
-          failed,
-          upToDate: pushedNothing(call),
-          ...(failure === undefined ? {} : { failure }),
-        });
-        break;
-      }
-      case 'query': {
-        const first = invocations.findIndex(
-          (other) => other.commandIndex === inv.commandIndex
-        );
-        activity.queries.push(
-          readQuery(
-            inv,
-            order,
-            order - first,
-            entries[inv.commandIndex]?.command,
-            calls[inv.commandIndex]
-          )
-        );
-        break;
-      }
+    if (invocationVerb(inv) !== 'db' || invocationSubcommand(inv) !== 'query') {
+      return;
     }
+    const first = invocations.findIndex(
+      (other) => other.commandIndex === inv.commandIndex
+    );
+    queries.push(
+      readQuery(
+        inv,
+        order,
+        order - first,
+        entries[inv.commandIndex]?.command,
+        calls[inv.commandIndex],
+        options
+      )
+    );
   });
-  return activity;
+  return { pushes: readDbPushes(invocations, toolCalls, options), queries };
 }
 
 /** Fills in the SQL of each query that reads a file from the sandbox; a file that can't be read, or holds no SQL, leaves it null. */
@@ -381,41 +268,6 @@ export function namesChangedTable(sql: string): boolean {
 
 export function namesProfiles(sql: string): boolean {
   return PROFILES_TABLE.test(sql);
-}
-
-/** A push that isn't a dry run and isn't explicitly local. */
-export function isRealPush(push: DbPush): boolean {
-  return !push.dryRun && !push.explicitlyLocal;
-}
-
-/** A push that isn't a dry run, isn't explicitly local, and neither failed nor found nothing to apply. */
-export function isCreditedPush(push: DbPush): boolean {
-  return isRealPush(push) && !push.failed && !push.upToDate;
-}
-
-function describePushes(pushes: readonly DbPush[]): string {
-  if (pushes.length === 0) return 'no supabase db push ran';
-  const real = pushes.filter(isRealPush);
-  const kinds = [
-    ...(pushes.some((push) => push.dryRun) ? ['dry-run'] : []),
-    ...(pushes.some((push) => !push.dryRun && push.explicitlyLocal)
-      ? ['local']
-      : []),
-    ...(real.some((push) => !push.failed && push.upToDate)
-      ? ['up-to-date']
-      : []),
-    ...(real.some((push) => push.failed) ? ['failed'] : []),
-  ];
-  const failure = real.find((push) => push.failure !== undefined)?.failure;
-  return `only ${new Intl.ListFormat('en').format(kinds)} supabase db push ran${failure === undefined ? '' : `; first failure: "${failure}"`}`;
-}
-
-/** Passes for a credited push; the history check scores whether it landed. */
-export function checkPushed(activity: DbActivity): CheckResult {
-  const name = PUSH_CHECK_NAME;
-  return activity.pushes.some(isCreditedPush)
-    ? { name, passed: true }
-    : { name, passed: false, notes: describePushes(activity.pushes) };
 }
 
 /** The first credited push, else the last real push: the point after which a query has to read the hosted database. */

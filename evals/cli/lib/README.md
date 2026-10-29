@@ -89,9 +89,17 @@ summary (`readPgProveSummaries` reads every one in an output), and finds the
 `redact.ts` replaces known secret values and secret-shaped text (URL passwords,
 keys, flags, JSON and YAML fields, and the cells of table columns under an
 upper-case `PASSWORD`, `SECRET`, `TOKEN` or `KEY` header) with `[redacted]`
-before it reaches a judge or report; `tableSecretValues` returns those cell
+before it reaches a judge or report, except an assignment, JSON or YAML value
+that is only a presence word (`unset`, `yes`, `none` and the like, optionally
+quoted or wrapped in `<>` or `()`) or empty; `tableSecretValues` returns those cell
 values so a scorer can pass them back as known secrets, and `readProjectKeys`
 lists the hosted project's key values to pass as the known ones.
+
+`db-target.ts` classifies where a `db push`, `db dump` or `db query` points and whether its tool call failed: `isExplicitlyLocal` is true only for `--local` or a loopback `--db-url`/`--remote=<url>` (a `$VAR` takes its last literal assignment in the same command, else it is remote unless the command loads `supabase status -o env`), and `toolCallFailed`/`toolCallFailureLine` read the CLI's failure text (`CLI_FAILURE_RE`, which includes cobra's flag-group error) from a call's output or error, plus an optional `extra` pattern for a verb's own errors and an optional `success` pattern for the verb's own success text, which wins over a failure shown by another command in the same call. `dryRunCommandIndexes(invocations, subcommand)` lists the tool calls that also run `db <subcommand> --dry-run`, whose output repeats the success text, so a reader leaves `success` out for those calls.
+
+The hosted-run harness can serve the hosted project on a loopback-looking host (`host.docker.internal:<port>`, written to `supabase/.temp/pooler-url`), so `isExplicitlyLocal(inv, command, options?)` and `readDbPushes` take `TargetOptions`: a URL whose host and port (default 5432) match one of `remoteEndpoints` counts as remote, and any other port on that host stays local. `readHostedEndpoints(ctx)` reads the endpoint from `POOLER_URL_PATH` (`hostedEndpoint` parses a pooler URL) and returns `[]` when the file is missing, unreadable or not a URL; a scorer passes its result as `remoteEndpoints`.
+
+`db-push.ts` reads each `supabase db push` invocation (`readDbPushes`) with its `order` among all supabase invocations, flags, failure and up-to-date state (`Finished supabase db push.`, through ANSI colour codes, marks a push that didn't fail, unless its call also runs `db push --dry-run`); `isCreditedPush` counts a push that isn't a dry run, isn't local, and neither failed nor found nothing to apply, and `checkPushed` passes for one. `db-target.ts` and `db-push.ts` are shared by the `deploy-database-006` and `deploy-database-007` evals, which add only their own query, dump and verify checks, so a fix to the push reader or the target rules applies to both.
 
 Tests live beside each module; run them with:
 

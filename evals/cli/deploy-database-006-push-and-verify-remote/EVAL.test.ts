@@ -10,6 +10,7 @@ import type {
   TranscriptPart,
 } from '@supabase-evals/core';
 import { describe, expect, it, vi } from 'vitest';
+import { PUSH_CHECK_NAME } from '../lib/db-push.js';
 import { DETOUR_CHECK_NAME } from '../lib/detours.js';
 import scorer from './EVAL.js';
 import {
@@ -33,8 +34,10 @@ import {
   PROJECT_KEYS,
   type Route,
   readLinkRoute,
+  readPoolerUrlRoute,
   remoteWith,
   shellCall,
+  stderrFailure,
   UNMIGRATED_REMOTE,
   versionRoute,
 } from './fixtures.js';
@@ -45,7 +48,7 @@ import {
   NO_HOSTED_PROJECT,
   SCHEMA_CHECK_NAME,
 } from './remote.js';
-import { PUSH_CHECK_NAME, VERIFY_CHECK_NAME } from './push.js';
+import { VERIFY_CHECK_NAME } from './push.js';
 import { PLANS_MIGRATION_FILE } from './seed.js';
 
 const METRICS = 'metrics';
@@ -190,6 +193,10 @@ const REPAIR = 'supabase migration repair --status applied 20261020120000';
 const APPLY_BY_HAND = shellCall(
   `supabase db query --linked -f ${MIGRATION_PATH}`,
   { result: '[]' }
+);
+
+const MISSING_POOLER_URL = readPoolerUrlRoute(
+  stderrFailure(1, 'cat: supabase/.temp/pooler-url: No such file or directory')
 );
 
 const notPushedRemote: FakeRemote = {
@@ -679,6 +686,60 @@ describe('scorer with a hosted project', () => {
     });
 
     expect(failedNames(await scorer(ctx))).toEqual([]);
+  });
+
+  describe('when the harness serves the hosted project on host.docker.internal', () => {
+    const POOLER_URL =
+      'postgresql://postgres:postgres@host.docker.internal:55432/postgres?sslmode=disable';
+    const LOCAL_STACK_URL =
+      'postgresql://postgres:postgres@host.docker.internal:54322/postgres';
+    const dialing = (url: string) => [
+      shellCall(`supabase db push --db-url "${url}" --yes`, {
+        result: APPLIED,
+      }),
+      shellCall(
+        `supabase db query --db-url "${url}" "select plan_id, count(*) from profiles group by 1"`,
+        { result: '[]' }
+      ),
+    ];
+    const poolerFile = readPoolerUrlRoute(commandResult(`${POOLER_URL}\n`));
+
+    it('credits the push and the verify that dial the pooler URL the harness wrote to supabase/.temp/pooler-url', async () => {
+      const { ctx } = fakeCtx({
+        toolCalls: dialing(POOLER_URL),
+        routes: [poolerFile],
+      });
+
+      expect(failedNames(await scorer(ctx))).toEqual([]);
+    });
+
+    it.each([
+      ['the file is missing', MISSING_POOLER_URL],
+      ['the file holds garbage', readPoolerUrlRoute(commandResult('nope'))],
+      ['reading the file throws', readPoolerUrlRoute(crash())],
+    ])('does not credit them when %s', async (_, route) => {
+      const { ctx } = fakeCtx({
+        toolCalls: dialing(POOLER_URL),
+        routes: [route],
+      });
+
+      expect(failedNames(await scorer(ctx))).toEqual([
+        PUSH_CHECK_NAME,
+        VERIFY_CHECK_NAME,
+      ]);
+    });
+
+    it('does not credit a push and a query at a local stack on the same host', async () => {
+      const { ctx } = fakeCtx({
+        toolCalls: dialing(LOCAL_STACK_URL),
+        routes: [poolerFile],
+      });
+
+      expect(failedNames(await scorer(ctx))).toEqual([
+        PUSH_CHECK_NAME,
+        VERIFY_CHECK_NAME,
+      ]);
+    });
   });
 
   it('passes a push to --remote=<ref> that applied', async () => {

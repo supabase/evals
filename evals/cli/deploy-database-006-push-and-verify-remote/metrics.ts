@@ -7,8 +7,9 @@ import {
   invocationVerb,
   type SupabaseInvocation,
 } from '../lib/cli-invocations.js';
+import { isRealPush } from '../lib/db-push.js';
 import type { readCliVersions } from '../lib/metrics.js';
-import { type DbActivity, isRealPush } from './push.js';
+import type { DbActivity } from './push.js';
 import type { Probe, RemoteData } from './remote.js';
 import { PLANS_MIGRATION_VERSION } from './seed.js';
 
