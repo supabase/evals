@@ -1,4 +1,7 @@
-import type { ToolCallRecord } from '@supabase-evals/core';
+import type {
+  LocalStackEvalContext,
+  ToolCallRecord,
+} from '@supabase-evals/core';
 import {
   invocationFlag,
   invocationSubcommand,
@@ -10,6 +13,12 @@ export const CLI_FAILURE_RE =
   /"_tag"\s*:\s*"Error"|Cannot find project ref|Access token not provided|Confirmation required|failed to connect|unknown flag|command not found|unexpected status \d{3}|failed to execute query|if any flags in the group/i;
 
 const FAILURE_NOTE_LENGTH = 200;
+const DEFAULT_PG_PORT = '5432';
+
+export const POOLER_URL_PATH = 'supabase/.temp/pooler-url';
+
+/** `remoteEndpoints` are `host:port` pairs that are hosted databases even when the host looks like loopback. */
+export type TargetOptions = { remoteEndpoints?: readonly string[] };
 
 const LOOPBACK_HOSTS = new Set([
   'localhost',
@@ -53,8 +62,36 @@ export function isLoopbackUrl(url: string): boolean {
   );
 }
 
+function endpointOf(url: string): string | undefined {
+  try {
+    const { hostname, port } = new URL(url);
+    const host = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+    return host === '' ? undefined : `${host}:${port || DEFAULT_PG_PORT}`;
+  } catch {
+    return undefined;
+  }
+}
+
+/** The `host:port` a connection URL dials (port 5432 when it names none), or undefined when it has no host. */
+export function hostedEndpoint(poolerUrl: string): string | undefined {
+  return endpointOf(poolerUrl.trim());
+}
+
+/** The hosted endpoint in the harness's `supabase/.temp/pooler-url`; empty when the file is missing, unreadable or not a URL. */
+export async function readHostedEndpoints(
+  ctx: Pick<LocalStackEvalContext, 'exec'>
+): Promise<string[]> {
+  try {
+    const result = await ctx.exec(`cat ${POOLER_URL_PATH}`);
+    const endpoint = result.ok ? hostedEndpoint(result.stdout) : undefined;
+    return endpoint === undefined ? [] : [endpoint];
+  } catch {
+    return [];
+  }
+}
+
 /** The value of `--remote=<v>`; a bare `--remote` takes no value, so it never reads the next token. */
-function remoteValue(argv: readonly string[]): string | undefined {
+export function remoteValue(argv: readonly string[]): string | undefined {
   const values = argv.filter((token) => token.startsWith('--remote='));
   return values[values.length - 1]?.slice('--remote='.length);
 }
@@ -71,27 +108,43 @@ function assignedValue(command: string, name: string): string | undefined {
   return value;
 }
 
+function isLocalTarget(
+  url: string,
+  options: TargetOptions | undefined
+): boolean {
+  const endpoint = endpointOf(url);
+  if (endpoint !== undefined && options?.remoteEndpoints?.includes(endpoint)) {
+    return false;
+  }
+  return isLoopbackUrl(url);
+}
+
 // Argv keeps `$VAR` unexpanded: it takes its last literal assignment in the same
 // command, and with none it's the remote unless the command loads `supabase status -o env`.
-function isLocalUrl(url: string, command: string): boolean {
+function isLocalUrl(
+  url: string,
+  command: string,
+  options: TargetOptions | undefined
+): boolean {
   const name = VARIABLE_REFERENCE.exec(url)?.[1];
-  if (name === undefined) return isLoopbackUrl(url);
+  if (name === undefined) return isLocalTarget(url, options);
   const assigned = assignedValue(command, name);
-  if (assigned !== undefined) return isLoopbackUrl(assigned);
+  if (assigned !== undefined) return isLocalTarget(assigned, options);
   return LOADS_STATUS_ENV_RE.test(command);
 }
 
 /** Only `--local` or a loopback `--db-url`/`--remote=<url>`: a bare `db push` or `db dump` targets the linked project on CLI 2.x but the local stack on next. */
 export function isExplicitlyLocal(
   inv: SupabaseInvocation,
-  command: string
+  command: string,
+  options?: TargetOptions
 ): boolean {
   if (booleanFlag(inv.argv, '--local')) return true;
   const remote = remoteValue(inv.argv);
   return [
     invocationFlag(inv, '--db-url'),
     remote?.includes('://') ? remote : undefined,
-  ].some((url) => url !== undefined && isLocalUrl(url, command));
+  ].some((url) => url !== undefined && isLocalUrl(url, command, options));
 }
 
 /** The tool calls that also run `supabase db <subcommand> --dry-run`, whose output repeats the real run's success text. */

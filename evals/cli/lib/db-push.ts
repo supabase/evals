@@ -8,6 +8,7 @@ import {
   booleanFlag,
   dryRunCommandIndexes,
   isExplicitlyLocal,
+  type TargetOptions,
   toolCallFailed,
   toolCallFailureLine,
 } from './db-target.js';
@@ -40,7 +41,8 @@ function pushedNothing(call: ToolCallRecord | undefined): boolean {
 
 export function readDbPushes(
   invocations: readonly SupabaseInvocation[],
-  toolCalls: readonly ToolCallRecord[]
+  toolCalls: readonly ToolCallRecord[],
+  options?: TargetOptions
 ): DbPush[] {
   const entries = extractCommandEntries(toolCalls);
   const calls = commandToolCalls(toolCalls);
@@ -62,7 +64,7 @@ export function readDbPushes(
     pushes.push({
       order,
       dryRun: booleanFlag(inv.argv, '--dry-run'),
-      explicitlyLocal: isExplicitlyLocal(inv, command),
+      explicitlyLocal: isExplicitlyLocal(inv, command, options),
       yes: booleanFlag(inv.argv, '--yes'),
       failed,
       upToDate: pushedNothing(call),

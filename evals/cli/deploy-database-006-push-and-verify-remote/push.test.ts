@@ -3,6 +3,13 @@ import { readFileSync } from 'node:fs';
 import type { ToolCallRecord } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
 import { findSupabaseInvocations } from '../lib/cli-invocations.js';
+import {
+  checkPushed,
+  isCreditedPush,
+  PUSH_CHECK_NAME,
+  readDbPushes,
+} from '../lib/db-push.js';
+import type { TargetOptions } from '../lib/db-target.js';
 import { extractCommandEntries } from '../lib/detours.js';
 import {
   commandResult,
@@ -15,11 +22,9 @@ import {
   shellCall,
 } from './fixtures.js';
 import {
-  checkPushed,
   checkVerifiedAfterPush,
   namesChangedTable,
   namesProfiles,
-  PUSH_CHECK_NAME,
   readDbActivity,
   readQueryFiles,
   VERIFY_CHECK_NAME,
@@ -32,13 +37,21 @@ type Call = string | ToolCallRecord;
 const toCalls = (calls: readonly Call[]) =>
   calls.map((call) => (typeof call === 'string' ? shellCall(call) : call));
 
-const run = (...calls: Call[]) => {
+const runWith = (options: TargetOptions | undefined, ...calls: Call[]) => {
   const toolCalls = toCalls(calls);
   const invocations = findSupabaseInvocations(extractCommandEntries(toolCalls));
-  return { invocations, activity: readDbActivity(invocations, toolCalls) };
+  return {
+    toolCalls,
+    invocations,
+    activity: readDbActivity(invocations, toolCalls, options),
+  };
 };
 
+const run = (...calls: Call[]) => runWith(undefined, ...calls);
+
 const activityOf = (...calls: Call[]) => run(...calls).activity;
+const activityWith = (options: TargetOptions | undefined, ...calls: Call[]) =>
+  runWith(options, ...calls).activity;
 
 const LOCAL_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
 const POOLER_URL =
@@ -48,6 +61,13 @@ const CONTAINER_URL =
   'postgresql://postgres:postgres@supabase_db_plans-app:5432/postgres';
 const LOCALHOST_SUBDOMAIN_URL =
   'postgresql://postgres:postgres@db.localhost:5432/postgres';
+const HARNESS_POOLER_URL =
+  'postgresql://postgres:postgres@host.docker.internal:55432/postgres?sslmode=disable';
+const LOCAL_STACK_ON_DOCKER_HOST =
+  'postgresql://postgres:postgres@host.docker.internal:54322/postgres';
+const HOSTED: TargetOptions = {
+  remoteEndpoints: ['host.docker.internal:55432'],
+};
 
 const VERIFY_SQL = 'select plan_id, count(*) from public.profiles group by 1;';
 const PROFILES_BY_PLAN =
@@ -55,6 +75,9 @@ const PROFILES_BY_PLAN =
 const PLANS_ONLY_QUERY =
   'supabase db query --linked "select id, name, monthly_price_cents from public.plans"';
 const PUSH = 'supabase db push --linked --yes';
+
+const WRAPPER_CONFLICT =
+  'if any flags in the group [db-url linked local] are set none of the others can be; [db-url linked] were all set';
 
 const CLI_FAILURES: [label: string, output: string][] = [
   ['a JSON error', '{"_tag":"Error","error":{"code":1,"message":"boom"}}'],
@@ -74,6 +97,7 @@ const CLI_FAILURES: [label: string, output: string][] = [
     'unexpected status 401: {"message":"Unauthorized"}',
   ],
   ['a failed query', 'failed to execute query: relation "plans" is missing'],
+  ['a flag-group conflict', WRAPPER_CONFLICT],
 ];
 
 const filesRoute = (file: RegExp, sql: string): Route => [
@@ -90,16 +114,10 @@ const MIGRATION_SQL = readFileSync(
 );
 const MIGRATION_PATH = `supabase/migrations/${PLANS_MIGRATION_FILE}`;
 const MIGRATION_ROUTE = filesRoute(/add_plans\.sql/, MIGRATION_SQL);
-const WRAPPER_CONFLICT =
-  'if any flags in the group [db-url linked local] are set none of the others can be; [db-url linked] were all set';
 const REPAIR = 'supabase migration repair --status applied 20261020120000';
 const APPLIED =
   'Applying migration 20261020120000_add_plans.sql...\nFinished supabase db push.';
 const UP_TO_DATE = 'Remote database is up to date.';
-const UP_TO_DATE_JSON =
-  '{"_tag":"Success","message":"Remote database is up to date.","data":{"upToDate":true,"dryRun":false,"migrations":[]}}';
-const UNLINKED_ERROR =
-  '{"_tag":"Error","error":{"code":"ProjectRefNotLinkedError","message":"Cannot find project ref. Have you run supabase link?"}}';
 const DELETED_FILE: Route = [
   /verify\.sql/,
   failure(1, 'cat: /tmp/verify.sql: No such file or directory'),
@@ -118,278 +136,84 @@ async function verdictOf(
 }
 
 describe('readDbActivity: pushes', () => {
-  it('reads a push with --yes', () => {
-    expect(activityOf('supabase db push --linked --yes')).toEqual({
-      pushes: [
-        {
-          order: 0,
-          dryRun: false,
-          explicitlyLocal: false,
-          yes: true,
-          failed: false,
-          upToDate: false,
-        },
-      ],
-      queries: [],
-    });
-  });
-
-  it('numbers an invocation by its place among all supabase invocations', () => {
-    const { pushes } = activityOf(
+  it('reads the pushes with the shared push reader and numbers them among every supabase invocation', () => {
+    const { toolCalls, invocations, activity } = run(
       'supabase migration list --linked',
-      'supabase db push'
+      'supabase db push --dry-run --linked',
+      shellCall(PUSH, { result: APPLIED }),
+      PROFILES_BY_PLAN,
+      failedShellCall('supabase db push --local'),
+      shellCall('supabase db push', { result: UP_TO_DATE })
     );
-    expect(pushes).toEqual([
-      {
-        order: 1,
-        dryRun: false,
-        explicitlyLocal: false,
-        yes: false,
-        failed: false,
-        upToDate: false,
-      },
-    ]);
+    expect(activity.pushes).toEqual(readDbPushes(invocations, toolCalls));
+    expect(activity.pushes.map(({ order }) => order)).toEqual([1, 2, 4, 5]);
   });
 
-  it('numbers invocations inside one command in the order they run', () => {
-    const { pushes } = activityOf(
-      'supabase db push --dry-run && supabase db push --yes'
-    );
+  it('does not read a query or another verb as a push', () => {
     expect(
-      pushes.map(({ order, dryRun, yes }) => [order, dryRun, yes])
-    ).toEqual([
-      [0, true, false],
-      [1, false, true],
-    ]);
-  });
-
-  it.each([
-    ['--dry-run', true],
-    ['--dry-run=true', true],
-    ['--dry-run=false', false],
-    ['--yes', false],
-  ])('reads %s as dryRun %s', (flag, dryRun) => {
-    expect(activityOf(`supabase db push ${flag}`).pushes[0]?.dryRun).toBe(
-      dryRun
-    );
-  });
-
-  it.each([
-    ['--yes', true],
-    ['--yes=true', true],
-    ['--yes=false', false],
-    ['--linked', false],
-  ])('reads %s as yes %s', (flag, yes) => {
-    expect(activityOf(`supabase db push ${flag}`).pushes[0]?.yes).toBe(yes);
-  });
-
-  it('does not read a piped answer as --yes', () => {
-    expect(activityOf('echo y | npx supabase db push').pushes).toEqual([
-      {
-        order: 0,
-        dryRun: false,
-        explicitlyLocal: false,
-        yes: false,
-        failed: false,
-        upToDate: false,
-      },
-    ]);
-  });
-
-  it.each([
-    ['--local', '--local', true],
-    ['--db-url on 127.0.0.1', `--db-url "${LOCAL_URL}"`, true],
-    ['--db-url= on 127.0.0.1', `--db-url="${LOCAL_URL}"`, true],
-    ['--db-url on a container name', `--db-url "${CONTAINER_URL}"`, true],
-    ['--db-url on *.localhost', `--db-url "${LOCALHOST_SUBDOMAIN_URL}"`, true],
-    ['--remote=<url> on 127.0.0.1', `--remote="${LOCAL_URL}"`, true],
-    ['--remote=<url> on a container name', `--remote="${CONTAINER_URL}"`, true],
-    ['--db-url on a pooler host', `--db-url "${POOLER_URL}"`, false],
-    ['--db-url= on a direct host', `--db-url="${DIRECT_URL}"`, false],
-    ['--remote=<url> on a direct host', `--remote="${DIRECT_URL}"`, false],
-    ['--remote=<ref>', `--remote=${HOSTED_REF}`, false],
-    ['--linked', '--linked', false],
-    ['--remote', '--remote', false],
-    ['--project-ref', `--project-ref ${HOSTED_REF}`, false],
-    ['no target flag', '', false],
-  ])('reads %s as explicitlyLocal %s', (_, flags, explicitlyLocal) => {
-    expect(
-      activityOf(`supabase db push ${flags}`).pushes[0]?.explicitlyLocal
-    ).toBe(explicitlyLocal);
-  });
-
-  it.each([
-    ['a package runner pin', 'npx -y supabase@2.122.0 db push --linked'],
-    ['an env assignment', 'SUPABASE_YES=1 supabase db push --include-all'],
-    ['a directory change', 'cd app && supabase db push'],
-    ['a piped answer', 'echo y | supabase db push'],
-    ['an env wrapper', 'env FOO=1 supabase db push --linked'],
-    ['a subshell', '(supabase db push --linked)'],
-  ])('reads a push through %s', (_, command) => {
-    expect(activityOf(command).pushes).toHaveLength(1);
+      activityOf(PROFILES_BY_PLAN, 'supabase migration list --linked').pushes
+    ).toEqual([]);
   });
 
   describe('failure', () => {
-    it('marks a push failed when its tool call reported an error', () => {
-      const { pushes } = activityOf(failedShellCall(PUSH), shellCall(PUSH));
-      expect(pushes.map(({ failed }) => failed)).toEqual([true, false]);
+    it('does not credit a push whose output printed the flag-group error', () => {
+      const { pushes } = activityOf(
+        shellCall('supabase db push --linked --yes 2>&1 | tail -20', {
+          result: WRAPPER_CONFLICT,
+        })
+      );
+      expect(pushes[0]).toMatchObject({
+        failed: true,
+        failure: WRAPPER_CONFLICT,
+      });
+      expect(pushes.some(isCreditedPush)).toBe(false);
+      expect(checkPushed(pushes)).toEqual({
+        name: PUSH_CHECK_NAME,
+        passed: false,
+        notes: `only failed supabase db push ran; first failure: "${WRAPPER_CONFLICT}"`,
+      });
     });
 
-    it.each(CLI_FAILURES)(
-      'marks a piped push failed when its output shows %s, with no tool error',
-      (_, result) => {
-        const { pushes } = activityOf(
-          shellCall('supabase db push 2>&1 | tail -20', { result })
-        );
-        expect(pushes[0]?.failed).toBe(true);
-      }
-    );
-
-    it.each([
-      ['a successful push', 'Finished supabase db push.'],
-      ['a push with nothing to do', 'Remote database is up to date.'],
-      ['an empty output', ''],
-    ])('does not mark a push failed on %s', (_, result) => {
-      const { pushes } = activityOf(shellCall(PUSH, { result }));
-      expect(pushes[0]?.failed).toBe(false);
+    it('credits a push whose call printed that it finished, though a later command in the call failed', () => {
+      const { pushes } = activityOf(
+        shellCall(
+          'supabase db push --yes && supabase migration list --linked',
+          {
+            result: `${APPLIED}\n${WRAPPER_CONFLICT}`,
+            error: 'exit 1',
+          }
+        )
+      );
+      expect(pushes[0]).toMatchObject({ failed: false });
       expect(pushes[0]).not.toHaveProperty('failure');
-    });
-
-    it('keeps the first line of the output that shows the failure', () => {
-      const { pushes } = activityOf(
-        shellCall('supabase db push 2>&1 | tail -20', {
-          result:
-            'Connecting to remote database...\nCannot find project ref. Have you run supabase link?\nTry --help',
-        })
-      );
-      expect(pushes[0]).toMatchObject({
-        failed: true,
-        failure: 'Cannot find project ref. Have you run supabase link?',
-      });
-    });
-
-    it('keeps the first line of the error text when the output shows no failure', () => {
-      const { pushes } = activityOf(
-        shellCall(PUSH, { error: '\n  exit status 1\nsecond line' })
-      );
-      expect(pushes[0]).toMatchObject({
-        failed: true,
-        failure: 'exit status 1',
-      });
-    });
-
-    it('trims the failure line to 200 characters', () => {
-      const { pushes } = activityOf(
-        shellCall(PUSH, { error: `Cannot find project ref ${'x'.repeat(500)}` })
-      );
-      expect(pushes[0]?.failure).toHaveLength(200);
-    });
-
-    it.each([
-      [
-        'a deprecation warning',
-        `Warning: --linked is deprecated and will be removed in v4. Use --remote instead\n${UNLINKED_ERROR}`,
-      ],
-      [
-        'an npx warning',
-        `npm warn exec The following package was not found and will be installed: supabase@2.117.0\n${UNLINKED_ERROR}`,
-      ],
-    ])(
-      'keeps the CLI failure line of the error text past %s, with no output',
-      (_, error) => {
-        const call = shellCall('supabase db push --linked', { error });
-        expect(call.result).toBeUndefined();
-        expect(activityOf(call).pushes[0]).toMatchObject({
-          failed: true,
-          failure: UNLINKED_ERROR,
-        });
-      }
-    );
-
-    it('searches the output and the error text together for the failure line', () => {
-      const { pushes } = activityOf(
-        shellCall(PUSH, {
-          result: 'Connecting to remote database...',
-          error: `exit status 1\n${UNLINKED_ERROR}`,
-        })
-      );
-      expect(pushes[0]?.failure).toBe(UNLINKED_ERROR);
-    });
-
-    it('reads the output of the tool call the push ran in, not of another call', () => {
-      const { pushes } = activityOf(
-        shellCall('supabase migration list --linked', {
-          result: 'Cannot find project ref.',
-        }),
-        shellCall(PUSH, { result: 'Finished supabase db push.' })
-      );
-      expect(pushes.map(({ failed }) => failed)).toEqual([false]);
+      expect(checkPushed(pushes).passed).toBe(true);
     });
   });
 
-  describe('up to date', () => {
-    it.each([
-      ['the text output', UP_TO_DATE],
-      ['the text output in another case', 'REMOTE DATABASE IS UP TO DATE.'],
-      ['the JSON output', UP_TO_DATE_JSON],
-      ['JSON output with spacing', '{ "upToDate" : true }'],
-      [
-        'a deprecation warning before it',
-        `Warning: --db-url is deprecated\n${UP_TO_DATE}`,
-      ],
-    ])('marks a push up to date on %s', (_, result) => {
-      const { pushes } = activityOf(shellCall('supabase db push', { result }));
-      expect(pushes[0]).toMatchObject({ upToDate: true, failed: false });
-    });
+  describe('with known hosted endpoints', () => {
+    const command = `supabase db push --db-url "${HARNESS_POOLER_URL}"`;
 
-    it.each([
-      ['a push that applied a migration', APPLIED],
-      ['JSON output of a push that applied', '{"data":{"upToDate":false}}'],
-      [
-        'a migration named up_to_date',
-        'Applying migration 1_up_to_date.sql...',
-      ],
-      ['an empty output', ''],
-    ])('does not mark a push up to date on %s', (_, result) => {
-      const { pushes } = activityOf(shellCall('supabase db push', { result }));
-      expect(pushes[0]?.upToDate).toBe(false);
-    });
-
-    it('marks every push in one tool call up to date when its output says so', () => {
-      const { pushes } = activityOf(
-        shellCall('supabase db push --yes && supabase db push', {
-          result: `${APPLIED}\n${UP_TO_DATE}`,
-        })
+    it('reads a push at the hosted endpoint as explicitly local until it is passed', () => {
+      expect(activityOf(command).pushes[0]?.explicitlyLocal).toBe(true);
+      expect(activityWith(HOSTED, command).pushes[0]?.explicitlyLocal).toBe(
+        false
       );
-      expect(pushes.map(({ upToDate }) => upToDate)).toEqual([true, true]);
     });
 
-    it('does not mark a push up to date when its tool call errored', () => {
-      const { pushes } = activityOf(failedShellCall('supabase db push'));
-      expect(pushes[0]?.upToDate).toBe(false);
+    it('credits that push only when the endpoint is passed', () => {
+      const call = shellCall(command, { result: APPLIED });
+      expect(checkPushed(activityOf(call).pushes).passed).toBe(false);
+      expect(checkPushed(activityWith(HOSTED, call).pushes).passed).toBe(true);
     });
 
-    it('reads the output of the tool call the push ran in, not of another call', () => {
-      const { pushes } = activityOf(
-        shellCall('supabase migration list --linked', { result: UP_TO_DATE }),
-        shellCall(PUSH, { result: APPLIED })
-      );
-      expect(pushes.map(({ upToDate }) => upToDate)).toEqual([false]);
+    it('keeps a push at a local stack on the same host local', () => {
+      expect(
+        activityWith(
+          HOSTED,
+          `supabase db push --db-url "${LOCAL_STACK_ON_DOCKER_HOST}"`
+        ).pushes[0]?.explicitlyLocal
+      ).toBe(true);
     });
-  });
-
-  it.each([
-    ['a help request', 'supabase db push --help'],
-    ['an echoed command line', 'echo "supabase db push --yes"'],
-    ['a commented command line', '# supabase db push'],
-    ['db reset', 'supabase db reset --linked'],
-    ['db pull', 'supabase db pull'],
-    ['db diff', 'supabase db diff --linked'],
-    ['migration up', 'supabase migration up --linked'],
-    ['a migration repair', 'supabase migration repair --status applied 1'],
-    ['psql', `psql "${DIRECT_URL}" -f supabase/migrations/x.sql`],
-  ])('does not read %s as a push', (_, command) => {
-    expect(activityOf(command).pushes).toEqual([]);
   });
 });
 
@@ -500,56 +324,8 @@ describe('readDbActivity: query targets', () => {
 });
 
 describe('readDbActivity: a --db-url from a shell variable', () => {
-  const pushOf = (command: string) => activityOf(command).pushes[0];
   const queryTargetOf = (command: string) =>
     activityOf(command).queries[0]?.target;
-
-  it.each([
-    ['$VAR', 'supabase db push --db-url "$SUPABASE_DB_URL"'],
-    ['${VAR}', 'supabase db push --db-url "${SUPABASE_DB_URL}"'],
-    ['--db-url=$VAR', 'supabase db push --db-url=$DATABASE_URL'],
-    [
-      'a variable loaded from a file',
-      'set -a; . ./.env; set +a; supabase db push --db-url "$SUPABASE_DB_URL"',
-    ],
-    [
-      'a variable assigned a hosted URL',
-      `DB_URL="${POOLER_URL}"; supabase db push --db-url "$DB_URL"`,
-    ],
-  ])('reads a push with %s as not local', (_, command) => {
-    expect(pushOf(command)?.explicitlyLocal).toBe(false);
-  });
-
-  it.each([
-    [
-      'a variable assigned a loopback URL',
-      `DB_URL="${LOCAL_URL}"; supabase db push --db-url "$DB_URL"`,
-    ],
-    [
-      'an exported loopback URL',
-      `export DB_URL=${LOCAL_URL} && supabase db push --db-url "$DB_URL"`,
-    ],
-    [
-      'the last assignment, when it is a loopback URL',
-      `DB_URL="${POOLER_URL}"; DB_URL="${LOCAL_URL}"; supabase db push --db-url "$DB_URL"`,
-    ],
-    [
-      'a variable loaded from supabase status',
-      'eval "$(supabase status -o env)" && supabase db push --db-url "$DB_URL"',
-    ],
-    [
-      'a variable assigned from a command substitution',
-      'DB_URL="$(cat .db-url)"; supabase db push --db-url "$DB_URL"',
-    ],
-  ])('reads a push with %s as local', (_, command) => {
-    expect(pushOf(command)?.explicitlyLocal).toBe(true);
-  });
-
-  it('keeps a --db-url command substitution local', () => {
-    expect(
-      pushOf('supabase db push --db-url "$(cat .db-url)"')?.explicitlyLocal
-    ).toBe(true);
-  });
 
   it.each([
     [
@@ -593,13 +369,6 @@ describe('readDbActivity: a --db-url from a shell variable', () => {
     expect(queryTargetOf(command)).toBe('remote');
   });
 
-  it('reads a push alongside a plain supabase status as not local', () => {
-    expect(
-      pushOf('supabase status && supabase db push --db-url "$SUPABASE_DB_URL"')
-        ?.explicitlyLocal
-    ).toBe(false);
-  });
-
   it.each([
     ['eval "$(… -o env)"', 'eval "$(supabase status -o env)"'],
     ['eval $(… --output env)', 'eval $(supabase status --output env)'],
@@ -621,7 +390,7 @@ describe('readDbActivity: a --db-url from a shell variable', () => {
       'supabase db push --db-url "$SUPABASE_DB_URL"',
       'supabase db query --db-url "$SUPABASE_DB_URL" "select plan_id, count(*) from profiles group by 1"',
     ];
-    expect(checkPushed(activityOf(...calls)).passed).toBe(true);
+    expect(checkPushed(activityOf(...calls).pushes).passed).toBe(true);
     expect((await verdictOf(calls)).passed).toBe(true);
   });
 
@@ -630,8 +399,57 @@ describe('readDbActivity: a --db-url from a shell variable', () => {
       'eval "$(supabase status -o env)" && supabase db push --db-url "$DB_URL"',
       'eval "$(supabase status -o env)" && supabase db query --db-url "$DB_URL" "select * from profiles"',
     ];
-    expect(checkPushed(activityOf(...calls)).passed).toBe(false);
+    expect(checkPushed(activityOf(...calls).pushes).passed).toBe(false);
     expect((await verdictOf(calls)).passed).toBe(false);
+  });
+});
+
+describe('readDbActivity: the hosted endpoint on a loopback-looking host', () => {
+  const targetOf = (options: TargetOptions | undefined, flags: string) =>
+    activityWith(options, `supabase db query ${flags} "select 1"`).queries[0]
+      ?.target;
+
+  it.each([
+    ['--db-url', `--db-url "${HARNESS_POOLER_URL}"`],
+    ['--remote=<url>', `--remote="${HARNESS_POOLER_URL}"`],
+  ])(
+    'targets a query with %s at it as local until it is passed, then remote',
+    (_, flags) => {
+      expect(targetOf(undefined, flags)).toBe('local');
+      expect(targetOf(HOSTED, flags)).toBe('remote');
+    }
+  );
+
+  it('targets a query with a variable assigned it as remote once it is passed', () => {
+    const command = `DB_URL="${HARNESS_POOLER_URL}"; supabase db query --db-url "$DB_URL" "select 1"`;
+    expect(activityOf(command).queries[0]?.target).toBe('local');
+    expect(activityWith(HOSTED, command).queries[0]?.target).toBe('remote');
+  });
+
+  it('keeps a query at a local stack on the same host local', () => {
+    expect(targetOf(HOSTED, `--db-url "${LOCAL_STACK_ON_DOCKER_HOST}"`)).toBe(
+      'local'
+    );
+  });
+
+  it('credits a push and a verify that dial it once it is passed', async () => {
+    const calls = [
+      `supabase db push --db-url "${HARNESS_POOLER_URL}"`,
+      `supabase db query --db-url "${HARNESS_POOLER_URL}" "select plan_id, count(*) from profiles group by 1"`,
+    ];
+    const { ctx } = fakeExec([]);
+    const credited = async (options: TargetOptions | undefined) => {
+      const activity = await readQueryFiles(
+        ctx,
+        activityWith(options, ...calls)
+      );
+      return [
+        checkPushed(activity.pushes).passed,
+        checkVerifiedAfterPush(true, activity).passed,
+      ];
+    };
+    expect(await credited(undefined)).toEqual([false, false]);
+    expect(await credited(HOSTED)).toEqual([true, true]);
   });
 });
 
@@ -1269,293 +1087,6 @@ describe('namesProfiles', () => {
     '',
   ])('does not count %j as naming profiles', (sql) => {
     expect(namesProfiles(sql)).toBe(false);
-  });
-});
-
-describe('checkPushed', () => {
-  it('keeps the check name stable for the results dashboard', () => {
-    expect(PUSH_CHECK_NAME).toBe('the agent pushed with supabase db push');
-  });
-
-  it.each([
-    ['push --linked --yes', 'supabase db push --linked --yes'],
-    ['a bare push', 'supabase db push'],
-    ['a piped answer through npx', 'echo y | npx supabase db push'],
-    ['push --remote --yes', 'supabase db push --remote --yes'],
-    ['an env assignment', 'SUPABASE_YES=1 supabase db push --include-all'],
-    ['a project ref', `supabase db push --project-ref ${HOSTED_REF}`],
-    ['a pinned runner', 'npx -y supabase@2.122.0 db push --linked'],
-    ['a remote --db-url', `supabase db push --db-url "${POOLER_URL}"`],
-    ['--remote=<ref>', `supabase db push --remote=${HOSTED_REF} --yes`],
-    ['--dry-run=false', 'supabase db push --dry-run=false'],
-  ])('passes for %s', (_, command) => {
-    expect(checkPushed(activityOf(command))).toMatchObject({
-      name: PUSH_CHECK_NAME,
-      passed: true,
-    });
-  });
-
-  it('passes for a push that printed its success', () => {
-    expect(
-      checkPushed(
-        activityOf(shellCall(PUSH, { result: 'Finished supabase db push.' }))
-      )
-    ).toEqual({ name: PUSH_CHECK_NAME, passed: true });
-  });
-
-  it.each([
-    ['an explicitly local push', 'supabase db push --local'],
-    ['a loopback --db-url push', `supabase db push --db-url "${LOCAL_URL}"`],
-    [
-      'a loopback --remote=<url> push',
-      `supabase db push --remote="${LOCAL_URL}"`,
-    ],
-  ])('fails for %s that applied the migration', (_, command) => {
-    expect(
-      checkPushed(activityOf(shellCall(command, { result: APPLIED })))
-    ).toEqual({
-      name: PUSH_CHECK_NAME,
-      passed: false,
-      notes: 'only local supabase db push ran',
-    });
-  });
-
-  it.each([
-    ['text output', UP_TO_DATE],
-    ['JSON output', UP_TO_DATE_JSON],
-  ])('fails for a push with nothing to apply, in %s', (_, result) => {
-    expect(
-      checkPushed(activityOf(shellCall('supabase db push', { result })))
-    ).toEqual({
-      name: PUSH_CHECK_NAME,
-      passed: false,
-      notes: 'only up-to-date supabase db push ran',
-    });
-  });
-
-  it.each<[label: string, calls: Call[]]>([
-    [
-      'a failed --linked push, then a bare push that applied',
-      [
-        shellCall('supabase db push --linked', { error: WRAPPER_CONFLICT }),
-        shellCall('supabase db push --yes', {
-          result: `Warning: --db-url is deprecated and will be removed in v4. Use --remote=<url> instead\n${APPLIED}`,
-        }),
-      ],
-    ],
-    [
-      'a push that applied, then an up-to-date re-push',
-      [
-        shellCall('supabase db push', { result: APPLIED }),
-        shellCall('supabase db push', { result: UP_TO_DATE }),
-      ],
-    ],
-    [
-      'an up-to-date push, then a push that applied',
-      [
-        shellCall('supabase db push', { result: UP_TO_DATE }),
-        shellCall('supabase db push', { result: APPLIED }),
-      ],
-    ],
-    [
-      'a local push, then a push to the hosted project that applied',
-      [
-        shellCall('supabase db push --local', { result: APPLIED }),
-        shellCall(PUSH, { result: APPLIED }),
-      ],
-    ],
-  ])('passes for %s', (_, calls) => {
-    expect(checkPushed(activityOf(...calls))).toEqual({
-      name: PUSH_CHECK_NAME,
-      passed: true,
-    });
-  });
-
-  it('passes when a failed push is followed by a successful one', () => {
-    expect(
-      checkPushed(
-        activityOf(failedShellCall('supabase db push --linked'), PUSH)
-      ).passed
-    ).toBe(true);
-  });
-
-  it('passes when a successful push is followed by a failed one', () => {
-    expect(
-      checkPushed(
-        activityOf(PUSH, failedShellCall('supabase db push --linked'))
-      ).passed
-    ).toBe(true);
-  });
-
-  it('fails for a push whose tool call errored', () => {
-    expect(checkPushed(activityOf(failedShellCall(PUSH)))).toEqual({
-      name: PUSH_CHECK_NAME,
-      passed: false,
-      notes: expect.stringContaining('failed'),
-    });
-  });
-
-  it.each(CLI_FAILURES)(
-    'fails for a piped push whose output shows %s',
-    (_, result) => {
-      expect(
-        checkPushed(
-          activityOf(shellCall('supabase db push 2>&1 | tail -20', { result }))
-        ).passed
-      ).toBe(false);
-    }
-  );
-
-  it('fails when a dry run is followed by a push that failed', () => {
-    expect(
-      checkPushed(
-        activityOf('supabase db push --dry-run', failedShellCall(PUSH))
-      ).passed
-    ).toBe(false);
-  });
-
-  describe('failure notes', () => {
-    const notesFor = (...calls: Call[]) =>
-      checkPushed(activityOf(...calls)).notes ?? '';
-
-    it('words no push, only dry runs, only local pushes, only up-to-date pushes and every push failing differently', () => {
-      const notes = [
-        notesFor(),
-        notesFor('supabase db push --dry-run'),
-        notesFor('supabase db push --local'),
-        notesFor(shellCall('supabase db push', { result: UP_TO_DATE })),
-        notesFor(failedShellCall(PUSH)),
-      ];
-      expect(new Set(notes).size).toBe(5);
-      expect(notes.slice(0, 4)).toEqual([
-        'no supabase db push ran',
-        'only dry-run supabase db push ran',
-        'only local supabase db push ran',
-        'only up-to-date supabase db push ran',
-      ]);
-      expect(notes[4]).toMatch(/^only failed supabase db push ran/);
-    });
-
-    it('names each kind of push that ran when none counted', () => {
-      expect(
-        notesFor(
-          'supabase db push --dry-run',
-          shellCall('supabase db push --local', { result: APPLIED })
-        )
-      ).toBe('only dry-run and local supabase db push ran');
-      expect(
-        notesFor(
-          shellCall('supabase db push --local', { result: APPLIED }),
-          shellCall('supabase db push --linked', { error: WRAPPER_CONFLICT })
-        )
-      ).toBe(
-        `only local and failed supabase db push ran; first failure: "${WRAPPER_CONFLICT}"`
-      );
-      expect(
-        notesFor(
-          shellCall('supabase db push', { result: UP_TO_DATE }),
-          shellCall(PUSH, { error: 'exit 1' })
-        )
-      ).toBe(
-        'only up-to-date and failed supabase db push ran; first failure: "exit 1"'
-      );
-    });
-
-    it('quotes the first failure line of the first failed push', () => {
-      expect(
-        notesFor(
-          shellCall('supabase db push --linked', {
-            error: WRAPPER_CONFLICT,
-          }),
-          shellCall(PUSH, { result: 'Cannot find project ref.' })
-        )
-      ).toBe(
-        `only failed supabase db push ran; first failure: "${WRAPPER_CONFLICT}"`
-      );
-    });
-
-    it('quotes the CLI failure of the error text, not the warning that opens it', () => {
-      expect(
-        notesFor(
-          shellCall('supabase db push --linked', {
-            error: `Warning: --linked is deprecated and will be removed in v4. Use --remote instead\n${UNLINKED_ERROR}`,
-          })
-        )
-      ).toBe(
-        `only failed supabase db push ran; first failure: "${UNLINKED_ERROR}"`
-      );
-    });
-
-    it('quotes the line of the output that shows the failure', () => {
-      expect(
-        notesFor(
-          shellCall('supabase db push 2>&1 | tail -20', {
-            result: 'Connecting...\n{"_tag":"Error","error":{"code":1}}',
-          })
-        )
-      ).toContain('first failure: "{"_tag":"Error","error":{"code":1}}"');
-    });
-
-    it('trims the quoted line to 200 characters', () => {
-      const quoted = notesFor(
-        shellCall(PUSH, { error: `Cannot find project ref ${'x'.repeat(500)}` })
-      ).split('first failure: "')[1];
-      expect(quoted).toHaveLength(200 + 1);
-    });
-
-    it('quotes nothing when the failed push showed no line', () => {
-      expect(notesFor(shellCall(PUSH, { error: '' }))).toBe(
-        'only failed supabase db push ran'
-      );
-    });
-
-    it('quotes the failure of a push that was not a dry run', () => {
-      expect(
-        notesFor(
-          shellCall('supabase db push --dry-run', { error: 'dry-run boom' }),
-          shellCall(PUSH, { error: 'exit 1' })
-        )
-      ).toBe(
-        'only dry-run and failed supabase db push ran; first failure: "exit 1"'
-      );
-    });
-  });
-
-  it('passes when a dry run is followed by the real push', () => {
-    expect(
-      checkPushed(activityOf('supabase db push --dry-run --linked', PUSH))
-        .passed
-    ).toBe(true);
-  });
-
-  it.each([
-    ['no commands', []],
-    ['only a dry run', ['supabase db push --dry-run']],
-    ['only dry runs', ['supabase db push --dry-run --linked --yes']],
-    ['only migration up', ['supabase migration up --linked']],
-    [
-      'the migration run through db query and then repaired',
-      [
-        'supabase db query --linked -f supabase/migrations/20261020120000_add_plans.sql',
-        'supabase migration repair --status applied 20261020120000',
-      ],
-    ],
-    ['only db reset', ['supabase db reset --linked --yes']],
-    ['only a help request', ['supabase db push --help']],
-    ['only an echoed command line', ['echo "supabase db push --linked --yes"']],
-    [
-      'the migration applied through psql',
-      [
-        `psql "${DIRECT_URL}" -f supabase/migrations/20261020120000_add_plans.sql`,
-      ],
-    ],
-    ['only a query', [PROFILES_BY_PLAN]],
-  ])('fails with %s, saying no db push ran', (_, commands) => {
-    expect(checkPushed(activityOf(...commands))).toEqual({
-      name: PUSH_CHECK_NAME,
-      passed: false,
-      notes: expect.stringMatching(/push/i),
-    });
   });
 });
 

@@ -5,6 +5,8 @@ import {
 } from '@supabase-evals/core';
 import { stripIndent } from 'common-tags';
 import { findSupabaseInvocations } from '../lib/cli-invocations.js';
+import { checkPushed } from '../lib/db-push.js';
+import { readHostedEndpoints } from '../lib/db-target.js';
 import {
   DETOUR_CHECK_NAME,
   detourJudgeRubric,
@@ -19,7 +21,6 @@ import { errorMessage } from '../lib/shell.js';
 import { readLinkState } from '../lib/link.js';
 import { checkMetrics, countDbInvocations } from './metrics.js';
 import {
-  checkPushed,
   checkVerifiedAfterPush,
   readDbActivity,
   readQueryFiles,
@@ -45,9 +46,10 @@ const scorer: LocalStackScorer = async (ctx) => {
     const invocations = findSupabaseInvocations(entries, {
       sandboxEnv: marker?.env,
     });
+    const remoteEndpoints = await readHostedEndpoints(ctx);
     const activity = await readQueryFiles(
       ctx,
-      readDbActivity(invocations, ctx.toolCalls)
+      readDbActivity(invocations, ctx.toolCalls, { remoteEndpoints })
     );
     const counts = countDbInvocations(invocations, activity);
     const hosted = hasHostedProject(ctx);
@@ -63,7 +65,7 @@ const scorer: LocalStackScorer = async (ctx) => {
       checkMigrationRecorded(history),
       checkRemoteSchema(schema),
       checkRemoteData(data),
-      checkPushed(activity),
+      checkPushed(activity.pushes),
       checkVerifiedAfterPush(hosted, activity),
       await checkNoContainerRuntimeDetours(ctx, commands, secrets),
       checkMetrics(marker, { hosted, history, data, counts, cli, commands }),

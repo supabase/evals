@@ -75,6 +75,11 @@ export const readLinkRoute = (respond: Respond): Route => [
   respond,
 ];
 
+export const readPoolerUrlRoute = (respond: Respond): Route => [
+  'cat supabase/.temp/pooler-url',
+  respond,
+];
+
 export const versionRoute = (respond: Respond): Route => [
   /supabase --version$/,
   respond,

@@ -11,6 +11,7 @@ import {
   PUSH_CHECK_NAME,
   readDbPushes,
 } from './db-push.js';
+import type { TargetOptions } from './db-target.js';
 import { extractCommandEntries } from './detours.js';
 
 type Call = string | ToolCallRecord;
@@ -35,19 +36,27 @@ const failedShellCall = (command: string) =>
 const toCalls = (calls: readonly Call[]) =>
   calls.map((call) => (typeof call === 'string' ? shellCall(call) : call));
 
-const pushesOf = (...calls: Call[]) => {
+const pushesWith = (options: TargetOptions | undefined, ...calls: Call[]) => {
   const toolCalls = toCalls(calls);
   return readDbPushes(
     findSupabaseInvocations(extractCommandEntries(toolCalls)),
-    toolCalls
+    toolCalls,
+    options
   );
 };
+
+const pushesOf = (...calls: Call[]) => pushesWith(undefined, ...calls);
 
 const HOSTED_REF = 'abcdefghijklmnopqrst';
 const LOCAL_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
 const POOLER_URL =
   'postgresql://postgres.abcdefghijklmnopqrst:pw@aws-0-us-east-1.pooler.supabase.com:6543/postgres';
 const DIRECT_URL = `postgresql://postgres:pw@db.${HOSTED_REF}.supabase.co:5432/postgres`;
+const HARNESS_POOLER_URL =
+  'postgresql://postgres:postgres@host.docker.internal:55432/postgres?sslmode=disable';
+const HOSTED: TargetOptions = {
+  remoteEndpoints: ['host.docker.internal:55432'],
+};
 
 const PUSH = 'supabase db push --linked --yes';
 const APPLIED =
@@ -180,6 +189,35 @@ describe('readDbPushes', () => {
       pushesOf(`DB_URL="${LOCAL_URL}"; supabase db push --db-url "$DB_URL"`)[0]
         ?.explicitlyLocal
     ).toBe(true);
+  });
+
+  describe('with known hosted endpoints', () => {
+    const command = `supabase db push --db-url "${HARNESS_POOLER_URL}"`;
+
+    it('reads a push at the hosted endpoint as explicitly local until it is passed', () => {
+      expect(pushesOf(command)[0]?.explicitlyLocal).toBe(true);
+      expect(pushesWith(HOSTED, command)[0]?.explicitlyLocal).toBe(false);
+    });
+
+    it('credits that push only when the endpoint is passed', () => {
+      const call = shellCall(command, { result: APPLIED });
+      expect(checkPushed(pushesOf(call)).passed).toBe(false);
+      expect(checkPushed(pushesWith(HOSTED, call)).passed).toBe(true);
+    });
+
+    it('reads a variable assigned the hosted URL as remote', () => {
+      const assigned = `DB_URL="${HARNESS_POOLER_URL}"; supabase db push --db-url "$DB_URL"`;
+      expect(pushesWith(HOSTED, assigned)[0]?.explicitlyLocal).toBe(false);
+    });
+
+    it('keeps a push at a local stack on the same host local', () => {
+      expect(
+        pushesWith(
+          HOSTED,
+          'supabase db push --db-url "postgresql://postgres:postgres@host.docker.internal:54322/postgres"'
+        )[0]?.explicitlyLocal
+      ).toBe(true);
+    });
   });
 
   it.each([

@@ -153,7 +153,7 @@ hosted project.
 | `the plans migration is in the hosted project's migration history` | the seeded migration landed on the remote under its own version, which a `migration repair --status applied` can fake without running the DDL (the schema and data checks tell the two apart) | `select version from supabase_migrations.schema_migrations` through `ctx.hostedQuery` (an empty list when the table doesn't exist) must include `20261020120000`; other versions don't matter. It fails when the version is missing (the notes list what was found), with no hosted project, or when the query throws |
 | `the hosted schema has the plans change` | the migration's DDL ran on the remote: a history repair without the DDL leaves `plans` or `plan_id` missing, which this check and the data check catch | `public.plans` has the columns `id`, `name` and `monthly_price_cents`, and `public.profiles.plan_id` exists, is not null and has a foreign key to `public.plans` (read from `information_schema` and `pg_constraint`); extra columns are fine. The notes name each missing piece, such as `public.plans is missing` or `is nullable, expected not null`, and no hosted project or a query error fails it |
 | `the hosted data looks right after the push` | the backfill ran against the real remote rows and nothing was lost | `public.plans` holds the ids `free` and `pro` and no others, and `public.profiles` has the 24 seeded users `user_1` to `user_24`, 6 of them paid, each on `pro` if paid and `free` if not (a null `plan_id` counts as wrong). A missing table or column makes the affected count unknown, which fails; the notes give the counts, such as `24 profiles, 6 paid, 6 on pro, 18 on free`, and no hosted project or a query error fails it |
-| `the agent pushed with supabase db push` | the agent used the CLI's push path and a push that could reach the hosted project ran and applied something | at least one executed `supabase db push` is credited (`isCreditedPush` in `push.ts`): not a dry run, not explicitly local, and neither failed nor up to date. When none is, it fails and the notes list the kinds of push that ran (see [How the push and verify checks decide](#how-the-push-and-verify-checks-decide)) |
+| `the agent pushed with supabase db push` | the agent used the CLI's push path and a push that could reach the hosted project ran and applied something | at least one executed `supabase db push` is credited (`isCreditedPush` in `../lib/db-push.ts`): not a dry run, not explicitly local, and neither failed nor up to date. When none is, it fails and the notes list the kinds of push that ran (see [How the push and verify checks decide](#how-the-push-and-verify-checks-decide)) |
 | `the agent checked the hosted project with supabase db query after pushing` | the agent did the verify step of the journey: it read the hosted database with the CLI after the push | an executed `supabase db query` after the anchor push targets the hosted project, reads `profiles` with SQL that only reads, and didn't fail (see [How the push and verify checks decide](#how-the-push-and-verify-checks-decide)). With no hosted project it fails first, with the same note as the hosted check |
 | `no container-runtime detours` | no Docker or runtime workarounds for a task that needs none | the shared detour judge from `../lib/detours.ts` over executed commands only; Supabase CLI commands (`db push`, `db query`, `migration list`, `link`, `login`, `projects list`, `start`), `psql` and other database clients, reading environment variables, reading or editing files under `supabase/`, and calling the Management API with `curl` are not detours. With no commands it passes without a judge call |
 | `metrics` | diagnostics only | always passes; the fields are listed below |
@@ -172,9 +172,14 @@ hosted project.
   reported an error, or the call's output shows a CLI failure (`"_tag":"Error"`,
   `Cannot find project ref`, `Access token not provided`, `Confirmation required`,
   `failed to connect`, `unknown flag`, `command not found`, `unexpected status
-  <3 digits>` or `failed to execute query`, any case). So a command piped through
-  `tail`, `head` or `jq` that printed the CLI's error isn't credited, and a
-  failed attempt followed by a credited one passes.
+  <3 digits>`, `failed to execute query` or cobra's flag-group error, `if any
+  flags in the group ...`, any case). So a command piped through `tail`, `head`
+  or `jq` that printed the CLI's error isn't credited, and a failed attempt
+  followed by a credited one passes. A push whose call printed `Finished
+  supabase db push.` didn't fail, though a later command in the same call did,
+  unless the call also ran `db push --dry-run`, whose output repeats that text.
+  The push reader and these target and failure rules are shared with
+  `deploy-database-007` (`../lib/db-push.ts`, `../lib/db-target.ts`).
 - **Up to date.** A push was up to date when the call's output says `is up to
   date` (the text "Remote database is up to date.") or `"upToDate": true` (the
   JSON output), any case. It changed nothing, so a confirming re-push after a push
@@ -198,6 +203,13 @@ hosted project.
   last literal assignment in the same command (`VAR=...` or `export VAR=...`);
   with none it's remote, unless the command loads `supabase status -o env` with
   `eval`, `source` or `export`, since that output holds the local stack's URLs.
+  The one exception to the loopback rule is the hosted project's own endpoint:
+  the scorer reads the pooler URL the harness wrote to
+  `supabase/.temp/pooler-url` (on `host.docker.internal:<port>` when the harness
+  can't resolve an IPv4 for it), and a URL whose host and port match it is
+  remote, for pushes and queries, directly or through a variable. Another port
+  on that host, such as a local stack on `host.docker.internal:54322`, stays
+  local. A missing or unreadable file leaves the loopback rule alone.
 - **Where the SQL comes from.** The positional argument, unless it starts with a
   shell expansion (`$(`, `$VAR`, `${VAR}` or a backtick), which holds no SQL the
   scorer can see. Else the `-f`/`--file` contents; else, for `-f -`,
@@ -447,9 +459,10 @@ hosted project.
   outside the command is credited by the push and verify checks. The hosted
   checks still fail such a push. Any other `--db-url` that can't be parsed, such
   as `"$(cat .db-url)"`, counts as local.
-- In hosted runs the harness's wire endpoint can be `host.docker.internal`, which
-  the loopback rule treats as local, so a query pointed at that URL by hand isn't
-  credited.
+- The hosted endpoint is recognised only by host and port, from the pooler URL
+  file. A `--db-url` that reads it through a command substitution, such as
+  `"$(cat supabase/.temp/pooler-url)"`, still counts as local, like any other
+  `--db-url` the command doesn't show.
 - The verify check credits only `supabase db query`. `psql` or `curl` against
   the hosted project don't pass it, and the detour judge doesn't count them as
   detours: the journey under test is `db query`.

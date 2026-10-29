@@ -1,13 +1,21 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/lib/db-target.test.ts
-import type { ToolCallRecord } from '@supabase-evals/core';
+import type {
+  CommandResult,
+  LocalStackEvalContext,
+  ToolCallRecord,
+} from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
 import { findSupabaseInvocations } from './cli-invocations.js';
 import {
   booleanFlag,
   CLI_FAILURE_RE,
   dryRunCommandIndexes,
+  hostedEndpoint,
   isExplicitlyLocal,
   isLoopbackUrl,
+  POOLER_URL_PATH,
+  readHostedEndpoints,
+  type TargetOptions,
   toolCallFailed,
   toolCallFailureLine,
 } from './db-target.js';
@@ -79,8 +87,34 @@ function lastInvocation(command: string) {
   return inv;
 }
 
-const isLocal = (command: string) =>
-  isExplicitlyLocal(lastInvocation(command), command);
+const isLocal = (command: string, options?: TargetOptions) =>
+  isExplicitlyLocal(lastInvocation(command), command, options);
+
+const HOSTED_PORT = 55432;
+const HARNESS_POOLER_URL = `postgresql://postgres:postgres@host.docker.internal:${HOSTED_PORT}/postgres?sslmode=disable`;
+const HOSTED: TargetOptions = {
+  remoteEndpoints: [`host.docker.internal:${HOSTED_PORT}`],
+};
+const LOCAL_STACK_ON_DOCKER_HOST =
+  'postgresql://postgres:postgres@host.docker.internal:54322/postgres';
+
+const commandResult = (stdout = ''): CommandResult => ({
+  ok: true,
+  exitCode: 0,
+  stdout,
+  stderr: '',
+});
+
+function fakeExec(respond: CommandResult | (() => CommandResult)) {
+  const calls: string[] = [];
+  const ctx = {
+    exec: async (command: string) => {
+      calls.push(command);
+      return typeof respond === 'function' ? respond() : respond;
+    },
+  } as unknown as Pick<LocalStackEvalContext, 'exec'>;
+  return { ctx, calls };
+}
 
 describe('booleanFlag', () => {
   const argv = (...flags: string[]) => ['supabase', 'db', 'push', ...flags];
@@ -348,6 +382,254 @@ describe('isExplicitlyLocal', () => {
         isLocal(`DB_URL="${LOCAL_URL}"; supabase db dump --db-url "$DB_URL"`)
       ).toBe(true);
     });
+  });
+
+  describe('with known hosted endpoints', () => {
+    it.each([
+      ['--db-url', `--db-url "${HARNESS_POOLER_URL}"`],
+      ['--db-url=', `--db-url="${HARNESS_POOLER_URL}"`],
+      ['--remote=<url>', `--remote="${HARNESS_POOLER_URL}"`],
+    ])(
+      'reads %s at the hosted endpoint as local until it is passed, then as remote',
+      (_, flags) => {
+        const command = `supabase db push ${flags}`;
+        expect(isLocal(command)).toBe(true);
+        expect(isLocal(command, HOSTED)).toBe(false);
+      }
+    );
+
+    it.each(['db push', 'db dump', 'db query "select 1"'])(
+      'applies to supabase %s',
+      (verb) => {
+        const command = `supabase ${verb} --db-url "${HARNESS_POOLER_URL}"`;
+        expect(isLocal(command, HOSTED)).toBe(false);
+      }
+    );
+
+    it('keeps a local stack on the same host at another port local', () => {
+      expect(
+        isLocal(
+          `supabase db push --db-url "${LOCAL_STACK_ON_DOCKER_HOST}"`,
+          HOSTED
+        )
+      ).toBe(true);
+      expect(
+        isLocal(
+          `supabase db push --remote="${LOCAL_STACK_ON_DOCKER_HOST}"`,
+          HOSTED
+        )
+      ).toBe(true);
+    });
+
+    it('reads a variable assigned the hosted URL as remote', () => {
+      for (const assignment of [
+        `DB_URL="${HARNESS_POOLER_URL}"`,
+        `export DB_URL=${HARNESS_POOLER_URL}`,
+        `DB_URL='${HARNESS_POOLER_URL}'`,
+      ]) {
+        const command = `${assignment}; supabase db push --db-url "$DB_URL"`;
+        expect(isLocal(command)).toBe(true);
+        expect(isLocal(command, HOSTED)).toBe(false);
+      }
+    });
+
+    it('reads a variable by its last assignment', () => {
+      expect(
+        isLocal(
+          `DB_URL="${HARNESS_POOLER_URL}"; DB_URL="${LOCAL_STACK_ON_DOCKER_HOST}"; supabase db push --db-url "$DB_URL"`,
+          HOSTED
+        )
+      ).toBe(true);
+    });
+
+    it('reads a variable that holds no URL the command shows as before', () => {
+      expect(
+        isLocal('supabase db push --db-url "$SUPABASE_DB_URL"', HOSTED)
+      ).toBe(false);
+      expect(
+        isLocal(
+          'eval "$(supabase status -o env)" && supabase db push --db-url "$DB_URL"',
+          HOSTED
+        )
+      ).toBe(true);
+    });
+
+    it('lets --local win over the hosted endpoint', () => {
+      expect(
+        isLocal(
+          `supabase db push --local --db-url "${HARNESS_POOLER_URL}"`,
+          HOSTED
+        )
+      ).toBe(true);
+    });
+
+    it('defaults the URL port to 5432 when matching', () => {
+      const options = { remoteEndpoints: ['localhost:5432'] };
+      expect(
+        isLocal(
+          'supabase db push --db-url "postgresql://localhost/db"',
+          options
+        )
+      ).toBe(false);
+      expect(
+        isLocal(
+          'supabase db push --db-url "postgresql://localhost:54322/db"',
+          options
+        )
+      ).toBe(true);
+    });
+
+    it('matches the host in any case', () => {
+      expect(
+        isLocal(
+          `supabase db push --db-url "postgresql://p:p@HOST.DOCKER.INTERNAL:${HOSTED_PORT}/postgres"`,
+          HOSTED
+        )
+      ).toBe(false);
+    });
+
+    it('matches any endpoint in the list and a loopback address among them', () => {
+      const options = {
+        remoteEndpoints: ['db.example.com:5432', '127.0.0.1:6543'],
+      };
+      expect(
+        isLocal(
+          'supabase db push --db-url "postgresql://p:p@127.0.0.1:6543/postgres"',
+          options
+        )
+      ).toBe(false);
+      expect(isLocal(`supabase db push --db-url "${LOCAL_URL}"`, options)).toBe(
+        true
+      );
+    });
+
+    it.each([
+      ['no options', undefined],
+      ['empty options', {}],
+      ['no endpoints', { remoteEndpoints: [] }],
+    ])('reads the loopback rules alone with %s', (_, options) => {
+      expect(
+        isLocal(`supabase db push --db-url "${HARNESS_POOLER_URL}"`, options)
+      ).toBe(true);
+    });
+
+    it('does not change a URL that was remote already', () => {
+      expect(isLocal(`supabase db push --db-url "${POOLER_URL}"`, HOSTED)).toBe(
+        false
+      );
+    });
+  });
+});
+
+describe('hostedEndpoint', () => {
+  it('reads the host and port from the URL the harness writes', () => {
+    expect(hostedEndpoint(HARNESS_POOLER_URL)).toBe(
+      `host.docker.internal:${HOSTED_PORT}`
+    );
+  });
+
+  it('defaults the port to 5432', () => {
+    expect(
+      hostedEndpoint('postgresql://postgres:pw@db.example.com/postgres')
+    ).toBe('db.example.com:5432');
+  });
+
+  it('ignores the user, password, path and query', () => {
+    expect(
+      hostedEndpoint(
+        `postgresql://u:p%40ss@db.example.com:6543/x?sslmode=disable`
+      )
+    ).toBe('db.example.com:6543');
+  });
+
+  it('lowercases the host', () => {
+    expect(hostedEndpoint('postgresql://p:p@DB.Example.COM:6543/x')).toBe(
+      'db.example.com:6543'
+    );
+  });
+
+  it('trims the newline the file may end with', () => {
+    expect(hostedEndpoint(`${HARNESS_POOLER_URL}\n`)).toBe(
+      `host.docker.internal:${HOSTED_PORT}`
+    );
+  });
+
+  it('reads an IPv4 host', () => {
+    expect(
+      hostedEndpoint('postgresql://p:p@192.168.65.254:55432/postgres')
+    ).toBe('192.168.65.254:55432');
+  });
+
+  it.each([
+    ['an empty string', ''],
+    ['only whitespace', ' \n'],
+    ['text that is not a URL', 'not a url'],
+    ['a URL with no host', 'postgresql:///postgres'],
+  ])('is undefined for %s', (_, url) => {
+    expect(hostedEndpoint(url)).toBeUndefined();
+  });
+});
+
+describe('readHostedEndpoints', () => {
+  it('reads supabase/.temp/pooler-url with cat and returns its host and port', async () => {
+    const { ctx, calls } = fakeExec(commandResult(HARNESS_POOLER_URL));
+
+    expect(await readHostedEndpoints(ctx)).toEqual([
+      `host.docker.internal:${HOSTED_PORT}`,
+    ]);
+    expect(calls).toEqual(['cat supabase/.temp/pooler-url']);
+  });
+
+  it('names the file the CLI reads the pooler URL from', () => {
+    expect(POOLER_URL_PATH).toBe('supabase/.temp/pooler-url');
+  });
+
+  it('trims the newline the file may end with', async () => {
+    const { ctx } = fakeExec(commandResult(`${HARNESS_POOLER_URL}\n`));
+
+    expect(await readHostedEndpoints(ctx)).toEqual([
+      `host.docker.internal:${HOSTED_PORT}`,
+    ]);
+  });
+
+  it('returns nothing when the file does not exist', async () => {
+    const { ctx } = fakeExec({
+      ok: false,
+      exitCode: 1,
+      stdout: '',
+      stderr: 'cat: supabase/.temp/pooler-url: No such file or directory',
+    });
+
+    expect(await readHostedEndpoints(ctx)).toEqual([]);
+  });
+
+  it('returns nothing when the file cannot be read', async () => {
+    const { ctx } = fakeExec({
+      ok: false,
+      exitCode: 1,
+      stdout: HARNESS_POOLER_URL,
+      stderr: 'cat: supabase/.temp/pooler-url: Permission denied',
+    });
+
+    expect(await readHostedEndpoints(ctx)).toEqual([]);
+  });
+
+  it.each([
+    ['garbage', 'not a url at all'],
+    ['empty', ''],
+    ['binary noise', '\u0000\u0001\ufffd'],
+  ])('returns nothing when the file holds %s', async (_, content) => {
+    const { ctx } = fakeExec(commandResult(content));
+
+    expect(await readHostedEndpoints(ctx)).toEqual([]);
+  });
+
+  it('returns nothing instead of throwing when exec throws', async () => {
+    const { ctx } = fakeExec(() => {
+      throw new Error('sandbox gone');
+    });
+
+    expect(await readHostedEndpoints(ctx)).toEqual([]);
   });
 });
 
