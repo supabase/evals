@@ -62,7 +62,7 @@ Include refreshed results for PRs with new/changed evals so a reviewer can see r
 
 ## Publishing and consuming results
 
-To publish a benchmark, upload a complete run with `--runs`, give its Braintrust experiments the same `temporary_publication_id`, and update the pin in [fetch-braintrust.ts](apps/web/scripts/fetch-braintrust.ts). Preview builds without Braintrust credentials use the committed results.
+To publish a benchmark, upload a complete run with `--runs`, give its Braintrust experiments the same `temporary_publication_id`, and update the pin in [fetch-braintrust.ts](apps/web/scripts/fetch-braintrust.ts).
 
 For local UI work with a partial run, label the experiment and temporarily change the pin to match. Start the server with `EVALS_ALLOW_PARTIAL=1 pnpm web`.
 

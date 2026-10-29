@@ -320,14 +320,6 @@ async function main() {
   const allowPartial = process.env.EVALS_ALLOW_PARTIAL === "1"
   if (allowPartial && !process.argv.includes("--dev"))
     throw new Error("EVALS_ALLOW_PARTIAL is only supported by pnpm web")
-  if (process.env.VERCEL_ENV === "preview" && !process.env.BRAINTRUST_API_KEY) {
-    await writeFile(
-      output,
-      await readFile(resolve(app, "src/data/eval-results.json"))
-    )
-    console.log("Using benchmark fixture")
-    return
-  }
   const startedAt = performance.now()
   console.log(`Loading Braintrust publication ${publicationId}...`)
   const apiKey = process.env.BRAINTRUST_API_KEY,
