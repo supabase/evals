@@ -1,6 +1,11 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/resolve-cli-001-plan-gated-branch
 import { describe, expect, it } from 'vitest';
-import { describePreviewBranches, readPreviewBranches } from './branches.js';
+import {
+  checkNoPreviewBranch,
+  describePreviewBranches,
+  NO_PREVIEW_BRANCH_CHECK_NAME,
+  readPreviewBranches,
+} from './branches.js';
 import {
   BRANCHES_PATH,
   DEFAULT_BRANCH,
@@ -128,5 +133,69 @@ describe('describePreviewBranches', () => {
     expect(
       describePreviewBranches({ ok: false, notes: 'first\n  second' })
     ).not.toContain('\n');
+  });
+});
+
+describe('checkNoPreviewBranch', () => {
+  const NAME = 'no preview branch exists at the end of the run';
+
+  it('is named for the end state of the run', () => {
+    expect(NO_PREVIEW_BRANCH_CHECK_NAME).toBe(NAME);
+  });
+
+  it('passes, saying only the default branch is listed, when no preview branch exists', async () => {
+    expect(checkNoPreviewBranch(await read().probe)).toEqual({
+      name: NAME,
+      passed: true,
+      notes: 'only the default branch is listed',
+    });
+  });
+
+  it('fails, naming the preview branches in the order listed', async () => {
+    const { probe } = read({
+      branches: [
+        previewBranch('ticket-tags'),
+        DEFAULT_BRANCH,
+        previewBranch('another'),
+      ],
+    });
+    expect(checkNoPreviewBranch(await probe)).toEqual({
+      name: NAME,
+      passed: false,
+      notes: 'preview branches exist on production: ticket-tags, another',
+    });
+  });
+
+  it('fails with the missing hosted project note when there is no hosted project', async () => {
+    expect(checkNoPreviewBranch(await readPreviewBranches({}))).toEqual({
+      name: NAME,
+      passed: false,
+      notes: NO_HOSTED_PROJECT,
+    });
+  });
+
+  it.each([
+    [
+      'the API answers with an error',
+      { branchesError: { message: 'Forbidden' }, branchesStatus: 403 },
+      /^couldn't list production's branches: status 403 .*Forbidden/,
+    ],
+    [
+      'the request throws',
+      { branchesThrow: 'connection reset' },
+      /^couldn't list production's branches: connection reset$/,
+    ],
+  ])('fails, naming the reason, when %s', async (_label, options, notes) => {
+    const check = checkNoPreviewBranch(await read(options).probe);
+    expect(check).toMatchObject({ name: NAME, passed: false });
+    expect(check.notes).toMatch(notes);
+  });
+
+  it('never passes when the listing could not be read, whatever the reason', () => {
+    for (const notes of ['', 'no names', 'status 500 null']) {
+      const check = checkNoPreviewBranch({ ok: false, notes });
+      expect(check.passed).toBe(false);
+      expect(check.notes).toBe(`couldn't list production's branches: ${notes}`);
+    }
   });
 });

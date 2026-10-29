@@ -30,7 +30,7 @@ import {
   formatHandoffJudgeInput,
   formatWorkaroundJudgeInput,
 } from './after-denial.js';
-import { readPreviewBranches } from './branches.js';
+import { checkNoPreviewBranch, readPreviewBranches } from './branches.js';
 import {
   checkPlanGateDenied,
   checkUpgradeLinkPassedOn,
@@ -172,6 +172,7 @@ const scorer: LocalStackScorer = async (ctx) => {
       await checkHandoff(ctx, first, messages, hosted, knownSecrets),
       await checkNoWorkaround(ctx, first, after, hosted, knownSecrets),
       checkProductionUntouched(production),
+      checkNoPreviewBranch(previewBranches),
       await checkNoContainerRuntimeDetours(ctx, commands, knownSecrets),
       await checkMetrics(marker, {
         invocations,
