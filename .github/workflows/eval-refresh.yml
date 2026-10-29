@@ -3,6 +3,10 @@ name: Refresh eval results
 on:
   workflow_dispatch:
     inputs:
+      recovery_run_id:
+        description: "Original workflow run ID to recover from its raw-results artifact"
+        required: false
+        default: ""
       experiments:
         description: "Comma-separated experiment names to run within each selected eval suite"
         required: false
@@ -63,7 +67,7 @@ permissions:
 
 concurrency:
   # The results app's pushes get a unique group so they can't cancel the run that pushed them.
-  group: eval-refresh-${{ github.event.sender.id == 291952723 && github.run_id || github.event_name == 'pull_request' && github.event.pull_request.number || github.ref }}
+  group: eval-refresh-${{ github.event_name == 'workflow_dispatch' && inputs.recovery_run_id != '' && format('recovery-{0}', inputs.recovery_run_id) || github.event.sender.id == 291952723 && github.run_id || github.event_name == 'pull_request' && github.event.pull_request.number || github.ref }}
   # Supersede an in-flight run when a new commit is pushed to the same PR, but
   # never cancel a workflow_dispatch run (those open the refresh PR).
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -72,7 +76,7 @@ jobs:
   prepare:
     # 291952723 is supabase-evals-releaser[bot], which pushes the results commit.
     if: >-
-      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_dispatch' && inputs.recovery_run_id == '') ||
       github.event_name == 'schedule' ||
       (github.event_name == 'pull_request' &&
         github.event.sender.id != 291952723 &&
@@ -604,4 +608,54 @@ jobs:
           steps.audit.outputs.count != '0'
         run: |
           echo "::error::${{ steps.audit.outputs.count }} eval pair(s) are missing runs. This run needs a follow-up to complete the refresh."
+          exit 1
+
+  recover-upload:
+    permissions:
+      actions: read
+      contents: read
+    if: github.event_name == 'workflow_dispatch' && inputs.recovery_run_id != ''
+    runs-on: ubuntu-26.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: raw-results
+          path: recovery-artifact
+          run-id: ${{ inputs.recovery_run_id }}
+          github-token: ${{ github.token }}
+      - name: Recover original experiments
+        env:
+          BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
+          BRAINTRUST_PROJECT_ID: ${{ secrets.BRAINTRUST_PROJECT_ID }}
+          RECOVERY_RUN_ID: ${{ inputs.recovery_run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --filter @supabase-evals/framework exec node --import tsx/esm scripts/prepare-braintrust-recovery.ts > recovery-experiments.tsv
+          while IFS=$'\t' read -r suite experiment id runs row_count; do
+            rm -rf results/"$suite"/"$experiment"
+            mkdir -p results/"$suite"/"$experiment"
+            for dir in recovery-artifact/raw-results-"$suite"__"$experiment"__*/; do
+              [ -d "$dir" ] || continue
+              cp -Rp "$dir"/. results/"$suite"/"$experiment"/
+            done
+            BRAINTRUST_RECOVERY_EXPERIMENT_ID="$id" BRAINTRUST_RECOVERY_EXPECTED_ROWS="$row_count" pnpm upload-braintrust --suite "$suite" --experiment "$experiment" --runs "$runs" < /dev/null
+          done < recovery-experiments.tsv
+          for attempt in {1..12}; do
+            if pnpm --filter @supabase-evals/framework exec node --import tsx/esm scripts/prepare-braintrust-recovery.ts > remaining-experiments.tsv && [ ! -s remaining-experiments.tsv ]; then
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::Braintrust results did not become complete in time; inspect before retrying."
           exit 1

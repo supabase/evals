@@ -768,7 +768,7 @@ async function main() {
 
   const info = repoInfo();
   // Distinguishes repeated runs on the same branch.
-  const runId = randomUUID();
+  let runId: string = randomUUID();
   // Shared so every experiment in one upload carries the same time.
   const stamp = utcStamp(new Date());
 
@@ -784,14 +784,95 @@ async function main() {
 
   const { Attachment, init, flush } = await import('braintrust');
   const uploaded: { name: string; url: string }[] = [];
+  const recoveryId = process.env.BRAINTRUST_RECOVERY_EXPERIMENT_ID;
+  let recovery:
+    | {
+        id: string;
+        project_id: string;
+        name: string;
+        repo_info: NonNullable<ReturnType<typeof repoInfo>>;
+        metadata: Record<string, unknown>;
+      }
+    | undefined;
+  if (recoveryId) {
+    const headers = {
+      Authorization: `Bearer ${process.env.BRAINTRUST_API_KEY}`,
+    };
+    const response = await fetch(
+      `https://api.braintrust.dev/v1/experiment/${recoveryId}`,
+      { headers }
+    );
+    if (!response.ok)
+      throw new Error(`Recovery experiment lookup failed: ${response.status}`);
+    const schema = z.object({
+      id: z.string(),
+      project_id: z.string(),
+      name: z.string(),
+      repo_info: z.object({
+        commit: z.string(),
+        branch: z.string(),
+        tag: z.string().nullable(),
+        dirty: z.boolean(),
+        author_name: z.string(),
+        author_email: z.string(),
+        commit_message: z.string(),
+        commit_time: z.string(),
+      }),
+      metadata: z.record(z.string(), z.unknown()),
+    });
+    recovery = schema.parse(await response.json());
+    const metadata = recovery.metadata;
+    if (
+      recovery.id !== recoveryId ||
+      recovery.project_id !== projectId ||
+      metadata.ci_run_url !==
+        `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.RECOVERY_RUN_ID}` ||
+      typeof metadata.run_id !== 'string' ||
+      metadata.expected_runs !== EXPECTED_RUNS ||
+      byExperiment.size !== 1
+    ) {
+      throw new Error('Recovery metadata does not match the original refresh');
+    }
+    runId = metadata.run_id;
+    const query = `SELECT id FROM experiment('${recoveryId}') WHERE is_root = true LIMIT 1`;
+    const check = await fetch('https://api.braintrust.dev/btql', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, fmt: 'json' }),
+    });
+    if (!check.ok)
+      throw new Error(`Recovery duplicate check failed: ${check.status}`);
+    const { data } = z
+      .object({ data: z.array(z.unknown()) })
+      .parse(await check.json());
+    if (data.length)
+      throw new Error(
+        'Recovery experiment already has results; stop to avoid duplicates'
+      );
+  }
 
   for (const { experiment, suite, rows } of byExperiment.values()) {
     const meta = experimentMetadata.get(`${suite}/${experiment}`);
+    if (
+      recovery &&
+      (recovery.metadata.experiment !== experiment ||
+        recovery.metadata.suite !== suite ||
+        rows.length !==
+          positiveInteger(
+            process.env.BRAINTRUST_RECOVERY_EXPECTED_ROWS ?? '',
+            'BRAINTRUST_RECOVERY_EXPECTED_ROWS'
+          ))
+    ) {
+      throw new Error('Recovery rows do not match the original experiment');
+    }
     const bt = init({
       projectId,
-      experiment: experimentName(experiment, suite, info?.commit, stamp),
-      repoInfo: info,
-      metadata: {
+      experiment:
+        recovery?.name ??
+        experimentName(experiment, suite, info?.commit, stamp),
+      ...(recovery ? { update: true } : {}),
+      repoInfo: recovery?.repo_info ?? info,
+      metadata: recovery?.metadata ?? {
         agent: meta?.display.agent,
         model_provider: meta?.display.modelProvider,
         model_id: meta?.display.modelId,
@@ -810,6 +891,9 @@ async function main() {
       },
     });
 
+    if (recovery && (await bt.id) !== recovery.id) {
+      throw new Error('Recovery resolved to a different experiment');
+    }
     for (const row of rows) {
       const root = bt.startSpan({
         name: row.evalId,
@@ -836,6 +920,7 @@ async function main() {
       });
       logTranscript(root, row);
       root.end(row.endTime ? { endTime: row.endTime } : undefined);
+      if (recovery) await flush();
     }
 
     const summary = await bt.summarize({ summarizeScores: false });
