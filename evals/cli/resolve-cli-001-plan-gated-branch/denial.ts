@@ -1,0 +1,204 @@
+import { stripVTControlCharacters } from 'node:util';
+import type { CheckResult, ToolCallRecord } from '@supabase-evals/core';
+import type { SupabaseInvocation } from '../lib/cli-invocations.js';
+import { commandToolCalls, extractCommands } from '../lib/detours.js';
+import { truncate } from '../lib/shell.js';
+import { NO_HOSTED_PROJECT } from './hosted.js';
+
+export const DENIAL_CHECK_NAME = 'the CLI denied the request on plan grounds';
+export const LINK_CHECK_NAME = 'the agent passed on the upgrade link';
+export const NO_TRANSCRIPT_ANCHOR =
+  "the denial's tool call is not in the transcript";
+
+export type PlanGateDenial = {
+  /** Index into the tool calls, which is also the ordinal of its `tool_call` transcript part. */
+  toolCallIndex: number;
+  command: string;
+  output: string;
+  feature: string | null;
+  upgradeUrls: string[];
+  /** The output carries an unescaped `entitlement` object, the field only the beta CLI adds to its JSON error. */
+  structuredEntitlement: boolean;
+  machineOutput: boolean;
+};
+
+const DENIAL_SIGNAL =
+  /entitlement_required|does not have access to this feature/i;
+// RFC 3986 URL characters minus quotes, brackets, parentheses and `*`, so text around a link isn't read as part of it.
+const URL_CHARS = String.raw`A-Za-z0-9\-._~:?#@!$&+,;=%`;
+const HINT_URL = new RegExp(
+  String.raw`Upgrade your plan:\s*(https?://[${URL_CHARS}/]+)`,
+  'gi'
+);
+// Agent runs default to `--output-format json`, which prints no text hint: the link then survives only as the escaped `upgrade_url` in `error.message`.
+const UPGRADE_URL_FIELD = new RegExp(
+  String.raw`\\?"upgrade_url\\?"\s*:\s*\\?"(https?://[${URL_CHARS}/]+)`,
+  'g'
+);
+const BILLING_URL = new RegExp(
+  String.raw`https?://[${URL_CHARS}/]*/org/[${URL_CHARS}]+/billing`,
+  'g'
+);
+const FEATURE = /\\?"feature\\?"\s*:\s*\\?"([^"\\]+)/;
+// A backslash before the quote marks the field as escaped text inside `error.message`.
+const STRUCTURED_ENTITLEMENT = /(?<!\\)"entitlement"\s*:\s*\{/;
+const MACHINE_ERROR = /"_tag"\s*:\s*"Error"/;
+const URL_IN_TEXT = new RegExp(String.raw`https?://[${URL_CHARS}/]+`, 'gi');
+// A host and path with no scheme; the lookbehind stops a match from starting mid-token or after `@`, `/`, `:` or `=`.
+const SCHEMELESS_URL = new RegExp(
+  String.raw`(?<![A-Za-z0-9\-._~@%/:=?#&+$])(?:[A-Za-z0-9-]+\.)+[A-Za-z0-9-]+/[${URL_CHARS}/]*`,
+  'g'
+);
+
+const unique = <T>(values: Iterable<T>) => [...new Set(values)];
+
+const asText = (value: unknown): string =>
+  value === undefined || value === null
+    ? ''
+    : typeof value === 'string'
+      ? value
+      : JSON.stringify(value);
+
+export function toolOutputText(record: ToolCallRecord): string {
+  return stripVTControlCharacters(
+    [asText(record.result), asText(record.error)]
+      .filter((part) => part.length > 0)
+      .join('\n')
+  );
+}
+
+export function readUpgradeUrls(output: string): string[] {
+  const text = output.replaceAll('\\/', '/');
+  const named = unique(
+    [HINT_URL, UPGRADE_URL_FIELD].flatMap((pattern) =>
+      [...text.matchAll(pattern)].map((match) => match[1])
+    )
+  );
+  return named.length > 0 ? named : unique(text.match(BILLING_URL) ?? []);
+}
+
+/** Only tool calls that ran the Supabase CLI count, so a `cat` or `curl` that quotes the denial does not. */
+export function findPlanGateDenials(
+  toolCalls: readonly ToolCallRecord[],
+  invocations: readonly SupabaseInvocation[]
+): PlanGateDenial[] {
+  const records = commandToolCalls(toolCalls);
+  const commands = extractCommands(toolCalls);
+  return unique(invocations.map(({ commandIndex }) => commandIndex)).flatMap(
+    (index) => {
+      const record = records[index];
+      const output = toolOutputText(record);
+      if (!DENIAL_SIGNAL.test(output)) return [];
+      return [
+        {
+          toolCallIndex: toolCalls.indexOf(record),
+          command: commands[index],
+          output,
+          feature: FEATURE.exec(output)?.[1] ?? null,
+          upgradeUrls: readUpgradeUrls(output),
+          structuredEntitlement: STRUCTURED_ENTITLEMENT.test(output),
+          machineOutput: MACHINE_ERROR.test(output),
+        },
+      ];
+    }
+  );
+}
+
+/** The first command that did not run the Supabase CLI but whose output carries the denial, e.g. a curl to the Management API. */
+export function findNonCliDenialCommand(
+  toolCalls: readonly ToolCallRecord[],
+  invocations: readonly SupabaseInvocation[]
+): string | undefined {
+  const cliCalls = new Set(invocations.map(({ commandIndex }) => commandIndex));
+  const commands = extractCommands(toolCalls);
+  return commandToolCalls(toolCalls).flatMap((record, index) =>
+    !cliCalls.has(index) && DENIAL_SIGNAL.test(toolOutputText(record))
+      ? [commands[index]]
+      : []
+  )[0];
+}
+
+const NON_CLI_COMMAND_LENGTH = 200;
+
+export function noDenialNote(hosted: boolean, nonCliCommand?: string): string {
+  const note =
+    nonCliCommand === undefined
+      ? 'no Supabase CLI output carried a plan-gate denial'
+      : `no Supabase CLI output carried a plan-gate denial; one appeared only in a non-CLI command (\`${truncate(nonCliCommand, NON_CLI_COMMAND_LENGTH)}\`)`;
+  return hosted ? note : `${note}; ${NO_HOSTED_PROJECT}`;
+}
+
+export function checkPlanGateDenied(
+  denials: readonly PlanGateDenial[],
+  hosted: boolean,
+  nonCliCommand?: string
+): CheckResult {
+  const [first] = denials;
+  if (first === undefined) {
+    return {
+      name: DENIAL_CHECK_NAME,
+      passed: false,
+      notes: noDenialNote(hosted, nonCliCommand),
+    };
+  }
+  const details = [
+    ...(first.feature === null ? [] : [`feature ${first.feature}`]),
+    ...(first.upgradeUrls.length === 0
+      ? []
+      : [`upgrade link ${first.upgradeUrls.join(', ')}`]),
+  ];
+  const found = `\`${first.command}\` was denied${details.length > 0 ? ` (${details.join(', ')})` : ''}`;
+  return {
+    name: DENIAL_CHECK_NAME,
+    passed: hosted,
+    notes: hosted ? found : `${found}; ${NO_HOSTED_PROJECT}`,
+  };
+}
+
+export function normaliseUrl(url: string): string {
+  const withoutScheme = url.trim().replace(/^[a-z][a-z0-9+.-]*:\/\//i, '');
+  const [path = ''] = withoutScheme.split(/[?#]/);
+  const slash = path.indexOf('/');
+  const host = (slash === -1 ? path : path.slice(0, slash))
+    .toLowerCase()
+    .replace(/^www\./, '');
+  const rest = slash === -1 ? '' : path.slice(slash);
+  return `${host}${rest}`.replace(/[/.,;:!?)\]}>'"*_`]+$/, '');
+}
+
+export function checkUpgradeLinkPassedOn(
+  denials: readonly PlanGateDenial[],
+  messages: readonly string[] | null,
+  hosted: boolean
+): CheckResult {
+  const name = LINK_CHECK_NAME;
+  if (denials.length === 0) {
+    return { name, passed: false, notes: noDenialNote(hosted) };
+  }
+  if (!hosted) return { name, passed: false, notes: NO_HOSTED_PROJECT };
+  if (messages === null) {
+    return { name, passed: false, notes: NO_TRANSCRIPT_ANCHOR };
+  }
+  const links = unique(denials.flatMap(({ upgradeUrls }) => upgradeUrls));
+  if (links.length === 0) {
+    return { name, passed: false, notes: 'the denial carried no upgrade link' };
+  }
+  const expected = new Set(links.map(normaliseUrl));
+  const given = messages
+    .flatMap((message) => [
+      ...(message.match(URL_IN_TEXT) ?? []),
+      ...(message.match(SCHEMELESS_URL) ?? []),
+    ])
+    .map(normaliseUrl);
+  return given.some((url) => expected.has(url))
+    ? {
+        name,
+        passed: true,
+        notes: 'a message after the denial gave the upgrade link',
+      }
+    : {
+        name,
+        passed: false,
+        notes: `no message after the denial gave the upgrade link ${links.join(' or ')}`,
+      };
+}
