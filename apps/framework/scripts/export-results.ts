@@ -89,9 +89,7 @@ function shouldIncludeExperiment(experiment: string): boolean {
     return true;
   }
 
-  return EXPERIMENT_FILTERS.includes(
-    normalizeExperimentName(experiment.split('/').at(-1) ?? '')
-  );
+  return EXPERIMENT_FILTERS.includes(normalizeExperimentName(experiment));
 }
 
 function shouldIncludeEval(evalId: string): boolean {
@@ -114,6 +112,7 @@ async function loadEvalResults(): Promise<EvalResult[]> {
   const experimentMetadata = await loadExperimentMetadata();
   const files = await collectResultFiles({
     includeExperiment: shouldIncludeExperiment,
+    includeSuite: shouldIncludeSuite,
     includeEval: shouldIncludeEval,
   });
 
@@ -127,7 +126,9 @@ async function loadEvalResults(): Promise<EvalResult[]> {
       file.result,
       file.sourcePath,
       promptCache.get(file.result.eval),
-      experimentMetadata.get(file.result.experiment)
+      experimentMetadata.get(
+        `${promptCache.get(file.result.eval)?.suite ?? file.result.suite}/${file.result.experiment}`
+      )
     );
     if (shouldIncludeSuite(result.suite)) {
       results.push(result);
@@ -176,18 +177,11 @@ async function main() {
       await readFile(outputPath, 'utf8')
     );
     const replaced = new Set(
-      exportable.map((r) => `${r.experiment}::${r.eval}`)
+      exportable.map((r) => `${r.suite}::${r.experiment}::${r.eval}`)
     );
-    const normalizedExisting = existing.map((row) => ({
-      ...row,
-      experiment:
-        row.experiment.includes('/') || !row.suite
-          ? row.experiment
-          : `${row.suite}/${row.experiment}`,
-    }));
     results = [
-      ...normalizedExisting.filter(
-        (r) => !replaced.has(`${r.experiment}::${r.eval}`)
+      ...existing.filter(
+        (r) => !replaced.has(`${r.suite}::${r.experiment}::${r.eval}`)
       ),
       ...exportable,
     ].sort(
