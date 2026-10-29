@@ -428,7 +428,12 @@ const evalResultShape = {
   run: z.number().optional(),
   skills: skillResultSchema.optional(),
   docs: docsResultSchema.optional(),
+  // Harness-reported totals per model.
   usage: agentUsageSchema.optional(),
+  // Braintrust agent LLM span totals may omit requests missing from the trace.
+  traceUsage: z
+    .object({ inputTokens: z.number(), outputTokens: z.number() })
+    .optional(),
   // One turn per model response, for example:
   //   text → [Read, Read] → Edit → reasoning → text
   //   stepCount 5, toolCallCount 3

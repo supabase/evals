@@ -60,6 +60,24 @@ You have a few options to run evals in CI:
 
 Include refreshed results for PRs with new/changed evals so a reviewer can see results directly from your PR or Vercel preview build.
 
+## Publishing and consuming results
+
+To publish a benchmark, upload a complete run with `--runs`, give its Braintrust experiments the same `temporary_publication_id`, and update the pin in [fetch-braintrust.ts](apps/web/scripts/fetch-braintrust.ts). Preview builds without Braintrust credentials use the committed results.
+
+For local UI work with a partial run, label the experiment and temporarily change the pin to match. Start the server with `EVALS_ALLOW_PARTIAL=1 pnpm web`.
+
+The published benchmark is at https://supabase.com/evals/eval-results.json. For other suites or history, query the Evals Braintrust project. For example, replace `EXPERIMENT_ID` below to read an experiment's scored runs:
+
+```sql
+SELECT root_span_id, metadata.eval, metadata.run, scores.passed
+FROM experiment('EXPERIMENT_ID')
+WHERE is_root = true
+ORDER BY _pagination_key DESC
+LIMIT 1000
+```
+
+Follow the returned cursor as described in https://www.braintrust.dev/docs/api-reference/query. The [web fetcher](apps/web/scripts/fetch-braintrust.ts) shows how to read checks and token usage from child spans.
+
 ## Reviewing an eval
 
 Use this checklist after the author has followed [Submitting evals for review](#submitting-evals-for-review). A failing run can be useful signal, so all-green results are not required.

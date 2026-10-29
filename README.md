@@ -76,24 +76,13 @@ pnpm eval -- --suite benchmark
 
 ### View results in the web app
 
-After running evals locally, export their results to `eval-results.json` for the web app:
-
-```bash
-pnpm export-results
-```
-
-For multi-run results, pass the requested run count to skip incomplete sample
-sets instead of averaging them:
-
-```bash
-pnpm export-results -- --runs 3
-```
-
-Start the web app development server:
+Set `BRAINTRUST_API_KEY` and `BRAINTRUST_PROJECT_ID` in the repository's `.env`, then run:
 
 ```bash
 pnpm web
 ```
+
+The server fetches results once at startup. See [CONTRIBUTING.md](CONTRIBUTING.md#publishing-and-consuming-results) for publishing and querying results.
 
 ## Eval Shape
 
