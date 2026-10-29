@@ -7,6 +7,7 @@ export const AGENT_LABELS = {
   "claude-code": "Claude Code",
   codex: "Codex",
   grok: "Grok Build",
+  muse: "Muse Code",
   opencode: "OpenCode",
 } satisfies Record<ExperimentDisplay["agent"], string>
 
@@ -57,6 +58,10 @@ function formatOpenAiModel(modelId: string) {
     .join(" ")
 }
 
+function formatMetaModel(modelId: string) {
+  return modelId.split("-").map(capitalize).join(" ")
+}
+
 function formatMoonshotaiModel(modelId: string) {
   return modelId.split("-").map(capitalize).join(" ")
 }
@@ -73,6 +78,8 @@ function formatModel(display: ExperimentDisplay) {
       return formatAnthropicModel(modelId)
     case "openai":
       return formatOpenAiModel(modelId)
+    case "meta":
+      return formatMetaModel(modelId)
     case "moonshotai":
       return formatMoonshotaiModel(modelId)
     case "spacexai":

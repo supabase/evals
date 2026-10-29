@@ -91,7 +91,7 @@ export interface AgentRunner<M extends string = string> {
    * from the agent id.
    */
   modelProvider?: ModelProvider;
-  /** npm package providing the CLI. */
+  /** Where the CLI comes from: its npm package, or a name for a CLI installed another way. */
   cliPackage: string;
   /** Pinned CLI version — pinned so transcript-format drift can't silently break parsing. */
   defaultCliVersion: string;
