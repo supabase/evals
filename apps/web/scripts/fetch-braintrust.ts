@@ -7,13 +7,25 @@ import { evalResultSchema } from "@supabase-evals/core/eval-metadata"
 const app = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const root = resolve(app, "../..")
 const output = resolve(app, "src/data/braintrust-results.json")
-const publicationId = "2026-10-29"
+const publication = {
+  "claude-code-opus-5.5": "c8e0f865-ca59-4703-a19d-507a234e100a",
+  "claude-code-opus-5.5-no-skills": "e0fd16ad-e117-4165-8e30-9346ebe7e835",
+  "claude-code-sonnet-5.5": "ede84738-9f79-428f-bdfe-9d8adb2a6489",
+  "claude-code-sonnet-5.5-no-skills": "15a067ef-f04e-44f5-9f94-7b8c0b0e10f1",
+  "codex-gpt-6-luna": "b4a9c5ce-60fc-4604-bc99-595269b7fd7d",
+  "codex-gpt-6-luna-no-skills": "123ecf1b-1004-458c-98cf-b17450b65c92",
+  "codex-gpt-6.1-sol": "d2e33ddc-64f1-4392-892c-d4db9f3d0146",
+  "codex-gpt-6.1-sol-no-skills": "f2a8dad6-2d8b-4088-8f5f-165d00a24058",
+  "grok-4.7": "e986dead-a1d3-4523-b47d-33a82ff1348b",
+  "grok-4.7-no-skills": "545924a6-a02c-482c-9ef7-b4dfc1a993c7",
+  "opencode-kimi-k3": "66f84377-4b0d-4be2-8f41-8e0756cbc40a",
+  "opencode-kimi-k3-no-skills": "63331944-8a8c-4396-8add-d6fbe88f80d3",
+}
 const uuid = z.uuid()
 const metadataSchema = z
   .object({
     experiment: z.string(),
     expected_runs: z.number().int().positive().optional(),
-    temporary_publication_id: z.string().optional(),
   })
   .passthrough()
 const experimentSchema = z.object({ id: uuid, metadata: metadataSchema })
@@ -210,6 +222,34 @@ export function assemble(
   )
 }
 
+export async function fetchExperiments(
+  request: BraintrustRequest,
+  projectId: string,
+  pinned: Record<string, string>
+) {
+  const entries = Object.entries(pinned)
+  const ids = entries.map(([, id]) => uuid.parse(id))
+  if (!ids.length || new Set(ids).size !== ids.length)
+    throw new Error("Publication must contain distinct experiment IDs")
+  const url = new URL("https://api.braintrust.dev/v1/experiment")
+  url.searchParams.set("project_id", uuid.parse(projectId))
+  for (const id of ids) url.searchParams.append("ids", id)
+  const data = z
+    .object({ objects: z.array(experimentSchema) })
+    .parse(await (await request(url)).json())
+  const names = new Map(entries.map(([name, id]) => [id, name]))
+  for (const experiment of data.objects) {
+    if (names.get(experiment.id) !== experiment.metadata.experiment)
+      throw new Error(`Unexpected experiment: ${experiment.id}`)
+    names.delete(experiment.id)
+  }
+  if (names.size)
+    throw new Error(
+      `Missing pinned experiments: ${[...names.values()].join(", ")}`
+    )
+  return data.objects
+}
+
 export async function query<T>(
   request: BraintrustRequest,
   sql: string,
@@ -321,7 +361,7 @@ async function main() {
   if (allowPartial && !process.argv.includes("--dev"))
     throw new Error("EVALS_ALLOW_PARTIAL is only supported by pnpm web")
   const startedAt = performance.now()
-  console.log(`Loading Braintrust publication ${publicationId}...`)
+  console.log("Loading Braintrust publication...")
   const apiKey = process.env.BRAINTRUST_API_KEY,
     projectId = process.env.BRAINTRUST_PROJECT_ID
   if (!apiKey || !projectId)
@@ -345,31 +385,7 @@ async function main() {
       )
     return response
   }
-  const experiments: Experiment[] = []
-  let after: string | undefined
-  do {
-    const url = new URL("https://api.braintrust.dev/v1/experiment")
-    url.searchParams.set("project_id", projectId)
-    url.searchParams.set("limit", "1000")
-    if (after) url.searchParams.set("starting_after", after)
-    const data = z
-      .object({
-        objects: z.array(
-          z.object({
-            id: uuid,
-            metadata: z
-              .object({ temporary_publication_id: z.string().optional() })
-              .passthrough()
-              .nullable(),
-          })
-        ),
-      })
-      .parse(await (await request(url)).json())
-    for (const e of data.objects)
-      if (e.metadata?.temporary_publication_id === publicationId)
-        experiments.push(experimentSchema.parse(e))
-    after = data.objects.length === 1000 ? data.objects.at(-1)?.id : undefined
-  } while (after)
+  const experiments = await fetchExperiments(request, projectId, publication)
   const experimentNames = (
     await readdir(resolve(root, "experiments/benchmark"))
   )
@@ -434,7 +450,7 @@ async function main() {
   await writeFile(temp, `${JSON.stringify(results, null, 2)}\n`)
   await rename(temp, output)
   console.log(
-    `Loaded ${results.length} results from Braintrust publication ${publicationId} in ${((performance.now() - startedAt) / 1000).toFixed(1)}s`
+    `Loaded ${results.length} results from Braintrust in ${((performance.now() - startedAt) / 1000).toFixed(1)}s`
   )
 }
 

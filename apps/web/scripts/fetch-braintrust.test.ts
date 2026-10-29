@@ -1,6 +1,6 @@
 import { test } from "vitest"
 import assert from "node:assert/strict"
-import { assemble } from "./fetch-braintrust.ts"
+import { assemble, fetchExperiments } from "./fetch-braintrust.ts"
 
 const id = "63331944-8a8c-4396-8add-d6fbe88f80d3"
 const experiment: Parameters<typeof assemble>[0][number] = {
@@ -168,5 +168,57 @@ test("identifies invalid results", () => {
   assert.throws(
     () => make([{ ...root, metadata: { ...root.metadata, stage: "invalid" } }]),
     /Invalid result .*\/trace/
+  )
+})
+
+test("fetches only pinned experiments and validates their identities", async () => {
+  const secondId = "d2e33ddc-64f1-4392-892c-d4db9f3d0146"
+  const pinned = { example: id, second: secondId }
+  const projectId = "448cc19e-afdf-4e96-b92a-6e02522603a0"
+  let requested: URL | undefined
+  const request = async (url: string | URL) => {
+    requested = new URL(url)
+    return Response.json({
+      objects: [
+        {
+          ...experiment,
+          id: secondId,
+          metadata: { ...experiment.metadata, experiment: "second" },
+        },
+        experiment,
+      ],
+    })
+  }
+  const result = await fetchExperiments(request, projectId, pinned)
+  assert.equal(result.length, 2)
+  assert.deepEqual(requested?.searchParams.getAll("ids"), [id, secondId])
+  assert.equal(requested?.searchParams.get("project_id"), projectId)
+  await assert.rejects(
+    fetchExperiments(
+      async () => Response.json({ objects: [experiment] }),
+      projectId,
+      pinned
+    ),
+    /Missing pinned experiments: second/
+  )
+  await assert.rejects(
+    fetchExperiments(
+      async () =>
+        Response.json({
+          objects: [
+            {
+              ...experiment,
+              metadata: { ...experiment.metadata, experiment: "wrong" },
+            },
+          ],
+        }),
+      projectId,
+      { example: id }
+    ),
+    /Unexpected experiment/
+  )
+  await assert.rejects(
+    fetchExperiments(request, projectId, { example: id, second: id }),
+    /distinct/
   )
 })
