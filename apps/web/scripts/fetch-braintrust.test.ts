@@ -1,6 +1,11 @@
 import { test } from "vitest"
 import assert from "node:assert/strict"
-import { assemble, fetchExperiments } from "./fetch-braintrust.ts"
+import {
+  assemble,
+  createBraintrustRequest,
+  fetchExperiments,
+  retryAfterMs,
+} from "./fetch-braintrust.ts"
 
 const id = "63331944-8a8c-4396-8add-d6fbe88f80d3"
 const experiment: Parameters<typeof assemble>[0][number] = {
@@ -221,4 +226,59 @@ test("fetches only pinned experiments and validates their identities", async () 
     fetchExperiments(request, projectId, { example: id, second: id }),
     /distinct/
   )
+})
+
+test("retries rate limits and server errors but not other client errors", async () => {
+  let attempts = 0
+  const signals: (AbortSignal | null | undefined)[] = []
+  const fetcher: typeof fetch = async (_url, options) => {
+    signals.push(options?.signal)
+    const status = [429, 503, 200][attempts++]
+    return new Response(null, { status })
+  }
+  const request = createBraintrustRequest({}, fetcher)
+  assert.equal((await request("https://example.com")).status, 200)
+  assert.equal(attempts, 3)
+  assert.notEqual(signals[0], signals[1])
+
+  attempts = 0
+  const denied = createBraintrustRequest({}, async () => {
+    attempts++
+    return new Response(null, { status: 403 })
+  })
+  await assert.rejects(denied("https://example.com"), /403/)
+  assert.equal(attempts, 1)
+}, 10000)
+
+test("retries network errors and timeouts", async () => {
+  for (const failure of [
+    new TypeError("fetch failed"),
+    new DOMException("Timed out", "TimeoutError"),
+  ]) {
+    let attempts = 0
+    const request = createBraintrustRequest({}, async () => {
+      if (++attempts === 1) throw failure
+      return new Response(null, { status: 200 })
+    })
+    assert.equal((await request("https://example.com")).status, 200)
+    assert.equal(attempts, 2)
+  }
+}, 10000)
+
+test("parses Retry-After seconds and HTTP dates", () => {
+  const now = Date.parse("2026-10-30T16:00:00Z")
+  assert.equal(retryAfterMs("2", now), 2000)
+  assert.equal(retryAfterMs("Fri, 30 Oct 2026 16:00:03 GMT", now), 3000)
+  assert.equal(retryAfterMs("Fri, 30 Oct 2026 15:59:59 GMT", now), 0)
+  assert.equal(retryAfterMs("invalid", now), 0)
+})
+
+test("does not retry before a long Retry-After", async () => {
+  let attempts = 0
+  const request = createBraintrustRequest({}, async () => {
+    attempts++
+    return new Response(null, { status: 429, headers: { "Retry-After": "60" } })
+  })
+  await assert.rejects(request("https://example.com"), /Retry-After exceeds/)
+  assert.equal(attempts, 1)
 })

@@ -1,7 +1,9 @@
 import { readFile, readdir, rename, writeFile } from "node:fs/promises"
 import { resolve, dirname } from "node:path"
 import { fileURLToPath } from "node:url"
+import { setTimeout as delay } from "node:timers/promises"
 import { z } from "zod"
+import pRetry, { AbortError } from "p-retry"
 import { evalResultSchema } from "@supabase-evals/core/eval-metadata"
 
 const app = resolve(dirname(fileURLToPath(import.meta.url)), "..")
@@ -222,6 +224,49 @@ export function assemble(
   )
 }
 
+const MAX_RETRY_AFTER_MS = 10000
+const RETRIES = 2
+
+export function retryAfterMs(value: string | null, now: number) {
+  if (!value) return 0
+  if (/^\d+$/.test(value)) return Number(value) * 1000
+  const date = Date.parse(value)
+  return Number.isNaN(date) ? 0 : Math.max(0, date - now)
+}
+
+export function createBraintrustRequest(
+  headers: RequestInit["headers"],
+  fetcher: typeof fetch
+) {
+  return (url: string | URL, options: RequestInit = {}) =>
+    pRetry(
+      async (attempt) => {
+        const response = await fetcher(url, {
+          ...options,
+          headers,
+          signal: AbortSignal.timeout(30000),
+        })
+        if (!response.ok) {
+          const message = `Braintrust request failed: ${response.status} ${response.statusText}`
+          if (response.status !== 429 && response.status < 500)
+            throw new AbortError(message)
+          const wait = retryAfterMs(
+            response.headers.get("retry-after"),
+            Date.now()
+          )
+          if (wait > MAX_RETRY_AFTER_MS)
+            throw new AbortError(
+              `${message} (Retry-After exceeds ${MAX_RETRY_AFTER_MS / 1000} seconds)`
+            )
+          if (attempt <= RETRIES && wait) await delay(wait)
+          throw new Error(message)
+        }
+        return response
+      },
+      { retries: RETRIES, minTimeout: 500, maxTimeout: 2000, randomize: true }
+    )
+}
+
 export async function fetchExperiments(
   request: BraintrustRequest,
   projectId: string,
@@ -373,18 +418,7 @@ async function main() {
     Authorization: `Bearer ${apiKey}`,
     "Content-Type": "application/json",
   }
-  async function request(url: string | URL, options: RequestInit = {}) {
-    const response = await fetch(url, {
-      ...options,
-      headers,
-      signal: AbortSignal.timeout(30000),
-    })
-    if (!response.ok)
-      throw new Error(
-        `Braintrust request failed: ${response.status} ${response.statusText}`
-      )
-    return response
-  }
+  const request = createBraintrustRequest(headers, fetch)
   const experiments = await fetchExperiments(request, projectId, publication)
   const experimentNames = (
     await readdir(resolve(root, "experiments/benchmark"))
