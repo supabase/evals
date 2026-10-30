@@ -4,8 +4,8 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "node -e \"console.log('Node.js version:', process.version)\" && tsc -b && vite build && vite build --ssr src/entry-server.tsx --outDir dist-ssr && node scripts/prerender.ts",
+    "dev": "node --env-file-if-exists=../../.env scripts/fetch-braintrust.ts --dev && vite",
+    "build": "node --env-file-if-exists=../../.env scripts/fetch-braintrust.ts && tsc -b && vite build && vite build --ssr src/entry-server.tsx --outDir dist-ssr && node scripts/prerender.ts",
     "lint": "eslint .",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx}\"",
@@ -43,6 +43,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^16.5.0",
+    "p-retry": "catalog:",
     "prettier": "^3.8.1",
     "prettier-plugin-tailwindcss": "^0.7.2",
     "typescript": "catalog:",

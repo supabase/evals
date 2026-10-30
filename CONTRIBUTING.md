@@ -58,7 +58,25 @@ You have a few options to run evals in CI:
 - Add the `run-evals` label to run every benchmark eval across the experiments in `experiments/benchmark/`. Use this when a change can affect results broadly, such as framework changes.
 - Dispatch the [Refresh eval results](https://github.com/supabase/evals/actions/workflows/eval-refresh.yml) workflow manually to target any branch and choose specific evals, experiments, or other options. It can commit results directly to the selected branch or open a separate results PR.
 
-Include refreshed results for PRs with new/changed evals so a reviewer can see results directly from your PR or Vercel preview build.
+Include refreshed results for PRs with new/changed evals so a reviewer can inspect them in Braintrust.
+
+## Publishing and consuming results
+
+To publish a benchmark, upload complete runs with `--runs` and update the experiment IDs in [fetch-braintrust.ts](apps/web/scripts/fetch-braintrust.ts). Include every experiment in `experiments/benchmark/`, using its name as the key.
+
+For local UI work with a partial run, temporarily pin only the uploaded experiment IDs and start the server with `EVALS_ALLOW_PARTIAL=1 pnpm web`.
+
+The published benchmark is at https://supabase.com/evals/eval-results.json. For other suites or history, query the Evals Braintrust project. For example, replace `EXPERIMENT_ID` below to read an experiment's scored runs:
+
+```sql
+SELECT root_span_id, metadata.eval, metadata.run, scores.passed
+FROM experiment('EXPERIMENT_ID')
+WHERE is_root = true
+ORDER BY _pagination_key DESC
+LIMIT 1000
+```
+
+Follow the returned cursor as described in https://www.braintrust.dev/docs/api-reference/query. The [web fetcher](apps/web/scripts/fetch-braintrust.ts) shows how to read checks and token usage from child spans.
 
 ## Reviewing an eval
 

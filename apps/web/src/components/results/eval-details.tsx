@@ -233,7 +233,12 @@ export function EvalDetails({ result }: { result: ParsedResult }) {
           value={formatDuration(result.agentRunDurationMs)}
         />
       ) : null}
-      {result.usage ? (
+      {result.traceUsage ? (
+        <EvalMetadataRow
+          label="Trace tokens"
+          value={formatTokens(result.traceUsage)}
+        />
+      ) : result.usage ? (
         <EvalMetadataRow label="Tokens" value={formatTokens(result.usage)} />
       ) : null}
       {result.stepCount !== undefined ? (
