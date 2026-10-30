@@ -5,15 +5,27 @@
  *
  *   pnpm --filter @supabase-evals/sandbox test:docker
  */
+import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { randomUUID } from 'node:crypto';
+import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
+import { createAgentEnvironment } from '../src/agent-environment.js';
 import {
   buildLocalStackScoringContext,
   localStackRuntime,
 } from '../src/local-stack-runtime.js';
-import { DockerSandbox } from '../src/docker-sandbox.js';
+import {
+  DockerSandbox,
+  SANDBOX_CONTAINER_LABEL,
+  SANDBOX_OWNER_LABEL,
+  dockerCli,
+} from '../src/docker-sandbox.js';
+import {
+  CLI_PROJECT_LABEL,
+  removeStackResources,
+} from '../src/stack-ownership.js';
 import {
   ensureSupabaseSandboxImage,
   setupSupabaseSandbox,
@@ -342,5 +354,184 @@ describe.runIf(process.env.SANDBOX_DOCKER_TESTS)(
         }
       }
     );
+
+    describe('each session starts from a fresh database', () => {
+      // A fixture project id without the `sandbox-` prefix, like most eval
+      // fixtures, on its own ports so it can't collide with other stacks.
+      const projectId = `evals-fresh-db-${randomUUID().slice(0, 8)}`;
+      const fixture = mkdtempSync(join(tmpdir(), 'fresh-db-fixture-'));
+      mkdirSync(join(fixture, 'supabase', 'migrations'), { recursive: true });
+      writeFileSync(
+        join(fixture, 'supabase', 'config.toml'),
+        [
+          `project_id = "${projectId}"`,
+          '[api]',
+          'port = 55621',
+          '[db]',
+          'port = 55622',
+          'shadow_port = 55620',
+          '[studio]',
+          'port = 55623',
+          '[inbucket]',
+          'port = 55624',
+          '[analytics]',
+          'port = 55627',
+          '',
+        ].join('\n')
+      );
+      writeFileSync(
+        join(fixture, 'supabase', 'migrations', '20260101000000_seed.sql'),
+        'create table public.seeded (id int);\n'
+      );
+      const agentMigration = '20260102000000';
+
+      afterAll(async () => {
+        await removeStackResources(projectId);
+        rmSync(fixture, { recursive: true, force: true });
+      });
+
+      async function stackVolumes(): Promise<string[]> {
+        const listed = await dockerCli([
+          'volume',
+          'ls',
+          '-q',
+          '--filter',
+          `label=${CLI_PROJECT_LABEL}=${projectId}`,
+        ]);
+        return listed.stdout.split('\n').filter(Boolean);
+      }
+
+      /** Boot a session on the fixture, as the local-stack runtime does. */
+      async function startRun() {
+        const env = await createAgentEnvironment({
+          localDir: fixture,
+          localStack: { includeServices: [] },
+        });
+        return {
+          sandbox: env.sandbox,
+          close: async () => {
+            await teardownSupabaseProject(env.sandbox);
+            await env.close();
+          },
+        };
+      }
+
+      /** What an agent leaves behind: an applied migration and a new table. */
+      async function changeDatabase(sandbox: DockerSandbox): Promise<void> {
+        await sandbox.writeFiles({
+          [`supabase/migrations/${agentMigration}_agent.sql`]:
+            'create table public.agent_change (id int);\n',
+        });
+        const up = await sandbox.runShell('supabase migration up --local');
+        expect(up.ok, up.stderr).toBe(true);
+      }
+
+      async function expectFreshDatabase(
+        sandbox: DockerSandbox
+      ): Promise<void> {
+        const { rows } = await buildLocalStackScoringContext(sandbox).query(
+          "select to_regclass('public.seeded')::text as seeded, to_regclass('public.agent_change')::text as agent_change"
+        );
+        expect(rows).toEqual([{ seeded: 'seeded', agent_change: null }]);
+        const history = await sandbox.runShell(
+          'supabase migration list --local'
+        );
+        expect(history.ok, history.stderr).toBe(true);
+        expect(history.stdout).toContain('20260101000000');
+        expect(history.stdout).not.toContain(agentMigration);
+      }
+
+      it(
+        'after a torn-down run and after a run killed before teardown',
+        { timeout: TEST_TIMEOUT_MS },
+        async () => {
+          const first = await startRun();
+          try {
+            await changeDatabase(first.sandbox);
+          } finally {
+            await first.close();
+          }
+          // `supabase stop --no-backup` alone leaves the volume (CLI-2637).
+          expect(await stackVolumes()).toEqual([]);
+
+          const second = await startRun();
+          await expectFreshDatabase(second.sandbox);
+          await changeDatabase(second.sandbox);
+          // Killed before teardown (e.g. Ctrl-C): the stack leaks...
+          await second.sandbox.stop();
+          expect(await stackVolumes()).not.toEqual([]);
+
+          // ...and the next run claiming the project id clears it first.
+          const third = await startRun();
+          try {
+            await expectFreshDatabase(third.sandbox);
+          } finally {
+            await third.close();
+          }
+          expect(await stackVolumes()).toEqual([]);
+        }
+      );
+
+      it(
+        "leaves another live run's sandbox alone, and removes a dead run's",
+        { timeout: TEST_TIMEOUT_MS },
+        async () => {
+          const image = await ensureSupabaseSandboxImage();
+          // A sibling run's sandbox: owned by this (live) process.
+          const sibling = await DockerSandbox.create({ image });
+          // A crashed run's sandbox: owned by a process that has exited.
+          const deadPid = spawnSync('true').pid;
+          const orphan = await dockerCli([
+            'run',
+            '--detach',
+            '--label',
+            `${SANDBOX_CONTAINER_LABEL}=1`,
+            '--label',
+            `${SANDBOX_OWNER_LABEL}=${hostname()}:${deadPid}`,
+            image,
+            'sleep',
+            'infinity',
+          ]);
+          expect(orphan.ok, orphan.stderr).toBe(true);
+          const orphanId = orphan.stdout.trim();
+          const exists = async (id: string) =>
+            (await dockerCli(['inspect', id])).ok;
+          try {
+            const run = await startRun();
+            await run.close();
+
+            expect(await exists(orphanId)).toBe(false);
+            expect(await exists(sibling.id)).toBe(true);
+            const alive = await sibling.runShell('echo alive');
+            expect(alive.stdout.trim()).toBe('alive');
+          } finally {
+            await sibling.stop();
+            await dockerCli(['rm', '-f', orphanId]);
+          }
+        }
+      );
+
+      it(
+        "refuses to start on a stack it didn't create, and leaves it alone",
+        { timeout: TEST_TIMEOUT_MS },
+        async () => {
+          // Stands in for a developer's own stack under the same project id.
+          const volume = `supabase_db_${projectId}`;
+          const created = await dockerCli([
+            'volume',
+            'create',
+            '--label',
+            `${CLI_PROJECT_LABEL}=${projectId}`,
+            volume,
+          ]);
+          expect(created.ok, created.stderr).toBe(true);
+
+          await expect(startRun()).rejects.toThrow(
+            /no record of starting them/
+          );
+          expect(await stackVolumes()).toEqual([volume]);
+        }
+      );
+    });
   }
 );
