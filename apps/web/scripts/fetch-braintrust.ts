@@ -396,10 +396,26 @@ async function main() {
   if (
     !allowPartial &&
     JSON.stringify(experimentNames) !== JSON.stringify(selectedNames)
-  )
-    throw new Error(
-      `Pinned experiments do not match active benchmark experiments: ${selectedNames.join(", ")}`
+  ) {
+    const missing = experimentNames.filter(
+      (name) => !selectedNames.includes(name)
     )
+    const unexpected = selectedNames.filter(
+      (name) => !experimentNames.includes(name)
+    )
+    throw new Error(
+      [
+        "Pinned experiments do not match active benchmark experiments.",
+        ...(missing.length ? [`Missing: ${missing.join(", ")}`] : []),
+        ...(unexpected.length ? [`Unexpected: ${unexpected.join(", ")}`] : []),
+        ...(process.argv.includes("--dev")
+          ? [
+              "To run with partial results locally, use EVALS_ALLOW_PARTIAL=1 pnpm web.",
+            ]
+          : []),
+      ].join("\n")
+    )
+  }
   const evalIds = []
   for (const dir of await readdir(resolve(root, "evals/benchmark"), {
     withFileTypes: true,

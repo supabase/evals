@@ -430,7 +430,8 @@ const evalResultShape = {
   docs: docsResultSchema.optional(),
   // Harness-reported totals per model.
   usage: agentUsageSchema.optional(),
-  // Braintrust agent LLM span totals may omit requests missing from the trace.
+  // Token totals summed across Braintrust agent LLM spans and models.
+  // Requests missing from the trace are excluded.
   traceUsage: z
     .object({ inputTokens: z.number(), outputTokens: z.number() })
     .optional(),
