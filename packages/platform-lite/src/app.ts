@@ -9,6 +9,7 @@ import { createSecretsRoutes } from './management-api/secrets.js';
 import { createDebuggingRoutes } from './management-api/debugging.js';
 import { createDevelopmentRoutes } from './management-api/development.js';
 import { createOpenApiRoutes } from './management-api/openapi.js';
+import { createFeedbackProject, type FeedbackProject } from './feedback.js';
 import { listen } from './listen.js';
 import type { ListenOptions } from './listen.js';
 import { startPgWireServer, type PgServerHandle } from './project/pg-wire.js';
@@ -39,12 +40,16 @@ export interface PlatformHandle extends AsyncDisposable {
   [Symbol.asyncDispose](): Promise<void>;
 }
 
-async function build(
-  options: AppOptions
-): Promise<{ app: Hono; store: ProjectStore }> {
+async function build(options: AppOptions): Promise<{
+  app: Hono;
+  store: ProjectStore;
+  feedback: FeedbackProject;
+}> {
   const { accessToken, projects = [], seedDir } = options;
 
   const store = createProjectStore();
+  // Kept out of the store so agents don't see it as one of their projects.
+  const feedback = createFeedbackProject();
 
   const seeds = [...projects];
   if (seedDir) {
@@ -72,6 +77,8 @@ async function build(
   ];
 
   app.route('/', createOpenApiRoutes());
+  // Mounted before the auth guard because the MCP server sends a publishable key.
+  app.mount('/feedback', feedback.fetch);
 
   if (accessToken !== undefined) {
     app.use('*', async (c, next) => {
@@ -90,13 +97,13 @@ async function build(
     app.route('/', routes.app);
   }
 
-  return { app, store };
+  return { app, store, feedback };
 }
 
 export async function createPlatform(
   options: AppOptions = {}
 ): Promise<PlatformHandle> {
-  const { app, store } = await build(options);
+  const { app, store, feedback } = await build(options);
 
   // Track open pg-wire listeners so dispose() tears them down too. They must be
   // closed before the projects, since each holds a backend bridged to a
@@ -106,6 +113,7 @@ export async function createPlatform(
   const dispose = async () => {
     await Promise.all([...pgServers].map((s) => s.close()));
     await Promise.all([...store.values()].map((p) => p.close()));
+    await feedback.close();
   };
 
   return {
