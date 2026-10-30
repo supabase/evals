@@ -27,9 +27,3 @@ Those six are what the migration seeds and what the probes drive. They are not t
 The probes use three users. The list owner, an outsider, and a member who neither owns the list nor authored anything on it. That third user is what separates real sharing from owner-only and author-only policies, which otherwise satisfy every shared-list check while sharing is broken.
 
 Nothing in the migration says who may read or write what.
-
-## The prompt never asks for tests
-
-Whether the agent arrives at pgTAP is itself a measurement. If agents do not write tests here, that says something about how reachable testing is from the guide.
-
-Coverage is judged against a low bar: one assertion on an application table, one allowed case, one denied case, and a role set at least once. 
