@@ -17,9 +17,9 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
-  SANDBOX_CONTAINER_LABEL,
   assertAgentResolves,
   dockerCli,
+  removeOrphanedSandboxes,
   type DockerSandbox,
 } from './docker-sandbox.js';
 import { SKILLS_CLI_VERSION } from './skills.js';
@@ -519,26 +519,41 @@ export async function teardownSupabaseProject(
 }
 
 /**
- * Remove Supabase containers/volumes/networks belonging to eval workspaces,
- * plus sandbox containers leaked by crashed runs. A safety net for project ids
- * starting with `sandbox-` (the `supabase init` default is the workspace
- * directory basename, and some seeded workspaces follow the same convention);
- * fixture ids without the prefix are handled per session by stack-ownership.
- * Matching is anchored on the prefix — a substring filter would catch
- * developers' own resources that merely contain "sandbox-".
+ * Remove sandbox containers and `sandbox-` local stacks leaked by runs that
+ * died before teardown, without touching other runs sharing the Docker
+ * daemon (another `pnpm eval`, or `--concurrency`).
+ *
+ * Sandboxes are removed only once their owning process is gone (see
+ * removeOrphanedSandboxes). Stacks can't be traced to a sandbox, so the
+ * `sandbox-` stack sweep runs only while no other sandbox is live; a
+ * session's own stacks are removed precisely by releaseWorkspaceStacks, so
+ * this is just a safety net. Project ids starting with `sandbox-` are
+ * eval-owned (the `supabase init` default is the workspace directory
+ * basename, and some seeded workspaces follow the same convention); matching
+ * is anchored on the prefix, as a substring filter would catch developers'
+ * own resources that merely contain "sandbox-".
  */
 async function cleanupEvalSupabaseResources(
   sandbox: DockerSandbox
 ): Promise<void> {
+  let liveSiblings: number;
+  try {
+    liveSiblings = await removeOrphanedSandboxes(sandbox.id);
+  } catch (err) {
+    console.warn(
+      '[sandbox] sandbox container cleanup failed (skipping the stack sweep):',
+      err instanceof Error ? err.message : err
+    );
+    return;
+  }
+  if (liveSiblings > 0) return;
+
   // Stack resources, identified by the Supabase CLI's own project label.
   const projectLabel = 'com.supabase.cli.project';
-  const selfId = sandbox.id.slice(0, 12);
   const commands = [
     `docker ps -a --filter label=${projectLabel} --format '{{.ID}} {{.Label "${projectLabel}"}}' | awk '$2 ~ /^sandbox-/ {print $1}' | xargs -r docker rm -f`,
     `docker volume ls -q | grep -E '^supabase_[a-z_]+_sandbox-' | xargs -r docker volume rm -f`,
     `docker network ls --format '{{.Name}}' | grep -E '^supabase_network_sandbox-' | xargs -r docker network rm`,
-    // Sandbox containers from runs that died before stop() (never this one).
-    `docker ps -aq --filter label=${SANDBOX_CONTAINER_LABEL} | grep -v '^${selfId}' | xargs -r docker rm -f`,
   ];
   for (const command of commands) {
     try {

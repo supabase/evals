@@ -19,7 +19,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { hostname, tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import type { SandboxMount } from '@supabase-evals/core';
@@ -97,6 +97,23 @@ export function envArgs(env: Readonly<Record<string, string>> = {}): string[] {
  * identified and removed by later runs.
  */
 export const SANDBOX_CONTAINER_LABEL = 'supabase-evals-sandbox';
+
+/**
+ * Records the harness process that created a sandbox, as `<hostname>:<pid>`,
+ * so cleanup can tell a crashed run's sandbox from a live one belonging to
+ * another `pnpm eval` sharing the Docker daemon.
+ */
+export const SANDBOX_OWNER_LABEL = `${SANDBOX_CONTAINER_LABEL}.owner`;
+
+const SANDBOX_OWNER = `${hostname()}:${process.pid}`;
+
+/**
+ * No session runs this long (CI caps a whole job at 60 minutes), so an older
+ * sandbox is orphaned whatever its owner label says. This also covers owners
+ * cleanup can't check: another host's process, a recycled PID, and sandboxes
+ * created before the owner label existed.
+ */
+const MAX_SANDBOX_AGE_MS = 6 * 60 * 60 * 1000;
 
 /**
  * Headroom added to the in-container `timeout` before the docker CLI client
@@ -205,6 +222,8 @@ export class DockerSandbox {
         '--rm',
         '--label',
         `${SANDBOX_CONTAINER_LABEL}=1`,
+        '--label',
+        `${SANDBOX_OWNER_LABEL}=${SANDBOX_OWNER}`,
         ...(this.mountDockerSocket
           ? ['--volume', '/var/run/docker.sock:/var/run/docker.sock']
           : []),
@@ -562,6 +581,85 @@ export async function assertAgentResolves(
       );
     }
   }
+}
+
+export interface SandboxContainerInfo {
+  id: string;
+  /** The {@link SANDBOX_OWNER_LABEL} value; empty when the label is missing. */
+  owner: string;
+  createdMs: number;
+}
+
+/**
+ * Whether a sandbox container was left behind by a run that is gone: its
+ * owner is a process on this host that no longer exists, or it is older than
+ * any session can be. A sandbox whose owner can't be checked here is kept
+ * until it ages out, so a live sibling run is never removed.
+ */
+export function isOrphanedSandbox(
+  container: SandboxContainerInfo,
+  nowMs: number,
+  isPidAlive: (pid: number) => boolean,
+  localHost: string = hostname()
+): boolean {
+  if (nowMs - container.createdMs > MAX_SANDBOX_AGE_MS) return true;
+  const owner = /^(.+):(\d+)$/.exec(container.owner);
+  if (!owner || owner[1] !== localHost) return false;
+  return !isPidAlive(Number(owner[2]));
+}
+
+function isPidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    // EPERM: the process exists but belongs to another user.
+    return (err as NodeJS.ErrnoException).code === 'EPERM';
+  }
+}
+
+/**
+ * Remove sandbox containers whose run is gone (see {@link isOrphanedSandbox}),
+ * never `selfId`'s. Returns how many other sandboxes are still live, i.e.
+ * belong to runs sharing this Docker daemon.
+ */
+export async function removeOrphanedSandboxes(selfId: string): Promise<number> {
+  const listed = await dockerCli([
+    'ps',
+    '-aq',
+    '--no-trunc',
+    '--filter',
+    `label=${SANDBOX_CONTAINER_LABEL}`,
+  ]);
+  if (!listed.ok) {
+    throw new Error(`failed to list sandbox containers: ${listed.stderr}`);
+  }
+  const ids = listed.stdout
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((id) => id && id !== selfId);
+  if (ids.length === 0) return 0;
+
+  // Not checked for ok: a container removed since the listing fails the
+  // inspect, while the rest still print.
+  const inspected = await dockerCli([
+    'inspect',
+    '--format',
+    `{{.Id}}\t{{index .Config.Labels "${SANDBOX_OWNER_LABEL}"}}\t{{.Created}}`,
+    ...ids,
+  ]);
+  const now = Date.now();
+  const orphaned: string[] = [];
+  let live = 0;
+  for (const line of inspected.stdout.split('\n')) {
+    const [id, owner = '', created = ''] = line.split('\t');
+    if (!id) continue;
+    const info = { id, owner, createdMs: Date.parse(created) };
+    if (isOrphanedSandbox(info, now, isPidAlive)) orphaned.push(id);
+    else live++;
+  }
+  if (orphaned.length > 0) await dockerCli(['rm', '-f', ...orphaned]);
+  return live;
 }
 
 /** Run the host docker CLI. `input` is piped to stdin (e.g. `docker build -`). */

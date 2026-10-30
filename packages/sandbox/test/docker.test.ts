@@ -5,9 +5,10 @@
  *
  *   pnpm --filter @supabase-evals/sandbox test:docker
  */
+import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import { tmpdir } from 'node:os';
+import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { createAgentEnvironment } from '../src/agent-environment.js';
@@ -15,7 +16,12 @@ import {
   buildLocalStackScoringContext,
   localStackRuntime,
 } from '../src/local-stack-runtime.js';
-import { DockerSandbox, dockerCli } from '../src/docker-sandbox.js';
+import {
+  DockerSandbox,
+  SANDBOX_CONTAINER_LABEL,
+  SANDBOX_OWNER_LABEL,
+  dockerCli,
+} from '../src/docker-sandbox.js';
 import {
   CLI_PROJECT_LABEL,
   removeStackResources,
@@ -463,6 +469,45 @@ describe.runIf(process.env.SANDBOX_DOCKER_TESTS)(
             await third.close();
           }
           expect(await stackVolumes()).toEqual([]);
+        }
+      );
+
+      it(
+        "leaves another live run's sandbox alone, and removes a dead run's",
+        { timeout: TEST_TIMEOUT_MS },
+        async () => {
+          const image = await ensureSupabaseSandboxImage();
+          // A sibling run's sandbox: owned by this (live) process.
+          const sibling = await DockerSandbox.create({ image });
+          // A crashed run's sandbox: owned by a process that has exited.
+          const deadPid = spawnSync('true').pid;
+          const orphan = await dockerCli([
+            'run',
+            '--detach',
+            '--label',
+            `${SANDBOX_CONTAINER_LABEL}=1`,
+            '--label',
+            `${SANDBOX_OWNER_LABEL}=${hostname()}:${deadPid}`,
+            image,
+            'sleep',
+            'infinity',
+          ]);
+          expect(orphan.ok, orphan.stderr).toBe(true);
+          const orphanId = orphan.stdout.trim();
+          const exists = async (id: string) =>
+            (await dockerCli(['inspect', id])).ok;
+          try {
+            const run = await startRun();
+            await run.close();
+
+            expect(await exists(orphanId)).toBe(false);
+            expect(await exists(sibling.id)).toBe(true);
+            const alive = await sibling.runShell('echo alive');
+            expect(alive.stdout.trim()).toBe('alive');
+          } finally {
+            await sibling.stop();
+            await dockerCli(['rm', '-f', orphanId]);
+          }
         }
       );
 

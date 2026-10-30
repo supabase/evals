@@ -20,6 +20,7 @@ import {
   type DockerSandbox,
   assertAgentResolves,
   envArgs,
+  isOrphanedSandbox,
   proxyCaArgs,
 } from '../src/docker-sandbox.js';
 import {
@@ -553,6 +554,50 @@ describe('parseProjectIds', () => {
 
   it('finds nothing without a config, even with the override set', () => {
     expect(parseProjectIds('', workdir, 'evalshostedprojectxy')).toEqual([]);
+  });
+});
+
+describe('isOrphanedSandbox', () => {
+  const now = Date.parse('2026-10-30T12:00:00Z');
+  const minutesAgo = (minutes: number) => now - minutes * 60_000;
+  const alive = new Set([4242]);
+  const isPidAlive = (pid: number) => alive.has(pid);
+  const orphaned = (owner: string, createdMs = minutesAgo(5)) =>
+    isOrphanedSandbox(
+      { id: 'c1', owner, createdMs },
+      now,
+      isPidAlive,
+      'dev-laptop'
+    );
+
+  it("keeps a sandbox whose owning process on this host is alive (another run's)", () => {
+    expect(orphaned('dev-laptop:4242')).toBe(false);
+  });
+
+  it('removes a sandbox whose owning process on this host is gone', () => {
+    expect(orphaned('dev-laptop:9999')).toBe(true);
+  });
+
+  it("keeps a recent sandbox whose owner it can't check", () => {
+    expect(orphaned('ci-runner:9999')).toBe(false);
+    // Created before the owner label existed.
+    expect(orphaned('')).toBe(false);
+  });
+
+  it('removes any sandbox older than a session can run', () => {
+    expect(orphaned('dev-laptop:4242', minutesAgo(7 * 60))).toBe(true);
+    expect(orphaned('', minutesAgo(7 * 60))).toBe(true);
+  });
+
+  it('reads the pid after the last colon, so hostnames may contain colons', () => {
+    expect(
+      isOrphanedSandbox(
+        { id: 'c1', owner: 'fe80::1:4242', createdMs: minutesAgo(5) },
+        now,
+        isPidAlive,
+        'fe80::1'
+      )
+    ).toBe(false);
   });
 });
 
