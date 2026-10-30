@@ -50,6 +50,8 @@ describe('smoke selection', () => {
     for (const suite of ['benchmark', 'regression', 'docs', 'cli']) {
       expect(all).toContain(`PLAN ${suite}/`);
     }
+    expect(all).not.toContain('PLAN spark/');
+    expect(plan('--suite', 'spark')).toContain('PLAN spark/');
     expect(all).toContain('PLAN cli/codex-gpt-6-luna-cli-absent x');
     expect(all).toContain('PLAN cli/codex-gpt-6-luna-cli-nodaemon x');
 
