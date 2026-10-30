@@ -409,11 +409,9 @@ async function runOne(
           `Add \`localStack: localStackRuntime()\` (from "@supabase-evals/sandbox") to experiments/<team>/${expName}.experiment.ts.`
       );
     }
-    // Boots a platform-lite backend seeded from the eval's `remote/` dir so scorers
-    // that read remote state (e.g. migration history) have something to assert on.
     await using hostedBackend = ev.metadata.hostedProject
       ? disposable(
-          await bootPlatformBackend({
+          await (exp.hostedBackend ?? bootPlatformBackend)({
             ...readSessionSeedArgs(ev),
             ref: HOSTED_PROJECT_REF,
             accessToken: HOSTED_ACCESS_TOKEN,
@@ -437,6 +435,7 @@ async function runOne(
               ref: hostedBackend.ref,
               accessToken: hostedBackend.accessToken,
               mgmt: hostedBackend.mgmt,
+              client: hostedBackend.client,
               query: hostedBackend.query,
               invokeFunction: hostedBackend.invokeFunction,
             }
@@ -665,7 +664,10 @@ async function main() {
   const suiteFiltered = evals.filter(
     (ev) =>
       (EVAL_FILTERS.length === 0 || EVAL_FILTERS.includes(ev.id)) &&
-      (SUITE_FILTERS.length === 0 || SUITE_FILTERS.includes(ev.suite))
+      (SUITE_FILTERS.length === 0 || SUITE_FILTERS.includes(ev.suite)) &&
+      (ev.suite !== 'spark' ||
+        SUITE_FILTERS.includes('spark') ||
+        EVAL_FILTERS.includes(ev.id))
   );
 
   if (suiteFiltered.length === 0) {
