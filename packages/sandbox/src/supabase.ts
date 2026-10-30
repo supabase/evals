@@ -23,6 +23,12 @@ import {
   type DockerSandbox,
 } from './docker-sandbox.js';
 import { SKILLS_CLI_VERSION } from './skills.js';
+import {
+  claimWorkspaceStacks,
+  hasStackClaim,
+  releaseWorkspaceStacks,
+  resetClaimedStacks,
+} from './stack-ownership.js';
 import { ALL_SUPABASE_SERVICES, type SupabaseService } from './types.js';
 
 export const SUPABASE_CLI_VERSION = '2.117.0';
@@ -258,6 +264,12 @@ export async function setupSupabaseSandbox(
     await sandbox.copyToContainer(options.localDir, sandbox.workdir);
   }
 
+  // Before anything can start: clear harness-owned leftovers under the
+  // project ids this workspace uses, so the run starts from a fresh database
+  // (see stack-ownership). After the hosted link, whose SUPABASE_PROJECT_ID
+  // overrides the config's project_id.
+  await claimWorkspaceStacks(sandbox);
+
   // When linked to a hosted project with a wire endpoint, the CLI wrapper routes
   // linked DB commands (`db push`/`migration repair`/…) at it via --db-url (the
   // CLI otherwise hardcodes the linked port to 5432). This is needed whether or
@@ -406,12 +418,14 @@ export async function startSupabaseProject(
         result.exitCode === 124 || result.exitCode === 137,
       // A failed start can leave a partial stack behind (some services pulled
       // and running, others not); reset it so retries start clean. Best-effort,
-      // mirroring teardownSupabaseProject.
+      // mirroring teardownSupabaseProject, including removing the volumes
+      // `supabase stop` leaves (CLI-2637) that a retry would boot from.
       beforeRetry: async () => {
         try {
           await sandbox.runShell('supabase stop --no-backup', {
             timeoutMs: 120_000,
           });
+          await resetClaimedStacks(sandbox);
         } catch (err) {
           console.warn(
             '[sandbox] supabase stop between start retries failed (continuing):',
@@ -478,26 +492,40 @@ export async function ensureEdgeRuntime(
 export async function teardownSupabaseProject(
   sandbox: DockerSandbox
 ): Promise<void> {
-  try {
-    // Scoped stop for this workspace's project (no --all: a developer's own
-    // unrelated local stacks must survive eval runs).
-    await sandbox.runShell('supabase stop --no-backup', { timeoutMs: 120_000 });
-  } catch (err) {
-    console.warn(
-      '[sandbox] supabase stop failed (continuing with docker cleanup):',
-      err instanceof Error ? err.message : err
-    );
+  // Without a claim, setup failed before vetting the workspace's project ids
+  // (possibly because they name a developer's own stack), so don't stop them.
+  if (hasStackClaim(sandbox)) {
+    try {
+      // Scoped stop for this workspace's project (no --all: a developer's own
+      // unrelated local stacks must survive eval runs). Its volume prune fails
+      // in the sandbox (CLI-2637), which releaseWorkspaceStacks makes up for.
+      const stop = await sandbox.runShell('supabase stop --no-backup', {
+        timeoutMs: 120_000,
+      });
+      if (!stop.ok) {
+        console.warn(
+          `[sandbox] supabase stop exited ${stop.exitCode} (continuing with docker cleanup): ${(stop.stderr || stop.stdout).trim()}`
+        );
+      }
+    } catch (err) {
+      console.warn(
+        '[sandbox] supabase stop failed (continuing with docker cleanup):',
+        err instanceof Error ? err.message : err
+      );
+    }
   }
+  await releaseWorkspaceStacks(sandbox);
   await cleanupEvalSupabaseResources(sandbox);
 }
 
 /**
  * Remove Supabase containers/volumes/networks belonging to eval workspaces,
- * plus sandbox containers leaked by crashed runs. Eval project ids start with
- * `sandbox-` (the `supabase init` default is the workspace directory
- * basename, and seeded workspaces follow the same convention), so matching is
- * anchored on that prefix — a substring filter would catch developers' own
- * resources that merely contain "sandbox-".
+ * plus sandbox containers leaked by crashed runs. A safety net for project ids
+ * starting with `sandbox-` (the `supabase init` default is the workspace
+ * directory basename, and some seeded workspaces follow the same convention);
+ * fixture ids without the prefix are handled per session by stack-ownership.
+ * Matching is anchored on the prefix — a substring filter would catch
+ * developers' own resources that merely contain "sandbox-".
  */
 async function cleanupEvalSupabaseResources(
   sandbox: DockerSandbox
