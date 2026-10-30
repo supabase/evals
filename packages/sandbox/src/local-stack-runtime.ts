@@ -132,7 +132,8 @@ const UNREACHABLE_DOCKER_HOST = 'tcp://127.0.0.1:1';
  * workflow under test (it could deploy via the MCP instead of `supabase
  * functions deploy`). Widen per experiment via `mcpFeatures` for evals that
  * genuinely want the agent to drive the platform through MCP; the
- * platform-dependent groups then require a hosted project to point at.
+ * platform-dependent groups (including `feedback`) then require a hosted
+ * project to point at.
  */
 const DEFAULT_MCP_FEATURES = ['docs'];
 
