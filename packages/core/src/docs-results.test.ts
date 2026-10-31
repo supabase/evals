@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parseClaudeCodeToolCall } from './agents/claude-code/parser.js';
 import {
   buildDocsResult,
@@ -204,6 +204,54 @@ describe('buildDocsResult', () => {
     ]);
 
     expect(result.calls).toEqual([]);
+  });
+
+  describe('DOCS_HOSTS', () => {
+    afterEach(() => vi.unstubAllEnvs());
+
+    const previewUrl =
+      'https://docs-git-branch-supabase.vercel.app/docs/guides/auth.md';
+    const fetchCall = (url: string) =>
+      toolCall('WebFetch', { url }, { url, name: 'web_fetch' });
+
+    it('attributes a fetch on a listed preview host', () => {
+      vi.stubEnv(
+        'DOCS_HOSTS',
+        'docs-git-branch-supabase.vercel.app, supabase.com'
+      );
+      const result = buildDocsResult([
+        fetchCall(previewUrl),
+        fetchCall('https://supabase.com/docs/guides/auth.md'),
+      ]);
+
+      expect(result.calls.map((call) => call.pages)).toEqual([
+        [{ url: previewUrl }],
+        [{ url: 'https://supabase.com/docs/guides/auth.md' }],
+      ]);
+    });
+
+    it('drops supabase.com when the list leaves it out', () => {
+      vi.stubEnv('DOCS_HOSTS', 'docs-git-branch-supabase.vercel.app');
+      const result = buildDocsResult([
+        fetchCall('https://supabase.com/docs/guides/auth.md'),
+      ]);
+
+      expect(result.calls).toEqual([]);
+    });
+
+    it('accepts only supabase.com when unset or blank', () => {
+      for (const value of [undefined, ' ']) {
+        vi.stubEnv('DOCS_HOSTS', value);
+        const result = buildDocsResult([
+          fetchCall(previewUrl),
+          fetchCall('https://supabase.com/docs/guides/auth.md'),
+        ]);
+
+        expect(result.calls.map((call) => call.pages)).toEqual([
+          [{ url: 'https://supabase.com/docs/guides/auth.md' }],
+        ]);
+      }
+    });
   });
 
   it("parses title+url pairs out of Claude Code's WebSearch Links blob, flagged as hits not reads", () => {

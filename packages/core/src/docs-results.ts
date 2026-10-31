@@ -51,14 +51,23 @@ const STDOUT_REDIRECT_PATTERN = /(?:^|[^2])>/;
 // legally follow one (`|`, `>`, quotes, backslash-escapes).
 const URL_IN_COMMAND_PATTERN = /https?:\/\/[^\s'"`\\;|&>()]+/g;
 
+/** Hosts that serve the docs, from the comma-separated `DOCS_HOSTS` env var. */
+function docsHosts(): string[] {
+  const hosts = (process.env.DOCS_HOSTS ?? '')
+    .split(',')
+    .map((host) => host.trim())
+    .filter((host) => host.length > 0);
+  return hosts.length > 0 ? hosts : ['supabase.com'];
+}
+
 /**
- * True for the apex supabase.com host. Docs, changelog, and blog all live
- * there. Subdomains like `api.` and `mcp.` are service endpoints, so they
- * don't count.
+ * True for a docs host, the apex supabase.com host by default. Docs,
+ * changelog, and blog all live there. Subdomains like `api.` and `mcp.` are
+ * service endpoints, so they don't count.
  */
 function isSupabaseApexUrl(value: string): boolean {
   try {
-    return new URL(value).hostname === 'supabase.com';
+    return docsHosts().includes(new URL(value).hostname);
   } catch {
     return false;
   }
