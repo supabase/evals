@@ -1,3 +1,6 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
 import { bootSparkBackend, sparkRuntime } from './spark-runtime.js';
 import type { McpServerDefinition } from './index.js';
@@ -24,6 +27,7 @@ it.each(['127.0.0.1', '0.0.0.0', '::1'])(
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const stderr = vi.spyOn(process.stderr, 'write').mockReturnValue(true);
     let migration: unknown;
+    let sqlQuery: unknown;
     let rejectMigration = false;
     let adapterUrl = '';
     let token = '';
@@ -56,6 +60,13 @@ it.each(['127.0.0.1', '0.0.0.0', '::1'])(
             { status: 201 }
           );
         }
+        if (url === 'https://spark.example/database/query') {
+          expect(init?.headers).toMatchObject({ apikey: 'secret' });
+          sqlQuery = JSON.parse(String(init?.body));
+          if (rejectMigration)
+            return new Response('Query unavailable', { status: 502 });
+          return Response.json([{ value: 1 }]);
+        }
         return realFetch(input, init);
       }
     );
@@ -70,8 +81,14 @@ it.each(['127.0.0.1', '0.0.0.0', '::1'])(
     };
     const apiUrl = 'https://control.example/';
     const runtime = sparkRuntime({ apiUrl, mcpServers: [mcp] });
-    const session = await runtime.startSession({ hostname });
+    const fixtureDir = await mkdtemp(join(tmpdir(), 'spark-fixture-'));
+    const projectSeedSql = join(fixtureDir, 'project.sql');
+    const seedSql =
+      'create table seeded (id int); insert into seeded values (1);';
+    await writeFile(projectSeedSql, seedSql);
+    const session = await runtime.startSession({ hostname, projectSeedSql });
     try {
+      expect(migration).toMatchObject({ name: 'eval_fixture', sql: seedSql });
       expect(stderr).toHaveBeenCalledWith(
         expect.stringContaining('Spark project created: testproject')
       );
@@ -124,17 +141,50 @@ it.each(['127.0.0.1', '0.0.0.0', '::1'])(
       expect(failed.status).toBe(502);
       expect(failed.headers.get('content-type')).toBe('text/plain');
       expect(await failed.text()).toBe('Upstream unavailable');
+      rejectMigration = false;
       const query = await realFetch(
         `${adapterUrl}/v1/projects/testproject/database/query`,
         {
           method: 'POST',
           headers,
-          body: JSON.stringify({ query: 'select 1' }),
+          body: JSON.stringify({
+            query: 'select $1',
+            parameters: [1],
+            read_only: true,
+          }),
         }
       );
-      expect(query.status).toBe(501);
+      expect(query.status).toBe(200);
+      expect(await query.json()).toEqual([{ value: 1 }]);
+      expect(sqlQuery).toEqual({
+        query: 'select $1',
+        parameters: [1],
+        read_only: true,
+      });
+      expect(await session.scoringContext.query('select 1')).toEqual({
+        rows: [{ value: 1 }],
+      });
+      const invalidQuery = await realFetch(
+        `${adapterUrl}/v1/projects/testproject/database/query`,
+        { method: 'POST', headers, body: JSON.stringify({ query: 1 }) }
+      );
+      expect(invalidQuery.status).toBe(400);
+      rejectMigration = true;
+      const failedQuery = await realFetch(
+        `${adapterUrl}/v1/projects/testproject/database/query`,
+        { method: 'POST', headers, body: JSON.stringify({ query: 'select 1' }) }
+      );
+      expect(failedQuery.status).toBe(502);
+      expect(await failedQuery.text()).toBe('Query unavailable');
+      await expect(session.scoringContext.query('select 1')).rejects.toThrow(
+        'Spark query failed (502): Query unavailable'
+      );
+      await expect(
+        runtime.startSession({ hostname, projectSeedSql })
+      ).rejects.toThrow('Spark fixture failed (502): Upstream unavailable');
     } finally {
       await session.close();
+      await rm(fixtureDir, { recursive: true, force: true });
     }
     await expect(
       sparkRuntime({ apiUrl, mcpServers: [mcp, mcp] }).startSession({

@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { format } from 'node:url';
 import { createClient } from '@supabase/supabase-js';
@@ -17,6 +18,12 @@ const projectSchema = z.object({
   api_keys: z.array(z.object({ type: z.string(), api_key: z.string() })),
 });
 const migrationSchema = z.object({ name: z.string(), query: z.string() });
+const querySchema = z.object({
+  query: z.string(),
+  parameters: z.array(z.unknown()).optional(),
+  read_only: z.boolean().optional(),
+});
+const rowsSchema = z.array(z.record(z.string(), z.unknown()));
 
 export async function bootSparkBackend(
   apiUrl: string,
@@ -24,6 +31,9 @@ export async function bootSparkBackend(
 ): Promise<PlatformBackend> {
   if (!apiUrl.trim())
     throw new Error('Set SPARK_API_URL to the Spark control API URL');
+  const seedSql = args.projectSeedSql
+    ? await readFile(args.projectSeedSql, 'utf8')
+    : undefined;
   const created = await fetch(new URL('/v1/projects', apiUrl), {
     method: 'POST',
   });
@@ -42,6 +52,21 @@ export async function bootSparkBackend(
   let version = BigInt(
     new Date().toISOString().replace(/\D/g, '').slice(0, 14)
   );
+  if (seedSql) {
+    const response = await fetch(`${project.url}/system/v1/migrations`, {
+      method: 'POST',
+      headers: { apikey: secret, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        version: String(version++),
+        name: 'eval_fixture',
+        sql: seedSql,
+      }),
+    });
+    if (!response.ok)
+      throw new Error(
+        `Spark fixture failed (${response.status}): ${await response.text()}`
+      );
+  }
   const token = `sbp_${randomBytes(20).toString('hex')}`;
   const server = createServer(async (req, res) => {
     const send = (status: number, body: unknown) => {
@@ -65,6 +90,25 @@ export async function bootSparkBackend(
             organization_id: 'default-org',
           },
         ]);
+      } else if (
+        path === `/v1/projects/${project.ref}/database/query` &&
+        req.method === 'POST'
+      ) {
+        const chunks: Buffer[] = [];
+        for await (const chunk of req) chunks.push(Buffer.from(chunk));
+        const input = querySchema.parse(
+          JSON.parse(Buffer.concat(chunks).toString())
+        );
+        const response = await fetch(`${project.url}/database/query`, {
+          method: 'POST',
+          headers: { apikey: secret, 'content-type': 'application/json' },
+          body: JSON.stringify(input),
+        });
+        res.writeHead(response.status, {
+          'content-type':
+            response.headers.get('content-type') ?? 'application/json',
+        });
+        res.end(await response.text());
       } else if (
         path === `/v1/projects/${project.ref}/database/migrations` &&
         req.method === 'POST'
@@ -134,8 +178,17 @@ export async function bootSparkBackend(
     mgmt: createManagementApiClient(url, token),
     client: createClient(project.url, secret),
     getClient: () => createClient(project.url, publishable),
-    query: async () => {
-      throw new Error('Spark SQL query endpoint is not available yet');
+    query: async (sql) => {
+      const response = await fetch(`${project.url}/database/query`, {
+        method: 'POST',
+        headers: { apikey: secret, 'content-type': 'application/json' },
+        body: JSON.stringify({ query: sql }),
+      });
+      if (!response.ok)
+        throw new Error(
+          `Spark query failed (${response.status}): ${await response.text()}`
+        );
+      return { rows: rowsSchema.parse(await response.json()) };
     },
     invokeFunction: async () => {
       throw new Error('Spark function invocation is not implemented');
