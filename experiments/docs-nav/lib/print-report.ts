@@ -11,6 +11,8 @@ import {
 const ARMS: Record<string, string> = {
   'claude-code-sonnet-5.5-docs-nav': 'control',
   'claude-code-sonnet-5.5-docs-nav-option-1': 'option-1',
+  'claude-code-sonnet-5.5-docs-nav-nav-only': 'control nav-only',
+  'claude-code-sonnet-5.5-docs-nav-option-1-nav-only': 'option-1 nav-only',
 };
 
 const arms: Record<string, ArmRuns> = Object.fromEntries(

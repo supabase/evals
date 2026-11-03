@@ -415,11 +415,31 @@ export async function scoreDocsNav(
   return { passed: reachedCheck.passed, checks: [reachedCheck, groundedCheck] };
 }
 
-export function docsNavScorer(targets: string[], evalUrl: string): ToolScorer {
+async function fetchNavTree(url: string): Promise<NavTree> {
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(
+      `Couldn't load the nav tree from ${url}: HTTP ${res.status}`
+    );
+  }
+  return (await res.json()) as NavTree;
+}
+
+export function docsNavScorer(
+  targets: string[],
+  evalUrl: string,
+  controlTargets: string[] = []
+): ToolScorer {
   const promptUrl = new URL('./PROMPT.md', evalUrl);
   const { body: task } = parseEvalMarkdown(
     readFileSync(promptUrl, 'utf8'),
     promptUrl.pathname
   );
-  return (ctx) => scoreDocsNav(ctx, { targets, task });
+  return (ctx) =>
+    scoreDocsNav(ctx, {
+      targets,
+      controlTargets,
+      task,
+      fetchTree: (url) => fetchNavTree(url),
+    });
 }
