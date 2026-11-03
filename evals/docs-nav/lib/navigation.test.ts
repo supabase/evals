@@ -255,7 +255,10 @@ describe('scoreDocsNav', () => {
     const detour = Array.from({ length: 10 }, (_, hop) =>
       opened(`${DOCS}/guides/page-${hop}`)
     );
-    const navigation = await navigationOf([...detour, opened(`${DOCS}/${SSO}`)]);
+    const navigation = await navigationOf([
+      ...detour,
+      opened(`${DOCS}/${SSO}`),
+    ]);
     expect(navigation).toMatchObject({ hopsToTarget: 10, reached: false });
   });
 
