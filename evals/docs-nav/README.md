@@ -40,8 +40,8 @@ Each prompt is one of these people, in their own words, with one thing they don'
 
 | Experiment | Docs |
 | --- | --- |
-| `claude-code-sonnet-5-docs-nav` | Control: the navigation every visitor gets |
-| `claude-code-sonnet-5-docs-nav-option-1` | Option 1, forced with `?docs-ia-mvp-v1=option-1` on every request |
+| `claude-code-sonnet-5-5-docs-nav` | Control: the navigation every visitor gets |
+| `claude-code-sonnet-5-5-docs-nav-option-1` | Option 1, forced with `?docs-ia-mvp-v1=option-1` on every request |
 
 The option-1 arm runs only while Option 1 is behind its flag. Without it, control is the regression arm.
 
@@ -49,7 +49,7 @@ The option-1 arm runs only while Option 1 is behind its flag. Without it, contro
 
 The navigator is `experiments/docs-nav/lib/docs-navigator.mjs`, and the scorer is `lib/navigation.ts`.
 
-- **Reached a target page in under 10 hops.** This check decides the pass. 0 to 3 hops is clean, 4 to 6 friction, 7 to 9 failure, and 10 or more, or never reaching a target, a big failure. Its notes hold the hops, the opened pages, blocked jumps, direct, judged, and the docs origin.
+- **Reached a target page in under 10 hops.** This check decides the pass. 0 to 3 hops is clean, 4 to 6 friction, 7 to 9 failure, and 10 or more, or never reaching a target, a big failure. Its notes hold the hops, the opened pages, blocked jumps, direct, and judged.
 - **Answer is grounded in the reached page.** Reported, never part of the pass.
 
 A judged run means `TARGETS` may need updating. Check the page it reached and add it when it answers the task.
@@ -67,13 +67,5 @@ pnpm --filter @supabase-evals/framework exec tsx ../../experiments/docs-nav/lib/
 ```
 
 The report lists each case per arm, then the cases reached and direct per arm. Refresh both arms on the same day. A drop of 2 or more reached or direct cases on an arm since the last refresh is a regression.
-
-To run against a docs deploy preview, set `DOCS_ORIGIN`:
-
-```bash
-DOCS_ORIGIN=https://docs-git-<branch>-supabase.vercel.app pnpm eval -- --suite docs-nav
-```
-
-The navigator accepts only `https://docs-git-*-supabase.vercel.app` and refuses `DOCS_ORIGIN` in CI. Don't upload preview runs to Braintrust.
 
 In CI, dispatch `eval-refresh.yml` with `suite=docs-nav`.

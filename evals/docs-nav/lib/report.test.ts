@@ -6,7 +6,6 @@ function run(overrides: Partial<Navigation> = {}, grounded = true): CaseRun {
   return {
     grounded,
     navigation: {
-      docsOrigin: 'https://supabase.com',
       hopsToTarget: 2,
       reachedTarget: 'guides/platform/sso',
       direct: true,
@@ -40,7 +39,7 @@ describe('buildReport', () => {
     expect(totals).toEqual({ control: { cases: 2, reached: 1, direct: 0 } });
   });
 
-  it('renders a row per case, a totals row, and the docs origins', () => {
+  it('renders a row per case and a totals row', () => {
     const { table } = buildReport({
       control: {
         'deploy-nav-002': [missed],
@@ -51,9 +50,7 @@ describe('buildReport', () => {
         ],
       },
       'option-1': {
-        'deploy-nav-001': [
-          run({ docsOrigin: 'https://docs-git-ia-nav-supabase.vercel.app' }),
-        ],
+        'deploy-nav-001': [run()],
       },
     });
     expect(table).toBe(
@@ -63,8 +60,6 @@ describe('buildReport', () => {
         '| deploy-nav-001 | reached 3/3, direct 2/3, 2 hops, 1 judged, 1 blocked, grounded 2/3 | reached 1/1, direct 1/1, 2 hops, 0 judged, 0 blocked, grounded 1/1 |',
         '| deploy-nav-002 | reached 0/1, direct 0/1, – hops, 0 judged, 0 blocked, grounded 0/1 | no runs |',
         '| Cases reached, direct | 1/2, 1/2 | 1/1, 1/1 |',
-        '',
-        'Docs origins: https://docs-git-ia-nav-supabase.vercel.app, https://supabase.com',
       ].join('\n')
     );
   });
