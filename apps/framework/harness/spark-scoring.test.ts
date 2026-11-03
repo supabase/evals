@@ -37,7 +37,9 @@ const tasks = [
 
 describe('task state checks', () => {
   it('accepts the requested change', () => {
-    expect(checkTasks(tasks).every((check) => check.passed)).toBe(true);
+    expect(checkTasks(tasks, 'due_date').every((check) => check.passed)).toBe(
+      true
+    );
   });
   it('rejects missing dates, altered seed data and deleted rows', () => {
     for (const changed of [
@@ -47,7 +49,9 @@ describe('task state checks', () => {
       tasks.slice(1),
       [],
     ])
-      expect(checkTasks(changed).some((check) => !check.passed)).toBe(true);
+      expect(
+        checkTasks(changed, 'due_date').some((check) => !check.passed)
+      ).toBe(true);
   });
 });
 
@@ -56,6 +60,7 @@ afterEach(() => vi.unstubAllGlobals());
 async function score(
   options: {
     columns?: Record<string, unknown>[];
+    tasks?: unknown;
     tableStatus?: number;
     queryStatus?: number;
     reportPasses?: boolean;
@@ -81,7 +86,7 @@ async function score(
             status: options.queryStatus,
           });
         return Response.json(
-          options.columns ?? [{ type: 'date', not_null: 0 }]
+          options.columns ?? [{ name: 'due_date', type: 'date', not_null: 0 }]
         );
       }
       expect(url.pathname).toBe('/rest/v1/tasks');
@@ -90,7 +95,7 @@ async function score(
             { message: 'relation "tasks" does not exist', code: '42P01' },
             { status: options.tableStatus }
           )
-        : Response.json(tasks);
+        : Response.json(options.tasks ?? tasks);
     })
   );
   const session = await sparkRestRuntime(
@@ -116,11 +121,26 @@ describe('hosted task scorer', () => {
     expect((await score({ reportPasses: false })).result.passed).toBe(false);
   });
 
+  it('accepts a different due-date column name', async () => {
+    const renamed = tasks.map(({ due_date, ...task }) => ({
+      ...task,
+      deadline: due_date,
+    }));
+    expect(
+      (
+        await score({
+          columns: [{ name: 'deadline', type: 'date', not_null: 0 }],
+          tasks: renamed,
+        })
+      ).result.passed
+    ).toBe(true);
+  });
+
   it('rejects missing, non-date and required columns', async () => {
     for (const columns of [
       [],
-      [{ type: 'text', not_null: 0 }],
-      [{ type: 'date', not_null: 1 }],
+      [{ name: 'due_date', type: 'text', not_null: 0 }],
+      [{ name: 'due_date', type: 'date', not_null: 1 }],
     ]) {
       const { result } = await score({ columns });
       expect(result.passed).toBe(false);

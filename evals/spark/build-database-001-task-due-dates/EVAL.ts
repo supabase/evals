@@ -1,12 +1,11 @@
 import type { CheckResult, ToolScorer } from '@supabase-evals/core';
 import { isRecord } from '@supabase-evals/core/json';
 
-type Task = {
+type Task = Record<string, unknown> & {
   id: number;
   title: string;
   completed: boolean;
   created_at: string;
-  due_date?: string | null;
 };
 
 function isTask(value: unknown): value is Task {
@@ -15,14 +14,14 @@ function isTask(value: unknown): value is Task {
     typeof value.id === 'number' &&
     typeof value.title === 'string' &&
     typeof value.completed === 'boolean' &&
-    typeof value.created_at === 'string' &&
-    (value.due_date === undefined ||
-      value.due_date === null ||
-      typeof value.due_date === 'string')
+    typeof value.created_at === 'string'
   );
 }
 
-export function checkTasks(value: unknown): CheckResult[] {
+export function checkTasks(
+  value: unknown,
+  dueDateColumn: string | undefined
+): CheckResult[] {
   if (!Array.isArray(value) || !value.every(isTask))
     return [
       {
@@ -60,9 +59,11 @@ export function checkTasks(value: unknown): CheckResult[] {
     {
       name: 'Requested due date saved and other tasks undated',
       passed:
+        dueDateColumn !== undefined &&
         tasks.length === titles.length &&
         tasks.every(
-          (task) => task.due_date === (task.id === 2 ? '2026-11-10' : null)
+          (task) =>
+            task[dueDateColumn] === (task.id === 2 ? '2026-11-10' : null)
         ),
     },
   ];
@@ -72,23 +73,25 @@ const scorer: ToolScorer = async (ctx) => {
   const checks: CheckResult[] = [];
   try {
     const { rows: columns } = await ctx.query(
-      `select type, "notnull" as not_null from pragma_table_info('tasks') where name = 'due_date'`
+      `select name, type, "notnull" as not_null from pragma_table_info('tasks') where name not in ('id', 'title', 'completed', 'created_at')`
     );
     const { data, error } = await ctx.client
       .from('tasks')
       .select('*')
       .order('id');
     if (error) throw new Error(error.message);
+    const dueDateColumn = columns.find(
+      (column) =>
+        typeof column.name === 'string' &&
+        typeof column.type === 'string' &&
+        column.type.toLowerCase() === 'date' &&
+        column.not_null === 0
+    )?.name;
+    const columnName =
+      typeof dueDateColumn === 'string' ? dueDateColumn : undefined;
     checks.push(
-      {
-        name: 'Optional date column added',
-        passed:
-          columns.length === 1 &&
-          typeof columns[0]?.type === 'string' &&
-          columns[0].type.toLowerCase() === 'date' &&
-          columns[0].not_null === 0,
-      },
-      ...checkTasks(data)
+      { name: 'Optional date column added', passed: columnName !== undefined },
+      ...checkTasks(data, columnName)
     );
   } catch (error) {
     checks.push({
@@ -100,7 +103,7 @@ const scorer: ToolScorer = async (ctx) => {
   const report = await ctx.judge({
     input: ctx.agentReport ?? '',
     rubric:
-      'The response must list exactly these open tasks in this order, including their IDs, titles and due dates: 2, Ship task tracker, 2026-11-10; 1, Write release notes, no due date; 4, Plan next iteration, no due date. Task 3 is complete and must not appear as an open task. Accept equivalent date formatting and descriptions of an absent date.',
+      'The response must list exactly these open tasks with their due dates: Ship task tracker, November 10, 2026; Write release notes, no due date; Plan next iteration, no due date. Ship task tracker must appear before the undated tasks. Either order among the undated tasks is valid. Review schema is complete and must not appear as an open task. Task IDs are optional. Accept equivalent date formatting and descriptions of an absent date.',
   });
   checks.push({ name: 'Open tasks reported in due-date order', ...report });
   return { passed: checks.every((check) => check.passed), checks };
