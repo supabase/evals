@@ -1,28 +1,23 @@
 import type { CheckResult, ToolScorer } from '@supabase-evals/core';
-import { isRecord } from '@supabase-evals/core/json';
+import { z } from 'zod';
 
-type Task = Record<string, unknown> & {
-  id: number;
-  title: string;
-  completed: boolean;
-  created_at: string;
-};
-
-function isTask(value: unknown): value is Task {
-  return (
-    isRecord(value) &&
-    typeof value.id === 'number' &&
-    typeof value.title === 'string' &&
-    typeof value.completed === 'boolean' &&
-    typeof value.created_at === 'string'
-  );
-}
+const tasksSchema = z.array(
+  z
+    .object({
+      id: z.number(),
+      title: z.string(),
+      completed: z.boolean(),
+      created_at: z.string(),
+    })
+    .catchall(z.unknown())
+);
 
 export function checkTasks(
   value: unknown,
   dueDateColumns: unknown[]
 ): CheckResult[] {
-  if (!Array.isArray(value) || !value.every(isTask))
+  const result = tasksSchema.safeParse(value);
+  if (!result.success)
     return [
       {
         name: 'Existing task data preserved',
@@ -36,7 +31,7 @@ export function checkTasks(
     '2026-11-01 12:02:00',
     '2026-11-01 12:03:00',
   ];
-  const tasks = value;
+  const tasks = result.data;
   const titles = [
     'Write release notes',
     'Ship task tracker',
@@ -90,7 +85,7 @@ const scorer: ToolScorer = async (ctx) => {
         column.not_null === 0
     );
     checks.push(
-      { name: 'Optional date column added', passed: dateColumns.length > 0 },
+      { name: 'Nullable date column added', passed: dateColumns.length > 0 },
       ...checkTasks(
         data,
         dateColumns.map((column) => column.name)

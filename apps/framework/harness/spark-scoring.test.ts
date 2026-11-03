@@ -24,6 +24,7 @@ describe('task state checks', () => {
       tasks.map((task) => ({ ...task, due_date: null })),
       tasks.map((task) => ({ ...task, title: 'Replaced' })),
       tasks.map((task) => ({ ...task, created_at: '2026-11-02T00:00:00' })),
+      tasks.map((task) => ({ ...task, completed: 'false' })),
       tasks.slice(1),
       [],
     ])
@@ -111,7 +112,7 @@ describe('hosted task scorer', () => {
       expect(result.passed).toBe(false);
       expect(
         result.checks?.find(
-          (check) => check.name === 'Optional date column added'
+          (check) => check.name === 'Nullable date column added'
         )?.passed
       ).toBe(false);
     }
