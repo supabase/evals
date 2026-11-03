@@ -1,27 +1,12 @@
-export const SITE = 'https://supabase.com';
+const SITE = 'https://supabase.com';
 const BLOCKED_PREFIX = 'Not opened:';
 const VARIANT_PARAM = 'docs-ia-mvp-v1';
 
-const PREVIEW_ORIGIN = /^https:\/\/docs-git-[a-z0-9-]+-supabase\.vercel\.app$/;
 const MAX_CONTENT_CHARS = 40_000;
 const MAX_LINKS = 250;
 const TIMEOUT_MS = 20_000;
 const ASSET_PATTERN =
   /\.(png|jpe?g|gif|svg|webp|ico|css|js|xml|json|txt|pdf)$/i;
-
-export function resolveDocsOrigin(env) {
-  if (!env.DOCS_ORIGIN) return SITE;
-  if (env.CI) {
-    throw new Error('DOCS_ORIGIN works only in local runs, not in CI.');
-  }
-  const origin = env.DOCS_ORIGIN.replace(/\/+$/, '');
-  if (!PREVIEW_ORIGIN.test(origin)) {
-    throw new Error(
-      `DOCS_ORIGIN must be a docs deploy preview, https://docs-git-*-supabase.vercel.app. Got ${env.DOCS_ORIGIN}.`
-    );
-  }
-  return origin;
-}
 
 function decodeEntities(text) {
   return text
@@ -44,9 +29,8 @@ function stripTags(html) {
 }
 
 export function createNavigator({ env, fetch }) {
-  const origin = resolveDocsOrigin(env);
   const variant = env.DOCS_IA_VARIANT;
-  const root = `${origin}/docs`;
+  const root = `${SITE}/docs`;
   const allowed = new Set([root]);
 
   function canonicalUrl(url, base) {
@@ -56,11 +40,10 @@ export function createNavigator({ env, fetch }) {
     } catch {
       return null;
     }
-    if (parsed.origin !== SITE && parsed.origin !== origin) return null;
+    if (parsed.origin !== SITE) return null;
     const path = parsed.pathname.replace(/\.md$/, '').replace(/\/+$/, '');
     if (ASSET_PATTERN.test(path)) return null;
-    const isDocs = path === '/docs' || path.startsWith('/docs/');
-    return `${isDocs ? origin : SITE}${path}`;
+    return `${SITE}${path}`;
   }
 
   function requestUrl(url) {

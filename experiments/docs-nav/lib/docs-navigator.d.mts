@@ -1,5 +1,3 @@
-export declare const SITE: string;
-
 export interface NavigatorReply {
   isError?: boolean;
   content: { type: 'text'; text: string }[];
@@ -11,10 +9,6 @@ export interface NavigatorFetchResponse {
   url: string;
   text(): Promise<string>;
 }
-
-export declare function resolveDocsOrigin(
-  env: Record<string, string | undefined>
-): string;
 
 export declare function createNavigator(options: {
   env: Record<string, string | undefined>;

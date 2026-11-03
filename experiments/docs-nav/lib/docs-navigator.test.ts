@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { createNavigator } from './docs-navigator.mjs';
 
 const SITE = 'https://supabase.com';
-const PREVIEW = 'https://docs-git-ia-nav-supabase.vercel.app';
 const VARIANT = '?docs-ia-mvp-v1=option-1';
 
 interface FakePage {
@@ -86,53 +85,5 @@ describe('createNavigator', () => {
       `${SITE}/docs/guides/auth${VARIANT}`,
       `${SITE}/docs/guides/auth.md${VARIANT}`,
     ]);
-  });
-
-  it('keeps a preview run on the preview for docs pages', async () => {
-    const site = fakeSite({
-      [`${PREVIEW}/docs`]: { html: ROOT_HTML },
-      [`${PREVIEW}/docs/guides/platform`]: { html: '<main>Platform</main>' },
-    });
-    const navigator = createNavigator({
-      env: { DOCS_ORIGIN: `${PREVIEW}/` },
-      fetch: site.fetch,
-    });
-
-    expect(navigator.root).toBe(`${PREVIEW}/docs`);
-    const root = textOf(await navigator.openPage(`${PREVIEW}/docs`));
-    expect(root).toContain(`Opened: ${PREVIEW}/docs`);
-    expect(root).toContain(`- Auth: ${PREVIEW}/docs/guides/auth`);
-    expect(root).toContain(`- Platform: ${PREVIEW}/docs/guides/platform`);
-    expect(root).toContain(`- Pricing: ${SITE}/pricing`);
-
-    const platform = await navigator.openPage(`${SITE}/docs/guides/platform`);
-    expect(textOf(platform)).toContain(
-      `Opened: ${PREVIEW}/docs/guides/platform`
-    );
-  });
-
-  it('refuses a docs origin override in CI', () => {
-    expect(() =>
-      createNavigator({
-        env: { DOCS_ORIGIN: PREVIEW, CI: 'true' },
-        fetch: fakeSite({}).fetch,
-      })
-    ).toThrow(/CI/);
-  });
-
-  it('accepts only docs deploy previews as the docs origin', () => {
-    for (const origin of [
-      'http://docs-git-ia-nav-supabase.vercel.app',
-      'https://studio-git-ia-nav-supabase.vercel.app',
-      'https://docs-git-ia-nav-supabase.vercel.app.evil.com',
-      'https://example.com',
-    ]) {
-      expect(() =>
-        createNavigator({
-          env: { DOCS_ORIGIN: origin },
-          fetch: fakeSite({}).fetch,
-        })
-      ).toThrow(/docs deploy preview/);
-    }
   });
 });

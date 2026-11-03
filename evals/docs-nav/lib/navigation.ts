@@ -17,7 +17,6 @@ const MAX_HOPS = 10;
 export type Severity = 'clean' | 'friction' | 'failure' | 'big failure';
 
 export interface Navigation {
-  docsOrigin: string | null;
   hopsToTarget: number | null;
   reachedTarget: string | null;
   direct: boolean;
@@ -29,7 +28,6 @@ export interface Navigation {
 
 interface Visit {
   hop: number;
-  origin: string;
   path: string;
   text: string;
 }
@@ -96,13 +94,7 @@ function readCalls(toolCalls: ToolCallRecord[]) {
       continue;
     }
     const landed = text.match(OPENED_PATTERN)?.[1];
-    if (landed)
-      visits.push({
-        hop,
-        origin: new URL(landed).origin,
-        path: docsPath(landed),
-        text,
-      });
+    if (landed) visits.push({ hop, path: docsPath(landed), text });
   }
   return { visits, blockedJumps };
 }
@@ -179,7 +171,6 @@ export async function scoreDocsNav(
   const reached = matched ?? (await judgeReach(visits, task, ctx.judge));
   const hopsToTarget = reached?.hop ?? null;
   const navigation: Navigation = {
-    docsOrigin: visits[0]?.origin ?? null,
     hopsToTarget,
     reachedTarget: reached?.path ?? null,
     direct: isDirect(visits, reached),

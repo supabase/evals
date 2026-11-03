@@ -68,20 +68,13 @@ describe('scoreDocsNav', () => {
     });
   });
 
-  it('records the docs origin', async () => {
-    const navigation = await navigationOf([opened(DOCS)]);
-    expect(navigation.docsOrigin).toBe('https://supabase.com');
-  });
-
-  it('matches targets on a preview with the variant parameter', async () => {
-    const preview = 'https://docs-git-ia-nav-supabase.vercel.app/docs';
+  it('matches targets with the variant parameter', async () => {
     const variant = '?docs-ia-mvp-v1=option-1';
     const navigation = await navigationOf([
-      opened(`${preview}${variant}`),
-      opened(`${preview}/${SSO}/${variant}#configure`),
+      opened(`${DOCS}${variant}`),
+      opened(`${DOCS}/${SSO}/${variant}#configure`),
     ]);
     expect(navigation).toMatchObject({
-      docsOrigin: 'https://docs-git-ia-nav-supabase.vercel.app',
       hopsToTarget: 1,
       reachedTarget: SSO,
       opened: ['docs', SSO],

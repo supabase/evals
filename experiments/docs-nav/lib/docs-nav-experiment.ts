@@ -6,7 +6,6 @@ import {
   type ExperimentConfig,
   type McpServerDefinition,
 } from '@supabase-evals/core';
-import { resolveDocsOrigin, SITE } from './docs-navigator.mjs';
 
 export type DocsVariant = 'option-1';
 
@@ -19,14 +18,12 @@ function docsNavigatorMcpServer(variant?: DocsVariant): McpServerDefinition {
   return {
     name: 'docs-navigator',
     async createConfig() {
-      const docsOrigin = resolveDocsOrigin(process.env);
       return {
         config: {
           command: 'node',
           args: ['--input-type=module', '-e', NAVIGATOR_SOURCE],
           env: {
             DOCS_NAVIGATOR_SERVE: '1',
-            ...(docsOrigin === SITE ? {} : { DOCS_ORIGIN: docsOrigin }),
             ...(variant ? { DOCS_IA_VARIANT: variant } : {}),
           },
         },
@@ -42,8 +39,8 @@ export function docsNavExperiment({
 } = {}): ExperimentConfig {
   return defineExperiment({
     agent: claudeCodeAgent({
-      model: 'claude-sonnet-5',
-      reasoningEffort: 'high',
+      model: 'claude-sonnet-5-5',
+      reasoningEffort: 'medium',
       tools: [],
     }),
     runtime: platformLiteRuntime({
