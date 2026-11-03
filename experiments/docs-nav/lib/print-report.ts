@@ -9,8 +9,8 @@ import {
 } from '../../../evals/docs-nav/lib/report.js';
 
 const ARMS: Record<string, string> = {
-  'claude-code-sonnet-5-5-docs-nav': 'control',
-  'claude-code-sonnet-5-5-docs-nav-option-1': 'option-1',
+  'claude-code-sonnet-5.5-docs-nav': 'control',
+  'claude-code-sonnet-5.5-docs-nav-option-1': 'option-1',
 };
 
 const arms: Record<string, ArmRuns> = {};

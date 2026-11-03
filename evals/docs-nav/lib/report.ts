@@ -14,7 +14,7 @@ export interface ArmTotals {
 }
 
 function isReached(run: CaseRun): boolean {
-  return run.navigation.severity !== 'big failure';
+  return run.navigation.reached;
 }
 
 function isDirect(run: CaseRun): boolean {
