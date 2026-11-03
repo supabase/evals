@@ -1,5 +1,5 @@
 ---
-name: spark-api
+name: spark
 description: Spark REST API for database schema, data, and email/password authentication.
 ---
 

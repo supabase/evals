@@ -2,7 +2,7 @@ import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
-import { sparkRestRuntime } from './spark-runtime.js';
+import { sparkRuntime } from './spark-runtime.js';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -43,7 +43,7 @@ it('creates fresh projects, seeds before execution and reads scoring state', asy
   });
   vi.stubGlobal('fetch', fetchMock);
   try {
-    const runtime = sparkRestRuntime('https://control.example');
+    const runtime = sparkRuntime('https://control.example');
     const session = await runtime.startSession({ projectSeedSql: fixture });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(session.env?.SPARK_PROJECT_URL).toBe('https://project1.example');
@@ -63,16 +63,16 @@ it('creates fresh projects, seeds before execution and reads scoring state', asy
 it('rejects configuration and unsupported fixtures before provisioning', async () => {
   const fetchMock = vi.fn();
   vi.stubGlobal('fetch', fetchMock);
-  await expect(sparkRestRuntime('').startSession({})).rejects.toThrow(
+  await expect(sparkRuntime('').startSession({})).rejects.toThrow(
     'SPARK_API_URL'
   );
   await expect(
-    sparkRestRuntime('https://control.example').startSession({
+    sparkRuntime('https://control.example').startSession({
       logsSeedJsonl: 'logs.jsonl',
     })
   ).rejects.toThrow('project.sql');
   await expect(
-    sparkRestRuntime('https://control.example').startSession({
+    sparkRuntime('https://control.example').startSession({
       projectSeedSql: '/missing-fixture.sql',
     })
   ).rejects.toThrow();
@@ -87,7 +87,7 @@ it('rejects failed provisioning and missing project keys', async () => {
       Response.json({ ref: 'p', url: 'https://p.example', api_keys: [] })
     );
   vi.stubGlobal('fetch', fetchMock);
-  const runtime = sparkRestRuntime('https://control.example');
+  const runtime = sparkRuntime('https://control.example');
   await expect(runtime.startSession({})).rejects.toThrow('503');
   await expect(runtime.startSession({})).rejects.toThrow('missing API keys');
 });
@@ -112,7 +112,7 @@ it('stops setup when Spark rejects the fixture', async () => {
   vi.stubGlobal('fetch', fetchMock);
   try {
     await expect(
-      sparkRestRuntime('https://control.example').startSession({
+      sparkRuntime('https://control.example').startSession({
         projectSeedSql: fixture,
       })
     ).rejects.toThrow('Spark fixture failed (400): fixture rejected');

@@ -11,9 +11,9 @@ const projectSchema = z.object({
 });
 const rowsSchema = z.array(z.record(z.string(), z.unknown()));
 
-export function sparkRestRuntime(apiUrl: string): EvalRuntime {
+export function sparkRuntime(apiUrl: string): EvalRuntime {
   return {
-    id: 'spark-rest',
+    id: 'spark',
     async startSession(args) {
       if (!apiUrl.trim())
         throw new Error('Set SPARK_API_URL to the Spark control API URL');
