@@ -17,20 +17,25 @@ export function sparkRuntime(apiUrl: string): EvalRuntime {
     async startSession(args) {
       if (!apiUrl.trim())
         throw new Error('Set SPARK_API_URL to the Spark control API URL');
+
       if (args.logsSeedJsonl || args.functionsSeedDir || args.pgvector)
         throw new Error(
           'Spark REST runtime only supports project.sql fixtures'
         );
+
       const seedSql = args.projectSeedSql
         ? await readFile(args.projectSeedSql, 'utf8')
         : undefined;
-      const created = await fetch(new URL('/v1/projects', apiUrl), {
+      const createResponse = await fetch(new URL('/v1/projects', apiUrl), {
         method: 'POST',
         signal: AbortSignal.timeout(30_000),
       });
-      if (!created.ok)
-        throw new Error(`Spark project creation failed (${created.status})`);
-      const project = projectSchema.parse(await created.json());
+      if (!createResponse.ok)
+        throw new Error(
+          `Spark project creation failed (${createResponse.status})`
+        );
+      const project = projectSchema.parse(await createResponse.json());
+
       const secret = project.api_keys.find(
         (key) => key.type === 'secret'
       )?.api_key;
@@ -39,13 +44,15 @@ export function sparkRuntime(apiUrl: string): EvalRuntime {
       )?.api_key;
       if (!secret || !publishable)
         throw new Error(`Spark project ${project.ref} is missing API keys`);
+
       // shortcut: projects remain allocated, add teardown once a deletion endpoint is confirmed.
       process.stderr.write(
         `Spark project created: ${project.ref} (automatic cleanup unavailable)\n`
       );
+
       const headers = { apikey: secret, 'content-type': 'application/json' };
       if (seedSql) {
-        const seeded = await fetch(
+        const seedResponse = await fetch(
           new URL('/system/v1/migrations', project.url),
           {
             method: 'POST',
@@ -58,11 +65,12 @@ export function sparkRuntime(apiUrl: string): EvalRuntime {
             signal: AbortSignal.timeout(30_000),
           }
         );
-        if (!seeded.ok)
+        if (!seedResponse.ok)
           throw new Error(
-            `Spark fixture failed (${seeded.status}): ${await seeded.text()}`
+            `Spark fixture failed (${seedResponse.status}): ${await seedResponse.text()}`
           );
       }
+
       const getClient = () =>
         createClient(project.url, secret, {
           auth: { persistSession: false, autoRefreshToken: false },

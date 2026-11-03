@@ -16,8 +16,8 @@ export function checkTasks(
   value: unknown,
   dueDateColumns: unknown[]
 ): CheckResult[] {
-  const result = tasksSchema.safeParse(value);
-  if (!result.success)
+  const parsed = tasksSchema.safeParse(value);
+  if (!parsed.success)
     return [
       {
         name: 'Existing task data preserved',
@@ -25,13 +25,13 @@ export function checkTasks(
         notes: 'Unexpected task response shape',
       },
     ];
+  const tasks = parsed.data;
   const createdAt = [
     '2026-11-01 12:00:00',
     '2026-11-01 12:01:00',
     '2026-11-01 12:02:00',
     '2026-11-01 12:03:00',
   ];
-  const tasks = result.data;
   const titles = [
     'Write release notes',
     'Ship task tracker',
@@ -98,6 +98,7 @@ const scorer: ToolScorer = async (ctx) => {
       notes: error instanceof Error ? error.message : String(error),
     });
   }
+
   const report = await ctx.judge({
     input: ctx.agentReport ?? '',
     rubric:
