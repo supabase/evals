@@ -2,6 +2,8 @@
 
 Each case asks whether an agent can reach the docs page in `TARGETS` by following links from the docs root, with no search.
 
+This suite is a [tree test](https://www.nngroup.com/articles/tree-testing/). Tree tests are a common way to check whether people can find things in an information architecture, and they usually run with human participants. Here an agent stands in for each participant, and the tree is the live docs navigation.
+
 ## Personas
 
 | Persona | Who | Knows a lot about | Doesn't know |
