@@ -64,7 +64,7 @@ describe('createNavigator', () => {
     expect(textOf(auth)).toContain('Auth guide');
   });
 
-  it('adds the variant to every request and leaves it out of links', async () => {
+  it('adds the variant to every request and shows it only on the opened page', async () => {
     const site = fakeSite({
       [`${SITE}/docs`]: { html: ROOT_HTML, markdown: '# Supabase docs' },
       [`${SITE}/docs/guides/auth`]: { html: '<main>Auth guide</main>' },
@@ -77,7 +77,7 @@ describe('createNavigator', () => {
     const root = textOf(await navigator.openPage(`${SITE}/docs${VARIANT}`));
     await navigator.openPage(`${SITE}/docs/guides/auth${VARIANT}`);
 
-    expect(root).toContain(`Opened: ${SITE}/docs\n`);
+    expect(root).toContain(`Opened: ${SITE}/docs${VARIANT}\n`);
     expect(root).toContain(`- Auth: ${SITE}/docs/guides/auth\n`);
     expect(site.requested).toEqual([
       `${SITE}/docs${VARIANT}`,
@@ -85,5 +85,34 @@ describe('createNavigator', () => {
       `${SITE}/docs/guides/auth${VARIANT}`,
       `${SITE}/docs/guides/auth.md${VARIANT}`,
     ]);
+  });
+
+  it('lists only navigation links in nav-only mode', async () => {
+    const html = `
+      <nav data-docs-nav="sidebar">
+        <a href="/docs/guides/auth">Auth</a>
+        <nav><a href="/docs/guides/auth/sessions">Sessions</a></nav>
+      </nav>
+      <main><a href="/docs/guides/platform">Platform</a></main>
+      <noscript>
+        <nav data-docs-nav="top-nav-subheads">
+          <a href="/docs/guides/storage">Storage</a>
+        </nav>
+      </noscript>
+    `;
+    const site = fakeSite({ [`${SITE}/docs`]: { html } });
+    const navigator = createNavigator({
+      env: { DOCS_NAV_ONLY: '1' },
+      fetch: site.fetch,
+    });
+
+    const root = textOf(await navigator.openPage(`${SITE}/docs`));
+    const platform = await navigator.openPage(`${SITE}/docs/guides/platform`);
+
+    expect(root).toContain(`- Auth: ${SITE}/docs/guides/auth\n`);
+    expect(root).toContain(`- Sessions: ${SITE}/docs/guides/auth/sessions\n`);
+    expect(root).toContain(`- Storage: ${SITE}/docs/guides/storage`);
+    expect(root).not.toContain('- Platform:');
+    expect(platform.isError).toBe(true);
   });
 });

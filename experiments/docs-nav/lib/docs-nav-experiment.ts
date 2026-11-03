@@ -14,7 +14,15 @@ const NAVIGATOR_SOURCE = readFileSync(
   'utf8'
 );
 
-function docsNavigatorMcpServer(variant?: DocsVariant): McpServerDefinition {
+interface DocsNavOptions {
+  variant?: DocsVariant;
+  navOnly?: boolean;
+}
+
+function docsNavigatorMcpServer({
+  variant,
+  navOnly,
+}: DocsNavOptions): McpServerDefinition {
   return {
     name: 'docs-navigator',
     async createConfig() {
@@ -25,6 +33,7 @@ function docsNavigatorMcpServer(variant?: DocsVariant): McpServerDefinition {
           env: {
             DOCS_NAVIGATOR_SERVE: '1',
             ...(variant ? { DOCS_IA_VARIANT: variant } : {}),
+            ...(navOnly ? { DOCS_NAV_ONLY: '1' } : {}),
           },
         },
       };
@@ -32,11 +41,9 @@ function docsNavigatorMcpServer(variant?: DocsVariant): McpServerDefinition {
   };
 }
 
-export function docsNavExperiment({
-  variant,
-}: {
-  variant?: DocsVariant;
-} = {}): ExperimentConfig {
+export function docsNavExperiment(
+  options: DocsNavOptions = {}
+): ExperimentConfig {
   return defineExperiment({
     agent: claudeCodeAgent({
       model: 'claude-sonnet-5-5',
@@ -44,7 +51,7 @@ export function docsNavExperiment({
       tools: [],
     }),
     runtime: platformLiteRuntime({
-      mcpServers: [docsNavigatorMcpServer(variant)],
+      mcpServers: [docsNavigatorMcpServer(options)],
     }),
     skills: [],
   });
