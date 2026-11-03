@@ -4,11 +4,75 @@ import type {
   ToolCallRecord,
 } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
-import { scoreDocsNav } from './navigation.js';
+import { type NavTree, scoreDocsNav } from './navigation.js';
 
 const DOCS = 'https://supabase.com/docs';
+const VARIANT = '?docs-ia-mvp-v1=option-1';
 const SSO = 'guides/platform/sso';
+const API_KEYS = 'guides/getting-started/api-keys';
+const ROTATE = 'guides/security/rotate-leaked-api-keys';
 const TASK = 'Set up Google Workspace sign-in for our Supabase dashboard.';
+
+const TODAY: NavTree = {
+  name: 'today',
+  root: {
+    label: 'Supabase Docs',
+    children: [
+      {
+        label: 'Start',
+        route: '/guides/getting-started',
+        children: [{ label: 'API Keys', route: `/${API_KEYS}` }],
+      },
+      {
+        label: 'Manage',
+        route: '/guides/platform',
+        children: [
+          {
+            label: 'Platform Management',
+            children: [{ label: 'SSO', route: `/${SSO}` }],
+          },
+        ],
+      },
+      {
+        label: 'Products',
+        children: [{ label: 'Auth', route: '/guides/auth' }],
+      },
+    ],
+  },
+};
+
+const OPTION_1: NavTree = {
+  name: 'option-1',
+  root: {
+    label: 'Supabase Docs',
+    children: [
+      {
+        label: 'Run and manage',
+        children: [
+          {
+            label: 'Team',
+            route: '/guides/platform/team',
+            children: [{ label: 'SSO', route: `/${SSO}` }],
+          },
+          {
+            label: 'Security',
+            route: '/guides/security',
+            children: [{ label: 'Rotate a leaked key', route: `/${ROTATE}` }],
+          },
+        ],
+      },
+    ],
+  },
+};
+
+function fakeTrees() {
+  const requested: string[] = [];
+  async function fetchTree(url: string) {
+    requested.push(url);
+    return url.includes('option-1') ? OPTION_1 : TODAY;
+  }
+  return { fetchTree, requested };
+}
 
 function open(url: string, reply: unknown): ToolCallRecord {
   return {
@@ -30,6 +94,10 @@ function refused(url: string) {
   );
 }
 
+function pages(...paths: string[]) {
+  return paths.map((path) => opened(path ? `${DOCS}/${path}` : DOCS));
+}
+
 type Judge = (input: JudgeInput) => Promise<JudgeResult>;
 
 function context(toolCalls: ToolCallRecord[], judge: Judge = rejectAll) {
@@ -40,14 +108,27 @@ async function rejectAll(): Promise<JudgeResult> {
   return { passed: false };
 }
 
+async function score(
+  toolCalls: ToolCallRecord[],
+  {
+    judge = rejectAll,
+    targets = [SSO],
+    controlTargets,
+  }: { judge?: Judge; targets?: string[]; controlTargets?: string[] } = {}
+) {
+  return scoreDocsNav(context(toolCalls, judge), {
+    targets,
+    controlTargets,
+    task: TASK,
+    fetchTree: fakeTrees().fetchTree,
+  });
+}
+
 async function navigationOf(
   toolCalls: ToolCallRecord[],
-  judge: Judge = rejectAll
+  options?: Parameters<typeof score>[1]
 ) {
-  const result = await scoreDocsNav(context(toolCalls, judge), {
-    targets: [SSO],
-    task: TASK,
-  });
+  const result = await score(toolCalls, options);
   return JSON.parse(result.checks?.[0]?.notes ?? '{}');
 }
 
@@ -55,9 +136,7 @@ describe('scoreDocsNav', () => {
   it('counts hops to the target, refused jumps included', async () => {
     const navigation = await navigationOf([
       refused(`${DOCS}/${SSO}`),
-      opened(DOCS),
-      opened(`${DOCS}/guides/platform`),
-      opened(`${DOCS}/${SSO}`),
+      ...pages('', 'guides/platform', SSO),
     ]);
     expect(navigation).toMatchObject({
       hopsToTarget: 3,
@@ -67,60 +146,92 @@ describe('scoreDocsNav', () => {
     });
   });
 
-  it('matches targets with the variant parameter', async () => {
-    const variant = '?docs-ia-mvp-v1=option-1';
-    const navigation = await navigationOf([
-      opened(`${DOCS}${variant}`),
-      opened(`${DOCS}/${SSO}/${variant}#configure`),
+  it("loads the tree for the run's variant from the docs it opened", async () => {
+    const preview = 'https://docs-git-ia-nav-supabase.vercel.app/docs';
+    const trees = fakeTrees();
+    const run = async (variant: string) =>
+      scoreDocsNav(
+        context([
+          opened(`${preview}${variant}`),
+          opened(`${preview}/${SSO}${variant}#configure`),
+        ]),
+        { targets: [SSO], task: TASK, fetchTree: trees.fetchTree }
+      );
+    const option1 = await run(VARIANT);
+    await run('');
+    expect(trees.requested).toEqual([
+      'https://docs-git-ia-nav-supabase.vercel.app/docs/nav-tree.json?docs-ia-mvp-v1=option-1',
+      'https://docs-git-ia-nav-supabase.vercel.app/docs/nav-tree.json',
     ]);
-    expect(navigation).toMatchObject({
-      hopsToTarget: 1,
+    expect(JSON.parse(option1.checks?.[0]?.notes ?? '')).toMatchObject({
+      variant: 'option-1',
       reachedTarget: SSO,
-      opened: ['docs', SSO],
+      maxHops: 3,
     });
   });
 
-  it('marks a run direct when it goes straight to a target', async () => {
-    const navigation = await navigationOf([
-      opened(DOCS),
-      opened(`${DOCS}/guides/platform`),
-      opened(`${DOCS}/${SSO}`),
-    ]);
-    expect(navigation.direct).toBe(true);
+  it('has no wrong turns when every page leads to the target', async () => {
+    const navigation = await navigationOf(pages('', 'guides/platform', SSO));
+    expect(navigation).toMatchObject({ wrongTurns: [], noWrongTurns: true });
   });
 
-  it('is not direct when it opens a page twice', async () => {
-    const navigation = await navigationOf([
-      opened(DOCS),
-      opened(`${DOCS}/guides/platform`),
-      opened(`${DOCS}/guides/auth`),
-      opened(`${DOCS}/guides/platform/`),
-      opened(`${DOCS}/${SSO}`),
-    ]);
-    expect(navigation.direct).toBe(false);
+  it('allows skipping levels of the tree', async () => {
+    const navigation = await navigationOf(pages('', SSO));
+    expect(navigation.noWrongTurns).toBe(true);
   });
 
-  it('is not direct when it goes back to the docs root', async () => {
-    const navigation = await navigationOf([
-      opened(`${DOCS}/guides/auth`),
-      opened(DOCS),
-      opened(`${DOCS}/${SSO}`),
-    ]);
-    expect(navigation.direct).toBe(false);
+  it('counts a page off the path to the target as a wrong turn', async () => {
+    const navigation = await navigationOf(
+      pages('', 'guides/auth', 'guides/platform', SSO)
+    );
+    expect(navigation).toMatchObject({
+      reached: true,
+      wrongTurns: ['guides/auth'],
+      noWrongTurns: false,
+    });
   });
 
-  it('is not direct when it never reaches a target', async () => {
-    const navigation = await navigationOf([opened(DOCS)]);
-    expect(navigation.direct).toBe(false);
+  it('counts a page outside the tree as a wrong turn', async () => {
+    const navigation = await navigationOf(
+      pages('', 'guides/somewhere-else', SSO)
+    );
+    expect(navigation.wrongTurns).toEqual(['guides/somewhere-else']);
   });
 
-  it('ignores detours after the target', async () => {
-    const navigation = await navigationOf([
-      opened(DOCS),
-      opened(`${DOCS}/${SSO}`),
-      opened(DOCS),
+  it("judges wrong turns against the variant's tree", async () => {
+    const viaManage = await navigationOf([
+      opened(`${DOCS}${VARIANT}`),
+      opened(`${DOCS}/guides/platform${VARIANT}`),
+      opened(`${DOCS}/${SSO}${VARIANT}`),
     ]);
-    expect(navigation.direct).toBe(true);
+    const viaTeam = await navigationOf([
+      opened(`${DOCS}${VARIANT}`),
+      opened(`${DOCS}/guides/platform/team${VARIANT}`),
+      opened(`${DOCS}/${SSO}${VARIANT}`),
+    ]);
+    expect(viaManage.wrongTurns).toEqual(['guides/platform']);
+    expect(viaTeam.noWrongTurns).toBe(true);
+  });
+
+  it('ignores pages opened after the target', async () => {
+    const navigation = await navigationOf(pages('', SSO, 'guides/auth'));
+    expect(navigation.noWrongTurns).toBe(true);
+  });
+
+  it('has wrong turns when it never reaches a target', async () => {
+    const navigation = await navigationOf(pages(''));
+    expect(navigation.noWrongTurns).toBe(false);
+  });
+
+  it('accepts control targets only on control runs', async () => {
+    const options = { targets: [ROTATE], controlTargets: [API_KEYS] };
+    const control = await navigationOf(pages('', API_KEYS), options);
+    const option1 = await navigationOf(
+      [opened(`${DOCS}${VARIANT}`), opened(`${DOCS}/${API_KEYS}${VARIANT}`)],
+      options
+    );
+    expect(control).toMatchObject({ reached: true, noWrongTurns: true });
+    expect(option1.reached).toBe(false);
   });
 
   it('judges opened pages in order when no target matches', async () => {
@@ -135,7 +246,7 @@ describe('scoreDocsNav', () => {
         opened(`${DOCS}/guides/auth`, 'Auth for your app'),
         opened(`${DOCS}/guides/platform/sso-moved`, 'SAML for the dashboard'),
       ],
-      judge
+      { judge }
     );
     expect(navigation).toMatchObject({
       hopsToTarget: 2,
@@ -153,7 +264,7 @@ describe('scoreDocsNav', () => {
     };
     await navigationOf(
       [opened(DOCS), opened(`${DOCS}/guides/auth`, 'Line one\nLine two')],
-      judge
+      { judge }
     );
     expect(inputs).toEqual([
       `Opened: ${DOCS}/guides/auth\n\nLine one\nLine two`,
@@ -178,25 +289,38 @@ describe('scoreDocsNav', () => {
   });
 
   it('judges no pages when a target matches', async () => {
-    const navigation = await navigationOf(
-      [opened(DOCS), opened(`${DOCS}/${SSO}`)],
-      async () => ({ passed: true })
-    );
+    const navigation = await navigationOf(pages('', SSO), {
+      judge: async () => ({ passed: true }),
+    });
     expect(navigation).toMatchObject({ reachedTarget: SSO, judged: false });
   });
 
-  it('stops judging after 10 hops', async () => {
+  it('stops judging past the tree depth', async () => {
     const inputs: string[] = [];
     const judge = async ({ input }: JudgeInput) => {
       inputs.push(input);
       return { passed: false };
     };
-    const pages = Array.from({ length: 12 }, (_, hop) =>
+    const detour = Array.from({ length: 8 }, (_, hop) =>
       opened(`${DOCS}/guides/page-${hop}`, `Page ${hop}`)
     );
-    const navigation = await navigationOf(pages, judge);
-    expect(inputs).toHaveLength(10);
+    const navigation = await navigationOf(detour, { judge });
+    expect(inputs).toHaveLength(4);
     expect(navigation).toMatchObject({ hopsToTarget: null, judged: false });
+  });
+
+  it('loads no tree when no page opened', async () => {
+    const trees = fakeTrees();
+    const result = await scoreDocsNav(context([refused(`${DOCS}/${SSO}`)]), {
+      targets: [SSO],
+      task: TASK,
+      fetchTree: trees.fetchTree,
+    });
+    expect(trees.requested).toEqual([]);
+    expect(JSON.parse(result.checks?.[0]?.notes ?? '')).toMatchObject({
+      maxHops: null,
+      reached: false,
+    });
   });
 
   it('judges whether the answer is grounded in the reached page', async () => {
@@ -205,12 +329,9 @@ describe('scoreDocsNav', () => {
       calls.push(input);
       return { passed: false, notes: 'The answer ignores the page.' };
     };
-    const result = await scoreDocsNav(
-      context(
-        [opened(`${DOCS}/${SSO}`, 'Configure SAML in the org settings')],
-        judge
-      ),
-      { targets: [SSO], task: TASK }
+    const result = await score(
+      [opened(`${DOCS}/${SSO}`, 'Configure SAML in the org settings')],
+      { judge }
     );
     expect(calls).toHaveLength(1);
     expect(calls[0]?.input).toContain('Configure SAML in the org settings');
@@ -229,13 +350,7 @@ describe('scoreDocsNav', () => {
       judgeCalls += 1;
       return { passed: true };
     };
-    const result = await scoreDocsNav(
-      context([refused(`${DOCS}/${SSO}`)], judge),
-      {
-        targets: [SSO],
-        task: TASK,
-      }
-    );
+    const result = await score([refused(`${DOCS}/${SSO}`)], { judge });
     expect(judgeCalls).toBe(0);
     expect(result.checks?.[1]?.passed).toBe(false);
   });
@@ -251,22 +366,23 @@ describe('scoreDocsNav', () => {
     expect(navigation.hopsToTarget).toBeNull();
   });
 
-  it('fails a run that reaches a target on the tenth hop', async () => {
-    const detour = Array.from({ length: 10 }, (_, hop) =>
+  it('fails a run that takes more hops than the tree is deep', async () => {
+    const detour = Array.from({ length: 4 }, (_, hop) =>
       opened(`${DOCS}/guides/page-${hop}`)
     );
     const navigation = await navigationOf([
       ...detour,
       opened(`${DOCS}/${SSO}`),
     ]);
-    expect(navigation).toMatchObject({ hopsToTarget: 10, reached: false });
+    expect(navigation).toMatchObject({
+      hopsToTarget: 4,
+      maxHops: 3,
+      reached: false,
+    });
   });
 
   it('fails a run that never reaches a target', async () => {
-    const result = await scoreDocsNav(context([opened(DOCS)]), {
-      targets: [SSO],
-      task: TASK,
-    });
+    const result = await score(pages(''));
     expect(result.passed).toBe(false);
     expect(JSON.parse(result.checks?.[0]?.notes ?? '')).toMatchObject({
       hopsToTarget: null,
@@ -274,11 +390,10 @@ describe('scoreDocsNav', () => {
     });
   });
 
-  it('passes a run that reaches a target in under 10 hops', async () => {
-    const result = await scoreDocsNav(context([opened(`${DOCS}/${SSO}`)]), {
-      targets: [SSO],
-      task: TASK,
-    });
+  it('passes a run that reaches a target within the tree depth', async () => {
+    const result = await score(
+      pages('', 'guides/platform', 'guides/auth', SSO)
+    );
     expect(result.passed).toBe(true);
   });
 });
