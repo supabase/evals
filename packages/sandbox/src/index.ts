@@ -48,6 +48,7 @@ export type { SkillEntry } from './skills.js';
 export { createBareSandbox } from './bare-sandbox.js';
 export type { BareSandboxHandle, BareSandboxOptions } from './bare-sandbox.js';
 export { createAgentEnvironment } from './agent-environment.js';
+export { hostedDataRuntime, hostedCliRuntime } from './hosted-data-runtime.js';
 export type {
   AgentEnvironment,
   AgentEnvironmentOptions,

@@ -31,6 +31,10 @@ export async function bootSparkBackend(
 ): Promise<PlatformBackend> {
   if (!apiUrl.trim())
     throw new Error('Set SPARK_API_URL to the Spark control API URL');
+  if (args.logsSeedJsonl)
+    throw new Error('Spark backend does not support log fixtures');
+  if (args.functionsSeedDir)
+    throw new Error('Spark backend does not support function fixtures');
   const seedSql = args.projectSeedSql
     ? await readFile(args.projectSeedSql, 'utf8')
     : undefined;
@@ -53,11 +57,12 @@ export async function bootSparkBackend(
     new Date().toISOString().replace(/\D/g, '').slice(0, 14)
   );
   if (seedSql) {
+    const seedVersion = String(version++);
     const response = await fetch(`${project.url}/system/v1/migrations`, {
       method: 'POST',
       headers: { apikey: secret, 'content-type': 'application/json' },
       body: JSON.stringify({
-        version: String(version++),
+        version: seedVersion,
         name: 'eval_fixture',
         sql: seedSql,
       }),
@@ -65,6 +70,18 @@ export async function bootSparkBackend(
     if (!response.ok)
       throw new Error(
         `Spark fixture failed (${response.status}): ${await response.text()}`
+      );
+    // Keep fixture bookkeeping out of the history the agent reconciles.
+    const cleanup = await fetch(`${project.url}/database/query`, {
+      method: 'POST',
+      headers: { apikey: secret, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        query: `delete from supabase_migrations.schema_migrations where version = '${seedVersion}' and name = 'eval_fixture'`,
+      }),
+    });
+    if (!cleanup.ok)
+      throw new Error(
+        `Spark fixture history cleanup failed (${cleanup.status}): ${await cleanup.text()}`
       );
   }
   const token = `sbp_${randomBytes(20).toString('hex')}`;
@@ -173,6 +190,12 @@ export async function bootSparkBackend(
   const url = format({ protocol: 'http', hostname, port: address.port });
   return {
     url,
+    dataApi: {
+      apiUrl: project.url,
+      publishableKey: publishable,
+      secretKey: secret,
+      anonKey: '',
+    },
     ref: project.ref,
     accessToken: token,
     mgmt: createManagementApiClient(url, token),

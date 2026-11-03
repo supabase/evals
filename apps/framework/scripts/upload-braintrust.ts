@@ -88,6 +88,7 @@ interface PendingRow {
   prompt: string;
   agentReport: string;
   passed: boolean;
+  error?: string;
   checks: unknown;
   judgeCalls: JudgeCall[];
   modelId?: string;
@@ -369,10 +370,14 @@ async function collectRows(
 
     const row: PendingRow = {
       evalId: result.eval,
-      prompt: promptData?.prompt ?? '',
+      prompt:
+        typeof result.userPrompt === 'string'
+          ? result.userPrompt
+          : (promptData?.prompt ?? ''),
       agentReport:
         typeof result.agentReport === 'string' ? result.agentReport : '',
       passed: result.passed === true,
+      error: typeof result.error === 'string' ? result.error : undefined,
       checks: result.checks,
       judgeCalls: judgeCallsSchema.parse(result.judgeCalls),
       modelId: display?.modelId,
@@ -399,6 +404,8 @@ async function collectRows(
         topic: promptData?.topic ?? result.topic ?? [],
         source_path: sourcePath,
         cli_version: result.cliVersion ?? promptData?.cliVersion,
+        failure_phase: result.failurePhase,
+        error: result.error,
       },
       // Braintrust sums tokens across a trace's spans, so only LLM spans carry
       // them. `aiSdkAgent` records no per-request usage, so its rows show none.
@@ -819,6 +826,7 @@ async function main() {
       root.log({
         input: row.prompt,
         output: row.agentReport,
+        ...(row.error ? { error: row.error } : {}),
         scores: { passed: row.passed ? 1 : 0 },
         metadata: {
           ...row.metadata,

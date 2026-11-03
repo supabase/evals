@@ -21,6 +21,18 @@ it('requires a Spark API URL', async () => {
   expect(fetch).not.toHaveBeenCalled();
 });
 
+it.each([
+  { logsSeedJsonl: '/fixture/logs.jsonl' },
+  { functionsSeedDir: '/fixture/functions' },
+])('rejects unsupported fixtures before creating a project', async (args) => {
+  const fetch = vi.fn();
+  vi.stubGlobal('fetch', fetch);
+  await expect(
+    bootSparkBackend('https://control.example', args)
+  ).rejects.toThrow('does not support');
+  expect(fetch).not.toHaveBeenCalled();
+});
+
 it.each(['127.0.0.1', '0.0.0.0', '::1'])(
   'serves the adapter on %s',
   async (hostname) => {
@@ -89,6 +101,11 @@ it.each(['127.0.0.1', '0.0.0.0', '::1'])(
     const session = await runtime.startSession({ hostname, projectSeedSql });
     try {
       expect(migration).toMatchObject({ name: 'eval_fixture', sql: seedSql });
+      expect(sqlQuery).toEqual({
+        query: expect.stringMatching(
+          /where version = '\d{14}' and name = 'eval_fixture'$/
+        ),
+      });
       expect(stderr).toHaveBeenCalledWith(
         expect.stringContaining('Spark project created: testproject')
       );

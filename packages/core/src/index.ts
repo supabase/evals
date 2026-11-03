@@ -568,6 +568,8 @@ export type LocalStackSessionArgs = {
 
 /** A mocked hosted project (platform-lite) the sandbox CLI is linked to. */
 export type HostedLink = {
+  /** Hosted Data API settings for sandboxed backend applications. */
+  dataApi?: LocalStackStatus;
   /** Port the platform-lite server is bound to (reached via host.docker.internal). */
   port: number;
   /** Postgres-wire port for DB CLI workflows (`db push`/`migration repair`), when
@@ -1393,6 +1395,7 @@ export const MCP_SERVER_VERSION = '0.15.0';
 const THROWAWAY_ACCESS_TOKEN = `sbp_${'0'.repeat(40)}`;
 
 export interface PlatformBackend {
+  dataApi?: LocalStackStatus;
   url: string;
   ref: string;
   accessToken: string;

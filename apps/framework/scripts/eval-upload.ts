@@ -8,6 +8,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
 // The uploader uses this cutoff to ignore result files left by earlier runs.
 const startedAt = Date.now();
+let evalStatus = 0;
 
 for (const [script, extra] of [
   ['../harness/run-eval.ts', []],
@@ -25,7 +26,10 @@ for (const [script, extra] of [
     ],
     { stdio: 'inherit' }
   );
-  if (status !== 0) {
+  if (script === '../harness/run-eval.ts') {
+    evalStatus = status ?? 1;
+  } else if (status !== 0) {
     process.exit(status ?? 1);
   }
 }
+process.exit(evalStatus);

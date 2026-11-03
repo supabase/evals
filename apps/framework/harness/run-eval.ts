@@ -40,6 +40,7 @@ import {
   supabaseMcpServerMounts,
 } from '@supabase-evals/core';
 import type {
+  AgentRunResult,
   AgentUsage,
   ExperimentConfig,
   EvalInterface,
@@ -349,11 +350,50 @@ function disposable<T extends { close(): Promise<unknown> }>(
   });
 }
 
+export interface RunProgress {
+  phase: 'setup' | 'agent' | 'scoring';
+  agentRun?: AgentRunResult;
+  systemPrompt?: string;
+  agentRunEndedAt?: number;
+}
+
+export function failedRunResult(
+  progress: RunProgress,
+  error: unknown,
+  finishedAt: number
+) {
+  const message = error instanceof Error ? error.message : String(error);
+  const run = progress.agentRun;
+  return {
+    passed: false,
+    failurePhase: progress.phase,
+    error: message,
+    checks: [
+      { name: `${progress.phase} completed`, passed: false, notes: message },
+    ],
+    agentReport:
+      run?.agentReport ?? `Blocked during ${progress.phase}: ${message}`,
+    toolCalls: run?.toolCalls ?? [],
+    transcript: run?.transcript ?? [],
+    stoppedReason: run?.stoppedReason ?? 'error',
+    systemPrompt: progress.systemPrompt ?? '',
+    usage: run?.usage,
+    stepCount: run?.stepCount,
+    toolCallCount: run?.toolCalls.length ?? 0,
+    agentRunDurationMs: run?.durationMs ?? 0,
+    agentRunStartedAt: run?.startedAt,
+    agentPromptAt: run?.promptAt,
+    agentRunEndedAt: progress.agentRunEndedAt,
+    scoringEndedAt: finishedAt,
+  };
+}
+
 async function runOne(
   expName: string,
   exp: ExperimentConfig,
   ev: EvalManifest,
-  runIndex: number
+  runIndex: number,
+  progress: RunProgress
 ): Promise<
   ScoreResult & {
     judgeCalls: JudgeCall[];
@@ -431,6 +471,7 @@ async function runOne(
         hosted: hostedBackend
           ? {
               port: Number(new URL(hostedBackend.url).port),
+              dataApi: hostedBackend.dataApi,
               pgPort: hostedBackend.pgPort,
               ref: hostedBackend.ref,
               accessToken: hostedBackend.accessToken,
@@ -450,6 +491,8 @@ async function runOne(
       agent: exp.agent.id,
       addendum: session.promptAddendum,
     });
+    progress.systemPrompt = systemPrompt;
+    progress.phase = 'agent';
     const run = await exp.agent.run({
       systemPrompt,
       userPrompt: prompt,
@@ -460,6 +503,9 @@ async function runOne(
       sessionArchivePath: sessionArchivePath(expName, ev.id, runIndex),
     });
     const agentRunEndedAt = Date.now();
+    progress.agentRun = run;
+    progress.agentRunEndedAt = agentRunEndedAt;
+    progress.phase = 'scoring';
     await session.ensureReady?.();
     // Exports the workspace so scorers can run host tooling (vite/vitest) against it.
     // Withheld tests are copied in lazily, only if the scorer asks to run Vitest.
@@ -546,6 +592,8 @@ async function runOne(
       ? undefined
       : buildToolsSkillsPrompt(toolsSkills),
   });
+  progress.systemPrompt = systemPrompt;
+  progress.phase = 'agent';
   const run = await exp.agent.run({
     systemPrompt,
     userPrompt: prompt,
@@ -556,6 +604,9 @@ async function runOne(
     sessionArchivePath: sessionArchivePath(expName, ev.id, runIndex),
   });
   const agentRunEndedAt = Date.now();
+  progress.agentRun = run;
+  progress.agentRunEndedAt = agentRunEndedAt;
+  progress.phase = 'scoring';
   const judges = createJudgeRecorder();
   const last = await (scorer as ToolScorer)({
     ...session.scoringContext,
@@ -762,7 +813,6 @@ async function main() {
     }
   }
 
-  let localStackTurn = Promise.resolve();
   const errored: Error[] = [];
 
   const runWork = async ({
@@ -774,11 +824,22 @@ async function main() {
   }: (typeof allWork)[number]) => {
     const out = resultPath(experimentPath, ev.id, runIndex);
     const label = `${experimentPath} x ${ev.id} run ${runIndex}`;
+    const userPrompt = parseEvalMarkdown(
+      readFileSync(ev.promptPath, 'utf8'),
+      ev.promptPath
+    ).body;
     const start = Date.now();
     console.log(`⏳ RUN  ${label}`);
     const run = async () => {
+      const progress: RunProgress = { phase: 'setup' };
       try {
-        const res = await runOne(experimentPath, config, ev, runIndex);
+        const res = await runOne(
+          experimentPath,
+          config,
+          ev,
+          runIndex,
+          progress
+        );
         mkdirSync(dirname(out), { recursive: true });
         const experimentDisplay = getExperimentDisplayMetadata(config);
         writeFileSync(
@@ -790,6 +851,7 @@ async function main() {
               eval: ev.id,
               ...ev.metadata,
               suite: ev.suite,
+              userPrompt,
               ...res,
             },
             null,
@@ -801,6 +863,24 @@ async function main() {
           `${res.passed ? '✅ PASS' : '❌ FAIL'} ${label} (${formatRunSummary(res)}, ${elapsed}s)\n   → ${relative(ROOT, out)}`
         );
       } catch (e) {
+        mkdirSync(dirname(out), { recursive: true });
+        writeFileSync(
+          out,
+          JSON.stringify(
+            {
+              experiment,
+              experimentDisplay: getExperimentDisplayMetadata(config),
+              eval: ev.id,
+              ...ev.metadata,
+              suite: ev.suite,
+              userPrompt,
+              run: runIndex,
+              ...failedRunResult(progress, e, Date.now()),
+            },
+            null,
+            2
+          )
+        );
         errored.push(new Error(label, { cause: e }));
         const elapsed = Math.round((Date.now() - start) / 1000);
         stderr(
@@ -808,19 +888,20 @@ async function main() {
         );
       }
     };
-    if (ev.mode !== 'local-stack') return run();
-    const prev = localStackTurn;
-    let release!: () => void;
-    localStackTurn = new Promise((r) => (release = r));
-    await prev;
-    try {
-      await run();
-    } finally {
-      release();
-    }
+    await run();
   };
 
-  await runConcurrent(allWork, CONCURRENCY, runWork);
+  // Local-stack teardown removes eval containers, so it must not overlap tools runs.
+  await runConcurrent(
+    allWork.filter(({ ev }) => ev.mode === 'tools'),
+    CONCURRENCY,
+    runWork
+  );
+  await runConcurrent(
+    allWork.filter(({ ev }) => ev.mode === 'local-stack'),
+    1,
+    runWork
+  );
   console.error = stderr;
 
   if (errored.length > 0) {
