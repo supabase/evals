@@ -105,10 +105,11 @@ export function reachRubric(task: string): string {
 export function groundedRubric(task: string): string {
   return stripIndent`
     The input is a Supabase docs page an agent reached while working on the
-    task below, followed by the agent's final answer. Pass only if the page
-    answers the task and the answer uses what the page says. Judge substance,
-    not wording. An answer that contradicts the page, leaves out what the task
-    needs, or says to look something up, fails.
+    task below, followed by the agent's final answer. Pass if the page answers
+    the task and the answer's steps agree with the page. Judge substance, not
+    wording. Details the page doesn't mention, and pointers to further reading,
+    are fine. Fail only if the page doesn't answer the task, the answer
+    contradicts the page, or the answer leaves out what the task needs.
 
     Task:
     ${task}
