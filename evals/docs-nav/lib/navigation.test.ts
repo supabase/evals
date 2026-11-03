@@ -64,7 +64,6 @@ describe('scoreDocsNav', () => {
       reachedTarget: SSO,
       opened: ['docs', 'guides/platform', SSO],
       blockedJumps: [SSO],
-      severity: 'clean',
     });
   });
 
@@ -142,7 +141,6 @@ describe('scoreDocsNav', () => {
       hopsToTarget: 2,
       reachedTarget: 'guides/platform/sso-moved',
       judged: true,
-      severity: 'clean',
     });
     expect(rubrics[0]).toContain(TASK);
   });
@@ -253,26 +251,12 @@ describe('scoreDocsNav', () => {
     expect(navigation.hopsToTarget).toBeNull();
   });
 
-  it('bands hops, with ten or more as a big failure', async () => {
-    const severities = [];
-    for (const hops of [3, 4, 6, 7, 9, 10]) {
-      const detour = Array.from({ length: hops }, (_, hop) =>
-        opened(`${DOCS}/guides/page-${hop}`)
-      );
-      const navigation = await navigationOf([
-        ...detour,
-        opened(`${DOCS}/${SSO}`),
-      ]);
-      severities.push(navigation.severity);
-    }
-    expect(severities).toEqual([
-      'clean',
-      'friction',
-      'friction',
-      'failure',
-      'failure',
-      'big failure',
-    ]);
+  it('fails a run that reaches a target on the tenth hop', async () => {
+    const detour = Array.from({ length: 10 }, (_, hop) =>
+      opened(`${DOCS}/guides/page-${hop}`)
+    );
+    const navigation = await navigationOf([...detour, opened(`${DOCS}/${SSO}`)]);
+    expect(navigation).toMatchObject({ hopsToTarget: 10, reached: false });
   });
 
   it('fails a run that never reaches a target', async () => {
@@ -283,7 +267,7 @@ describe('scoreDocsNav', () => {
     expect(result.passed).toBe(false);
     expect(JSON.parse(result.checks?.[0]?.notes ?? '')).toMatchObject({
       hopsToTarget: null,
-      severity: 'big failure',
+      reached: false,
     });
   });
 

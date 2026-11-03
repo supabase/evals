@@ -14,16 +14,14 @@ const OPENED_PATTERN = /Opened: (https:\/\/[^\s"\\]+)/;
 const BLOCKED_PREFIX = 'Not opened:';
 const MAX_HOPS = 10;
 
-export type Severity = 'clean' | 'friction' | 'failure' | 'big failure';
-
 export interface Navigation {
+  reached: boolean;
   hopsToTarget: number | null;
   reachedTarget: string | null;
   direct: boolean;
   judged: boolean;
   opened: string[];
   blockedJumps: string[];
-  severity: Severity;
 }
 
 interface Visit {
@@ -39,13 +37,6 @@ export function docsPath(url: string): string {
     .replace(/\.md$/, '')
     .replace(/^\/+|\/+$/g, '');
   return path === 'docs' ? path : path.replace(/^docs\//, '');
-}
-
-export function severityOf(hopsToTarget: number | null): Severity {
-  if (hopsToTarget === null || hopsToTarget >= MAX_HOPS) return 'big failure';
-  if (hopsToTarget >= 7) return 'failure';
-  if (hopsToTarget >= 4) return 'friction';
-  return 'clean';
 }
 
 function isDirect(visits: Visit[], reached: Visit | undefined): boolean {
@@ -171,17 +162,17 @@ export async function scoreDocsNav(
   const reached = matched ?? (await judgeReach(visits, task, ctx.judge));
   const hopsToTarget = reached?.hop ?? null;
   const navigation: Navigation = {
+    reached: hopsToTarget !== null && hopsToTarget < MAX_HOPS,
     hopsToTarget,
     reachedTarget: reached?.path ?? null,
     direct: isDirect(visits, reached),
     judged: !matched && reached !== undefined,
     opened: visits.map((visit) => visit.path),
     blockedJumps,
-    severity: severityOf(hopsToTarget),
   };
   const reachedCheck: CheckResult = {
     name: REACHED_TARGET_CHECK,
-    passed: navigation.severity !== 'big failure',
+    passed: navigation.reached,
     notes: JSON.stringify(navigation),
   };
   const groundedCheck = await checkGrounded(
