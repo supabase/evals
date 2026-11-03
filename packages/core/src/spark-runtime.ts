@@ -84,7 +84,7 @@ export function sparkRuntime(apiUrl: string): EvalRuntime {
         },
         scoringContext: {
           ref: project.ref,
-          // Spark's management surface is incomplete; REST scorers use client/query.
+          // Required by ToolScoringContext, but Spark's Management API is incomplete.
           mgmt: createManagementApiClient(apiUrl, secret),
           client: getClient(),
           getClient,
