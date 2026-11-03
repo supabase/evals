@@ -1,9 +1,12 @@
+import { readFileSync } from 'node:fs';
 import type {
   CheckResult,
   ScoreResult,
   ToolCallRecord,
   ToolEvalContext,
+  ToolScorer,
 } from '@supabase-evals/core';
+import { parseEvalMarkdown } from '@supabase-evals/core/eval-markdown';
 import { stripIndent } from 'common-tags';
 
 export const REACHED_TARGET_CHECK =
@@ -411,4 +414,13 @@ export async function scoreDocsNav(
     ctx.judge
   );
   return { passed: reachedCheck.passed, checks: [reachedCheck, groundedCheck] };
+}
+
+export function docsNavScorer(targets: string[], evalUrl: string): ToolScorer {
+  const promptUrl = new URL('./PROMPT.md', evalUrl);
+  const { body: task } = parseEvalMarkdown(
+    readFileSync(promptUrl, 'utf8'),
+    promptUrl.pathname
+  );
+  return (ctx) => scoreDocsNav(ctx, { targets, task });
 }
