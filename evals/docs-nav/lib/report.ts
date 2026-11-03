@@ -80,14 +80,6 @@ export function buildReport(arms: Record<string, ArmRuns>) {
   const caseIds = [
     ...new Set(Object.values(arms).flatMap((cases) => Object.keys(cases))),
   ].sort();
-  const origins = [
-    ...new Set(
-      Object.values(arms)
-        .flatMap((cases) => Object.values(cases).flat())
-        .map((run) => run.navigation.docsOrigin)
-        .filter((origin): origin is string => origin !== null)
-    ),
-  ].sort();
   const table = [
     row(['Case', ...armNames]),
     row(['---', ...armNames.map(() => '---')]),
@@ -101,8 +93,6 @@ export function buildReport(arms: Record<string, ArmRuns>) {
           `${totals[arm].reached}/${totals[arm].cases}, ${totals[arm].direct}/${totals[arm].cases}`
       ),
     ]),
-    '',
-    `Docs origins: ${origins.join(', ')}`,
   ].join('\n');
   return { table, totals };
 }
