@@ -6,9 +6,12 @@ function run(overrides: Partial<Navigation> = {}, grounded = true): CaseRun {
   return {
     grounded,
     navigation: {
+      variant: null,
+      maxHops: 5,
       hopsToTarget: 2,
       reachedTarget: 'guides/platform/sso',
-      direct: true,
+      wrongTurns: [],
+      noWrongTurns: true,
       judged: false,
       opened: ['docs', 'guides/platform', 'guides/platform/sso'],
       blockedJumps: [],
@@ -22,21 +25,27 @@ const missed = run(
   {
     hopsToTarget: null,
     reachedTarget: null,
-    direct: false,
+    noWrongTurns: false,
     reached: false,
   },
   false
 );
 
 describe('buildReport', () => {
-  it('counts a case as reached or direct when most of its runs are', () => {
+  it('counts a case as reached or with no wrong turns when most of its runs are', () => {
     const { totals } = buildReport({
       control: {
-        'deploy-nav-001': [run(), run({ direct: false }), missed],
+        'deploy-nav-001': [
+          run(),
+          run({ wrongTurns: ['guides/auth'], noWrongTurns: false }),
+          missed,
+        ],
         'deploy-nav-002': [run(), missed, missed],
       },
     });
-    expect(totals).toEqual({ control: { cases: 2, reached: 1, direct: 0 } });
+    expect(totals).toEqual({
+      control: { cases: 2, noWrongTurns: 0, reached: 1 },
+    });
   });
 
   it('renders a row per case and a totals row', () => {
@@ -45,7 +54,15 @@ describe('buildReport', () => {
         'deploy-nav-002': [missed],
         'deploy-nav-001': [
           run({ hopsToTarget: 1 }),
-          run({ hopsToTarget: 5, direct: false, judged: true }, false),
+          run(
+            {
+              hopsToTarget: 5,
+              wrongTurns: ['guides/auth'],
+              noWrongTurns: false,
+              judged: true,
+            },
+            false
+          ),
           run({ blockedJumps: ['guides/platform/sso'] }),
         ],
       },
@@ -57,9 +74,9 @@ describe('buildReport', () => {
       [
         '| Case | control | option-1 |',
         '| --- | --- | --- |',
-        '| deploy-nav-001 | reached 3/3, direct 2/3, 2 hops, 1 judged, 1 blocked, grounded 2/3 | reached 1/1, direct 1/1, 2 hops, 0 judged, 0 blocked, grounded 1/1 |',
-        '| deploy-nav-002 | reached 0/1, direct 0/1, – hops, 0 judged, 0 blocked, grounded 0/1 | no runs |',
-        '| Cases reached, direct | 1/2, 1/2 | 1/1, 1/1 |',
+        '| deploy-nav-001 | no wrong turns 2/3, reached 3/3, 2 hops, 1 judged, 1 blocked, grounded 2/3 | no wrong turns 1/1, reached 1/1, 2 hops, 0 judged, 0 blocked, grounded 1/1 |',
+        '| deploy-nav-002 | no wrong turns 0/1, reached 0/1, – hops, 0 judged, 0 blocked, grounded 0/1 | no runs |',
+        '| Cases with no wrong turns, reached | 1/2, 1/2 | 1/1, 1/1 |',
       ].join('\n')
     );
   });

@@ -9,16 +9,16 @@ export type ArmRuns = Record<string, CaseRun[]>;
 
 export interface ArmTotals {
   cases: number;
+  noWrongTurns: number;
   reached: number;
-  direct: number;
 }
 
 function isReached(run: CaseRun): boolean {
   return run.navigation.reached;
 }
 
-function isDirect(run: CaseRun): boolean {
-  return isReached(run) && run.navigation.direct;
+function hasNoWrongTurns(run: CaseRun): boolean {
+  return run.navigation.noWrongTurns;
 }
 
 function count(runs: CaseRun[], test: (run: CaseRun) => boolean): number {
@@ -33,11 +33,12 @@ function totalsOf(cases: ArmRuns): ArmTotals {
   const runsByCase = Object.values(cases);
   return {
     cases: runsByCase.length,
+    noWrongTurns: runsByCase.filter((runs) =>
+      mostRuns(runs, (run) => hasNoWrongTurns(run))
+    ).length,
     reached: runsByCase.filter((runs) =>
       mostRuns(runs, (run) => isReached(run))
     ).length,
-    direct: runsByCase.filter((runs) => mostRuns(runs, (run) => isDirect(run)))
-      .length,
   };
 }
 
@@ -59,8 +60,8 @@ function cell(runs: CaseRun[] | undefined): string {
     0
   );
   return [
+    `no wrong turns ${count(runs, (run) => hasNoWrongTurns(run))}/${runs.length}`,
     `reached ${reached.length}/${runs.length}`,
-    `direct ${count(runs, (run) => isDirect(run))}/${runs.length}`,
     `${median(hops)} hops`,
     `${count(runs, (run) => run.navigation.judged)} judged`,
     `${blocked} blocked`,
@@ -87,10 +88,10 @@ export function buildReport(arms: Record<string, ArmRuns>) {
       row([id, ...armNames.map((arm) => cell(arms[arm]?.[id]))])
     ),
     row([
-      'Cases reached, direct',
+      'Cases with no wrong turns, reached',
       ...armNames.map(
         (arm) =>
-          `${totals[arm].reached}/${totals[arm].cases}, ${totals[arm].direct}/${totals[arm].cases}`
+          `${totals[arm].noWrongTurns}/${totals[arm].cases}, ${totals[arm].reached}/${totals[arm].cases}`
       ),
     ]),
   ].join('\n');
