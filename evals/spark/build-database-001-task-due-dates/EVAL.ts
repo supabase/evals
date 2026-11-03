@@ -20,7 +20,7 @@ function isTask(value: unknown): value is Task {
 
 export function checkTasks(
   value: unknown,
-  dueDateColumn: string | undefined
+  dueDateColumns: unknown[]
 ): CheckResult[] {
   if (!Array.isArray(value) || !value.every(isTask))
     return [
@@ -59,11 +59,13 @@ export function checkTasks(
     {
       name: 'Requested due date saved and other tasks undated',
       passed:
-        dueDateColumn !== undefined &&
         tasks.length === titles.length &&
-        tasks.every(
-          (task) =>
-            task[dueDateColumn] === (task.id === 2 ? '2026-11-10' : null)
+        dueDateColumns.some(
+          (column) =>
+            typeof column === 'string' &&
+            tasks.every(
+              (task) => task[column] === (task.id === 2 ? '2026-11-10' : null)
+            )
         ),
     },
   ];
@@ -80,18 +82,19 @@ const scorer: ToolScorer = async (ctx) => {
       .select('*')
       .order('id');
     if (error) throw new Error(error.message);
-    const dueDateColumn = columns.find(
+    const dateColumns = columns.filter(
       (column) =>
         typeof column.name === 'string' &&
         typeof column.type === 'string' &&
         column.type.toLowerCase() === 'date' &&
         column.not_null === 0
-    )?.name;
-    const columnName =
-      typeof dueDateColumn === 'string' ? dueDateColumn : undefined;
+    );
     checks.push(
-      { name: 'Optional date column added', passed: columnName !== undefined },
-      ...checkTasks(data, columnName)
+      { name: 'Optional date column added', passed: dateColumns.length > 0 },
+      ...checkTasks(
+        data,
+        dateColumns.map((column) => column.name)
+      )
     );
   } catch (error) {
     checks.push({

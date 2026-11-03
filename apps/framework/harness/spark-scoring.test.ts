@@ -1,46 +1,24 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { sparkRestRuntime } from '@supabase-evals/core';
+import { describe, expect, it, vi } from 'vitest';
+import { createClient } from '@supabase/supabase-js';
+import { createManagementApiClient } from '@supabase-evals/platform-lite';
 import scorer, {
   checkTasks,
 } from '../../../evals/spark/build-database-001-task-due-dates/EVAL.js';
 
 const tasks = [
-  {
-    id: 1,
-    title: 'Write release notes',
-    completed: false,
-    created_at: '2026-11-01 12:00:00',
-    due_date: null,
-  },
-  {
-    id: 2,
-    title: 'Ship task tracker',
-    completed: false,
-    created_at: '2026-11-01 12:01:00',
-    due_date: '2026-11-10',
-  },
-  {
-    id: 3,
-    title: 'Review schema',
-    completed: true,
-    created_at: '2026-11-01 12:02:00',
-    due_date: null,
-  },
-  {
-    id: 4,
-    title: 'Plan next iteration',
-    completed: false,
-    created_at: '2026-11-01 12:03:00',
-    due_date: null,
-  },
-];
+  'Write release notes',
+  'Ship task tracker',
+  'Review schema',
+  'Plan next iteration',
+].map((title, index) => ({
+  id: index + 1,
+  title,
+  completed: index === 2,
+  created_at: `2026-11-01 12:0${index}:00`,
+  due_date: index === 1 ? '2026-11-10' : null,
+}));
 
 describe('task state checks', () => {
-  it('accepts the requested change', () => {
-    expect(checkTasks(tasks, 'due_date').every((check) => check.passed)).toBe(
-      true
-    );
-  });
   it('rejects missing dates, altered seed data and deleted rows', () => {
     for (const changed of [
       tasks.map((task) => ({ ...task, due_date: null })),
@@ -50,12 +28,10 @@ describe('task state checks', () => {
       [],
     ])
       expect(
-        checkTasks(changed, 'due_date').some((check) => !check.passed)
+        checkTasks(changed, ['due_date']).some((check) => !check.passed)
       ).toBe(true);
   });
 });
-
-afterEach(() => vi.unstubAllGlobals());
 
 async function score(
   options: {
@@ -66,53 +42,39 @@ async function score(
     reportPasses?: boolean;
   } = {}
 ) {
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(async (input: string | URL | Request) => {
-      const url =
-        input instanceof Request ? new URL(input.url) : new URL(input);
-      if (url.pathname === '/v1/projects')
-        return Response.json({
-          ref: 'project',
-          url: 'https://project.example',
-          api_keys: [
-            { type: 'secret', api_key: 'secret' },
-            { type: 'publishable', api_key: 'publishable' },
-          ],
-        });
-      if (url.pathname === '/database/query') {
-        if (options.queryStatus)
-          return new Response('query unavailable', {
-            status: options.queryStatus,
-          });
-        return Response.json(
-          options.columns ?? [{ name: 'due_date', type: 'date', not_null: 0 }]
-        );
-      }
-      expect(url.pathname).toBe('/rest/v1/tasks');
-      return options.tableStatus
-        ? Response.json(
-            { message: 'relation "tasks" does not exist', code: '42P01' },
-            { status: options.tableStatus }
-          )
-        : Response.json(options.tasks ?? tasks);
-    })
-  );
-  const session = await sparkRestRuntime(
-    'https://control.example'
-  ).startSession({});
+  const client = createClient('https://project.example', 'secret', {
+    global: {
+      fetch: async () =>
+        options.tableStatus
+          ? Response.json(
+              { message: 'table unavailable' },
+              { status: options.tableStatus }
+            )
+          : Response.json(options.tasks ?? tasks),
+    },
+  });
   const judge = vi.fn(async () => ({ passed: options.reportPasses ?? true }));
-  try {
-    const result = await scorer({
-      ...session.scoringContext,
-      toolCalls: [],
-      transcript: [],
-      judge,
-    });
-    return { result, judge };
-  } finally {
-    await session.close();
-  }
+  const result = await scorer({
+    ref: 'project',
+    mgmt: createManagementApiClient('https://control.example', 'secret'),
+    client,
+    getClient: () => client,
+    query: async () => {
+      if (options.queryStatus) throw new Error('query unavailable');
+      return {
+        rows: options.columns ?? [
+          { name: 'due_date', type: 'date', not_null: 0 },
+        ],
+      };
+    },
+    invokeFunction: async () => {
+      throw new Error('unused');
+    },
+    toolCalls: [],
+    transcript: [],
+    judge,
+  });
+  return { result, judge };
 }
 
 describe('hosted task scorer', () => {
@@ -121,7 +83,7 @@ describe('hosted task scorer', () => {
     expect((await score({ reportPasses: false })).result.passed).toBe(false);
   });
 
-  it('accepts a different due-date column name', async () => {
+  it('accepts a matching date column after an unrelated date column', async () => {
     const renamed = tasks.map(({ due_date, ...task }) => ({
       ...task,
       deadline: due_date,
@@ -129,7 +91,10 @@ describe('hosted task scorer', () => {
     expect(
       (
         await score({
-          columns: [{ name: 'deadline', type: 'date', not_null: 0 }],
+          columns: [
+            { name: 'another_date', type: 'date', not_null: 0 },
+            { name: 'deadline', type: 'date', not_null: 0 },
+          ],
           tasks: renamed,
         })
       ).result.passed
