@@ -1,0 +1,76 @@
+# The CLI team owns this cadence and reuses eval-refresh's run and publish pipeline.
+# merge=true keeps the daily and weekly rows together in cli-eval-results.json.
+name: CLI eval schedule
+
+on:
+  schedule:
+    - cron: '20 4 * * *'
+    # CADENCE below picks the weekly list by matching this string.
+    - cron: '20 1 * * 1'
+  workflow_dispatch:
+    inputs:
+      cadence:
+        description: "Which experiment list to run"
+        type: choice
+        options:
+          - daily
+          - weekly
+        default: daily
+
+permissions:
+  actions: write
+
+env:
+  DAILY_EXPERIMENTS: >-
+    codex-gpt-6-luna-cli-pinned,
+    codex-gpt-6-luna-cli-stable,
+    codex-gpt-6-luna-cli-beta,
+    codex-gpt-6-luna-cli-next,
+    codex-gpt-6-luna-cli-nodaemon,
+    codex-gpt-6-luna-cli-absent
+  WEEKLY_EXPERIMENTS: >-
+    claude-code-sonnet-5.5-cli-stable,
+    claude-code-sonnet-5.5-cli-next,
+    claude-code-opus-5.5-cli-stable,
+    claude-code-opus-5.5-cli-next,
+    codex-gpt-6.1-sol-cli-stable,
+    codex-gpt-6.1-sol-cli-next,
+    codex-gpt-6-luna-cli-stable,
+    codex-gpt-6-luna-cli-next,
+    opencode-kimi-k3-cli-stable,
+    opencode-kimi-k3-cli-next
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - name: Dispatch eval-refresh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          CADENCE: ${{ github.event_name == 'workflow_dispatch' && inputs.cadence || github.event.schedule == '20 1 * * 1' && 'weekly' || 'daily' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          case "$CADENCE" in
+            daily) experiments="$DAILY_EXPERIMENTS" ;;
+            weekly) experiments="$WEEKLY_EXPERIMENTS" ;;
+            *)
+              echo "::error::Unknown cadence: $CADENCE"
+              exit 1
+              ;;
+          esac
+
+          gh workflow run eval-refresh.yml \
+            --ref "$GITHUB_REF_NAME" \
+            -f suite=cli \
+            -f experiments="$experiments" \
+            -f runs=3 \
+            -f timeout_sec=720 \
+            -f sandbox_concurrency=250 \
+            -f merge=true \
+            -f auto_merge=true
+
+          echo "Dispatched eval-refresh for the $CADENCE cadence: $experiments" >> "$GITHUB_STEP_SUMMARY"

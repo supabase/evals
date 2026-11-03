@@ -37,6 +37,11 @@ on:
         type: boolean
         required: false
         default: false
+      auto_merge:
+        description: "Merge the results PR once every pair completes (for scheduled callers such as cli-eval-schedule.yml)"
+        type: boolean
+        required: false
+        default: false
       cli_stable_version:
         description: "Pin the cli suite's stable CLI version instead of resolving npm's latest dist-tag (blank to resolve)"
         required: false
@@ -118,7 +123,8 @@ jobs:
           elif [ "${{ github.event_name }}" = "schedule" ]; then
             experiments_override=""
             eval_id=""
-            suite="regression,cli"
+            # The cli suite runs on its own cadence in cli-eval-schedule.yml.
+            suite="regression"
             runs="3"
             timeout_sec="720"
             sandbox_concurrency="250"
@@ -579,17 +585,18 @@ jobs:
           title: "chore: refresh eval results"
           body: |
             Refreshes `apps/web/src/data/eval-results.json` from the latest automated eval run.
-          # Draft PRs can't be merged, and the scheduled path merges itself.
-          draft: ${{ github.event_name != 'schedule' }}
+          # Draft PRs can't be merged, and scheduled and auto_merge runs merge themselves.
+          draft: ${{ github.event_name != 'schedule' && !inputs.auto_merge }}
           delete-branch: true
 
-      - name: Merge scheduled results pull request
+      - name: Merge results pull request
         # --admin merges without the required review, which the bypass list
         # entitles the app to.
         # https://cli.github.com/manual/gh_pr_merge
         # Skips the merge when results are partial, so it stays open for review.
         if: >-
-          github.event_name == 'schedule' &&
+          (github.event_name == 'schedule' ||
+            (github.event_name == 'workflow_dispatch' && inputs.auto_merge)) &&
           steps.cpr.outputs.pull-request-number &&
           steps.audit.outputs.count == '0'
         env:
