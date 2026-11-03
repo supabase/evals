@@ -61,14 +61,13 @@ export const BROKERED_KEYS: {
 ];
 export const BROKERED_KEY_PLACEHOLDER = 'injected-by-sandbox-firewall';
 /**
- * Non-secret configuration forwarded to sandbox jobs.
+ * Pins the CLI channel version resolved for this run across sandbox jobs.
  * Provider keys belong in `BROKERED_KEYS` so the sandbox never sees them.
  */
 export const FORWARDED_ENV_NAMES = [
   'SUPABASE_CLI_STABLE_VERSION',
   'SUPABASE_CLI_BETA_VERSION',
   'SUPABASE_CLI_NEXT_VERSION',
-  'SPARK_API_URL',
 ];
 const CLI_CHANNEL_ENV: Record<CliChannel, string> = {
   stable: 'SUPABASE_CLI_STABLE_VERSION',
@@ -825,7 +824,7 @@ export function brokeredNetworkPolicy(): NetworkPolicy {
   return { allow };
 }
 
-/** Builds the sandbox `.env` from key placeholders and forwarded configuration. An explicit pin wins over process.env. */
+/** Builds the sandbox `.env` from key placeholders and CLI channel pins. An explicit pin wins over process.env. */
 export function agentEnvironment(pins: Record<string, string> = {}): string {
   const lines: string[] = [];
   for (const { name } of BROKERED_KEYS) {
