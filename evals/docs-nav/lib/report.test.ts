@@ -12,7 +12,7 @@ function run(overrides: Partial<Navigation> = {}, grounded = true): CaseRun {
       judged: false,
       opened: ['docs', 'guides/platform', 'guides/platform/sso'],
       blockedJumps: [],
-      severity: 'clean',
+      reached: true,
       ...overrides,
     },
   };
@@ -23,7 +23,7 @@ const missed = run(
     hopsToTarget: null,
     reachedTarget: null,
     direct: false,
-    severity: 'big failure',
+    reached: false,
   },
   false
 );
