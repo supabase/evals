@@ -46,9 +46,7 @@ export function sparkRuntime(apiUrl: string): EvalRuntime {
         throw new Error(`Spark project ${project.ref} is missing API keys`);
 
       // shortcut: projects remain allocated, add teardown once a deletion endpoint is confirmed.
-      process.stderr.write(
-        `Spark project created: ${project.ref}\n`
-      );
+      process.stderr.write(`Spark project created: ${project.ref}\n`);
 
       const headers = { apikey: secret, 'content-type': 'application/json' };
       if (seedSql) {
