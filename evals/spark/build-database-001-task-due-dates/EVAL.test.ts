@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { sparkRuntime } from '@supabase-evals/core';
+import { sparkRuntime } from '../../../experiments/spark/lib/runtime.js';
 import scorer, { checkTasks } from './EVAL.js';
 
 const tasks = [

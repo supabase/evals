@@ -2,7 +2,7 @@ import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
-import { sparkRuntime } from './spark-runtime.js';
+import { sparkRuntime } from './runtime.js';
 
 afterEach(() => vi.unstubAllGlobals());
 

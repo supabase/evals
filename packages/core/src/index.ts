@@ -1,4 +1,3 @@
-export { sparkRuntime } from './spark-runtime.js';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { createHash, createHmac } from 'node:crypto';

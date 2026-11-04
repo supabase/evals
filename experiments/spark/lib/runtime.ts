@@ -2,11 +2,11 @@ import { readFile } from 'node:fs/promises';
 import { createClient } from '@supabase/supabase-js';
 import { createManagementApiClient } from '@supabase-evals/platform-lite';
 import { z } from 'zod';
-import type { EvalRuntime } from './index.js';
+import type { EvalRuntime } from '@supabase-evals/core';
 
 const projectSchema = z.object({
   ref: z.string().min(1),
-  url: z.string().url(),
+  url: z.url(),
   api_keys: z.array(z.object({ type: z.string(), api_key: z.string().min(1) })),
 });
 const rowsSchema = z.array(z.record(z.string(), z.unknown()));

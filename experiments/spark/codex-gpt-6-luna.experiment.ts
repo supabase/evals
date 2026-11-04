@@ -1,5 +1,6 @@
-import { defineExperiment, sparkRuntime } from '@supabase-evals/core';
+import { defineExperiment } from '@supabase-evals/core';
 import { codexGpt6Luna } from '../presets.js';
+import { sparkRuntime } from './lib/runtime.js';
 
 export default defineExperiment({
   agent: codexGpt6Luna.agent,
