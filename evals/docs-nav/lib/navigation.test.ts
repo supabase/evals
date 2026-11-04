@@ -409,3 +409,155 @@ describe('scoreDocsNav', () => {
     expect(result.passed).toBe(true);
   });
 });
+
+const TREE_URL = 'https://supabase.com/docs/nav-tree.json';
+
+function treeCall(toolName: string, id: string, text: string): ToolCallRecord {
+  return {
+    tool: { kind: 'mcp', server: 'docs-tree-navigator', toolName },
+    body: { id },
+    result: [{ type: 'text', text }],
+    ts: 0,
+  };
+}
+
+function openSection(id: string, url = TREE_URL) {
+  const tree = id === 'root' ? `\nTree: ${url}` : '';
+  return treeCall(
+    'open_section',
+    id,
+    `Opened: [${id}]${tree}\n\nIn this section:`
+  );
+}
+
+function refusedSection(id: string) {
+  return treeCall('open_section', id, `Not allowed: ${id} isn't listed.`);
+}
+
+function choosePage(id: string, url = TREE_URL) {
+  return treeCall('choose_page', id, `Chosen: [${id}]\nTree: ${url}`);
+}
+
+async function treeNavigationOf(
+  toolCalls: ToolCallRecord[],
+  options: { targets?: string[]; controlTargets?: string[] } = {}
+) {
+  const result = await score(toolCalls, options);
+  return { result, navigation: JSON.parse(result.checks?.[0]?.notes ?? '{}') };
+}
+
+describe('scoreDocsNav on a tree test', () => {
+  it('passes a direct choice of a target', async () => {
+    const { result, navigation } = await treeNavigationOf([
+      openSection('root'),
+      openSection('2'),
+      openSection('2.1'),
+      choosePage('2.1.1'),
+    ]);
+    expect(navigation).toMatchObject({
+      reached: true,
+      hopsToTarget: 2,
+      chosen: SSO,
+      wrongTurns: [],
+      noWrongTurns: true,
+      maxHops: 3,
+    });
+    expect(result.checks).toHaveLength(1);
+  });
+
+  it('counts a section off the path, and going back from it, as wrong turns', async () => {
+    const { navigation } = await treeNavigationOf([
+      openSection('root'),
+      openSection('3'),
+      openSection('2'),
+      openSection('2.1'),
+      choosePage('2.1.1'),
+    ]);
+    expect(navigation).toMatchObject({
+      reached: true,
+      wrongTurns: ['3 Products', '2 Manage'],
+      noWrongTurns: false,
+    });
+  });
+
+  it('counts going back up the path as a wrong turn', async () => {
+    const { navigation } = await treeNavigationOf([
+      openSection('root'),
+      openSection('2'),
+      openSection('2.1'),
+      openSection('2'),
+      openSection('2.1'),
+      choosePage('2.1.1'),
+    ]);
+    expect(navigation.wrongTurns).toEqual(['2 Manage']);
+  });
+
+  it('fails a choice of a page that is not a target', async () => {
+    const { navigation } = await treeNavigationOf([
+      openSection('root'),
+      openSection('3'),
+      choosePage('3.1'),
+    ]);
+    expect(navigation).toMatchObject({
+      reached: false,
+      chosen: 'guides/auth',
+      reachedTarget: null,
+    });
+  });
+
+  it("loads the variant's tree from the url the navigator reports", async () => {
+    const url = `${TREE_URL}?docs-ia-mvp-v1=option-1`;
+    const trees = fakeTrees();
+    const result = await scoreDocsNav(
+      context([
+        openSection('root', url),
+        openSection('1'),
+        openSection('1.1'),
+        choosePage('1.1.1', url),
+      ]),
+      { targets: [SSO], task: TASK, fetchTree: trees.fetchTree }
+    );
+    expect(trees.requested).toEqual([url]);
+    expect(JSON.parse(result.checks?.[0]?.notes ?? '')).toMatchObject({
+      variant: 'option-1',
+      reached: true,
+      noWrongTurns: true,
+    });
+  });
+
+  it('accepts control targets only on control runs', async () => {
+    const options = { targets: [ROTATE], controlTargets: [API_KEYS] };
+    const { navigation } = await treeNavigationOf(
+      [openSection('root'), openSection('1'), choosePage('1.1')],
+      options
+    );
+    expect(navigation).toMatchObject({ reached: true, noWrongTurns: true });
+  });
+
+  it('counts a refused open as a click', async () => {
+    const { navigation } = await treeNavigationOf([
+      openSection('root'),
+      refusedSection('2.1'),
+      openSection('2'),
+      openSection('2.1'),
+      choosePage('2.1.1'),
+    ]);
+    expect(navigation).toMatchObject({
+      hopsToTarget: 3,
+      blockedJumps: ['2.1'],
+      noWrongTurns: true,
+    });
+  });
+
+  it('fails a choice that takes more clicks than the tree is deep', async () => {
+    const { navigation } = await treeNavigationOf([
+      openSection('root'),
+      openSection('1'),
+      openSection('3'),
+      openSection('2'),
+      openSection('2.1'),
+      choosePage('2.1.1'),
+    ]);
+    expect(navigation).toMatchObject({ hopsToTarget: 4, reached: false });
+  });
+});

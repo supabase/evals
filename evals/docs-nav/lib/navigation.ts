@@ -14,6 +14,11 @@ const NAVIGATOR_TOOL = 'open_page';
 const OPENED_PATTERN = /Opened: (https:\/\/[^\s"\\]+)/;
 const BLOCKED_PREFIX = 'Not opened:';
 const VARIANT_PARAM = 'docs-ia-mvp-v1';
+const TREE_OPEN_TOOL = 'open_section';
+const TREE_CHOOSE_TOOL = 'choose_page';
+const TREE_ROOT = 'root';
+const TREE_REFUSED_PREFIX = 'Not allowed:';
+const TREE_LINE = /^Tree: (\S+)$/m;
 
 export interface NavTreeNode {
   label: string;
@@ -40,6 +45,7 @@ export interface Navigation {
   judged: boolean;
   opened: string[];
   blockedJumps: string[];
+  chosen?: string | null;
 }
 
 interface Visit {
@@ -206,6 +212,132 @@ async function judgeReach(
   return undefined;
 }
 
+function treeNodeAt(tree: NavTree, id: string): NavTreeNode | undefined {
+  if (id === TREE_ROOT) return tree.root;
+  let node: NavTreeNode | undefined = tree.root;
+  for (const part of id.split('.')) {
+    node = node?.children?.[Number(part) - 1];
+  }
+  return node;
+}
+
+function treeIdsOf(
+  node: NavTreeNode,
+  pages: string[],
+  id = TREE_ROOT
+): string[] {
+  const here = node.route && pages.includes(routePath(node.route)) ? [id] : [];
+  return [
+    ...here,
+    ...(node.children ?? []).flatMap((child, index) =>
+      treeIdsOf(
+        child,
+        pages,
+        id === TREE_ROOT ? `${index + 1}` : `${id}.${index + 1}`
+      )
+    ),
+  ];
+}
+
+function treePrefixes(id: string): string[] {
+  const parts = id.split('.');
+  return parts.map((_, index) => parts.slice(0, index + 1).join('.'));
+}
+
+function isTreeChild(id: string, parent: string): boolean {
+  if (parent === TREE_ROOT) return id !== TREE_ROOT && !id.includes('.');
+  const rest = id.startsWith(`${parent}.`) ? id.slice(parent.length + 1) : '';
+  return rest !== '' && !rest.includes('.');
+}
+
+function isTreeCall(call: ToolCallRecord): boolean {
+  return [TREE_OPEN_TOOL, TREE_CHOOSE_TOOL].includes(call.tool.toolName);
+}
+
+async function scoreTreeRun(
+  toolCalls: ToolCallRecord[],
+  {
+    targets,
+    controlTargets,
+    group,
+    fetchTree,
+  }: {
+    targets: string[];
+    controlTargets: string[];
+    group: string | null;
+    fetchTree: FetchTree;
+  }
+): Promise<ScoreResult> {
+  const calls = toolCalls
+    .filter((call) => isTreeCall(call))
+    .map((call) => ({ call, text: replyText(call) }));
+  const url = calls
+    .map(({ text }) => text.match(TREE_LINE)?.[1])
+    .find((match) => match !== undefined);
+  const tree = url ? await fetchTree(url) : null;
+  const variant = url ? new URL(url).searchParams.get(VARIANT_PARAM) : null;
+  const maxHops = tree ? treeDepth(tree.root) : null;
+  const armTargets = variant ? targets : [...targets, ...controlTargets];
+  const onPath = new Set([
+    TREE_ROOT,
+    ...(tree ? treeIdsOf(tree.root, armTargets) : []).flatMap((id) =>
+      treePrefixes(id)
+    ),
+  ]);
+  const label = (id: string) =>
+    `${id} ${(tree && treeNodeAt(tree, id)?.label) ?? ''}`.trim();
+  const opened: string[] = [];
+  const wrongTurns: string[] = [];
+  const blockedJumps: string[] = [];
+  let clicks = 0;
+  let current: string | null = null;
+  let chosen: string | null = null;
+  for (const { call, text } of calls) {
+    const id = String(call.body.id ?? '').trim();
+    const refused = text.startsWith(TREE_REFUSED_PREFIX);
+    if (call.tool.toolName === TREE_CHOOSE_TOOL) {
+      if (!refused && chosen === null) chosen = id;
+      continue;
+    }
+    if (chosen !== null) continue;
+    if (id !== TREE_ROOT) clicks += 1;
+    if (refused) {
+      blockedJumps.push(id);
+      continue;
+    }
+    opened.push(label(id));
+    const isStart = current === null && id === TREE_ROOT;
+    if (!isStart && (!onPath.has(id) || !isTreeChild(id, current ?? ''))) {
+      wrongTurns.push(label(id));
+    }
+    current = id;
+  }
+  const chosenRoute = chosen && tree ? treeNodeAt(tree, chosen)?.route : null;
+  const chosenPath = chosenRoute ? routePath(chosenRoute) : null;
+  const matched = chosenPath !== null && armTargets.includes(chosenPath);
+  const isReached = matched && maxHops !== null && clicks <= maxHops;
+  const navigation: Navigation = {
+    group,
+    variant,
+    reached: isReached,
+    maxHops,
+    hopsToTarget: matched ? clicks : null,
+    reachedTarget: matched ? chosenPath : null,
+    wrongTurns,
+    noWrongTurns: isReached && wrongTurns.length === 0,
+    judged: false,
+    opened,
+    blockedJumps,
+    chosen: chosenPath,
+  };
+  const reachedCheck: CheckResult = {
+    name: REACHED_TARGET_CHECK,
+    passed: navigation.reached,
+    notes: JSON.stringify(navigation),
+  };
+  return { passed: reachedCheck.passed, checks: [reachedCheck] };
+}
+
 export async function scoreDocsNav(
   ctx: Pick<ToolEvalContext, 'toolCalls' | 'agentReport' | 'judge'>,
   {
@@ -222,6 +354,14 @@ export async function scoreDocsNav(
     fetchTree: FetchTree;
   }
 ): Promise<ScoreResult> {
+  if (ctx.toolCalls.some((call) => isTreeCall(call))) {
+    return scoreTreeRun(ctx.toolCalls, {
+      targets,
+      controlTargets,
+      group,
+      fetchTree,
+    });
+  }
   const { visits, blockedJumps, firstOpened } = readCalls(ctx.toolCalls);
   const variant = firstOpened
     ? new URL(firstOpened).searchParams.get(VARIANT_PARAM)
