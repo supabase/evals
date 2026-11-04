@@ -428,7 +428,7 @@ async function fetchNavTree(url: string): Promise<NavTree> {
 export function docsNavScorer(
   targets: string[],
   evalUrl: string,
-  controlTargets: string[] = []
+  { group, controlTargets = [] }: { group: string; controlTargets?: string[] }
 ): ToolScorer {
   const promptUrl = new URL('./PROMPT.md', evalUrl);
   const { body: task } = parseEvalMarkdown(
@@ -439,6 +439,7 @@ export function docsNavScorer(
     scoreDocsNav(ctx, {
       targets,
       controlTargets,
+      group,
       task,
       fetchTree: (url) => fetchNavTree(url),
     });

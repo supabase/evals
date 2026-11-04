@@ -6,6 +6,7 @@ function run(overrides: Partial<Navigation> = {}, grounded = true): CaseRun {
   return {
     grounded,
     navigation: {
+      group: 'set-aside',
       variant: null,
       maxHops: 5,
       hopsToTarget: 2,
@@ -51,7 +52,12 @@ describe('buildReport', () => {
   it('renders a row per case and a totals row', () => {
     const { table } = buildReport({
       control: {
-        'deploy-nav-002': [missed],
+        'deploy-nav-002': [
+          {
+            ...missed,
+            navigation: { ...missed.navigation, group: 'hard-to-reach' },
+          },
+        ],
         'deploy-nav-001': [
           run({ hopsToTarget: 1 }),
           run(
@@ -77,6 +83,8 @@ describe('buildReport', () => {
         '| deploy-nav-001 | no wrong turns 2/3, reached 3/3, 2 hops, 1 judged, 1 blocked, grounded 2/3 | no wrong turns 1/1, reached 1/1, 2 hops, 0 judged, 0 blocked, grounded 1/1 |',
         '| deploy-nav-002 | no wrong turns 0/1, reached 0/1, – hops, 0 judged, 0 blocked, grounded 0/1 | no runs |',
         '| Cases with no wrong turns, reached | 1/2, 1/2 | 1/1, 1/1 |',
+        '| Runs with no wrong turns, hard-to-reach | 0/1 (0%) | no runs |',
+        '| Runs with no wrong turns, set-aside | 2/3 (67%) | 1/1 (100%) |',
       ].join('\n')
     );
   });

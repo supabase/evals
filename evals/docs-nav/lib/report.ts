@@ -69,6 +69,12 @@ function cell(runs: CaseRun[] | undefined): string {
   ].join(', ');
 }
 
+function groupCell(runs: CaseRun[]): string {
+  if (runs.length === 0) return 'no runs';
+  const clean = count(runs, (run) => hasNoWrongTurns(run));
+  return `${clean}/${runs.length} (${Math.round((clean / runs.length) * 100)}%)`;
+}
+
 function row(cells: string[]): string {
   return `| ${cells.join(' | ')} |`;
 }
@@ -80,6 +86,14 @@ export function buildReport(arms: Record<string, ArmRuns>) {
   );
   const caseIds = [
     ...new Set(Object.values(arms).flatMap((cases) => Object.keys(cases))),
+  ].sort();
+  const runsOf = (arm: string) => Object.values(arms[arm] ?? {}).flat();
+  const groups = [
+    ...new Set(
+      armNames.flatMap((arm) =>
+        runsOf(arm).map((run) => run.navigation.group ?? 'ungrouped')
+      )
+    ),
   ].sort();
   const table = [
     row(['Case', ...armNames]),
@@ -94,6 +108,18 @@ export function buildReport(arms: Record<string, ArmRuns>) {
           `${totals[arm].noWrongTurns}/${totals[arm].cases}, ${totals[arm].reached}/${totals[arm].cases}`
       ),
     ]),
+    ...groups.map((group) =>
+      row([
+        `Runs with no wrong turns, ${group}`,
+        ...armNames.map((arm) =>
+          groupCell(
+            runsOf(arm).filter(
+              (run) => (run.navigation.group ?? 'ungrouped') === group
+            )
+          )
+        ),
+      ])
+    ),
   ].join('\n');
   return { table, totals };
 }

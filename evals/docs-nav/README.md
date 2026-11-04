@@ -21,7 +21,8 @@ This suite is a [tree test](https://www.nngroup.com/articles/tree-testing/). Tre
 - **Pass:** the agent reaches a target in no more hops than the tree has levels.
 - **No wrong turns:** every page the agent opens before the target is the target or one of its tree ancestors. This is the headline measure.
 - **Nav-only arms:** the navigator lists only links inside `data-docs-nav` regions, so page bodies can't shortcut the tree.
-- **The bar:** Option 1 nav-only beats control nav-only by at least 20 points on cases with no wrong turns.
+- **Groups:** each case's `GROUP` is `hard-to-reach`, `placement`, or `set-aside`. Set-aside tasks come from the tree tests' holdout set and were never used to design a tree. The report adds a row per group.
+- **The bar:** on set-aside cases, Option 1 nav-only beats control nav-only by at least 10 points on runs with no wrong turns.
 
 ## Editing
 
@@ -29,6 +30,7 @@ This suite is a [tree test](https://www.nngroup.com/articles/tree-testing/). Tre
 - Never use a page's title, or a distinctive word from the links on the way to it, in a prompt.
 - When a run is judged or a target moves, update `TARGETS`.
 - When control's answer is on a different page, add it to `CONTROL_TARGETS`.
+- Set `GROUP` on every case. A set-aside case keeps its tree-test prompt word for word inside the persona frame.
 
 ## Running
 
