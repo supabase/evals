@@ -47,7 +47,7 @@ export function sparkRuntime(apiUrl: string): EvalRuntime {
 
       // shortcut: projects remain allocated, add teardown once a deletion endpoint is confirmed.
       process.stderr.write(
-        `Spark project created: ${project.ref} (automatic cleanup unavailable)\n`
+        `Spark project created: ${project.ref}\n`
       );
 
       const headers = { apikey: secret, 'content-type': 'application/json' };
