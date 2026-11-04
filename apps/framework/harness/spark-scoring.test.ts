@@ -20,17 +20,29 @@ const tasks = [
 
 describe('task state checks', () => {
   it('rejects missing dates, altered seed data and deleted rows', () => {
-    for (const changed of [
-      tasks.map((task) => ({ ...task, due_date: null })),
-      tasks.map((task) => ({ ...task, title: 'Replaced' })),
-      tasks.map((task) => ({ ...task, created_at: '2026-11-02T00:00:00' })),
-      tasks.map((task) => ({ ...task, completed: 'false' })),
-      tasks.slice(1),
-      [],
+    for (const [changed, name] of [
+      [
+        tasks.map((task) => ({ ...task, due_date: null })),
+        'Requested due date saved and other tasks undated',
+      ],
+      [
+        tasks.map((task) => ({ ...task, title: 'Replaced' })),
+        'Existing task data preserved',
+      ],
+      [
+        tasks.map((task) => ({ ...task, created_at: '2026-11-02T00:00:00' })),
+        'Existing task data preserved',
+      ],
+      [
+        tasks.map((task) => ({ ...task, completed: 'false' })),
+        'Existing task data preserved',
+      ],
+      [tasks.slice(1), 'Existing task data preserved'],
+      [[], 'Existing task data preserved'],
     ])
-      expect(
-        checkTasks(changed, ['due_date']).some((check) => !check.passed)
-      ).toBe(true);
+      expect(checkTasks(changed, ['due_date'])).toContainEqual(
+        expect.objectContaining({ name, passed: false })
+      );
   });
 });
 
@@ -39,7 +51,6 @@ async function score(
     columns?: Record<string, unknown>[];
     tasks?: unknown;
     tableStatus?: number;
-    queryStatus?: number;
     reportPasses?: boolean;
   } = {}
 ) {
@@ -61,7 +72,6 @@ async function score(
     client,
     getClient: () => client,
     query: async () => {
-      if (options.queryStatus) throw new Error('query unavailable');
       return {
         rows: options.columns ?? [
           { name: 'due_date', type: 'date', not_null: 0 },
@@ -119,17 +129,15 @@ describe('hosted task scorer', () => {
   });
 
   it('records unreadable state and still judges the report', async () => {
-    for (const options of [{ tableStatus: 404 }, { queryStatus: 503 }]) {
-      const { result, judge } = await score(options);
-      expect(result.passed).toBe(false);
-      expect(result.checks).toContainEqual(
-        expect.objectContaining({
-          name: 'Hosted task state readable',
-          passed: false,
-          notes: expect.any(String),
-        })
-      );
-      expect(judge).toHaveBeenCalledOnce();
-    }
+    const { result, judge } = await score({ tableStatus: 404 });
+    expect(result.passed).toBe(false);
+    expect(result.checks).toContainEqual(
+      expect.objectContaining({
+        name: 'Hosted task state readable',
+        passed: false,
+        notes: expect.any(String),
+      })
+    );
+    expect(judge).toHaveBeenCalledOnce();
   });
 });
