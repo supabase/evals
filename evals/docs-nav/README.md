@@ -20,9 +20,10 @@ This suite is a [tree test](https://www.nngroup.com/articles/tree-testing/). Tre
 - **Tree:** the scorer loads `/docs/nav-tree.json` from the docs the run opened, for that run's variant.
 - **Pass:** the agent reaches a target in no more hops than the tree has levels.
 - **No wrong turns:** every page the agent opens before the target is the target or one of its tree ancestors. This is the headline measure.
-- **Nav-only arms:** the navigator lists only links inside `data-docs-nav` regions, so page bodies can't shortcut the tree.
+- **Tree arms:** a classic tree test on the live tree. The agent sees only labels and subheads, one section at a time, and chooses one page. It reads no pages, so tree runs have no grounded check. Opening a section off the path to a target, or going back up, is a wrong turn.
+- **Full-page arms:** the agent follows links on live pages and reads them. They check that the real site matches what the tree arms find.
 - **Groups:** each case's `GROUP` is `hard-to-reach`, `placement`, or `set-aside`. Set-aside tasks come from the tree tests' holdout set and were never used to design a tree. The report adds a row per group.
-- **The bar:** on set-aside cases, Option 1 nav-only beats control nav-only by at least 10 points on runs with no wrong turns.
+- **The bar:** on set-aside cases, Option 1's tree arm beats control's tree arm by at least 10 points on runs with no wrong turns.
 
 ## Editing
 

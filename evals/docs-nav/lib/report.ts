@@ -2,7 +2,7 @@ import type { Navigation } from './navigation.js';
 
 export interface CaseRun {
   navigation: Navigation;
-  grounded: boolean;
+  grounded: boolean | null;
 }
 
 export type ArmRuns = Record<string, CaseRun[]>;
@@ -65,7 +65,7 @@ function cell(runs: CaseRun[] | undefined): string {
     `${median(hops)} hops`,
     `${count(runs, (run) => run.navigation.judged)} judged`,
     `${blocked} blocked`,
-    `grounded ${count(runs, (run) => run.grounded)}/${runs.length}`,
+    grounded(runs),
   ].join(', ');
 }
 
@@ -73,6 +73,12 @@ function groupCell(runs: CaseRun[]): string {
   if (runs.length === 0) return 'no runs';
   const clean = count(runs, (run) => hasNoWrongTurns(run));
   return `${clean}/${runs.length} (${Math.round((clean / runs.length) * 100)}%)`;
+}
+
+function grounded(runs: CaseRun[]): string {
+  const judged = runs.filter((run) => run.grounded !== null);
+  if (judged.length === 0) return 'grounded –';
+  return `grounded ${count(judged, (run) => run.grounded === true)}/${judged.length}`;
 }
 
 function row(cells: string[]): string {

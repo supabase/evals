@@ -11,8 +11,8 @@ import {
 const ARMS: Record<string, string> = {
   'claude-code-sonnet-5.5-docs-nav': 'control',
   'claude-code-sonnet-5.5-docs-nav-option-1': 'option-1',
-  'claude-code-sonnet-5.5-docs-nav-nav-only': 'control nav-only',
-  'claude-code-sonnet-5.5-docs-nav-option-1-nav-only': 'option-1 nav-only',
+  'claude-code-sonnet-5.5-docs-nav-tree': 'control tree',
+  'claude-code-sonnet-5.5-docs-nav-option-1-tree': 'option-1 tree',
 };
 
 const arms: Record<string, ArmRuns> = Object.fromEntries(
@@ -32,7 +32,7 @@ for (const { result } of files) {
     {
       navigation: JSON.parse(reached.notes),
       grounded:
-        checks.find((check) => check.name === GROUNDED_CHECK)?.passed ?? false,
+        checks.find((check) => check.name === GROUNDED_CHECK)?.passed ?? null,
     },
   ];
 }
