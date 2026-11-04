@@ -1,5 +1,5 @@
 # The CLI team owns this cadence and reuses eval-refresh's run and publish pipeline.
-# merge=true keeps the daily and weekly rows together in cli-eval-results.json.
+# Results go to Braintrust only; no cli-eval-results.json PR is opened.
 name: CLI eval schedule
 
 on:
@@ -71,7 +71,6 @@ jobs:
             -f runs=3 \
             -f timeout_sec=720 \
             -f sandbox_concurrency=250 \
-            -f merge=true \
-            -f auto_merge=true
+            -f results_pr=false
 
           echo "Dispatched eval-refresh for the $CADENCE cadence: $experiments" >> "$GITHUB_STEP_SUMMARY"

@@ -37,11 +37,11 @@ on:
         type: boolean
         required: false
         default: false
-      auto_merge:
-        description: "Merge the results PR once every pair completes (for scheduled callers such as cli-eval-schedule.yml)"
+      results_pr:
+        description: "Open a PR with the exported results JSON (off for Braintrust-only callers such as cli-eval-schedule.yml)"
         type: boolean
         required: false
-        default: false
+        default: true
       cli_stable_version:
         description: "Pin the cli suite's stable CLI version instead of resolving npm's latest dist-tag (blank to resolve)"
         required: false
@@ -527,8 +527,8 @@ jobs:
           echo "PR_URLS=$urls" >> "$GITHUB_ENV"
 
       - name: Upload results to Braintrust
-        # A Braintrust outage shouldn't block publishing results.
-        continue-on-error: true
+        # A Braintrust outage shouldn't block publishing results, but with no results PR it is the only record.
+        continue-on-error: ${{ github.event_name != 'workflow_dispatch' || inputs.results_pr }}
         env:
           BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
           BRAINTRUST_PROJECT_ID: ${{ secrets.BRAINTRUST_PROJECT_ID }}
@@ -576,7 +576,7 @@ jobs:
       - name: Create results pull request
         if: >-
           github.event_name == 'schedule' ||
-          (github.event_name == 'workflow_dispatch' && !inputs.commit_to_branch)
+          (github.event_name == 'workflow_dispatch' && !inputs.commit_to_branch && inputs.results_pr)
         id: cpr
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
@@ -591,18 +591,17 @@ jobs:
           title: "chore: refresh eval results"
           body: |
             Refreshes `apps/web/src/data/eval-results.json` from the latest automated eval run.
-          # Draft PRs can't be merged, and scheduled and auto_merge runs merge themselves.
-          draft: ${{ github.event_name != 'schedule' && !inputs.auto_merge }}
+          # Draft PRs can't be merged, and the scheduled path merges itself.
+          draft: ${{ github.event_name != 'schedule' }}
           delete-branch: true
 
-      - name: Merge results pull request
+      - name: Merge scheduled results pull request
         # --admin merges without the required review, which the bypass list
         # entitles the app to.
         # https://cli.github.com/manual/gh_pr_merge
         # Skips the merge when results are partial, so it stays open for review.
         if: >-
-          (github.event_name == 'schedule' ||
-            (github.event_name == 'workflow_dispatch' && inputs.auto_merge)) &&
+          github.event_name == 'schedule' &&
           steps.cpr.outputs.pull-request-number &&
           steps.audit.outputs.count == '0'
         env:
