@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { sparkRuntime } from '../../../experiments/spark/lib/runtime.js';
-import scorer, { checkTasks } from './EVAL.js';
+import scorer from './EVAL.js';
 
 const tasks = [
   'Write release notes',
@@ -14,34 +14,6 @@ const tasks = [
   created_at: `2026-11-01 12:0${index}:00`,
   due_date: index === 1 ? '2026-11-10' : null,
 }));
-
-describe('task state checks', () => {
-  it('rejects missing dates, altered seed data and deleted rows', () => {
-    for (const [changed, name] of [
-      [
-        tasks.map((task) => ({ ...task, due_date: null })),
-        'Requested due date saved and other tasks undated',
-      ],
-      [
-        tasks.map((task) => ({ ...task, title: 'Replaced' })),
-        'Existing task data preserved',
-      ],
-      [
-        tasks.map((task) => ({ ...task, created_at: '2026-11-02T00:00:00' })),
-        'Existing task data preserved',
-      ],
-      [
-        tasks.map((task) => ({ ...task, completed: 'false' })),
-        'Existing task data preserved',
-      ],
-      [tasks.slice(1), 'Existing task data preserved'],
-      [[], 'Existing task data preserved'],
-    ])
-      expect(checkTasks(changed, ['due_date'])).toContainEqual(
-        expect.objectContaining({ name, passed: false })
-      );
-  });
-});
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -93,6 +65,34 @@ async function score(
   }
 }
 
+describe('task state checks', () => {
+  it('rejects missing dates, altered seed data and deleted rows', async () => {
+    for (const [changed, name] of [
+      [
+        tasks.map((task) => ({ ...task, due_date: null })),
+        'Requested due date saved and other tasks undated',
+      ],
+      [
+        tasks.map((task) => ({ ...task, title: 'Replaced' })),
+        'Existing task data preserved',
+      ],
+      [
+        tasks.map((task) => ({ ...task, created_at: '2026-11-02T00:00:00' })),
+        'Existing task data preserved',
+      ],
+      [
+        tasks.map((task) => ({ ...task, completed: 'false' })),
+        'Existing task data preserved',
+      ],
+      [tasks.slice(1), 'Existing task data preserved'],
+      [[], 'Existing task data preserved'],
+    ])
+      expect((await score({ tasks: changed })).result.checks).toContainEqual(
+        expect.objectContaining({ name, passed: false })
+      );
+  });
+});
+
 describe('hosted task scorer', () => {
   it('accepts the complete result and rejects an incorrect report', async () => {
     expect((await score()).result.passed).toBe(true);
@@ -136,12 +136,16 @@ describe('hosted task scorer', () => {
   it('records unreadable state and still judges the report', async () => {
     const { result, judge } = await score({ tableStatus: 404 });
     expect(result.passed).toBe(false);
-    expect(result.checks).toContainEqual(
-      expect.objectContaining({
-        name: 'Hosted task state readable',
-        passed: false,
-        notes: expect.any(String),
-      })
+    expect(result.checks?.map((check) => check.name)).toEqual([
+      'Nullable date column added',
+      'Existing task data preserved',
+      'Requested due date saved and other tasks undated',
+      'Open tasks reported in due-date order',
+    ]);
+    expect(result.checks?.slice(0, 3)).toEqual(
+      Array(3).fill(
+        expect.objectContaining({ passed: false, notes: expect.any(String) })
+      )
     );
     expect(judge).toHaveBeenCalledOnce();
   });
