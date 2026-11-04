@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  cadence,
   ciRunUrl,
   experimentName,
   judgeMetrics,
@@ -136,6 +137,25 @@ describe('ciRunUrl', () => {
     });
     vi.stubEnv('GITHUB_RUN_ID', '');
     expect(ciRunUrl()).toEqual({});
+  });
+});
+
+describe('cadence', () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('reports the dispatching schedule when set', () => {
+    vi.stubEnv('EVAL_CADENCE', ' weekly ');
+    expect(cadence()).toEqual({ cadence: 'weekly' });
+  });
+
+  it('is omitted when unset, empty, or whitespace', () => {
+    vi.stubEnv('EVAL_CADENCE', '');
+    expect(cadence()).toEqual({});
+    vi.stubEnv('EVAL_CADENCE', '  ');
+    expect(cadence()).toEqual({});
+    vi.unstubAllEnvs();
+    delete process.env.EVAL_CADENCE;
+    expect(cadence()).toEqual({});
   });
 });
 

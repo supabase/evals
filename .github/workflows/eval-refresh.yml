@@ -54,6 +54,11 @@ on:
         description: "Pin the cli suite's next CLI version instead of resolving npm's next dist-tag (blank to resolve)"
         required: false
         default: ""
+      cadence:
+        description: "Schedule that dispatched this run (daily or weekly); recorded on each Braintrust experiment"
+        type: string
+        required: false
+        default: ""
   schedule:
     - cron: '15 6 * * *'
   pull_request:
@@ -527,6 +532,7 @@ jobs:
         env:
           BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
           BRAINTRUST_PROJECT_ID: ${{ secrets.BRAINTRUST_PROJECT_ID }}
+          EVAL_CADENCE: ${{ inputs.cadence }}
         run: pnpm upload-braintrust --runs "${{ needs.prepare.outputs.runs }}"
 
       - name: Upload exported results

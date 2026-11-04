@@ -317,6 +317,11 @@ export function ciRunUrl() {
     : {};
 }
 
+export function cadence() {
+  const value = process.env.EVAL_CADENCE?.trim();
+  return value ? { cadence: value } : {};
+}
+
 async function collectRows(
   experimentMetadata: Map<string, ExperimentMetadata>
 ): Promise<Map<string, ExperimentGroup>> {
@@ -807,6 +812,7 @@ async function main() {
         ...(info?.branch ? { branch: info.branch } : {}),
         ...prUrl(),
         ...ciRunUrl(),
+        ...cadence(),
       },
     });
 
