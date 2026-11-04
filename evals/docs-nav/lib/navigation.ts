@@ -29,6 +29,7 @@ export interface NavTree {
 export type FetchTree = (url: string) => Promise<NavTree>;
 
 export interface Navigation {
+  group: string | null;
   variant: string | null;
   reached: boolean;
   maxHops: number | null;
@@ -210,11 +211,13 @@ export async function scoreDocsNav(
   {
     targets,
     controlTargets = [],
+    group = null,
     task,
     fetchTree,
   }: {
     targets: string[];
     controlTargets?: string[];
+    group?: string | null;
     task: string;
     fetchTree: FetchTree;
   }
@@ -243,6 +246,7 @@ export async function scoreDocsNav(
   const isReached =
     hopsToTarget !== null && maxHops !== null && hopsToTarget <= maxHops;
   const navigation: Navigation = {
+    group,
     variant,
     reached: isReached,
     maxHops,

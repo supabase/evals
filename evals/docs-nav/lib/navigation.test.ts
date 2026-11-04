@@ -170,6 +170,18 @@ describe('scoreDocsNav', () => {
     });
   });
 
+  it("records the case's group", async () => {
+    const result = await scoreDocsNav(context(pages('', SSO)), {
+      targets: [SSO],
+      group: 'set-aside',
+      task: TASK,
+      fetchTree: fakeTrees().fetchTree,
+    });
+    expect(JSON.parse(result.checks?.[0]?.notes ?? '')).toMatchObject({
+      group: 'set-aside',
+    });
+  });
+
   it('has no wrong turns when every page leads to the target', async () => {
     const navigation = await navigationOf(pages('', 'guides/platform', SSO));
     expect(navigation).toMatchObject({ wrongTurns: [], noWrongTurns: true });
