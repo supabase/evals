@@ -86,33 +86,4 @@ describe('createNavigator', () => {
       `${SITE}/docs/guides/auth.md${VARIANT}`,
     ]);
   });
-
-  it('lists only navigation links in nav-only mode', async () => {
-    const html = `
-      <nav data-docs-nav="sidebar">
-        <a href="/docs/guides/auth">Auth</a>
-        <nav><a href="/docs/guides/auth/sessions">Sessions</a></nav>
-      </nav>
-      <main><a href="/docs/guides/platform">Platform</a></main>
-      <noscript>
-        <nav data-docs-nav="top-nav-subheads">
-          <a href="/docs/guides/storage">Storage</a>
-        </nav>
-      </noscript>
-    `;
-    const site = fakeSite({ [`${SITE}/docs`]: { html } });
-    const navigator = createNavigator({
-      env: { DOCS_NAV_ONLY: '1' },
-      fetch: site.fetch,
-    });
-
-    const root = textOf(await navigator.openPage(`${SITE}/docs`));
-    const platform = await navigator.openPage(`${SITE}/docs/guides/platform`);
-
-    expect(root).toContain(`- Auth: ${SITE}/docs/guides/auth\n`);
-    expect(root).toContain(`- Sessions: ${SITE}/docs/guides/auth/sessions\n`);
-    expect(root).toContain(`- Storage: ${SITE}/docs/guides/storage`);
-    expect(root).not.toContain('- Platform:');
-    expect(platform.isError).toBe(true);
-  });
 });

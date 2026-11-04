@@ -9,31 +9,35 @@ import {
 
 export type DocsVariant = 'option-1';
 
-const NAVIGATOR_SOURCE = readFileSync(
-  new URL('./docs-navigator.mjs', import.meta.url),
-  'utf8'
-);
+const source = (file: string) =>
+  readFileSync(new URL(file, import.meta.url), 'utf8');
+
+const NAVIGATOR_SOURCE = source('./docs-navigator.mjs');
+const TREE_NAVIGATOR_SOURCE = source('./docs-tree-navigator.mjs');
 
 interface DocsNavOptions {
   variant?: DocsVariant;
-  navOnly?: boolean;
+  tree?: boolean;
 }
 
 function docsNavigatorMcpServer({
   variant,
-  navOnly,
+  tree,
 }: DocsNavOptions): McpServerDefinition {
   return {
-    name: 'docs-navigator',
+    name: tree ? 'docs-tree-navigator' : 'docs-navigator',
     async createConfig() {
       return {
         config: {
           command: 'node',
-          args: ['--input-type=module', '-e', NAVIGATOR_SOURCE],
+          args: [
+            '--input-type=module',
+            '-e',
+            tree ? TREE_NAVIGATOR_SOURCE : NAVIGATOR_SOURCE,
+          ],
           env: {
-            DOCS_NAVIGATOR_SERVE: '1',
+            [tree ? 'DOCS_TREE_NAVIGATOR_SERVE' : 'DOCS_NAVIGATOR_SERVE']: '1',
             ...(variant ? { DOCS_IA_VARIANT: variant } : {}),
-            ...(navOnly ? { DOCS_NAV_ONLY: '1' } : {}),
           },
         },
       };

@@ -28,30 +28,8 @@ function stripTags(html) {
     .trim();
 }
 
-function navRegions(html) {
-  const regions = [];
-  for (const open of html.matchAll(
-    /<([a-z][a-z0-9]*)\b[^>]*\bdata-docs-nav="[^"]*"[^>]*>/gi
-  )) {
-    const start = open.index + open[0].length;
-    const tags = new RegExp(`<(/?)${open[1]}\\b[^>]*>`, 'gi');
-    let depth = 1;
-    let end = html.length;
-    for (const match of html.slice(start).matchAll(tags)) {
-      depth += match[1] ? -1 : 1;
-      if (depth === 0) {
-        end = start + match.index;
-        break;
-      }
-    }
-    regions.push(html.slice(start, end));
-  }
-  return regions.join('\n');
-}
-
 export function createNavigator({ env, fetch }) {
   const variant = env.DOCS_IA_VARIANT;
-  const navOnly = env.DOCS_NAV_ONLY === '1';
   const root = `${SITE}/docs`;
   const allowed = new Set([root]);
 
@@ -121,7 +99,7 @@ export function createNavigator({ env, fetch }) {
     const pageUrl = canonicalUrl(res.url) ?? url;
     if (!res.ok) return `Could not open ${url}: HTTP ${res.status}`;
     const html = await res.text();
-    const links = linksOn(navOnly ? navRegions(html) : html, pageUrl);
+    const links = linksOn(html, pageUrl);
     allowed.add(pageUrl);
     for (const { href } of links) allowed.add(href);
     const content = await textOf(pageUrl, html);
@@ -133,7 +111,7 @@ export function createNavigator({ env, fetch }) {
       .slice(0, MAX_LINKS)
       .map(({ href, label }) => `- ${label || '(no label)'}: ${href}`)
       .join('\n');
-    return `Opened: ${requestUrl(pageUrl)}\n\n${body}\n\n${navOnly ? "Links in this page's navigation" : 'Links on this page'}, which you can open next:\n${list}`;
+    return `Opened: ${requestUrl(pageUrl)}\n\n${body}\n\nLinks on this page, which you can open next:\n${list}`;
   }
 
   async function openPage(url) {
