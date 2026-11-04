@@ -1,6 +1,55 @@
 import { execFileSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
-import { assertLocalMatchesInterface } from './run-eval.js';
+import { assertLocalMatchesInterface, failedRunResult } from './run-eval.js';
+
+describe('failedRunResult', () => {
+  it('records setup blockers without inventing agent execution', () => {
+    const result = failedRunResult(
+      { phase: 'setup' },
+      new Error('unsupported fixture'),
+      100
+    );
+    expect(result).toMatchObject({
+      passed: false,
+      failurePhase: 'setup',
+      error: 'unsupported fixture',
+      transcript: [],
+      agentRunDurationMs: 0,
+    });
+    expect(result.agentRunStartedAt).toBeUndefined();
+  });
+
+  it('keeps the agent trace when scoring fails', () => {
+    const transcript = [
+      { type: 'message', role: 'assistant', content: 'Done' },
+    ] satisfies import('@supabase-evals/core').TranscriptPart[];
+    const result = failedRunResult(
+      {
+        phase: 'scoring',
+        agentRun: {
+          agentReport: 'Done',
+          transcript,
+          toolCalls: [],
+          stoppedReason: 'stop',
+          durationMs: 20,
+          startedAt: 10,
+        },
+        agentRunEndedAt: 30,
+      },
+      new Error('to_regclass unsupported'),
+      40
+    );
+    expect(result).toMatchObject({
+      passed: false,
+      failurePhase: 'scoring',
+      agentReport: 'Done',
+      transcript,
+      agentRunStartedAt: 10,
+      agentRunEndedAt: 30,
+      scoringEndedAt: 40,
+    });
+  });
+});
 
 describe('assertLocalMatchesInterface', () => {
   it('throws when a local/ workspace is declared as interface: mcp', () => {
@@ -50,6 +99,8 @@ describe('smoke selection', () => {
     for (const suite of ['benchmark', 'regression', 'docs', 'cli']) {
       expect(all).toContain(`PLAN ${suite}/`);
     }
+    expect(all).not.toContain('PLAN spark/');
+    expect(plan('--suite', 'spark')).toContain('PLAN spark/');
     expect(all).toContain('PLAN cli/codex-gpt-6-luna-cli-absent x');
     expect(all).toContain('PLAN cli/codex-gpt-6-luna-cli-nodaemon x');
 

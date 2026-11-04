@@ -42,6 +42,7 @@ export type EvalTopic = z.infer<typeof evalTopicSchema>;
 
 export const evalSuiteSchema = z.enum([
   'benchmark',
+  'spark',
   'regression',
   'docs',
   'cli',

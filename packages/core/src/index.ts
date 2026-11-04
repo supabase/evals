@@ -100,6 +100,7 @@ export {
   docsPageSourceSchema,
 } from './eval-metadata.js';
 export { parseEvalMarkdown } from './eval-markdown.js';
+export { bootSparkBackend, sparkRuntime } from './spark-runtime.js';
 export { buildSkillResult } from './skill-results.js';
 export {
   buildDocsResult,
@@ -395,6 +396,8 @@ export interface LocalStackScoringContext {
    * hosted state like Edge Function secrets and deployments.
    */
   hostedMgmt?: ManagementApiClient;
+  /** Hosted project's Data API client. */
+  hostedClient?: SupabaseClient;
   /**
    * Run SQL directly against the hosted project's database, when the eval links
    * to platform-lite. Runs host-side in-process against the same PGlite the
@@ -565,6 +568,8 @@ export type LocalStackSessionArgs = {
 
 /** A mocked hosted project (platform-lite) the sandbox CLI is linked to. */
 export type HostedLink = {
+  /** Hosted Data API settings for sandboxed backend applications. */
+  dataApi?: LocalStackStatus;
   /** Port the platform-lite server is bound to (reached via host.docker.internal). */
   port: number;
   /** Postgres-wire port for DB CLI workflows (`db push`/`migration repair`), when
@@ -576,6 +581,8 @@ export type HostedLink = {
   accessToken: string;
   /** Management API client (host-side, in-process) for scorer assertions. */
   mgmt: ManagementApiClient;
+  /** Data API client held by the scorer, outside the agent sandbox. */
+  client?: SupabaseClient;
   /** Run SQL directly against the hosted project's database (host-side, in-process
    * — same PGlite the wire endpoint serves). Ground truth for scorer assertions,
    * without the Management API round-trip. */
@@ -642,6 +649,8 @@ export type ExperimentConfig = {
   runtime: EvalRuntime;
   /** Local-stack environment (e.g. localStackRuntime() from @supabase-evals/sandbox). */
   localStack?: LocalStackRuntime;
+  /** Hosted project provider for CLI evals; defaults to platform-lite. */
+  hostedBackend?: typeof bootPlatformBackend;
   skills: string[];
   /**
    * Skip running specific evals against this experiment, e.g. a `*-no-skills`
@@ -1386,6 +1395,7 @@ export const MCP_SERVER_VERSION = '0.15.0';
 const THROWAWAY_ACCESS_TOKEN = `sbp_${'0'.repeat(40)}`;
 
 export interface PlatformBackend {
+  dataApi?: LocalStackStatus;
   url: string;
   ref: string;
   accessToken: string;

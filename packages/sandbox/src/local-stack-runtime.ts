@@ -882,6 +882,7 @@ export function buildLocalStackScoringContext(
     },
     hostedRef: hosted?.ref,
     hostedMgmt: hosted?.mgmt,
+    hostedClient: hosted?.client,
     hostedQuery: hosted?.query,
     invokeHostedFunction: hosted?.invokeFunction,
   };
