@@ -107,7 +107,11 @@ Both can be combined — they merge.
 
 ## Auth
 
-If `accessToken` is set (via the option or `ACCESS_TOKEN` env var), every request must supply a matching `Authorization: Bearer <token>` header. If unset, auth is skipped entirely.
+If `accessToken` is set (via the option or `ACCESS_TOKEN` env var), every request must supply a matching `Authorization: Bearer <token>` header. If unset, auth is skipped entirely. The feedback project is exempt.
+
+## Feedback project
+
+`/feedback` serves the Data API of a lite project with the hosted feedback schema, the backend of the MCP `submit_feedback` and `delete_feedback` tools. It boots on first request and is not listed among the platform's projects. The eval harness redirects the MCP server's feedback calls here with a `NODE_OPTIONS` preload.
 
 ## Environment variables (standalone server)
 
