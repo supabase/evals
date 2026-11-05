@@ -56,7 +56,7 @@ You have a few options to run evals in CI:
 
 - Add the `run-evals-changed` label to your PR to refresh only the `evals/` changed in that PR and commit merged results directly to your branch.
 - Add the `run-evals` label to run every benchmark eval across the experiments in `experiments/benchmark/`. Use this when a change can affect results broadly, such as framework changes.
-- Dispatch the [Refresh eval results](https://github.com/supabase/evals/actions/workflows/eval-refresh.yml) workflow manually to target any branch and choose specific evals, experiments, or other options. It can commit results directly to the selected branch or open a separate results PR.
+- Dispatch the [Refresh eval results](https://github.com/supabase/evals/actions/workflows/eval-refresh.yml) workflow manually to target any branch and choose specific evals, experiments, or other options. Set `commit_results` to `current-branch`, `results-pr`, or `none` to choose where to commit the results JSON.
 
 Include refreshed results for PRs with new/changed evals so a reviewer can inspect them in Braintrust.
 
@@ -114,7 +114,7 @@ Common workflows:
 - **Add or change a CLI eval.** Add the scenario under `evals/cli/<id>/` (see [Adding an eval](#adding-an-eval)); set `needsDocker: false` in its `PROMPT.md` frontmatter if it can run without Docker, open a PR, and add the `run-evals-changed` label. Results for the changed evals are committed back to your branch and viewable in the Vercel preview.
 - **Refresh every CLI eval.** Dispatch the [Refresh eval results](https://github.com/supabase/evals/actions/workflows/eval-refresh.yml) workflow on `main` with `suite: cli`. It opens a draft PR with the updated `cli-eval-results.json` for you to review and merge. Leave `cli_stable_version`/`cli_beta_version`/`cli_next_version` blank to resolve npm's latest dist-tags, or pin them to reproduce a specific run.
 - **Analyze results over time.** Every merge that changes `cli-eval-results.json` appends a snapshot to [`cli-results.jsonl`](https://supabase.github.io/evals/cli-results.jsonl) on GitHub Pages, alongside the [benchmark](https://supabase.github.io/evals/results.jsonl), [regression](https://supabase.github.io/evals/regression-results.jsonl), and [docs](https://supabase.github.io/evals/docs-results.jsonl) histories.
-- **Scheduled runs.** The CLI team's schedule dispatches [Refresh eval results](https://github.com/supabase/evals/actions/workflows/eval-refresh.yml) with `suite: cli` and `results_pr: false`, so its results go to the Evals project in Braintrust only, tagged `cadence: daily|weekly`, and don't update `cli-eval-results.json`.
+- **Scheduled runs.** The CLI team's schedule calls [Refresh eval results](https://github.com/supabase/evals/actions/workflows/eval-refresh.yml). Results go to Braintrust with `cadence` set to `daily` or `weekly`.
   - Daily, 04:20 UTC: the six `codex-gpt-6-luna-cli-*` arms.
   - Weekly, Monday 01:20 UTC: the ten-arm matrix (five models on stable and next).
   - Edit the cadence and experiment lists in `.github/workflows/cli-eval-schedule.yml`.

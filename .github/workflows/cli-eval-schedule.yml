@@ -1,11 +1,8 @@
-# The CLI team owns this cadence and reuses eval-refresh's run and publish pipeline.
-# Results go to Braintrust only; no cli-eval-results.json PR is opened.
 name: CLI eval schedule
 
 on:
   schedule:
     - cron: '20 4 * * *'
-    # CADENCE below picks the weekly list by matching this string.
     - cron: '20 1 * * 1'
   workflow_dispatch:
     inputs:
@@ -18,59 +15,45 @@ on:
         default: daily
 
 permissions:
-  actions: write
-
-env:
-  DAILY_EXPERIMENTS: >-
-    codex-gpt-6-luna-cli-pinned,
-    codex-gpt-6-luna-cli-stable,
-    codex-gpt-6-luna-cli-beta,
-    codex-gpt-6-luna-cli-next,
-    codex-gpt-6-luna-cli-nodaemon,
-    codex-gpt-6-luna-cli-absent
-  WEEKLY_EXPERIMENTS: >-
-    claude-code-sonnet-5.5-cli-stable,
-    claude-code-sonnet-5.5-cli-next,
-    claude-code-opus-5.5-cli-stable,
-    claude-code-opus-5.5-cli-next,
-    codex-gpt-6.1-sol-cli-stable,
-    codex-gpt-6.1-sol-cli-next,
-    codex-gpt-6-luna-cli-stable,
-    codex-gpt-6-luna-cli-next,
-    opencode-kimi-k3-cli-stable,
-    opencode-kimi-k3-cli-next
+  contents: write
+  pull-requests: write
+  actions: read
 
 jobs:
-  dispatch:
-    runs-on: ubuntu-26.04
-    timeout-minutes: 5
-    steps:
-      - name: Dispatch eval-refresh
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          CADENCE: ${{ github.event_name == 'workflow_dispatch' && inputs.cadence || github.event.schedule == '20 1 * * 1' && 'weekly' || 'daily' }}
-        shell: bash
-        run: |
-          set -euo pipefail
+  daily:
+    if: github.event.schedule == '20 4 * * *' || (github.event_name == 'workflow_dispatch' && inputs.cadence == 'daily')
+    uses: ./.github/workflows/eval-refresh.yml
+    secrets: inherit
+    with:
+      suite: cli
+      merge: false
+      cadence: daily
+      commit_results: none
+      experiments: >-
+        codex-gpt-6-luna-cli-pinned,
+        codex-gpt-6-luna-cli-stable,
+        codex-gpt-6-luna-cli-beta,
+        codex-gpt-6-luna-cli-next,
+        codex-gpt-6-luna-cli-nodaemon,
+        codex-gpt-6-luna-cli-absent
 
-          case "$CADENCE" in
-            daily) experiments="$DAILY_EXPERIMENTS" ;;
-            weekly) experiments="$WEEKLY_EXPERIMENTS" ;;
-            *)
-              echo "::error::Unknown cadence: $CADENCE"
-              exit 1
-              ;;
-          esac
-
-          gh workflow run eval-refresh.yml \
-            --ref "$GITHUB_REF_NAME" \
-            -f suite=cli \
-            -f cadence="$CADENCE" \
-            -f experiments="$experiments" \
-            -f runs=3 \
-            -f timeout_sec=720 \
-            -f sandbox_concurrency=250 \
-            -f results_pr=false
-
-          echo "Dispatched eval-refresh for the $CADENCE cadence: $experiments" >> "$GITHUB_STEP_SUMMARY"
+  weekly:
+    if: github.event.schedule == '20 1 * * 1' || (github.event_name == 'workflow_dispatch' && inputs.cadence == 'weekly')
+    uses: ./.github/workflows/eval-refresh.yml
+    secrets: inherit
+    with:
+      suite: cli
+      merge: false
+      cadence: weekly
+      commit_results: none
+      experiments: >-
+        claude-code-sonnet-5.5-cli-stable,
+        claude-code-sonnet-5.5-cli-next,
+        claude-code-opus-5.5-cli-stable,
+        claude-code-opus-5.5-cli-next,
+        codex-gpt-6.1-sol-cli-stable,
+        codex-gpt-6.1-sol-cli-next,
+        codex-gpt-6-luna-cli-stable,
+        codex-gpt-6-luna-cli-next,
+        opencode-kimi-k3-cli-stable,
+        opencode-kimi-k3-cli-next
