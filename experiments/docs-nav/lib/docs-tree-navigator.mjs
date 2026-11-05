@@ -41,7 +41,7 @@ function kind(node) {
   return '';
 }
 
-export function createTreeSession(tree, url) {
+export function createTreeSession(tree, url, { topLevels = 1 } = {}) {
   const visible = new Set([ROOT]);
   let chosen = null;
 
@@ -64,14 +64,22 @@ export function createTreeSession(tree, url) {
         `${node.label} is a page, not a section. Choose it with ${CHOOSE_TOOL} if it's where you'd find the answer.`
       );
     }
-    node.children.forEach((_, index) => {
-      visible.add(childId(id, index));
-    });
+    const peek = id === ROOT && topLevels >= 2;
+    const line = (child, childKey, indent) =>
+      `${indent}- [${childKey}] ${child.label}${kind(child)}${child.description ? `\n${indent}  ${child.description}` : ''}`;
     const items = node.children
-      .map(
-        (child, index) =>
-          `- [${childId(id, index)}] ${child.label}${kind(child)}${child.description ? `\n  ${child.description}` : ''}`
-      )
+      .flatMap((child, index) => {
+        const key = childId(id, index);
+        visible.add(key);
+        const below = peek
+          ? (child.children ?? []).map((grandchild, inner) => {
+              const innerKey = childId(key, inner);
+              visible.add(innerKey);
+              return line(grandchild, innerKey, '  ');
+            })
+          : [];
+        return [line(child, key, ''), ...below];
+      })
       .join('\n');
     return {
       text: [
@@ -138,7 +146,11 @@ function serve() {
       if (!res.ok) throw new Error(`Couldn't load ${url}: HTTP ${res.status}`);
       return res.json();
     })
-    .then((tree) => createTreeSession(tree, url));
+    .then((tree) =>
+      createTreeSession(tree, url, {
+        topLevels: Number(process.env.DOCS_TREE_TOP_LEVELS ?? 1),
+      })
+    );
   const send = (message) =>
     process.stdout.write(`${JSON.stringify(message)}\n`);
   const reply = ({ isError, text }) => ({

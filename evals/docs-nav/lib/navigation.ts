@@ -248,10 +248,9 @@ function treePrefixes(id: string): string[] {
   return parts.map((_, index) => parts.slice(0, index + 1).join('.'));
 }
 
-function isTreeChild(id: string, parent: string): boolean {
-  if (parent === TREE_ROOT) return id !== TREE_ROOT && !id.includes('.');
-  const rest = id.startsWith(`${parent}.`) ? id.slice(parent.length + 1) : '';
-  return rest !== '' && !rest.includes('.');
+function isTreeDescendant(id: string, parent: string): boolean {
+  if (parent === TREE_ROOT) return id !== TREE_ROOT;
+  return id.startsWith(`${parent}.`);
 }
 
 function isTreeCall(call: ToolCallRecord): boolean {
@@ -311,7 +310,7 @@ async function scoreTreeRun(
     }
     opened.push(label(id));
     const isStart = current === null && id === TREE_ROOT;
-    if (!isStart && (!onPath.has(id) || !isTreeChild(id, current ?? ''))) {
+    if (!isStart && (!onPath.has(id) || !isTreeDescendant(id, current ?? ''))) {
       wrongTurns.push(label(id));
     }
     current = id;
