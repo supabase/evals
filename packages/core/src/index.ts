@@ -1415,7 +1415,7 @@ async function getAvailablePort(): Promise<number> {
 }
 
 export const ACCESS_TOKEN = 'eval-token';
-export const MCP_SERVER_VERSION = '0.15.0';
+export const MCP_SERVER_VERSION = '0.16.0';
 // Well-formed but inert PAT used when a Supabase MCP server is docs-only: the
 // server requires a token to boot but never authenticates without a platform.
 const THROWAWAY_ACCESS_TOKEN = `sbp_${'0'.repeat(40)}`;
