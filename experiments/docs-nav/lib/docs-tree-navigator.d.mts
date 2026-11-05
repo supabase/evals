@@ -20,7 +20,8 @@ export declare function treeUrl(
 
 export declare function createTreeSession(
   tree: { name: string; root: TreeNode },
-  url: string
+  url: string,
+  options?: { topLevels?: number }
 ): {
   open(id: unknown): TreeReply;
   choose(id: unknown): TreeReply;

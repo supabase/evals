@@ -480,6 +480,15 @@ describe('scoreDocsNav on a tree test', () => {
     });
   });
 
+  it('allows opening a second-level section straight from the top', async () => {
+    const { navigation } = await treeNavigationOf([
+      openSection('root'),
+      openSection('2.1'),
+      choosePage('2.1.1'),
+    ]);
+    expect(navigation).toMatchObject({ reached: true, noWrongTurns: true });
+  });
+
   it('counts going back up the path as a wrong turn', async () => {
     const { navigation } = await treeNavigationOf([
       openSection('root'),
