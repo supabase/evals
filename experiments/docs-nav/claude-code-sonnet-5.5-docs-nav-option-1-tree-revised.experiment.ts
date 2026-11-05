@@ -1,0 +1,8 @@
+import { docsNavExperiment } from './lib/docs-nav-experiment.js';
+
+export default docsNavExperiment({
+  variant: 'option-1',
+  tree: true,
+  origin:
+    'https://docs-git-docs-ia-option-1-placement-revisions-supabase.vercel.app',
+});

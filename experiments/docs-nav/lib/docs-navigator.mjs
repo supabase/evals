@@ -29,8 +29,9 @@ function stripTags(html) {
 }
 
 export function createNavigator({ env, fetch }) {
+  const origin = env.DOCS_ORIGIN?.replace(/\/+$/, '') ?? SITE;
   const variant = env.DOCS_IA_VARIANT;
-  const root = `${SITE}/docs`;
+  const root = `${origin}/docs`;
   const allowed = new Set([root]);
 
   function canonicalUrl(url, base) {
@@ -40,10 +41,11 @@ export function createNavigator({ env, fetch }) {
     } catch {
       return null;
     }
-    if (parsed.origin !== SITE) return null;
+    if (parsed.origin !== SITE && parsed.origin !== origin) return null;
     const path = parsed.pathname.replace(/\.md$/, '').replace(/\/+$/, '');
     if (ASSET_PATTERN.test(path)) return null;
-    return `${SITE}${path}`;
+    const isDocs = path === '/docs' || path.startsWith('/docs/');
+    return `${isDocs ? origin : SITE}${path}`;
   }
 
   function requestUrl(url) {
