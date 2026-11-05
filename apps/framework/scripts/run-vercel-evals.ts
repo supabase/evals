@@ -54,6 +54,13 @@ export const BROKERED_KEYS: {
     headers: (key) => ({ authorization: `Bearer ${key}` }),
   },
   {
+    // Muse Code sends every request with the key here: model catalog,
+    // inference, and its server-side web search.
+    name: 'META_API_KEY',
+    domain: 'api.meta.ai',
+    headers: (key) => ({ authorization: `Bearer ${key}` }),
+  },
+  {
     name: 'AI_GATEWAY_API_KEY',
     domain: 'ai-gateway.vercel.sh',
     headers: (key) => ({ authorization: `Bearer ${key}` }),

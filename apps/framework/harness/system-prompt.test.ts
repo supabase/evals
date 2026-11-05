@@ -11,6 +11,7 @@ const CLI_AGENTS: AgentHarnessId[] = [
   'claude-code',
   'codex',
   'grok',
+  'muse',
   'opencode',
 ];
 
