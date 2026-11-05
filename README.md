@@ -29,9 +29,9 @@ Agent-backed runs require the relevant provider key in `.env` (e.g. `OPENAI_API_
 
 - An **eval** is one scenario under `evals/<suite>/<id>/`. It contains the prompt, scorer, and optional starting state for the two environments: `remote/` (the hosted project) and `local/` (the agent's working files).
 - An **experiment** is one agent/runtime/model setup under `experiments/<suite>/<name>.experiment.ts`. Its ID remains `<name>`.
-- A **suite** is a named set of evals and the experiments that run them. Each suite gets a folder under `evals/` and `experiments/`. Experiments used in several suites can use a shared preset from `experiments/presets.ts`. The suites are `benchmark`, `regression`, `docs`, and `cli`.
+- A **suite** is a named set of evals and the experiments that run them. Each suite gets a folder under `evals/` and `experiments/`. Experiments used in several suites can use a shared preset from `experiments/presets.ts`. The suites are defined in `packages/core/src/eval-metadata.ts`.
 - An **agent** is the model driver that receives the eval prompt and calls the configured tools.
-- A **runtime** is the local Supabase-like environment and tool surface an experiment gives to the agent.
+- A **runtime** is the local or hosted environment and tool surface an experiment gives to the agent.
 - `platform-lite` exposes a Supabase Management API-compatible HTTP surface backed by [`@supabase/lite`](https://github.com/supabase/supabase-lite), so real tools like `@supabase/mcp-server-supabase` can run against a lightweight project.
 
 ## Running evals
@@ -119,7 +119,7 @@ There are two runtimes, chosen automatically per eval:
 - **Tools evals** run the agent against the experiment's MCP/tool surface (no `local/` directory, no `interface: cli`), then score the resulting project state or report.
 - **Local-stack evals** run the agent inside a Docker sandbox — a `bash` tool plus file tools with the real Supabase CLI installed — so it can run `supabase init/start/db/test` against a real local stack. An eval uses this runtime when it ships a `local/` workspace **or** declares `interface: cli` (the latter covers bootstrap scenarios that start from an empty workspace).
 
-`interface` (`mcp` | `cli`) is otherwise a benchmark dimension (a cross-team KPI label), not the runtime switch — the `local/` directory and `interface: cli` are what decide whether a sandbox boots.
+`interface` (`mcp` | `cli` | `rest`) is otherwise a benchmark dimension (a cross-team KPI label), not the runtime switch — the `local/` directory and `interface: cli` are what decide whether a sandbox boots.
 
 ### Local-stack evals
 

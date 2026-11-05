@@ -961,6 +961,8 @@ export type EvalSessionArgs = {
 
 export type EvalSession = {
   mcpServers: Record<string, McpServerConfig>;
+  /** Connection settings available to every process in the agent sandbox. */
+  env?: Record<string, string>;
   /**
    * Text for the agent's system prompt, joined from the MCP servers'
    * `promptAddendum`s. Must be empty for a CLI agent, which runs with its own

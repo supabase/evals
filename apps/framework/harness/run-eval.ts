@@ -520,22 +520,21 @@ async function runOne(
     };
   }
 
-  // Tools mode: a CLI agent gets a bare sandbox reaching platform-lite via
-  // host.docker.internal. An in-process agent runs host-side with no sandbox.
-  await using cliSandbox = agentRunsInSandbox
-    ? disposable(
-        await createBareSandbox({
-          skills: skillSources,
-          mounts: supabaseMcpServerMounts(),
-        })
-      )
-    : undefined;
   await using session = disposable(
     await exp.runtime.startSession({
       ...readSessionSeedArgs(ev),
       hostname: agentRunsInSandbox ? '0.0.0.0' : undefined,
     })
   );
+  await using cliSandbox = agentRunsInSandbox
+    ? disposable(
+        await createBareSandbox({
+          env: session.env,
+          skills: skillSources,
+          mounts: supabaseMcpServerMounts(),
+        })
+      )
+    : undefined;
 
   // A CLI agent discovers its installed skills itself. An in-process agent has
   // no filesystem, so its skills are advertised in the prompt and pulled on

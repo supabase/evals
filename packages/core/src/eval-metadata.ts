@@ -46,6 +46,7 @@ export const evalSuiteSchema = z.enum([
   'docs',
   'cli',
   'docs-nav',
+  'spark',
 ]);
 export const EVAL_SUITES = evalSuiteSchema.options;
 export type EvalSuite = z.infer<typeof evalSuiteSchema>;
@@ -90,6 +91,7 @@ export type ExperimentDisplayMetadata = z.infer<
  * Interface(s) the agent uses to act on Supabase — a benchmark dimension
  * (cross-team KPI), not the runtime switch. `mcp` = the platform-lite MCP/tool
  * surface; `cli` = the real Supabase CLI inside a local-stack Docker sandbox.
+ * `rest` = direct HTTP access to the hosted API.
  * Required on every scenario, so each one is categorized on this dimension
  * rather than silently exported without a value.
  *
@@ -98,7 +100,7 @@ export type ExperimentDisplayMetadata = z.infer<
  * tools runtime. `interface: cli` additionally forces a sandbox for scenarios
  * that start from an empty workspace (no `local/`).
  */
-export const evalInterfaceSchema = z.enum(['mcp', 'cli']);
+export const evalInterfaceSchema = z.enum(['mcp', 'cli', 'rest']);
 export const EVAL_INTERFACES = evalInterfaceSchema.options;
 export type EvalInterface = z.infer<typeof evalInterfaceSchema>;
 // Matches VERSION_RE in packages/sandbox/src/cli-channel.ts, so a resolved
