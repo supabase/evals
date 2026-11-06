@@ -1,0 +1,50 @@
+import { Sandbox } from '@vercel/sandbox';
+
+const sandbox = await Sandbox.create({
+  token: process.env.VERCEL_TOKEN,
+  teamId: process.env.VERCEL_TEAM_ID,
+  projectId: process.env.VERCEL_PROJECT_ID,
+  image: 'vercel/sandbox/node:24',
+  timeout: 600000,
+  persistent: false,
+  networkPolicy: { allow: { '*': [] } },
+});
+async function run(step, command, timeoutMs = 120000) {
+  const result = await sandbox.runCommand({ cmd: 'bash', args: ['-c', command], sudo: true, timeoutMs });
+  if (result.exitCode !== 0) throw new Error(`${step} failed (exit ${result.exitCode})`);
+}
+try {
+  await run('install WARP', `set -eu
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -qq
+apt-get install -y -qq --no-install-recommends curl gpg dbus >/dev/null 2>&1
+curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | gpg --dearmor -o /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+. /etc/os-release
+echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $VERSION_CODENAME main" >/etc/apt/sources.list.d/cloudflare-client.list
+apt-get update -qq
+apt-get install -y -qq --no-install-recommends cloudflare-warp >/dev/null 2>&1
+mkdir -p /run/dbus
+dbus-daemon --system --fork`, 300000);
+  await sandbox.runCommand({ cmd: '/usr/bin/warp-svc', sudo: true, detached: true });
+  await run('start WARP', 'for i in $(seq 1 30); do warp-cli --accept-tos status >/dev/null 2>&1 && exit 0; sleep 1; done; exit 1');
+  await run('start enrollment', 'timeout 20 warp-cli --accept-tos registration new supabase >/dev/null 2>&1 || true');
+  const response = await fetch('https://supabase.cloudflareaccess.com/warp', {
+    headers: { 'CF-Access-Client-Id': process.env.CLOUDFLARE_WARP_CLIENT_ID, 'CF-Access-Client-Secret': process.env.CLOUDFLARE_WARP_CLIENT_SECRET },
+    redirect: 'manual',
+  });
+  const location = response.headers.get('location');
+  if (!location?.startsWith('com.cloudflare.warp://') || !new URL(location).searchParams.has('token')) throw new Error(`No enrollment token (HTTP ${response.status})`);
+  await sandbox.writeFiles([{ path: '.warp-enrollment', content: Buffer.from(location), mode: 0o600 }]);
+  await run('complete enrollment', `warp-cli --accept-tos registration token "$(cat /vercel/sandbox/.warp-enrollment)" >/dev/null 2>&1; code=$?; rm -f /vercel/sandbox/.warp-enrollment; exit "$code"`);
+  await run('connect WARP', `warp-cli --accept-tos connect >/dev/null 2>&1
+for i in $(seq 1 60); do warp-cli --accept-tos status 2>/dev/null | grep -q Connected && exit 0; sleep 2; done
+exit 1`, 150000);
+  const sparkUrl = new URL('/v1/projects', process.env.SPARK_API_URL).toString();
+  const check = await sandbox.runCommand({ cmd: 'curl', args: ['-sS', '--connect-timeout', '10', '--max-time', '20', '-o', '/dev/null', '-w', '%{http_code}', sparkUrl] });
+  const status = await check.stdout();
+  if (check.exitCode !== 0 || !['200', '404', '405'].includes(status)) throw new Error(`Spark connectivity failed (HTTP ${status})`);
+  console.log(`WARP connected and Spark API returned HTTP ${status}`);
+} finally {
+  await sandbox.runCommand({ cmd: 'bash', args: ['-c', 'rm -f /vercel/sandbox/.warp-enrollment; warp-cli --accept-tos disconnect >/dev/null 2>&1 || true; warp-cli --accept-tos registration delete >/dev/null 2>&1 || true'], sudo: true, timeoutMs: 30000 }).catch(() => {});
+  await sandbox.stop();
+}
