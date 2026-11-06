@@ -12,7 +12,7 @@ const sandbox = await Sandbox.create({
 async function run(step, command, timeoutMs = 120000) {
   const result = await sandbox.runCommand({ cmd: 'bash', args: ['-c', command], sudo: true, timeoutMs });
   if (result.exitCode !== 0) {
-    if (step === 'complete enrollment') console.log(await result.stdout());
+    if (step === 'complete enrollment' || step === 'connect WARP') console.log(await result.stdout());
     throw new Error(`${step} failed (exit ${result.exitCode})`);
   }
 }
@@ -49,6 +49,11 @@ rm -f /tmp/warp-result
 exit "$code"`);
   await run('connect WARP', `warp-cli --accept-tos connect >/dev/null 2>&1
 for i in $(seq 1 60); do warp-cli --accept-tos status 2>/dev/null | grep -q Connected && exit 0; sleep 2; done
+warp-cli --accept-tos registration show >/dev/null 2>&1 && echo 'Registration present' || echo 'Registration missing'
+warp-cli --accept-tos status >/tmp/warp-status 2>&1
+for phrase in 'Disconnected' 'Connecting' 'Unable' 'Registration Missing' 'Network' 'Authentication' 'DNS' 'Tunnel'; do
+  if grep -qi "$phrase" /tmp/warp-status; then echo "Status contains: $phrase"; fi
+done
 exit 1`, 150000);
   const sparkUrl = new URL('/v1/projects', process.env.SPARK_API_URL).toString();
   const check = await sandbox.runCommand({ cmd: 'curl', args: ['-sS', '--connect-timeout', '10', '--max-time', '20', '-o', '/dev/null', '-w', '%{http_code}', sparkUrl] });
