@@ -3,6 +3,11 @@ name: Refresh eval results
 on:
   workflow_dispatch:
     inputs:
+      warp_probe:
+        description: "Probe WARP service-token enrollment"
+        type: boolean
+        required: false
+        default: false
       experiments:
         description: "Comma-separated experiment names to run within each selected eval suite"
         required: false
@@ -69,10 +74,33 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  warp-enrollment-probe:
+    if: github.event_name == 'workflow_dispatch' && inputs.warp_probe
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Check enrollment response
+        env:
+          WARP_ID: ${{ secrets.CLOUDFLARE_WARP_CLIENT_ID }}
+          WARP_SECRET: ${{ secrets.CLOUDFLARE_WARP_CLIENT_SECRET }}
+        run: |
+          node <<'NODE'
+          (async () => {
+            if (!process.env.WARP_ID || !process.env.WARP_SECRET) throw new Error('Missing WARP credentials');
+            const response = await fetch('https://supabase.cloudflareaccess.com/warp', {
+              headers: { 'CF-Access-Client-Id': process.env.WARP_ID, 'CF-Access-Client-Secret': process.env.WARP_SECRET },
+              redirect: 'manual',
+            });
+            const location = response.headers.get('location');
+            const hasToken = location ? new URL(location).searchParams.has('token') : false;
+            console.log(`Enrollment HTTP status: ${response.status}; redirect contains token: ${hasToken}`);
+            if (!hasToken) process.exitCode = 1;
+          })().catch(() => { console.error('Enrollment request failed'); process.exitCode = 1; });
+          NODE
+
   prepare:
     # 291952723 is supabase-evals-releaser[bot], which pushes the results commit.
     if: >-
-      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_dispatch' && !inputs.warp_probe) ||
       github.event_name == 'schedule' ||
       (github.event_name == 'pull_request' &&
         github.event.sender.id != 291952723 &&
@@ -299,6 +327,7 @@ jobs:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      SPARK_API_URL: ${{ vars.SPARK_API_URL }}
       SUPABASE_CLI_STABLE_VERSION: ${{ needs.prepare.outputs.cli_stable_version }}
       SUPABASE_CLI_BETA_VERSION: ${{ needs.prepare.outputs.cli_beta_version }}
       SUPABASE_CLI_NEXT_VERSION: ${{ needs.prepare.outputs.cli_next_version }}
@@ -330,6 +359,7 @@ jobs:
             echo "OPENAI_API_KEY=${OPENAI_API_KEY}"
             echo "AI_GATEWAY_API_KEY=${AI_GATEWAY_API_KEY}"
             echo "XAI_API_KEY=${XAI_API_KEY}"
+            echo "SPARK_API_URL=${SPARK_API_URL}"
             echo "SUPABASE_CLI_STABLE_VERSION=${SUPABASE_CLI_STABLE_VERSION}"
             echo "SUPABASE_CLI_BETA_VERSION=${SUPABASE_CLI_BETA_VERSION}"
             echo "SUPABASE_CLI_NEXT_VERSION=${SUPABASE_CLI_NEXT_VERSION}"
