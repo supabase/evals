@@ -20,6 +20,7 @@ import {
   type DockerSandbox,
   assertAgentResolves,
   envArgs,
+  isOrphanedSandbox,
   proxyCaArgs,
 } from '../src/docker-sandbox.js';
 import {
@@ -32,6 +33,7 @@ import {
   frontmatterDescription,
   installSkills,
 } from '../src/skills.js';
+import { parseProjectIds, planStackClaim } from '../src/stack-ownership.js';
 import { ALL_SUPABASE_SERVICES } from '../src/types.js';
 
 describe('sandbox Dockerfile', () => {
@@ -506,6 +508,133 @@ describe('startSupabaseProject retries', () => {
     // boot timeout again, so it fails after the very first attempt with no
     // stop/retry in between.
     expect(commands).toEqual(['supabase start']);
+  });
+});
+
+describe('parseProjectIds', () => {
+  const workdir = '/tmp/sandbox-1a2b3c4d';
+
+  it("reads each config's project_id, either quote style", () => {
+    const listing = [
+      './supabase/config.toml\tproject_id = "orders-app"',
+      "./legacy-import/supabase/config.toml\t  project_id='legacy-import'",
+      '',
+    ].join('\n');
+    expect(parseProjectIds(listing, workdir)).toEqual([
+      'orders-app',
+      'legacy-import',
+    ]);
+  });
+
+  it("falls back to the project directory's basename, like the CLI", () => {
+    const listing = [
+      './supabase/config.toml\t',
+      './services/billing/supabase/config.toml\t',
+    ].join('\n');
+    expect(parseProjectIds(listing, workdir)).toEqual([
+      'sandbox-1a2b3c4d',
+      'billing',
+    ]);
+  });
+
+  it('dedupes ids shared by several configs', () => {
+    const listing = [
+      './a/supabase/config.toml\tproject_id = "shop-app"',
+      './b/supabase/config.toml\tproject_id = "shop-app"',
+    ].join('\n');
+    expect(parseProjectIds(listing, workdir)).toEqual(['shop-app']);
+  });
+
+  it('uses $SUPABASE_PROJECT_ID instead, which overrides config.toml', () => {
+    const listing = './supabase/config.toml\tproject_id = "orders-app"';
+    expect(parseProjectIds(listing, workdir, 'evalshostedprojectxy')).toEqual([
+      'evalshostedprojectxy',
+    ]);
+  });
+
+  it('finds nothing without a config, even with the override set', () => {
+    expect(parseProjectIds('', workdir, 'evalshostedprojectxy')).toEqual([]);
+  });
+});
+
+describe('isOrphanedSandbox', () => {
+  const now = Date.parse('2026-10-30T12:00:00Z');
+  const minutesAgo = (minutes: number) => now - minutes * 60_000;
+  const alive = new Set([4242]);
+  const isPidAlive = (pid: number) => alive.has(pid);
+  const orphaned = (owner: string, createdMs = minutesAgo(5)) =>
+    isOrphanedSandbox(
+      { id: 'c1', owner, createdMs },
+      now,
+      isPidAlive,
+      'dev-laptop'
+    );
+
+  it("keeps a sandbox whose owning process on this host is alive (another run's)", () => {
+    expect(orphaned('dev-laptop:4242')).toBe(false);
+  });
+
+  it('removes a sandbox whose owning process on this host is gone', () => {
+    expect(orphaned('dev-laptop:9999')).toBe(true);
+  });
+
+  it("keeps a recent sandbox whose owner it can't check", () => {
+    expect(orphaned('ci-runner:9999')).toBe(false);
+    // Created before the owner label existed.
+    expect(orphaned('')).toBe(false);
+  });
+
+  it('removes any sandbox older than a session can run', () => {
+    expect(orphaned('dev-laptop:4242', minutesAgo(7 * 60))).toBe(true);
+    expect(orphaned('', minutesAgo(7 * 60))).toBe(true);
+  });
+
+  it('reads the pid after the last colon, so hostnames may contain colons', () => {
+    expect(
+      isOrphanedSandbox(
+        { id: 'c1', owner: 'fe80::1:4242', createdMs: minutesAgo(5) },
+        now,
+        isPidAlive,
+        'fe80::1'
+      )
+    ).toBe(false);
+  });
+});
+
+describe('planStackClaim', () => {
+  const ledger = new Set(['orders-app']);
+  const isHarnessOwned = (id: string) => ledger.has(id);
+
+  it('needs nothing for ids with no resources on the daemon', () => {
+    expect(
+      planStackClaim(['notes-app'], new Set(['other']), isHarnessOwned)
+    ).toEqual({ remove: [], conflicts: [] });
+  });
+
+  it('removes leftovers the ledger records as harness-owned', () => {
+    expect(
+      planStackClaim(['orders-app'], new Set(['orders-app']), isHarnessOwned)
+    ).toEqual({ remove: ['orders-app'], conflicts: [] });
+  });
+
+  it('removes leftovers of sandbox- ids, which are eval-owned by construction', () => {
+    expect(
+      planStackClaim(
+        ['sandbox-1a2b3c4d'],
+        new Set(['sandbox-1a2b3c4d']),
+        isHarnessOwned
+      )
+    ).toEqual({ remove: ['sandbox-1a2b3c4d'], conflicts: [] });
+  });
+
+  it("flags resources it can't vouch for instead of removing them", () => {
+    expect(
+      planStackClaim(
+        ['notes-app', 'orders-app'],
+        new Set(['notes-app', 'orders-app', 'my-own-app']),
+        isHarnessOwned
+      )
+    ).toEqual({ remove: ['orders-app'], conflicts: ['notes-app'] });
   });
 });
 
