@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { sparkRuntime } from '../../../experiments/spark/lib/runtime.js';
+import { describe, expect, it, vi } from 'vitest';
+import { sparkScorer } from '../../../experiments/spark/lib/runtime-stub.js';
 import scorer from './EVAL.js';
 
 const tasks = [
@@ -15,8 +15,6 @@ const tasks = [
   due_date: index === 1 ? '2026-11-10' : null,
 }));
 
-afterEach(() => vi.unstubAllGlobals());
-
 async function score(
   options: {
     columns?: Record<string, unknown>[];
@@ -25,44 +23,25 @@ async function score(
     reportPasses?: boolean;
   } = {}
 ) {
-  vi.stubGlobal('fetch', async (input: string | URL | Request) => {
-    const url = input instanceof Request ? new URL(input.url) : new URL(input);
-    if (url.pathname === '/v1/projects')
-      return Response.json({
-        ref: 'project',
-        url: 'https://project.example',
-        api_keys: [
-          { type: 'secret', api_key: 'secret' },
-          { type: 'publishable', api_key: 'publishable' },
-        ],
-      });
-    if (url.pathname === '/database/query')
-      return Response.json(
-        options.columns ?? [{ name: 'due_date', type: 'date', not_null: 0 }]
-      );
-    expect(url.pathname).toBe('/rest/v1/tasks');
-    return options.tableStatus
-      ? Response.json(
-          { message: 'table unavailable' },
-          { status: options.tableStatus }
-        )
-      : Response.json(options.tasks ?? tasks);
-  });
-  const session = await sparkRuntime('https://control.example').startSession(
-    {}
-  );
   const judge = vi.fn(async () => ({ passed: options.reportPasses ?? true }));
-  try {
-    const result = await scorer({
-      ...session.scoringContext,
-      toolCalls: [],
-      transcript: [],
-      judge,
-    });
-    return { result, judge };
-  } finally {
-    await session.close();
-  }
+  const result = await sparkScorer(
+    scorer,
+    (url) => {
+      if (url.pathname === '/database/query')
+        return Response.json(
+          options.columns ?? [{ name: 'due_date', type: 'date', not_null: 0 }]
+        );
+      expect(url.pathname).toBe('/rest/v1/tasks');
+      return options.tableStatus
+        ? Response.json(
+            { message: 'table unavailable' },
+            { status: options.tableStatus }
+          )
+        : Response.json(options.tasks ?? tasks);
+    },
+    { judge }
+  );
+  return { result, judge };
 }
 
 describe('task state checks', () => {

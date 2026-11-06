@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { createClient } from '@supabase/supabase-js';
 import { createManagementApiClient } from '@supabase-evals/platform-lite';
 import { z } from 'zod';
-import type { EvalRuntime } from '@supabase-evals/core';
+import type { EvalRuntime, ToolScoringContext } from '@supabase-evals/core';
 
 const projectSchema = z.object({
   ref: z.string().min(1),
@@ -10,6 +10,18 @@ const projectSchema = z.object({
   api_keys: z.array(z.object({ type: z.string(), api_key: z.string().min(1) })),
 });
 const rowsSchema = z.array(z.record(z.string(), z.unknown()));
+
+/** The Spark project's URL and API keys, like `LocalStackStatus` for the local stack. */
+export type SparkProjectStatus = {
+  projectUrl: string;
+  publishableKey: string;
+  secretKey: string;
+};
+
+/** Scoring context plus the project's URL and keys, for scorers that act as an end user or look for leaked keys. */
+export type SparkScoringContext = ToolScoringContext & {
+  project: SparkProjectStatus;
+};
 
 export function sparkRuntime(apiUrl: string): EvalRuntime {
   return {
@@ -81,6 +93,11 @@ export function sparkRuntime(apiUrl: string): EvalRuntime {
           SPARK_PUBLISHABLE_KEY: publishable,
         },
         scoringContext: {
+          project: {
+            projectUrl: project.url,
+            publishableKey: publishable,
+            secretKey: secret,
+          },
           ref: project.ref,
           // Required by ToolScoringContext, but Spark's Management API is incomplete.
           mgmt: createManagementApiClient(apiUrl, secret),
@@ -107,7 +124,7 @@ export function sparkRuntime(apiUrl: string): EvalRuntime {
               'Spark REST runtime does not support function invocation'
             );
           },
-        },
+        } satisfies SparkScoringContext,
         async close() {},
       };
     },
