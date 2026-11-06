@@ -77,24 +77,29 @@ jobs:
   warp-enrollment-probe:
     if: github.event_name == 'workflow_dispatch' && inputs.warp_probe
     runs-on: ubuntu-26.04
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+      - name: Connect WARP
+        uses: supabase/action-setup-cloudflare-warp@bd06de467dcfe1c6fcb66191f4f7154faa8c9d8f
         with:
-          node-version-file: .node-version
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: Probe WARP connectivity
-        working-directory: apps/framework
+          auth_client_id: ${{ secrets.CLOUDFLARE_WARP_CLIENT_ID }}
+          auth_client_secret: ${{ secrets.CLOUDFLARE_WARP_CLIENT_SECRET }}
+      - name: Check Spark API
         env:
-          CLOUDFLARE_WARP_CLIENT_ID: ${{ secrets.CLOUDFLARE_WARP_CLIENT_ID }}
-          CLOUDFLARE_WARP_CLIENT_SECRET: ${{ secrets.CLOUDFLARE_WARP_CLIENT_SECRET }}
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
           SPARK_API_URL: ${{ secrets.SPARK_API_URL }}
-        run: node scripts/warp-enrollment-probe.mjs
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! status=$(curl --silent --output /dev/null --write-out '%{http_code}' --connect-timeout 10 --max-time 30 "${SPARK_API_URL%/}/v1/projects" 2>/dev/null); then
+            echo 'Spark request failed'
+            exit 1
+          fi
+          echo "Spark API HTTP status: $status"
+          case "$status" in
+            200|405) ;;
+            *) exit 1 ;;
+          esac
 
   prepare:
     # 291952723 is supabase-evals-releaser[bot], which pushes the results commit.
