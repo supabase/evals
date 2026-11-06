@@ -81,10 +81,31 @@ jobs:
       contents: read
     steps:
       - name: Connect WARP
-        uses: supabase/action-setup-cloudflare-warp@bd06de467dcfe1c6fcb66191f4f7154faa8c9d8f
-        with:
-          auth_client_id: ${{ secrets.CLOUDFLARE_WARP_CLIENT_ID }}
-          auth_client_secret: ${{ secrets.CLOUDFLARE_WARP_CLIENT_SECRET }}
+        env:
+          WARP_CLIENT_ID: ${{ secrets.CLOUDFLARE_WARP_CLIENT_ID }}
+          WARP_CLIENT_SECRET: ${{ secrets.CLOUDFLARE_WARP_CLIENT_SECRET }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          test -n "$WARP_CLIENT_ID" && test -n "$WARP_CLIENT_SECRET"
+          sudo install -d -m 700 /var/lib/cloudflare-warp
+          python3 -c 'import os, xml.etree.ElementTree as E; d=E.Element("dict"); [(E.SubElement(d,"key").__setattr__("text",k), E.SubElement(d,"string").__setattr__("text",v)) for k,v in [("organization","supabase"),("auth_client_id",os.environ["WARP_CLIENT_ID"]),("auth_client_secret",os.environ["WARP_CLIENT_SECRET"])]]; print(E.tostring(d, encoding="unicode"))' | sudo sh -c 'umask 077; cat > /var/lib/cloudflare-warp/mdm.xml'
+          curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | sudo gpg --dearmor -o /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/cloudflare-client.list
+          sudo apt-get update -qq
+          sudo apt-get install -y cloudflare-warp
+          for attempt in {1..10}; do
+            if warp-cli --accept-tos registration show >/dev/null 2>&1; then break; fi
+            if [ "$attempt" -eq 10 ]; then echo 'WARP registration failed'; exit 1; fi
+            sleep "$((attempt * 2))"
+          done
+          warp-cli --accept-tos connect
+          for attempt in {1..10}; do
+            if warp-cli --accept-tos status | grep -q 'Connected'; then echo 'WARP connected'; break; fi
+            if [ "$attempt" -eq 10 ]; then echo 'WARP connection failed'; exit 1; fi
+            sleep "$((attempt * 2))"
+          done
       - name: Check Spark API
         env:
           SPARK_API_URL: ${{ secrets.SPARK_API_URL }}
@@ -100,6 +121,19 @@ jobs:
             200|405) ;;
             *) exit 1 ;;
           esac
+      - name: Disconnect and deregister WARP
+        if: always()
+        shell: bash
+        run: |
+          sudo rm -f /var/lib/cloudflare-warp/mdm.xml
+          if command -v warp-cli >/dev/null; then
+            warp-cli --accept-tos disconnect || true
+            warp-cli --accept-tos registration delete || true
+            if warp-cli --accept-tos registration show >/dev/null 2>&1; then
+              echo 'WARP is still registered'
+              exit 1
+            fi
+          fi
 
   prepare:
     # 291952723 is supabase-evals-releaser[bot], which pushes the results commit.
