@@ -28,25 +28,20 @@ apt-get update -qq
 apt-get install -y -qq --no-install-recommends cloudflare-warp >/dev/null 2>&1
 mkdir -p /run/dbus
 dbus-daemon --system --fork`, 300000);
+  const clientId = process.env.CLOUDFLARE_WARP_CLIENT_ID;
+  const clientSecret = process.env.CLOUDFLARE_WARP_CLIENT_SECRET;
+  if (!clientId || !clientSecret || !/^[A-Za-z0-9._-]+$/.test(clientId) || !/^[A-Za-z0-9._-]+$/.test(clientSecret)) {
+    throw new Error('Missing or invalid WARP service credentials');
+  }
+  const mdm = `<dict><key>organization</key><string>supabase</string><key>auth_client_id</key><string>${clientId}</string><key>auth_client_secret</key><string>${clientSecret}</string></dict>`;
+  await sandbox.writeFiles([{ path: '.warp-mdm', content: Buffer.from(mdm), mode: 0o600 }]);
+  await run('install WARP configuration', 'set -e; mkdir -p /var/lib/cloudflare-warp; install -o root -g root -m 600 /vercel/.warp-mdm /var/lib/cloudflare-warp/mdm.xml; rm -f /vercel/.warp-mdm');
   await sandbox.runCommand({ cmd: 'bash', args: ['-c', 'umask 077; exec /usr/bin/warp-svc >/tmp/warp-daemon.log 2>&1'], sudo: true, detached: true });
-  await run('start WARP', 'for i in $(seq 1 30); do warp-cli --accept-tos status >/dev/null 2>&1 && exit 0; sleep 1; done; exit 1');
-  await run('start enrollment', 'timeout 20 warp-cli --accept-tos registration new supabase >/dev/null 2>&1 || true');
-  const response = await fetch('https://supabase.cloudflareaccess.com/warp', {
-    headers: { 'CF-Access-Client-Id': process.env.CLOUDFLARE_WARP_CLIENT_ID, 'CF-Access-Client-Secret': process.env.CLOUDFLARE_WARP_CLIENT_SECRET },
-    redirect: 'manual',
-  });
-  const location = response.headers.get('location');
-  if (!location?.startsWith('com.cloudflare.warp://') || !new URL(location).searchParams.has('token')) throw new Error(`No enrollment token (HTTP ${response.status})`);
-  await sandbox.writeFiles([{ path: '.warp-enrollment', content: Buffer.from(location), mode: 0o600 }]);
-  await run('complete enrollment', `
-if [ ! -f /vercel/.warp-enrollment ]; then echo 'Enrollment file missing'; exit 1; fi
-warp-cli --accept-tos registration token "$(cat /vercel/.warp-enrollment)" >/tmp/warp-result 2>&1; code=$?
-rm -f /vercel/.warp-enrollment
-for word in 'registration' 'token' 'invalid' 'expired' 'missing' 'failed' '401' '403' '400'; do
-  if grep -qi "$word" /tmp/warp-result; then echo "Error contains: $word"; fi
+  await run('register WARP', `for i in $(seq 1 45); do
+  if warp-cli --accept-tos registration show 2>/dev/null | grep -qi supabase; then echo 'Supabase registration present'; exit 0; fi
+  sleep 2
 done
-rm -f /tmp/warp-result
-exit "$code"`);
+exit 1`);
   await run('connect WARP', `warp-cli --accept-tos connect >/tmp/warp-connect 2>&1
 connect_status=$?
 echo "Connect command exit: $connect_status"
@@ -70,6 +65,6 @@ exit 1`, 150000);
   if (check.exitCode !== 0 || !['200', '404', '405'].includes(status)) throw new Error(`Spark connectivity failed (HTTP ${status})`);
   console.log(`WARP connected and Spark API returned HTTP ${status}`);
 } finally {
-  await sandbox.runCommand({ cmd: 'bash', args: ['-c', 'rm -f /vercel/.warp-enrollment; warp-cli --accept-tos disconnect >/dev/null 2>&1 || true; warp-cli --accept-tos registration delete >/dev/null 2>&1 || true'], sudo: true, timeoutMs: 30000 }).catch(() => {});
+  await sandbox.runCommand({ cmd: 'bash', args: ['-c', 'rm -f /vercel/.warp-mdm /var/lib/cloudflare-warp/mdm.xml; warp-cli --accept-tos disconnect >/dev/null 2>&1 || true; warp-cli --accept-tos registration delete >/dev/null 2>&1 || true'], sudo: true, timeoutMs: 30000 }).catch(() => {});
   await sandbox.stop();
 }
