@@ -39,9 +39,9 @@ dbus-daemon --system --fork`, 300000);
   if (!location?.startsWith('com.cloudflare.warp://') || !new URL(location).searchParams.has('token')) throw new Error(`No enrollment token (HTTP ${response.status})`);
   await sandbox.writeFiles([{ path: '.warp-enrollment', content: Buffer.from(location), mode: 0o600 }]);
   await run('complete enrollment', `
-if [ ! -f /vercel/sandbox/.warp-enrollment ]; then echo 'Enrollment file missing'; exit 1; fi
-warp-cli --accept-tos registration token "$(cat /vercel/sandbox/.warp-enrollment)" >/tmp/warp-result 2>&1; code=$?
-rm -f /vercel/sandbox/.warp-enrollment
+if [ ! -f /vercel/.warp-enrollment ]; then echo 'Enrollment file missing'; exit 1; fi
+warp-cli --accept-tos registration token "$(cat /vercel/.warp-enrollment)" >/tmp/warp-result 2>&1; code=$?
+rm -f /vercel/.warp-enrollment
 for word in 'registration' 'token' 'invalid' 'expired' 'missing' 'failed' '401' '403' '400'; do
   if grep -qi "$word" /tmp/warp-result; then echo "Error contains: $word"; fi
 done
@@ -56,6 +56,6 @@ exit 1`, 150000);
   if (check.exitCode !== 0 || !['200', '404', '405'].includes(status)) throw new Error(`Spark connectivity failed (HTTP ${status})`);
   console.log(`WARP connected and Spark API returned HTTP ${status}`);
 } finally {
-  await sandbox.runCommand({ cmd: 'bash', args: ['-c', 'rm -f /vercel/sandbox/.warp-enrollment; warp-cli --accept-tos disconnect >/dev/null 2>&1 || true; warp-cli --accept-tos registration delete >/dev/null 2>&1 || true'], sudo: true, timeoutMs: 30000 }).catch(() => {});
+  await sandbox.runCommand({ cmd: 'bash', args: ['-c', 'rm -f /vercel/.warp-enrollment; warp-cli --accept-tos disconnect >/dev/null 2>&1 || true; warp-cli --accept-tos registration delete >/dev/null 2>&1 || true'], sudo: true, timeoutMs: 30000 }).catch(() => {});
   await sandbox.stop();
 }
