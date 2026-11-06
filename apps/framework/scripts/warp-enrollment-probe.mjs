@@ -7,7 +7,7 @@ const sandbox = await Sandbox.create({
   image: 'vercel/sandbox/node:24',
   timeout: 600000,
   persistent: false,
-  networkPolicy: { allow: { '*': [] } },
+  networkPolicy: 'allow-all',
 });
 async function run(step, command, timeoutMs = 120000) {
   const result = await sandbox.runCommand({ cmd: 'bash', args: ['-c', command], sudo: true, timeoutMs });
@@ -53,11 +53,11 @@ echo "Connect command exit: $connect_status"
 for phrase in 'permission' 'denied' 'policy' 'registration' 'error' 'missing' 'failed' 'disabled'; do
   if grep -qi "$phrase" /tmp/warp-connect; then echo "Connect output contains: $phrase"; fi
 done
-for i in $(seq 1 60); do warp-cli --accept-tos status 2>/dev/null | grep -q Connected && exit 0; sleep 2; done
+for i in $(seq 1 20); do warp-cli --accept-tos status 2>/dev/null | grep -q Connected && exit 0; sleep 2; done
 warp-cli --accept-tos registration show >/tmp/warp-registration 2>&1 && echo 'Registration present' || echo 'Registration missing'
 grep -qi supabase /tmp/warp-registration && echo 'Registration mentions team' || echo 'Registration does not mention team'
 warp-cli --accept-tos status >/tmp/warp-status 2>&1
-for phrase in 'Disconnected' 'Connecting' 'Unable' 'Registration Missing' 'Network' 'Authentication' 'DNS' 'Tunnel'; do
+for phrase in 'Disconnected' 'Connecting' 'Unable' 'Registration Missing' 'Network' 'Authentication' 'DNS' 'Tunnel' 'policy' 'error' 'network unreachable' 'device' 'daemon' 'proxy' 'timeout'; do
   if grep -qi "$phrase" /tmp/warp-status; then echo "Status contains: $phrase"; fi
 done
 exit 1`, 150000);
