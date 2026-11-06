@@ -58,6 +58,8 @@ You have a few options to run evals in CI:
 - Add the `run-evals` label to run every benchmark eval across the experiments in `experiments/benchmark/`. Use this when a change can affect results broadly, such as framework changes.
 - Dispatch the [Refresh eval results](https://github.com/supabase/evals/actions/workflows/eval-refresh.yml) workflow manually to target any branch and choose specific evals, experiments, or other options. Set `commit_results` to `current-branch`, `results-pr`, or `none` to choose where to commit the results JSON.
 
+To schedule a suite, add a team-owned workflow that calls [eval-refresh.yml](.github/workflows/eval-refresh.yml) with the suite and optional experiments, and add the workflow to [CODEOWNERS](.github/CODEOWNERS). See existing schedules in [.github/workflows](.github/workflows/) for reference.
+
 Include refreshed results for PRs with new/changed evals so a reviewer can inspect them in Braintrust.
 
 ## Publishing and consuming results
