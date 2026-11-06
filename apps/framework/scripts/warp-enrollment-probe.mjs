@@ -11,7 +11,10 @@ const sandbox = await Sandbox.create({
 });
 async function run(step, command, timeoutMs = 120000) {
   const result = await sandbox.runCommand({ cmd: 'bash', args: ['-c', command], sudo: true, timeoutMs });
-  if (result.exitCode !== 0) throw new Error(`${step} failed (exit ${result.exitCode})`);
+  if (result.exitCode !== 0) {
+    if (step === 'complete enrollment') console.log(await result.stdout());
+    throw new Error(`${step} failed (exit ${result.exitCode})`);
+  }
 }
 try {
   await run('install WARP', `set -eu
@@ -35,7 +38,15 @@ dbus-daemon --system --fork`, 300000);
   const location = response.headers.get('location');
   if (!location?.startsWith('com.cloudflare.warp://') || !new URL(location).searchParams.has('token')) throw new Error(`No enrollment token (HTTP ${response.status})`);
   await sandbox.writeFiles([{ path: '.warp-enrollment', content: Buffer.from(location), mode: 0o600 }]);
-  await run('complete enrollment', `warp-cli --accept-tos registration token "$(cat /vercel/sandbox/.warp-enrollment)" >/dev/null 2>&1; code=$?; rm -f /vercel/sandbox/.warp-enrollment; exit "$code"`);
+  await run('complete enrollment', `
+if [ ! -f /vercel/sandbox/.warp-enrollment ]; then echo 'Enrollment file missing'; exit 1; fi
+warp-cli --accept-tos registration token "$(cat /vercel/sandbox/.warp-enrollment)" >/tmp/warp-result 2>&1; code=$?
+rm -f /vercel/sandbox/.warp-enrollment
+for word in 'registration' 'token' 'invalid' 'expired' 'missing' 'failed' '401' '403' '400'; do
+  if grep -qi "$word" /tmp/warp-result; then echo "Error contains: $word"; fi
+done
+rm -f /tmp/warp-result
+exit "$code"`);
   await run('connect WARP', `warp-cli --accept-tos connect >/dev/null 2>&1
 for i in $(seq 1 60); do warp-cli --accept-tos status 2>/dev/null | grep -q Connected && exit 0; sleep 2; done
 exit 1`, 150000);
