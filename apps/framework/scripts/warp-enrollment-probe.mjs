@@ -28,7 +28,7 @@ apt-get update -qq
 apt-get install -y -qq --no-install-recommends cloudflare-warp >/dev/null 2>&1
 mkdir -p /run/dbus
 dbus-daemon --system --fork`, 300000);
-  await sandbox.runCommand({ cmd: '/usr/bin/warp-svc', sudo: true, detached: true });
+  await sandbox.runCommand({ cmd: 'bash', args: ['-c', 'umask 077; exec /usr/bin/warp-svc >/tmp/warp-daemon.log 2>&1'], sudo: true, detached: true });
   await run('start WARP', 'for i in $(seq 1 30); do warp-cli --accept-tos status >/dev/null 2>&1 && exit 0; sleep 1; done; exit 1');
   await run('start enrollment', 'timeout 20 warp-cli --accept-tos registration new supabase >/dev/null 2>&1 || true');
   const response = await fetch('https://supabase.cloudflareaccess.com/warp', {
@@ -59,6 +59,9 @@ grep -qi supabase /tmp/warp-registration && echo 'Registration mentions team' ||
 warp-cli --accept-tos status >/tmp/warp-status 2>&1
 for phrase in 'Disconnected' 'Connecting' 'Unable' 'Registration Missing' 'Network' 'Authentication' 'DNS' 'Tunnel' 'policy' 'error' 'network unreachable' 'device' 'daemon' 'proxy' 'timeout'; do
   if grep -qi "$phrase" /tmp/warp-status; then echo "Status contains: $phrase"; fi
+done
+for phrase in 'permission denied' 'operation not permitted' 'no such file' 'connection refused' 'connection reset' 'timed out' 'network is unreachable' 'certificate' 'handshake' 'failed to bind' 'tun device' 'tunnel failure' 'invalid token'; do
+  if grep -qi "$phrase" /tmp/warp-daemon.log; then echo "Daemon log contains: $phrase"; fi
 done
 exit 1`, 150000);
   const sparkUrl = new URL('/v1/projects', process.env.SPARK_API_URL).toString();
