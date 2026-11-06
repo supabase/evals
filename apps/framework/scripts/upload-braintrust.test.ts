@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  cadence,
   ciRunUrl,
   experimentName,
   judgeMetrics,
@@ -137,14 +136,6 @@ describe('ciRunUrl', () => {
     });
     vi.stubEnv('GITHUB_RUN_ID', '');
     expect(ciRunUrl()).toEqual({});
-  });
-});
-
-describe('cadence', () => {
-  it('records the cadence when present', () => {
-    expect(cadence('daily')).toEqual({ cadence: 'daily' });
-    expect(cadence(undefined)).toEqual({});
-    expect(cadence('')).toEqual({});
   });
 });
 
