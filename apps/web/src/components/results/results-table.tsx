@@ -302,6 +302,7 @@ export function ResultsTable({
                   return (
                     <tr
                       key={rowKey}
+                      data-result-row=""
                       tabIndex={0}
                       aria-label={`Open ${rowDimension.title(rowKey)}`}
                       className={clickableTableItemClassName}
