@@ -30,14 +30,11 @@ export function ExperimentRationale() {
         {experiments.map((experiment) => {
           const rationale = getExperimentRationale(experiment)
           return (
-            <li
-              key={experiment}
-              className="flex flex-col gap-1 px-5 py-3 text-sm"
-            >
-              <span className="text-foreground">
+            <li key={experiment} className="flex flex-col gap-2 px-5 py-5">
+              <span className="text-sm font-medium text-foreground [&_span]:text-foreground">
                 <ExperimentLabel experiment={experiment} />
               </span>
-              <p className="leading-6 text-muted-foreground">
+              <p className="text-[13px] leading-6 text-muted-foreground">
                 {rationale?.summary.map((part, index) =>
                   typeof part === "string" ? (
                     part
@@ -47,22 +44,40 @@ export function ExperimentRationale() {
                       href={part.url}
                       target="_blank"
                       rel="noreferrer"
-                      className="underline underline-offset-2 hover:text-foreground"
+                      className="underline decoration-muted-foreground/40 underline-offset-4 hover:text-foreground hover:decoration-foreground"
                     >
                       {part.text}
                     </a>
                   )
                 )}
               </p>
-              {rationale && (
-                <p className="text-xs text-muted-foreground">
-                  As of <time dateTime={rationale.asOf}>{rationale.asOf}</time>
-                </p>
-              )}
             </li>
           )
         })}
       </ul>
+      <details className="mt-4 text-xs text-muted-foreground">
+        <summary className="w-fit cursor-pointer hover:text-foreground">
+          Source review dates
+        </summary>
+        <p className="mt-3 leading-5">
+          When the sources supporting each model and effort choice were last
+          reviewed.
+        </p>
+        <ul className="mt-2 space-y-2">
+          {experiments.map((experiment) => {
+            const rationale = getExperimentRationale(experiment)
+            return (
+              <li
+                key={experiment}
+                className="flex flex-wrap items-baseline gap-x-4 gap-y-1"
+              >
+                <ExperimentLabel experiment={experiment} />
+                <time dateTime={rationale?.asOf}>{rationale?.asOf}</time>
+              </li>
+            )
+          })}
+        </ul>
+      </details>
     </section>
   )
 }
