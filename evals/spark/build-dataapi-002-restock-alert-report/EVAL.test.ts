@@ -142,6 +142,15 @@ describe('restock alert scorer', () => {
     ).toContain('Seed data left unchanged');
   });
 
+  it('detects edited seed rows that keep the row counts', async () => {
+    const inventory = tables.inventory.map((r, i) =>
+      i === 0 ? { ...r, quantity: 6 } : r
+    );
+    expect(
+      await score({ reply: fenced(alerts), data: { ...tables, inventory } })
+    ).toContain('Seed data left unchanged');
+  });
+
   it('requires the Data API and rejects the SQL endpoint', async () => {
     const name = 'Alerts are built from the Data API, not the SQL endpoint';
     expect(

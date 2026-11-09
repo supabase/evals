@@ -30,6 +30,39 @@ const tablesSchema = {
 // Row counts in the seed, to detect an agent that changed the data.
 const SEED_COUNTS = { warehouses: 3, suppliers: 2, products: 3, inventory: 8 };
 
+// The alerts the seed produces. Expected rows are derived from live data, so
+// this catches an agent that edited rows without changing their count.
+const SEED_ALERTS = [
+  {
+    warehouse: 'North DC',
+    product: 'Gizmo',
+    quantity: 3,
+    reorderThreshold: 10,
+    supplierEmail: 'acme@example.com',
+  },
+  {
+    warehouse: 'North DC',
+    product: 'Widget',
+    quantity: 5,
+    reorderThreshold: 20,
+    supplierEmail: 'acme@example.com',
+  },
+  {
+    warehouse: 'South DC',
+    product: 'Gadget',
+    quantity: 2,
+    reorderThreshold: 15,
+    supplierEmail: 'parts@example.com',
+  },
+  {
+    warehouse: 'West DC',
+    product: 'Gadget',
+    quantity: 0,
+    reorderThreshold: 15,
+    supplierEmail: 'parts@example.com',
+  },
+];
+
 type AlertRow = {
   warehouse: unknown;
   product: unknown;
@@ -63,16 +96,17 @@ const scorer: ToolScorer = async (ctx) => {
       read('products'),
       read('inventory'),
     ]);
+    expected = expectedAlerts(warehouses, suppliers, products, inventory);
     checks.push({
       name: 'Seed data left unchanged',
       passed:
+        JSON.stringify(expected) === JSON.stringify(SEED_ALERTS) &&
         warehouses.length === SEED_COUNTS.warehouses &&
         suppliers.length === SEED_COUNTS.suppliers &&
         products.length === SEED_COUNTS.products &&
         inventory.length === SEED_COUNTS.inventory,
       notes: `warehouses ${warehouses.length}, suppliers ${suppliers.length}, products ${products.length}, inventory ${inventory.length}`,
     });
-    expected = expectedAlerts(warehouses, suppliers, products, inventory);
   } catch (error) {
     checks.push({
       name: 'Seed data left unchanged',
@@ -166,7 +200,11 @@ function parseAlerts(reply: string): AlertRow[] | undefined {
   for (const candidate of candidates) {
     try {
       const parsed: unknown = JSON.parse(candidate);
-      if (Array.isArray(parsed)) return parsed as AlertRow[];
+      if (
+        Array.isArray(parsed) &&
+        parsed.every((row) => typeof row === 'object' && row !== null)
+      )
+        return parsed as AlertRow[];
     } catch {}
   }
   return undefined;
