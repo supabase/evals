@@ -23,9 +23,6 @@ export function ExperimentRationale() {
       >
         Why these experiments
       </h2>
-      <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-        Why we chose the model and effort for each benchmark experiment.
-      </p>
       <ul className="mt-4 divide-y divide-border rounded-lg border border-border bg-card">
         {experiments.map((experiment) => {
           const rationale = getExperimentRationale(experiment)
