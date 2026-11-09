@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { AuthApiError, createClient } from '@supabase/supabase-js';
 import type { CheckResult, ToolScorer } from '@supabase-evals/core';
 import { findLeakedCredentials } from '../../../experiments/spark/lib/scoring.js';
 import type { SparkScoringContext } from '../../../experiments/spark/lib/runtime.js';
@@ -38,7 +38,10 @@ const scorer: ToolScorer = async (ctx) => {
   });
   checks.push({
     name: 'Wrong password is rejected without a session',
-    passed: !!wrong.error && !wrong.data.session,
+    passed:
+      wrong.error instanceof AuthApiError &&
+      wrong.error.status === 400 &&
+      !wrong.data.session,
     notes: wrong.error?.message,
   });
 
