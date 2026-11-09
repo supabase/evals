@@ -75,12 +75,11 @@ const entries = [
     withoutSkills: "f2a8dad6-2d8b-4088-8f5f-165d00a24058",
     rationale: {
       summary: [
-        "Codex's ",
         {
-          text: "default model for ChatGPT accounts, at its default effort",
-          url: "https://learn.chatgpt.com/docs/models?surface=app#pick-a-reasoning-effort",
+          text: "OpenAI's recommended Codex model for paid ChatGPT plans",
+          url: "https://learn.chatgpt.com/docs/models?surface=cli#gpt-55-retirement",
         },
-        ".",
+        ", run at medium effort.",
       ],
     },
   },
