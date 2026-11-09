@@ -25,6 +25,29 @@ const tablesSchema = {
 // Row counts in the seed, to detect an agent that changed the data.
 const SEED_COUNTS = { customers: 4, products: 4, orders: 5, order_items: 8 };
 
+// The report the seed produces. Expected rows are derived from live data, so
+// this catches an agent that edited rows without changing their count.
+const SEED_REPORT = [
+  {
+    customer: 'Ada Lovelace',
+    orderCount: 2,
+    totalCents: 41900,
+    topProduct: 'Keyboard',
+  },
+  {
+    customer: 'Grace Hopper',
+    orderCount: 2,
+    totalCents: 15600,
+    topProduct: 'Cable',
+  },
+  {
+    customer: 'Linus Pauling',
+    orderCount: 1,
+    totalCents: 66500,
+    topProduct: 'Monitor',
+  },
+];
+
 type ReportRow = {
   customer: unknown;
   orderCount: unknown;
@@ -56,16 +79,17 @@ const scorer: ToolScorer = async (ctx) => {
       read('orders'),
       read('order_items'),
     ]);
+    expected = expectedReport(customers, products, orders, items);
     checks.push({
       name: 'Seed data left unchanged',
       passed:
+        JSON.stringify(expected) === JSON.stringify(SEED_REPORT) &&
         customers.length === SEED_COUNTS.customers &&
         products.length === SEED_COUNTS.products &&
         orders.length === SEED_COUNTS.orders &&
         items.length === SEED_COUNTS.order_items,
       notes: `customers ${customers.length}, products ${products.length}, orders ${orders.length}, order_items ${items.length}`,
     });
-    expected = expectedReport(customers, products, orders, items);
   } catch (error) {
     checks.push({
       name: 'Seed data left unchanged',
@@ -162,7 +186,11 @@ function parseReport(reply: string): ReportRow[] | undefined {
   for (const candidate of candidates) {
     try {
       const parsed: unknown = JSON.parse(candidate);
-      if (Array.isArray(parsed)) return parsed as ReportRow[];
+      if (
+        Array.isArray(parsed) &&
+        parsed.every((row) => typeof row === 'object' && row !== null)
+      )
+        return parsed as ReportRow[];
     } catch {}
   }
   return undefined;

@@ -131,6 +131,15 @@ describe('relational report scorer', () => {
     ).toContain('Seed data left unchanged');
   });
 
+  it('detects edited seed rows that keep the row counts', async () => {
+    const products = tables.products.map((p, i) =>
+      i === 0 ? { ...p, price_cents: 1 } : p
+    );
+    expect(
+      await score({ reply: fenced(report), data: { ...tables, products } })
+    ).toContain('Seed data left unchanged');
+  });
+
   it('requires the Data API and rejects the SQL endpoint', async () => {
     const name = 'Report is built from the Data API, not the SQL endpoint';
     expect(
