@@ -63,20 +63,26 @@ export function ExperimentRationale() {
           When the sources supporting each model and effort choice were last
           reviewed.
         </p>
-        <ul className="mt-2 space-y-2">
-          {experiments.map((experiment) => {
-            const rationale = getExperimentRationale(experiment)
-            return (
-              <li
-                key={experiment}
-                className="flex flex-wrap items-baseline gap-x-4 gap-y-1"
-              >
-                <ExperimentLabel experiment={experiment} />
-                <time dateTime={rationale?.asOf}>{rationale?.asOf}</time>
-              </li>
-            )
-          })}
-        </ul>
+        <table className="mt-2 text-left">
+          <caption className="sr-only">
+            Source review dates by experiment
+          </caption>
+          <tbody>
+            {experiments.map((experiment) => {
+              const rationale = getExperimentRationale(experiment)
+              return (
+                <tr key={experiment}>
+                  <th scope="row" className="py-1 pr-6 font-normal">
+                    <ExperimentLabel experiment={experiment} />
+                  </th>
+                  <td className="py-1 align-top whitespace-nowrap tabular-nums">
+                    <time dateTime={rationale?.asOf}>{rationale?.asOf}</time>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
       </details>
     </section>
   )
