@@ -1,10 +1,6 @@
-import { createElement } from "react"
-import { renderToStaticMarkup } from "react-dom/server"
-import { ExperimentRationale } from "@/components/experiment-rationale"
 import { describe, expect, it } from "vitest"
 
 import { makeResult } from "@/lib/eval-results.fixture"
-import { missingBenchmarkRationales } from "@/lib/experiment-rationales"
 import {
   EXPERIMENT_SUITES,
   getSuiteResults,
@@ -19,6 +15,16 @@ import {
   sortResults,
   sortedResults,
 } from "@/lib/eval-results"
+
+it("reads the rationale carried by the published result", () => {
+  const rationale = { summary: ["Published choice."], asOf: "2026-01-01" }
+  const result = makeResult({
+    experiment: "pinned",
+    experimentRationale: rationale,
+  })
+  expect(getExperimentRationale("pinned", [result])).toEqual(rationale)
+  expect(getExperimentRationale("other", [result])).toBeUndefined()
+})
 
 describe("sortResults", () => {
   const order = (results: ReturnType<typeof makeResult>[]) =>
@@ -221,91 +227,5 @@ describe("the exported results", () => {
       .map(([experiment]) => experiment)
 
     expect(inconsistent).toEqual([])
-  })
-})
-
-describe("getExperimentRationale", () => {
-  const display = {
-    agent: "opencode",
-    modelProvider: "moonshotai",
-    modelId: "moonshotai/kimi-k3",
-  } as const
-  const match = makeResult({
-    experiment: "opencode-kimi-k3",
-    experimentDisplay: display,
-  })
-
-  it("shows current rationale for matching results", () => {
-    expect(
-      getExperimentRationale(match.experiment, [match])?.summary
-    ).toContainEqual(expect.objectContaining({ text: "open-weight option" }))
-  })
-
-  it("hides rationale for mixed or missing metadata", () => {
-    const other = makeResult({
-      experiment: match.experiment,
-      experimentDisplay: { ...display, modelId: "other" },
-    })
-    const missing = makeResult({ experiment: match.experiment })
-    expect(
-      getExperimentRationale(match.experiment, [match, other])
-    ).toBeUndefined()
-    expect(
-      getExperimentRationale(match.experiment, [match, missing])
-    ).toBeUndefined()
-    expect(
-      getExperimentRationale("removed-experiment", [match])
-    ).toBeUndefined()
-  })
-})
-
-describe("benchmark rationale coverage", () => {
-  const kimi = {
-    agent: "opencode",
-    modelProvider: "moonshotai",
-    modelId: "moonshotai/kimi-k3",
-  } as const
-
-  it("requires an entry matching each current benchmark model and effort", () => {
-    expect(
-      missingBenchmarkRationales([
-        ["benchmark/opencode-kimi-k3", { display: kimi }],
-        ["benchmark/opencode-kimi-k3-no-skills", { display: kimi }],
-        ["benchmark/new-experiment", { display: kimi }],
-        [
-          "benchmark/opencode-kimi-k3",
-          {
-            display: { ...kimi, reasoningEffort: "high" },
-          },
-        ],
-        ["cli/other", { display: kimi }],
-      ])
-    ).toEqual(["benchmark/new-experiment", "benchmark/opencode-kimi-k3"])
-  })
-
-  it("shows the historical Sonnet rationale when its results are present", () => {
-    const old = makeResult({
-      experiment: "claude-code-sonnet-5",
-      experimentDisplay: {
-        agent: "claude-code",
-        modelProvider: "anthropic",
-        modelId: "claude-sonnet-5",
-        reasoningEffort: "high",
-      },
-    })
-    expect(getExperimentRationale(old.experiment, [old])?.asOf).toBe(
-      "2026-07-02"
-    )
-  })
-})
-
-describe("inline rationale links", () => {
-  it("links the claim inside the sentence", () => {
-    const html = renderToStaticMarkup(createElement(ExperimentRationale))
-    expect(html).toContain(
-      'href="https://code.claude.com/docs/en/model-config#default-model-setting"'
-    )
-    expect(html).toContain(">default model</a> on most plans, at its ")
-    expect(html).toContain(">default effort</a>.")
   })
 })

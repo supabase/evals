@@ -64,9 +64,9 @@ Include refreshed results for PRs with new/changed evals so a reviewer can inspe
 
 ## Publishing and consuming results
 
-To publish a benchmark, upload complete runs with `--runs` and update the experiment IDs in [fetch-braintrust.ts](apps/web/scripts/fetch-braintrust.ts). Include every experiment in `experiments/benchmark/`, using its name as the key.
+To publish a benchmark, upload complete runs with `--runs` and update the pins and rationales in [publication.ts](apps/web/src/data/publication.ts). Include every experiment in `experiments/benchmark/`.
 
-For local UI work with a partial run, temporarily pin only the uploaded experiment IDs and start the server with `EVALS_ALLOW_PARTIAL=1 pnpm web`.
+For local UI work with a partial run, temporarily keep only the uploaded experiment IDs and their rationales in the catalog and start the server with `EVALS_ALLOW_PARTIAL=1 pnpm web`.
 
 The published benchmark is at https://supabase.com/evals/eval-results.json. For other suites or history, query the Evals Braintrust project. For example, replace `EXPERIMENT_ID` below to read an experiment's scored runs:
 

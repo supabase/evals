@@ -4,13 +4,13 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "dev": "pnpm --filter @supabase-evals/framework exec node --import tsx/esm scripts/check-experiment-rationales.ts && node --env-file-if-exists=../../.env scripts/fetch-braintrust.ts --dev && vite",
-    "build": "pnpm --filter @supabase-evals/framework exec node --import tsx/esm scripts/check-experiment-rationales.ts && node --env-file-if-exists=../../.env scripts/fetch-braintrust.ts && tsc -b && vite build && vite build --ssr src/entry-server.tsx --outDir dist-ssr && node scripts/prerender.ts",
+    "dev": "node --env-file-if-exists=../../.env scripts/fetch-braintrust.ts --dev && vite",
+    "build": "node --env-file-if-exists=../../.env scripts/fetch-braintrust.ts && tsc -b && vite build && vite build --ssr src/entry-server.tsx --outDir dist-ssr && node scripts/prerender.ts",
     "lint": "eslint .",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx}\"",
-    "typecheck": "pnpm --filter @supabase-evals/framework exec node --import tsx/esm scripts/check-experiment-rationales.ts && tsc -b --noEmit",
-    "test": "pnpm --filter @supabase-evals/framework exec node --import tsx/esm scripts/check-experiment-rationales.ts && vitest run",
+    "typecheck": "tsc -b --noEmit",
+    "test": "vitest run",
     "preview": "vite preview"
   },
   "dependencies": {

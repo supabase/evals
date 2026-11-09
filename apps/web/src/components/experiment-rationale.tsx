@@ -5,7 +5,6 @@ import {
   getVisibleExperiments,
 } from "@/lib/eval-results"
 
-/** Why each benchmark experiment uses its model and effort, with links to check it. */
 export function ExperimentRationale() {
   const experiments = getVisibleExperiments(
     getSuiteResults("benchmark")
