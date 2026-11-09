@@ -1,0 +1,451 @@
+import { basename } from 'node:path';
+import type {
+  CheckResult,
+  ToolCallRecord,
+  TranscriptPart,
+} from '@supabase-evals/core';
+import type { ParseEntry } from 'shell-quote';
+import {
+  findSupabaseInvocations,
+  invocationPositionals,
+  type SupabaseInvocation,
+} from '../lib/cli-invocations.js';
+import {
+  commandToolCalls,
+  extractCommandEntries,
+  leadingWord,
+  scopedCommandSegments,
+  tryShellQuoteParse,
+} from '../lib/detours.js';
+import { truncate } from '../lib/shell.js';
+import { collectStringValues } from '../lib/stack-list.js';
+import { SEEDED } from './fixtures.js';
+
+export const ANSWER_SOURCE_CHECK =
+  'a supabase db query run returned the answer';
+export const REPLY_CHECK = 'the reply gives the right count';
+
+export type DbQueryRun = {
+  commandIndex: number;
+  command: string;
+  output: string;
+  errored: boolean;
+  showsAnswer: boolean;
+};
+
+/** A later tool call whose command names a file a `db query` run wrote. */
+export type SavedOutputRead = DbQueryRun & {
+  path: string;
+  savedBy: number;
+};
+
+// Rows carry emails, uuids and a random boundary, so a 263 glued to a word character, `.` or `-` belongs to a longer token.
+const ANSWER_VALUE_RE = new RegExp(
+  `(?<![\\w.-])${SEEDED.neverOrdered}(?![\\w-]|\\.\\d)`
+);
+// A thousands or decimal neighbour makes another number ("1,263", "263,000", "263.5"); a trailing "." or "," does not.
+const ANSWER_PROSE_RE = new RegExp(
+  `(?<![\\w]|\\d[.,])${SEEDED.neverOrdered}(?![\\w]|[.,]\\d)`
+);
+
+/** Whether `text` holds the number of customers who never ordered as a value token, not part of an email, uuid or longer number. */
+export const showsAnswerValue = (text: string): boolean =>
+  ANSWER_VALUE_RE.test(text);
+
+const HELP_FLAGS = new Set(['--help', '-h']);
+const ANSI_RE = /\u001b\[[0-9;?]*[ -/]*[@-~]/g;
+const PATH_SEPARATORS_RE = /[\s"'`|;&<>()=]+/;
+const SHELL_WRAPPERS = new Set(['bash', 'sh', 'zsh']);
+const WRAPPER_FLAG_RE = /^-\S*c\S*$/;
+const MAX_UNWRAP_DEPTH = 3;
+const FILE_REDIRECTS = new Set(['>', '>>']);
+const DATABASE_CLIENTS = new Set(['psql', 'pgcli', 'usql', 'pg_dump']);
+const QUIET_BUILTINS = new Set([
+  'cd',
+  'export',
+  'set',
+  'unset',
+  'true',
+  'false',
+  'sleep',
+]);
+const PRINTING_BUILTINS = new Set(['echo', 'printf']);
+const COMPUTED_TEXT_RE = /[\d$`]/;
+const INFO_FLAGS = new Set([...HELP_FLAGS, '--version']);
+const PACKAGE_RUNNERS = new Set(['npx', 'bunx']);
+const LINE_CONTINUATION_RE = /\\\r?\n/g;
+// The segmenter drops its delimiters, so a pipe is read from the text between two segments.
+const PIPE_GAP_RE = /^\s*\|&?\s*$/;
+
+/** Whether `reply` states the number of customers who never ordered as a whole number. */
+export const replyStatesCount = (reply: string): boolean =>
+  ANSWER_PROSE_RE.test(reply);
+
+/** A `supabase db query` that runs SQL; a help request does not. */
+export function isDbQueryInvocation(inv: SupabaseInvocation): boolean {
+  const [first, second] = invocationPositionals(inv);
+  return (
+    first === 'db' &&
+    second === 'query' &&
+    !inv.argv.some((token) => HELP_FLAGS.has(token))
+  );
+}
+
+/** One run per tool call holding a `supabase db query`, with its result and error text. */
+export function findDbQueryRuns(
+  toolCalls: readonly ToolCallRecord[],
+  invocations: readonly SupabaseInvocation[]
+): DbQueryRun[] {
+  const calls = commandToolCalls(toolCalls);
+  const entries = extractCommandEntries(toolCalls);
+  const indexes = [
+    ...new Set(
+      invocations.filter(isDbQueryInvocation).map((inv) => inv.commandIndex)
+    ),
+  ].sort((a, b) => a - b);
+  return indexes.map((commandIndex) =>
+    describeCall(
+      commandIndex,
+      entries[commandIndex].command,
+      calls[commandIndex]
+    )
+  );
+}
+
+function describeCall(
+  commandIndex: number,
+  command: string,
+  { result, error }: ToolCallRecord
+): DbQueryRun {
+  const output = collectStringValues([result, error])
+    .join('\n')
+    .replace(ANSI_RE, '');
+  return {
+    commandIndex,
+    command,
+    output,
+    errored: error !== undefined,
+    showsAnswer: showsAnswerValue(output),
+  };
+}
+
+const unescapeQuotes = (command: string): string =>
+  command.replace(/\\(["\\])/g, '$1');
+
+const withoutDotSlash = (path: string): string => path.replace(/^\.\//, '');
+
+const isOutputPath = (path: string): boolean =>
+  /\w/.test(path) && !/^\d+$/.test(path) && path !== '/dev/null';
+
+/** The script of a leading `bash|sh|zsh -c` wrapper, unwrapped as deep as the shared segmenter does; undefined when the text does not tokenize. */
+function unwrapShell(command: string): string | undefined {
+  let text = command;
+  for (let depth = 0; depth < MAX_UNWRAP_DEPTH; depth++) {
+    const tokens = tryShellQuoteParse(text);
+    if (tokens === undefined) return undefined;
+    const [binary, flags, script] = tokens;
+    if (
+      tokens.length !== 3 ||
+      typeof binary !== 'string' ||
+      typeof flags !== 'string' ||
+      typeof script !== 'string' ||
+      !SHELL_WRAPPERS.has(basename(binary)) ||
+      !WRAPPER_FLAG_RE.test(flags)
+    ) {
+      return text;
+    }
+    text = script;
+  }
+  return text;
+}
+
+type Stage = {
+  segment: string;
+  tokens: ParseEntry[];
+  /** Joined to the previous stage by a plain `|`. */
+  piped: boolean;
+};
+
+/** The executable segments of `command`, each tokenized and marked when a pipe joins it to the one before; undefined when anything fails to parse or locate. */
+function commandStages(source: string): Stage[] | undefined {
+  const command = source.replace(LINE_CONTINUATION_RE, ' ');
+  const text = unwrapShell(command);
+  if (text === undefined) return undefined;
+  const stages: Stage[] = [];
+  let cursor = 0;
+  for (const { segment } of scopedCommandSegments(command)) {
+    const at = text.indexOf(segment, cursor);
+    const tokens = tryShellQuoteParse(segment);
+    if (at === -1 || tokens === undefined) return undefined;
+    stages.push({
+      segment,
+      tokens,
+      piped: stages.length > 0 && PIPE_GAP_RE.test(text.slice(cursor, at)),
+    });
+    cursor = at + segment.length;
+  }
+  return stages;
+}
+
+function teeFiles(tokens: readonly ParseEntry[]): string[] {
+  const words: string[] = [];
+  for (const token of tokens) {
+    if (typeof token !== 'string') break;
+    words.push(token);
+  }
+  const at = words.findIndex((word) => basename(word) === 'tee');
+  return at === -1
+    ? []
+    : words.slice(at + 1).filter((arg) => !arg.startsWith('-'));
+}
+
+function writtenFiles({ segment, tokens }: Stage): string[] {
+  const redirected = tokens.flatMap((token, i) => {
+    const target = tokens[i + 1];
+    return typeof token === 'object' &&
+      'op' in token &&
+      FILE_REDIRECTS.has(token.op) &&
+      typeof target === 'string'
+      ? [target]
+      : [];
+  });
+  return leadingWord(segment) === 'tee'
+    ? [...redirected, ...teeFiles(tokens)]
+    : redirected;
+}
+
+const isDbQuerySegment = (segment: string): boolean =>
+  findSupabaseInvocations([segment]).some(isDbQueryInvocation);
+
+const isDatabaseClientSegment = (segment: string): boolean =>
+  DATABASE_CLIENTS.has(leadingWord(segment) ?? '');
+
+/** The files the `supabase db query` segment of `command`, and the pipeline stages after it up to a database client, write with `>`, `>>`, `&>` or `tee`, in the order written; fd duplications such as `2>&1`, `/dev/null` and other commands' redirects are not. */
+export function savedOutputPaths(command: string): string[] {
+  const stages = commandStages(command);
+  if (stages === undefined) return [];
+  const paths: string[] = [];
+  let downstream = false;
+  for (const stage of stages) {
+    if (!stage.piped) downstream = false;
+    if (isDbQuerySegment(stage.segment)) downstream = true;
+    else if (isDatabaseClientSegment(stage.segment)) downstream = false;
+    if (downstream) paths.push(...writtenFiles(stage));
+  }
+  return [...new Set(paths.map(withoutDotSlash).filter(isOutputPath))];
+}
+
+/** Whether `command` names `path` as a whole token, as written, by its basename since the reader may `cd` first, or, for a relative `path`, behind any directory prefix (`/workspace/`, `$PWD/`, `supabase/`). */
+function mentionsPath(command: string, path: string): boolean {
+  const tokens = new Set(
+    unescapeQuotes(command).split(PATH_SEPARATORS_RE).map(withoutDotSlash)
+  );
+  return (
+    tokens.has(path) ||
+    tokens.has(basename(path)) ||
+    (!path.startsWith('/') &&
+      [...tokens].some((token) => token.endsWith(`/${path}`)))
+  );
+}
+
+/** The later tool calls that name a file a `db query` run saved, one per call, credited to the latest run that wrote it. */
+export function findSavedOutputReads(
+  toolCalls: readonly ToolCallRecord[],
+  runs: readonly DbQueryRun[]
+): SavedOutputRead[] {
+  const calls = commandToolCalls(toolCalls);
+  const entries = extractCommandEntries(toolCalls);
+  const runIndexes = new Set(runs.map(({ commandIndex }) => commandIndex));
+  const saves = runs.map((run) => ({
+    commandIndex: run.commandIndex,
+    paths: savedOutputPaths(run.command),
+  }));
+  return entries.flatMap(({ command }, commandIndex): SavedOutputRead[] => {
+    if (runIndexes.has(commandIndex)) return [];
+    for (const save of saves
+      .filter((s) => s.commandIndex < commandIndex)
+      .reverse()) {
+      const path = save.paths.find((candidate) =>
+        mentionsPath(command, candidate)
+      );
+      if (path !== undefined) {
+        return [
+          {
+            ...describeCall(commandIndex, command, calls[commandIndex]),
+            path,
+            savedBy: save.commandIndex,
+          },
+        ];
+      }
+    }
+    return [];
+  });
+}
+
+const stringWords = (tokens: readonly ParseEntry[]): string[] => {
+  const words: string[] = [];
+  for (const token of tokens) {
+    if (typeof token !== 'string') break;
+    words.push(token);
+  }
+  return words;
+};
+
+function supabaseArgs(words: readonly string[]): string[] | undefined {
+  const [first = '', ...rest] = words;
+  if (basename(first) === 'supabase') return rest;
+  if (!PACKAGE_RUNNERS.has(basename(first))) return undefined;
+  const at = rest.findIndex((word) => !word.startsWith('-'));
+  return at !== -1 && basename(rest[at]) === 'supabase'
+    ? rest.slice(at + 1)
+    : undefined;
+}
+
+/** A `supabase` stage that only asks for help or the version, so it prints no data. */
+function isInfoRequest({ tokens }: Stage): boolean {
+  const args = supabaseArgs(stringWords(tokens));
+  return (
+    args !== undefined &&
+    (args.some((arg) => INFO_FLAGS.has(arg)) ||
+      args.find((arg) => !arg.startsWith('-')) === 'help')
+  );
+}
+
+/** A stage that cannot print a number: a quiet builtin, an echo or printf of plain text, or a help or version request. */
+function isInertStage(stage: Stage): boolean {
+  const word = leadingWord(stage.segment) ?? '';
+  if (QUIET_BUILTINS.has(word)) return true;
+  if (PRINTING_BUILTINS.has(word)) return !COMPUTED_TEXT_RE.test(stage.segment);
+  return isInfoRequest(stage);
+}
+
+function pipelines(stages: readonly Stage[]): Stage[][] {
+  const groups: Stage[][] = [];
+  for (const stage of stages) {
+    if (stage.piped) groups[groups.length - 1].push(stage);
+    else groups.push([stage]);
+  }
+  return groups;
+}
+
+/** Whether `command` prints a 263 it can only have taken from its source: no 263 typed in it, and every pipeline either reads the source without a database client or is inert. */
+function printsOnlySourceResult(
+  command: string,
+  isSource: (segment: string) => boolean
+): boolean {
+  if (showsAnswerValue(command)) return false;
+  const stages = commandStages(command);
+  return (
+    stages !== undefined &&
+    pipelines(stages).every(
+      (pipeline) =>
+        !pipeline.some(({ segment }) => isDatabaseClientSegment(segment)) &&
+        (pipeline.some(({ segment }) => isSource(segment)) ||
+          isInertStage(pipeline[0]))
+    )
+  );
+}
+
+function runSettlesCheck(run: DbQueryRun): boolean {
+  const saved = savedOutputPaths(run.command);
+  return (
+    run.showsAnswer &&
+    printsOnlySourceResult(
+      run.command,
+      (segment) =>
+        isDbQuerySegment(segment) ||
+        saved.some((path) => mentionsPath(segment, path))
+    )
+  );
+}
+
+const readSettlesCheck = (read: SavedOutputRead): boolean =>
+  read.showsAnswer &&
+  printsOnlySourceResult(read.command, (segment) =>
+    mentionsPath(segment, read.path)
+  );
+
+/** Settles the check when no run happened or a run or a read of its saved output printed the count with nothing else in the call able to print it, and leaves the rest to the judge. */
+export function gateAnswerSource(
+  runs: readonly DbQueryRun[],
+  reads: readonly SavedOutputRead[]
+): CheckResult | undefined {
+  const name = ANSWER_SOURCE_CHECK;
+  if (runs.length === 0) {
+    return { name, passed: false, notes: 'no supabase db query ran' };
+  }
+  const found = runs.find(runSettlesCheck);
+  if (found !== undefined) {
+    return {
+      name,
+      passed: true,
+      notes: `tool call ${found.commandIndex + 1} ran supabase db query and printed ${SEEDED.neverOrdered}`,
+    };
+  }
+  const foundRead = reads.find(readSettlesCheck);
+  return foundRead === undefined
+    ? undefined
+    : {
+        name,
+        passed: true,
+        notes: `tool call ${foundRead.commandIndex + 1} read ${foundRead.path}, saved by the supabase db query in tool call ${foundRead.savedBy + 1}, and printed ${SEEDED.neverOrdered}`,
+      };
+}
+
+/** Every run, then every read of its saved output, in full and numbered by tool call. */
+export function formatAnswerSourceJudgeInput(
+  runs: readonly DbQueryRun[],
+  reads: readonly SavedOutputRead[]
+): string {
+  const section = (label: string, { command, output }: DbQueryRun) =>
+    `${label}\nCommand:\n${command}\nOutput:\n${output}`;
+  return [
+    ...runs.map((run) =>
+      section(
+        `Tool call ${run.commandIndex + 1}${run.errored ? ' (errored)' : ''}`,
+        run
+      )
+    ),
+    ...reads.map((read) =>
+      section(
+        `Tool call ${read.commandIndex + 1} (reads ${read.path}, saved by the supabase db query in tool call ${read.savedBy + 1}${read.errored ? ', errored' : ''})`,
+        read
+      )
+    ),
+  ].join('\n\n');
+}
+
+const assistantTexts = (parts: readonly TranscriptPart[]): string[] =>
+  parts.flatMap((part) =>
+    part.type === 'message' &&
+    part.role === 'assistant' &&
+    part.content.trim() !== ''
+      ? [part.content]
+      : []
+  );
+
+/** Every non-empty assistant message after the last tool call, joined with a blank line; undefined when none follows it. */
+export function finalReply(
+  transcript: readonly TranscriptPart[]
+): string | undefined {
+  const lastToolCall = transcript
+    .map(({ type }) => type)
+    .lastIndexOf('tool_call');
+  const after = assistantTexts(transcript.slice(lastToolCall + 1));
+  return after.length > 0 ? after.join('\n\n') : undefined;
+}
+
+export function checkReplyGivesCount(reply: string | undefined): CheckResult {
+  const name = REPLY_CHECK;
+  if (reply === undefined) {
+    return { name, passed: false, notes: 'the agent gave no final reply' };
+  }
+  const passed = replyStatesCount(reply);
+  return {
+    name,
+    passed,
+    notes: passed
+      ? `the reply gives ${SEEDED.neverOrdered}`
+      : `the reply does not give ${SEEDED.neverOrdered}: ${truncate(reply, 300)}`,
+  };
+}

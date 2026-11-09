@@ -1,0 +1,351 @@
+import type {
+  CheckResult,
+  LocalStackEvalContext,
+  ToolCallRecord,
+} from '@supabase-evals/core';
+import {
+  findSupabaseInvocations,
+  invocationDirectory,
+  invocationFlag,
+  invocationSubcommand,
+  invocationVerb,
+  type SupabaseInvocation,
+} from '../lib/cli-invocations.js';
+import {
+  type DbPush,
+  describePushes,
+  isCreditedPush,
+  isRealPush,
+  readDbPushes,
+} from '../lib/db-push.js';
+import {
+  booleanFlag,
+  isExplicitlyLocal,
+  remoteValue,
+  type TargetOptions,
+  toolCallFailed,
+} from '../lib/db-target.js';
+import {
+  commandToolCalls,
+  extractCommandEntries,
+  scopedCommandSegments,
+  tryShellQuoteParse,
+} from '../lib/detours.js';
+import {
+  maskSqlLiteralsAndComments,
+  stripSqlComments,
+} from '../lib/migrations.js';
+import { inProjectDir, shellQuote } from '../lib/shell.js';
+import { NO_HOSTED_PROJECT } from './remote.js';
+import { CHANGED_TABLES } from './seed.js';
+
+/** `default` is no target flag: `db query` reads the local database on every CLI channel. */
+export type QueryTarget = 'remote' | 'local' | 'default';
+
+export type DbQuery = {
+  order: number;
+  target: QueryTarget;
+  sql: string | null;
+  file?: string;
+  dir?: string;
+  failed: boolean;
+  /** The tool call's command text, which stands in for `sql` while no SQL could be isolated. */
+  command?: string;
+};
+
+export type DbActivity = { pushes: DbPush[]; queries: DbQuery[] };
+
+export const VERIFY_CHECK_NAME =
+  'the agent checked the hosted project with supabase db query after pushing';
+
+// `--remote` is absent: it takes its optional value only as `--remote=<v>`.
+const QUERY_VALUE_FLAGS = new Set([
+  '--db-url',
+  '--project-ref',
+  '--file',
+  '-f',
+  '--workdir',
+  '--profile',
+  '-o',
+  '--output',
+  '--output-format',
+  '--network-id',
+  '--dns-resolver',
+  '--log-level',
+  '--agent',
+]);
+
+const STDIN_FILES = new Set(['-', '/dev/stdin']);
+const CAT_SUBSTITUTION =
+  /^\s*\$\(\s*(?:cat\s+|<\s*)(['"]?)([^\s'"`$()]+)\1\s*\)\s*$/;
+const SHELL_EXPANSION = /^\s*(?:\$\(|\$\{?[A-Za-z_]|`)/;
+
+const WRITE_WORD_RE =
+  /\b(?:insert|update|delete|merge|create|alter|drop|truncate|grant|revoke|comment|copy|into|call|do)\b/i;
+const READ_STATEMENT_RE =
+  /^\s*\(*\s*(?:select|with|table|values|explain|show|begin|start|commit|rollback|end|set)\b/i;
+
+function wholeIdentifier(names: readonly string[]): RegExp {
+  return new RegExp(
+    `(?<![A-Za-z0-9_$])(?:${names.join('|')})(?![A-Za-z0-9_$])`,
+    'i'
+  );
+}
+
+const CHANGED_TABLE = wholeIdentifier(CHANGED_TABLES);
+const PROFILES_TABLE = wholeIdentifier(['profiles']);
+
+function positionals(argv: readonly string[]): string[] {
+  const out: string[] = [];
+  for (let i = 1; i < argv.length; i++) {
+    const token = argv[i];
+    if (token.startsWith('-')) {
+      if (!token.includes('=') && QUERY_VALUE_FLAGS.has(token)) i++;
+      continue;
+    }
+    out.push(token);
+  }
+  return out;
+}
+
+function queryTarget(
+  inv: SupabaseInvocation,
+  command: string,
+  options: TargetOptions | undefined
+): QueryTarget {
+  if (isExplicitlyLocal(inv, command, options)) return 'local';
+  const remote =
+    invocationFlag(inv, '--db-url') !== undefined ||
+    invocationFlag(inv, '--project-ref') !== undefined ||
+    booleanFlag(inv.argv, '--linked') ||
+    booleanFlag(inv.argv, '--remote') ||
+    remoteValue(inv.argv) !== undefined;
+  return remote ? 'remote' : 'default';
+}
+
+function redirectedFile(segment: string): string | undefined {
+  const tokens = tryShellQuoteParse(segment) ?? [];
+  const at = tokens.findIndex(
+    (token) => typeof token === 'object' && 'op' in token && token.op === '<'
+  );
+  const target = tokens[at + 1];
+  return at !== -1 && typeof target === 'string' ? target : undefined;
+}
+
+function catOperand(segment: string): string | undefined {
+  const [word, file, ...rest] = tryShellQuoteParse(segment) ?? [];
+  return word === 'cat' &&
+    typeof file === 'string' &&
+    !file.startsWith('-') &&
+    rest.length === 0
+    ? file
+    : undefined;
+}
+
+/** The file a query reads its SQL from by redirect (`< f`) or pipe (`cat f |`); `ordinal` is its place among the supabase invocations of `command`. */
+function stdinFile(command: string, ordinal: number): string | undefined {
+  const segments = scopedCommandSegments(command).map(({ segment }) => segment);
+  const at = segments.flatMap((segment, i) =>
+    findSupabaseInvocations([segment]).length > 0 ? [i] : []
+  )[ordinal];
+  if (at === undefined) return undefined;
+  return (
+    redirectedFile(segments[at]) ??
+    (at > 0 ? catOperand(segments[at - 1]) : undefined)
+  );
+}
+
+function sqlFile(
+  inv: SupabaseInvocation,
+  command: string,
+  ordinal: number
+): string | undefined {
+  const flagged = invocationFlag(inv, '-f') ?? invocationFlag(inv, '--file');
+  if (flagged !== undefined && !STDIN_FILES.has(flagged)) return flagged;
+  return stdinFile(command, ordinal);
+}
+
+function readQuery(
+  inv: SupabaseInvocation,
+  order: number,
+  ordinal: number,
+  command: string | undefined,
+  call: ToolCallRecord | undefined,
+  options: TargetOptions | undefined
+): DbQuery {
+  const base = {
+    order,
+    target: queryTarget(inv, command ?? '', options),
+    failed: toolCallFailed(call),
+  };
+  const withFile = (file: string): DbQuery => {
+    const dir = invocationDirectory(inv);
+    return {
+      ...base,
+      sql: null,
+      file,
+      ...(dir === undefined ? {} : { dir }),
+      ...(command === undefined
+        ? {}
+        : { command: command.split(file).join(' ') }),
+    };
+  };
+
+  const commandOnly: DbQuery = {
+    ...base,
+    sql: null,
+    ...(command === undefined ? {} : { command }),
+  };
+
+  const positional = positionals(inv.argv)[2];
+  if (positional !== undefined) {
+    const catted = CAT_SUBSTITUTION.exec(positional)?.[2];
+    if (catted !== undefined) return withFile(catted);
+    return SHELL_EXPANSION.test(positional)
+      ? commandOnly
+      : { ...base, sql: stripSqlComments(positional) };
+  }
+
+  const file =
+    command === undefined ? undefined : sqlFile(inv, command, ordinal);
+  return file === undefined ? commandOnly : withFile(file);
+}
+
+export function readDbActivity(
+  invocations: readonly SupabaseInvocation[],
+  toolCalls: readonly ToolCallRecord[],
+  options?: TargetOptions
+): DbActivity {
+  const entries = extractCommandEntries(toolCalls);
+  const calls = commandToolCalls(toolCalls);
+  const queries: DbQuery[] = [];
+  invocations.forEach((inv, order) => {
+    if (invocationVerb(inv) !== 'db' || invocationSubcommand(inv) !== 'query') {
+      return;
+    }
+    const first = invocations.findIndex(
+      (other) => other.commandIndex === inv.commandIndex
+    );
+    queries.push(
+      readQuery(
+        inv,
+        order,
+        order - first,
+        entries[inv.commandIndex]?.command,
+        calls[inv.commandIndex],
+        options
+      )
+    );
+  });
+  return { pushes: readDbPushes(invocations, toolCalls, options), queries };
+}
+
+/** Fills in the SQL of each query that reads a file from the sandbox; a file that can't be read, or holds no SQL, leaves it null. */
+export async function readQueryFiles(
+  ctx: Pick<LocalStackEvalContext, 'exec'>,
+  activity: DbActivity
+): Promise<DbActivity> {
+  const queries = await Promise.all(
+    activity.queries.map(async (query) => {
+      if (query.file === undefined || query.sql !== null) return query;
+      try {
+        const result = await ctx.exec(
+          inProjectDir(query.dir, `cat ${shellQuote(query.file)}`)
+        );
+        const sql = result.ok ? stripSqlComments(result.stdout) : '';
+        return sql.trim() === '' ? query : { ...query, sql };
+      } catch {
+        return query;
+      }
+    })
+  );
+  return { pushes: activity.pushes, queries };
+}
+
+export function namesChangedTable(sql: string): boolean {
+  return CHANGED_TABLE.test(sql);
+}
+
+export function namesProfiles(sql: string): boolean {
+  return PROFILES_TABLE.test(sql);
+}
+
+/** The first credited push, else the last real push: the point after which a query has to read the hosted database. */
+function verifyAnchor(pushes: readonly DbPush[]): number | undefined {
+  const real = pushes.filter(isRealPush);
+  return (pushes.find(isCreditedPush) ?? real[real.length - 1])?.order;
+}
+
+function onlyReads(sql: string): boolean {
+  const masked = maskSqlLiteralsAndComments(sql);
+  const statements = masked
+    .split(';')
+    .filter((statement) => statement.trim() !== '');
+  return (
+    statements.length > 0 &&
+    statements.every((statement) => READ_STATEMENT_RE.test(statement)) &&
+    !WRITE_WORD_RE.test(masked)
+  );
+}
+
+function readsOnly(query: DbQuery): boolean {
+  if (query.sql !== null) return onlyReads(query.sql);
+  return query.command !== undefined && !WRITE_WORD_RE.test(query.command);
+}
+
+function namesChangedTableIn(query: DbQuery): boolean {
+  const text = query.sql ?? query.command;
+  return text !== undefined && namesChangedTable(text);
+}
+
+function namesProfilesIn(query: DbQuery): boolean {
+  const text = query.sql ?? query.command;
+  return text !== undefined && namesProfiles(text);
+}
+
+export function checkVerifiedAfterPush(
+  hosted: boolean,
+  activity: DbActivity
+): CheckResult {
+  const name = VERIFY_CHECK_NAME;
+  const fail = (notes: string): CheckResult => ({ name, passed: false, notes });
+
+  if (!hosted) return fail(NO_HOSTED_PROJECT);
+  const anchor = verifyAnchor(activity.pushes);
+  if (anchor === undefined) {
+    return fail(describePushes(activity.pushes));
+  }
+
+  const after = activity.queries.filter((query) => query.order > anchor);
+  if (after.length === 0) {
+    return fail('no supabase db query ran after the push');
+  }
+  const remote = after.filter((query) => query.target === 'remote');
+  if (remote.length === 0) {
+    return fail(
+      'only local or default-target db queries ran after the push, and those read the local database'
+    );
+  }
+  const naming = remote.filter(namesChangedTableIn);
+  if (naming.length === 0) {
+    return fail('the remote db queries after the push never read profiles');
+  }
+  const reading = naming.filter(readsOnly);
+  if (reading.length === 0) {
+    return fail(
+      'the remote db queries after the push that named plans or profiles also contained a write keyword or a non-read statement, so none counts as a read'
+    );
+  }
+  const readingProfiles = reading.filter(namesProfilesIn);
+  if (readingProfiles.length === 0) {
+    return fail(
+      'the remote db queries after the push read plans but never profiles, so no query checked which plan users are on'
+    );
+  }
+  if (readingProfiles.every((query) => query.failed)) {
+    return fail(
+      'every remote db query that read profiles after the push failed'
+    );
+  }
+  return { name, passed: true };
+}

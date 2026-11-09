@@ -3,7 +3,6 @@ import {
   experimentDisplayMetadataSchema,
   experimentRationaleSchema,
   type ExperimentDisplayMetadata,
-  type ExperimentSuite,
 } from "@supabase-evals/core/eval-metadata"
 import rawRationales from "../data/experiment-rationales.json" with { type: "json" }
 
@@ -33,17 +32,16 @@ export function sameExperimentDisplay(
 }
 
 export function missingBenchmarkRationales(
-  experiments: Iterable<
-    [string, { display: ExperimentDisplayMetadata; suites: ExperimentSuite[] }]
-  >
+  experiments: Iterable<[string, { display: ExperimentDisplayMetadata }]>
 ) {
   return Array.from(experiments)
-    .filter(([, config]) => config.suites.includes("benchmark"))
+    .filter(([name]) => name.startsWith("benchmark/"))
     .filter(
       ([name, config]) =>
         !experimentRationales.some(
           (entry) =>
-            entry.experiment === name &&
+            entry.experiment ===
+              name.slice("benchmark/".length).replace(/-no-skills$/, "") &&
             sameExperimentDisplay(entry.display, config.display)
         )
     )

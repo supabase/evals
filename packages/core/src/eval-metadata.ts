@@ -45,20 +45,11 @@ export const evalSuiteSchema = z.enum([
   'regression',
   'docs',
   'cli',
-  'other',
+  'docs-nav',
+  'spark',
 ]);
 export const EVAL_SUITES = evalSuiteSchema.options;
 export type EvalSuite = z.infer<typeof evalSuiteSchema>;
-
-export const experimentSuiteSchema = z.enum([
-  'benchmark',
-  'no-skills',
-  'regression',
-  'docs',
-  'cli',
-]);
-export const EXPERIMENT_SUITES = experimentSuiteSchema.options;
-export type ExperimentSuite = z.infer<typeof experimentSuiteSchema>;
 
 export const agentHarnessIdSchema = z.enum([
   'ai-sdk',
@@ -107,6 +98,7 @@ export type ExperimentRationale = z.infer<typeof experimentRationaleSchema>;
  * Interface(s) the agent uses to act on Supabase — a benchmark dimension
  * (cross-team KPI), not the runtime switch. `mcp` = the platform-lite MCP/tool
  * surface; `cli` = the real Supabase CLI inside a local-stack Docker sandbox.
+ * `rest` = direct HTTP access to the hosted API.
  * Required on every scenario, so each one is categorized on this dimension
  * rather than silently exported without a value.
  *
@@ -115,7 +107,7 @@ export type ExperimentRationale = z.infer<typeof experimentRationaleSchema>;
  * tools runtime. `interface: cli` additionally forces a sandbox for scenarios
  * that start from an empty workspace (no `local/`).
  */
-export const evalInterfaceSchema = z.enum(['mcp', 'cli']);
+export const evalInterfaceSchema = z.enum(['mcp', 'cli', 'rest']);
 export const EVAL_INTERFACES = evalInterfaceSchema.options;
 export type EvalInterface = z.infer<typeof evalInterfaceSchema>;
 // Matches VERSION_RE in packages/sandbox/src/cli-channel.ts, so a resolved
@@ -428,8 +420,6 @@ export type DocsResult = z.infer<typeof docsResultSchema>;
 // than rendered with a stale value, and is rebuilt on the next run.
 const evalResultShape = {
   experiment: z.string(),
-  experimentSuite: experimentSuiteSchema.optional(),
-  profile: experimentSuiteSchema.optional(),
   experimentDisplay: experimentDisplayMetadataSchema.optional(),
   eval: z.string(),
   stage: evalStageSchema.optional(),
@@ -447,7 +437,13 @@ const evalResultShape = {
   run: z.number().optional(),
   skills: skillResultSchema.optional(),
   docs: docsResultSchema.optional(),
+  // Harness-reported totals per model.
   usage: agentUsageSchema.optional(),
+  // Token totals summed across Braintrust agent LLM spans and models.
+  // Requests missing from the trace are excluded.
+  traceUsage: z
+    .object({ inputTokens: z.number(), outputTokens: z.number() })
+    .optional(),
   // One turn per model response, for example:
   //   text → [Read, Read] → Edit → reasoning → text
   //   stepCount 5, toolCallCount 3

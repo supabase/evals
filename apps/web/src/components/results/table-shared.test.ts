@@ -32,6 +32,12 @@ describe("metric formatters", () => {
     expect(formatDuration(245_000)).toBe("4m 05s")
   })
 
+  it("formats trace token counts", () => {
+    expect(formatTokens({ inputTokens: 1200, outputTokens: 300 })).toBe(
+      "1.5K (1.2K in / 300 out)"
+    )
+  })
+
   it("formats tokens as a total with the in/out split, summed across models", () => {
     expect(
       formatTokens([

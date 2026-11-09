@@ -1,19 +1,10 @@
 import { readFileSync } from "node:fs"
 import type { Plugin } from "vite"
 
-/**
- * Injects JSON-LD for the leaderboard into the built `index.html`.
- *
- * The graph is generated from the committed results at build time because
- * automation rewrites those results daily, so anything hand-written here would
- * go stale. Everything below is derived from the file: no invented numbers.
- */
-
 /** The page is served at supabase.com/evals, not at the vercel.app origin. */
 const CANONICAL_URL = "https://supabase.com/evals"
 const ORGANIZATION_ID = "https://supabase.com/#organization"
-const RESULTS_RAW_URL =
-  "https://raw.githubusercontent.com/supabase/evals/main/apps/web/src/data/eval-results.json"
+const RESULTS_RAW_URL = "https://supabase.com/evals/eval-results.json"
 const DESCRIPTION =
   "See how agents perform on real Supabase tasks in our open-source benchmark for AI coding agents."
 

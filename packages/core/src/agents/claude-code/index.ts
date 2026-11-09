@@ -22,9 +22,13 @@ export function claudeCodeAgent(
     reasoningEffort?: ReasoningEffortLevel;
     /** Override the pinned CLI version. */
     cliVersion?: string;
+    tools?: string[];
   } = {}
 ): AgentHarness {
-  return createCliAgent(claudeCodeRunner, claudeCodeParser, {
+  const runner = options.tools
+    ? { ...claudeCodeRunner, tools: options.tools }
+    : claudeCodeRunner;
+  return createCliAgent(runner, claudeCodeParser, {
     model: options.model ?? claudeCodeRunner.defaultModel,
     reasoningEffort: options.reasoningEffort,
     cliVersion: options.cliVersion,

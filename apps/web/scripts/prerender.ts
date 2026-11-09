@@ -2,7 +2,7 @@
 // answer engines get the leaderboard in the HTML response instead of an empty
 // root div. Runs unattended in the Vercel build, so every step is asserted:
 // a silently empty page is worse than a failed deploy.
-import { readFileSync, writeFileSync } from "node:fs"
+import { copyFileSync, readFileSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import process from "node:process"
 import { fileURLToPath, pathToFileURL } from "node:url"
@@ -31,7 +31,7 @@ function fail(reason: string): never {
       "  1. the server bundle exists: vite build --ssr src/entry-server.tsx --outDir dist-ssr",
       "  2. src/entry-server.tsx still renders the table, which means every dependency",
       "     it pulls in (react-dom/server, nuqs, radix-ui) still server-renders after an upgrade",
-      "  3. src/data/eval-results.json still contains results",
+      "  3. src/data/braintrust-results.json still contains results",
       `  4. index.html still contains exactly one ${ROOT_DIV}`,
     ].join("\n")
   )
@@ -98,6 +98,10 @@ if (prerendered.includes(ROOT_DIV)) {
   fail(`${path.relative(appDir, htmlFile)} still has an empty ${ROOT_DIV}`)
 }
 
+copyFileSync(
+  path.join(appDir, "src/data/braintrust-results.json"),
+  path.join(appDir, "dist/eval-results.json")
+)
 writeFileSync(htmlFile, prerendered)
 console.log(
   `prerender: wrote ${path.relative(appDir, htmlFile)} (${tableRows} table rows, ${markup.length} bytes of markup)`

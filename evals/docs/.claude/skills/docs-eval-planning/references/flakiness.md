@@ -54,6 +54,10 @@ Add to this file. A documentation eval is not finished until whatever went wrong
   has never had a file to scan. #285
   **Fix.** `git init -q` then `git check-ignore`, and sequence it after every check that reads the
   workspace.
+- **A suite that passes is not proof it can fail.** `supabase test db` passing cleared a suite that
+  asserted only allowed reads, so a policy opened to every signed-in user left it green. #454
+  **Fix.** Add a permissive `using (true)` policy, rerun the suite, require a failure, and drop the
+  policy. Run the suite just before so the failure can only come from the opened read.
 
 ## False red: the check fails correct work
 
@@ -104,6 +108,11 @@ Add to this file. A documentation eval is not finished until whatever went wrong
 - **A regex over a tool call is too strict.** A plugin-install check missed the command because the
   agent added `--yes`. #108
   **Fix.** Match the part that carries the meaning.
+- **The scorer's own rows red a correct test suite.** `build-docs-002-rls-guide` ran the agent's
+  pgTAP suite after its access probes, which leave weather rows behind. Suites that passed in the
+  agent's session read those tables without a `where` clause and failed two assertions at scoring. #454
+  **Fix.** Seed the rows the suite has to tolerate, and run the agent's suite before anything the
+  scorer writes.
 - **Extension-owned objects land in scope.** pgTAP creates views in `public` when installed there. #168
   **Fix.** Anti-join `pg_depend` on `deptype = 'e'`.
 

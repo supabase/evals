@@ -11,7 +11,7 @@ import { localStackRuntime } from '@supabase-evals/sandbox';
 
 type ExperimentPreset = Pick<
   ExperimentConfig,
-  'agent' | 'runtime' | 'localStack' | 'skills'
+  'agent' | 'runtime' | 'localStack' | 'skills' | 'skipEval'
 >;
 
 const skills = ['supabase', 'supabase-postgres-best-practices'];
@@ -50,6 +50,13 @@ export const codexGpt6Luna = {
   runtime: defaultRuntime(),
   localStack: localStackRuntime(),
   skills,
+} satisfies ExperimentPreset;
+
+export const codexGpt6LunaNoSkills = {
+  ...codexGpt6Luna,
+  skills: [],
+  // Evals that override `skills: []` already run under the baseline experiment.
+  skipEval: (ev) => ev.metadata.skills?.length === 0,
 } satisfies ExperimentPreset;
 
 export const codexGpt61Sol = {

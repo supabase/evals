@@ -1,0 +1,56 @@
+name: CLI eval schedule
+
+on:
+  schedule:
+    - cron: '20 4 * * *'
+    - cron: '20 1 * * 1'
+  workflow_dispatch:
+    inputs:
+      cadence:
+        description: "Which experiment list to run"
+        type: choice
+        options:
+          - daily
+          - weekly
+        default: daily
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+jobs:
+  daily:
+    if: github.event.schedule == '20 4 * * *' || (github.event_name == 'workflow_dispatch' && inputs.cadence == 'daily')
+    uses: ./.github/workflows/eval-refresh.yml
+    secrets: inherit
+    with:
+      suite: cli
+      merge: false
+      commit_results: none
+      experiments: >-
+        codex-gpt-6-luna-cli-pinned,
+        codex-gpt-6-luna-cli-stable,
+        codex-gpt-6-luna-cli-beta,
+        codex-gpt-6-luna-cli-next,
+        codex-gpt-6-luna-cli-nodaemon,
+        codex-gpt-6-luna-cli-absent
+
+  weekly:
+    if: github.event.schedule == '20 1 * * 1' || (github.event_name == 'workflow_dispatch' && inputs.cadence == 'weekly')
+    uses: ./.github/workflows/eval-refresh.yml
+    secrets: inherit
+    with:
+      suite: cli
+      merge: false
+      commit_results: none
+      # Luna experiments already run daily, so they're excluded from the weekly schedule to avoid duplicate runs.
+      experiments: >-
+        claude-code-sonnet-5.5-cli-stable,
+        claude-code-sonnet-5.5-cli-next,
+        claude-code-opus-5.5-cli-stable,
+        claude-code-opus-5.5-cli-next,
+        codex-gpt-6.1-sol-cli-stable,
+        codex-gpt-6.1-sol-cli-next,
+        opencode-kimi-k3-cli-stable,
+        opencode-kimi-k3-cli-next

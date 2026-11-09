@@ -65,9 +65,12 @@ const compact = new Intl.NumberFormat("en", {
 })
 
 /** Summed across models, e.g. "444.4K (442.7K in / 1.7K out)". */
-export function formatTokens(usage: AgentUsage) {
-  const input = usage.reduce((n, u) => n + u.inputTokens, 0)
-  const output = usage.reduce((n, u) => n + u.outputTokens, 0)
+export function formatTokens(
+  usage: AgentUsage | { inputTokens: number; outputTokens: number }
+) {
+  const entries = Array.isArray(usage) ? usage : [usage]
+  const input = entries.reduce((n, entry) => n + entry.inputTokens, 0)
+  const output = entries.reduce((n, entry) => n + entry.outputTokens, 0)
   return `${compact.format(input + output)} (${compact.format(input)} in / ${compact.format(output)} out)`
 }
 

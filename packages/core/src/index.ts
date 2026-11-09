@@ -46,7 +46,6 @@ import type {
   EvalMetadata,
   EvalSuite,
   ExperimentDisplayMetadata,
-  ExperimentSuite,
   JudgeCall,
   ModelProvider,
   ReasoningEffortLevel,
@@ -82,7 +81,6 @@ export {
   EVAL_PRODUCTS,
   EVAL_SUITES,
   EVAL_STAGES,
-  EXPERIMENT_SUITES,
   agentHarnessIdSchema,
   checkResultSchema,
   evalInterfaceSchema,
@@ -91,7 +89,6 @@ export {
   evalResultSchema,
   evalStageSchema,
   evalSuiteSchema,
-  experimentSuiteSchema,
   experimentDisplayMetadataSchema,
   modelProviderSchema,
   rawEvalResultSchema,
@@ -144,7 +141,6 @@ export type {
   EvalSuite,
   EvalStage,
   ExperimentDisplayMetadata,
-  ExperimentSuite,
   ModelProvider,
   ParsedEvalMarkdown,
   ReasoningEffortLevel,
@@ -642,8 +638,6 @@ export type LocalStackRuntime = {
 };
 
 export type ExperimentConfig = {
-  /** Named experiment suites this experiment belongs to. */
-  suite?: ExperimentSuite[];
   agent: AgentHarness;
   runtime: EvalRuntime;
   /** Local-stack environment (e.g. localStackRuntime() from @supabase-evals/sandbox). */
@@ -967,6 +961,8 @@ export type EvalSessionArgs = {
 
 export type EvalSession = {
   mcpServers: Record<string, McpServerConfig>;
+  /** Connection settings available to every process in the agent sandbox. */
+  env?: Record<string, string>;
   /**
    * Text for the agent's system prompt, joined from the MCP servers'
    * `promptAddendum`s. Must be empty for a CLI agent, which runs with its own
@@ -1104,12 +1100,26 @@ export function supabaseMcpServer(
     'development',
     'debugging',
     'functions',
+    'feedback',
   ];
   const version = options.version ?? MCP_SERVER_VERSION;
 
   return {
     name: 'supabase-mcp',
     async createConfig({ apiUrl, accessToken } = {}) {
+      // The server targets production when no apiUrl is given, so feedback
+      // would reach the real feedback project.
+      const targetsProduction =
+        new URL(apiUrl ?? PRODUCTION_API_URL).origin === PRODUCTION_API_URL;
+      const enabledFeatures = targetsProduction
+        ? features.filter((feature) => feature !== 'feedback')
+        : features;
+      // An empty --features enables the server's defaults, feedback included.
+      if (enabledFeatures.length === 0) {
+        throw new Error(
+          'supabase-mcp: feedback needs a non-production apiUrl; no other features enabled'
+        );
+      }
       // Server flags are identical whether we launch the published package via
       // npx or a local build directly with node.
       const serverArgs = [
@@ -1119,12 +1129,16 @@ export function supabaseMcpServer(
         '--access-token',
         accessToken ?? THROWAWAY_ACCESS_TOKEN,
         '--features',
-        features.join(','),
+        enabledFeatures.join(','),
       ];
       // Only point the server at a platform when one is given. `docs` is
       // platform-independent (it queries the public docs GraphQL API), so a
       // docs-only server runs standalone with no `--api-url`.
       if (apiUrl) serverArgs.push('--api-url', apiUrl);
+      const env =
+        apiUrl && enabledFeatures.includes('feedback')
+          ? feedbackRedirectEnv(apiUrl)
+          : undefined;
 
       const local = resolveLocalMcpServer();
       if (local) {
@@ -1132,7 +1146,7 @@ export function supabaseMcpServer(
         // sandbox container, where the host's node binary path does not exist.
         // Both container and host resolve `node` via PATH.
         return {
-          config: { command: 'node', args: [local.entry, ...serverArgs] },
+          config: { command: 'node', args: [local.entry, ...serverArgs], env },
         };
       }
 
@@ -1140,10 +1154,25 @@ export function supabaseMcpServer(
         config: {
           command: 'npx',
           args: [`@supabase/mcp-server-supabase@${version}`, ...serverArgs],
+          env,
         },
       };
     },
   };
+}
+
+/**
+ * The MCP server sends feedback from a non-production `--api-url` to a hosted
+ * staging project and has no option to change that:
+ * https://github.com/supabase/mcp/blob/ed5084d1957541c5130f551d5f7e0fee5e3ddfeb/packages/mcp-server-supabase/src/platform/api-platform.ts#L998-L1003
+ * This preload sends those feedback calls to platform-lite's mock instead.
+ */
+function feedbackRedirectEnv(apiUrl: string): Record<string, string> {
+  const target = JSON.stringify(`${apiUrl}/feedback`);
+  const source = `const f=globalThis.fetch;globalThis.fetch=(i,o)=>{const u=new URL(i.url??i);return u.pathname.endsWith('interfaces_feedback')?f(${target}+u.pathname+u.search,o):f(i,o)}`;
+  // Keep `://` readable so rewriteLoopback can retarget the URL inside sandboxes.
+  const encoded = encodeURIComponent(source).replaceAll('%3A%2F%2F', '://');
+  return { NODE_OPTIONS: `--import=data:text/javascript,${encoded}` };
 }
 
 /**
@@ -1172,9 +1201,7 @@ function resolveLocalMcpServer(): LocalMcpServer | null {
     gitToplevel(dirname(fileURLToPath(import.meta.url))) ?? process.cwd();
   const isEntryFile = /\.[cm]?js$/.test(localServerPath);
   const base = resolve(anchor, localServerPath);
-  const probe = isEntryFile
-    ? base
-    : join(base, 'dist', 'transports', 'stdio.js');
+  const probe = isEntryFile ? base : join(base, 'dist', 'cli.js');
   if (!existsSync(probe)) {
     throw new Error(
       `SUPABASE_MCP_SERVER_PATH resolved to ${probe}, which does not exist — ` +
@@ -1192,9 +1219,7 @@ function resolveLocalMcpServer(): LocalMcpServer | null {
   const realBase = realpathSync(base);
   const baseDir = isEntryFile ? dirname(realBase) : realBase;
   const value: LocalMcpServer = {
-    entry: isEntryFile
-      ? realBase
-      : join(realBase, 'dist', 'transports', 'stdio.js'),
+    entry: isEntryFile ? realBase : join(realBase, 'dist', 'cli.js'),
     baseDir,
     // The whole git toplevel (not just dist/) because the build is unbundled:
     // it requires its node_modules at runtime.
@@ -1390,10 +1415,11 @@ async function getAvailablePort(): Promise<number> {
 }
 
 export const ACCESS_TOKEN = 'eval-token';
-export const MCP_SERVER_VERSION = '0.12.0';
+export const MCP_SERVER_VERSION = '0.16.0';
 // Well-formed but inert PAT used when a Supabase MCP server is docs-only: the
 // server requires a token to boot but never authenticates without a platform.
 const THROWAWAY_ACCESS_TOKEN = `sbp_${'0'.repeat(40)}`;
+const PRODUCTION_API_URL = 'https://api.supabase.com';
 
 export interface PlatformBackend {
   url: string;

@@ -4,6 +4,7 @@ import { makeResult } from "@/lib/eval-results.fixture"
 import { missingBenchmarkRationales } from "@/lib/experiment-rationales"
 import {
   EXPERIMENT_SUITES,
+  getSuiteResults,
   JOURNEY_STAGES,
   UNASSIGNED_PRODUCT,
   getEvalIds,
@@ -184,14 +185,13 @@ describe("the exported results", () => {
     expect(Array.from(new Set(unknown))).toEqual([])
   })
 
-  it("only carries suites the suite control can select", () => {
-    const suites = new Set(
-      sortedResults.map((result) => result.experimentSuite)
+  it("splits runs into with and without skills", () => {
+    const counts = EXPERIMENT_SUITES.map(
+      (suite) => getSuiteResults(suite).length
     )
 
-    expect(Array.from(suites).sort()).toEqual(
-      [...EXPERIMENT_SUITES].sort((a, b) => a.localeCompare(b))
-    )
+    expect(counts.every((count) => count > 0)).toBe(true)
+    expect(counts.reduce((a, b) => a + b, 0)).toBe(sortedResults.length)
   })
 
   it("is in canonical order", () => {
@@ -266,18 +266,18 @@ describe("benchmark rationale coverage", () => {
   it("requires an entry matching each current benchmark model and effort", () => {
     expect(
       missingBenchmarkRationales([
-        ["opencode-kimi-k3", { display: kimi, suites: ["benchmark"] }],
-        ["new-experiment", { display: kimi, suites: ["benchmark"] }],
+        ["benchmark/opencode-kimi-k3", { display: kimi }],
+        ["benchmark/opencode-kimi-k3-no-skills", { display: kimi }],
+        ["benchmark/new-experiment", { display: kimi }],
         [
-          "opencode-kimi-k3",
+          "benchmark/opencode-kimi-k3",
           {
             display: { ...kimi, reasoningEffort: "high" },
-            suites: ["benchmark"],
           },
         ],
-        ["other", { display: kimi, suites: ["no-skills"] }],
+        ["cli/other", { display: kimi }],
       ])
-    ).toEqual(["new-experiment", "opencode-kimi-k3"])
+    ).toEqual(["benchmark/new-experiment", "benchmark/opencode-kimi-k3"])
   })
 
   it("shows the historical Sonnet rationale when its results are present", () => {

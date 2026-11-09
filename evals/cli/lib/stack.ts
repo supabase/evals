@@ -147,7 +147,8 @@ type CascadeStep = {
 
 const HOME_VARIABLES = ['SUPABASE_HOME', 'HOME', 'TMPDIR'] as const;
 
-function homePrefix(home: InvocationEnv | undefined): string {
+/** The `SUPABASE_HOME`/`HOME`/`TMPDIR` assignments `home` sets, each followed by a space, as a command prefix. */
+export function homePrefix(home: InvocationEnv | undefined): string {
   return HOME_VARIABLES.flatMap((name) => {
     const value = home?.[name];
     return value === undefined ? [] : [`${name}=${shellQuote(value)} `];

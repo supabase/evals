@@ -20,23 +20,29 @@ const LINE_VALUE = String.raw`${QUOTED}|(?:${NOT_ESCAPED_NEWLINE}[^\s'"])+`;
 
 const SECRET_KEY = String.raw`[\w.-]*(?:pass|secret|token)[\w.-]*|[\w.-]*key`;
 
+const PLACEHOLDER_WORD = String.raw`(?:unset|set|yes|no|true|false|missing|present|empty|none|null|undefined|absent)`;
+const PLACEHOLDER_BARE = String.raw`<${PLACEHOLDER_WORD}>|\(${PLACEHOLDER_WORD}\)|${PLACEHOLDER_WORD}`;
+const PLACEHOLDER = String.raw`\\?"${PLACEHOLDER_WORD}?\\?"|\\?'${PLACEHOLDER_WORD}?\\?'|${PLACEHOLDER_BARE}`;
+const ASSIGNMENT_END = String.raw`$|[\s'";&|]|\\[nr]`;
+const LINE_END = String.raw`$|[\s'"]|\\[nr]`;
+
 const POSTGRES_URL_PASSWORD = new RegExp(
   String.raw`(postgres(?:ql)?:\/\/[^\s:@/'"]+:)(?:${NOT_ESCAPED_NEWLINE}[^\s'"])+@`,
   'g'
 );
 
 const SECRET_ASSIGNMENT = new RegExp(
-  String.raw`\b([A-Za-z][A-Za-z0-9_]*(?:password|secret|key)|password)=(${ASSIGNMENT_VALUE})`,
+  String.raw`\b([A-Za-z][A-Za-z0-9_]*(?:password|secret|key)|password)=(?!(?:${PLACEHOLDER})(?=${ASSIGNMENT_END}))(${ASSIGNMENT_VALUE})`,
   'gi'
 );
 
 const JSON_SECRET = new RegExp(
-  String.raw`(\\?"(?:[^"\\]*(?:pass|secret|token)[^"\\]*|[^"\\]*key)\\?"\s*:\s*\\?")(?:[^"\\]|\\[^"])*(\\?)"`,
+  String.raw`(\\?"(?:[^"\\]*(?:pass|secret|token)[^"\\]*|[^"\\]*key)\\?"\s*:\s*\\?")(?!(?:${PLACEHOLDER_BARE})?\\?")(?:[^"\\]|\\[^"])*(\\?)"`,
   'gi'
 );
 
 const YAML_SECRET = new RegExp(
-  String.raw`(?<=^"?|\\n)([ \t]*(?:-[ \t]+)?(?:${SECRET_KEY}):[ \t]+)(?:${LINE_VALUE})`,
+  String.raw`(?<=^"?|\\n)([ \t]*(?:-[ \t]+)?(?:${SECRET_KEY}):[ \t]+)(?!(?:${PLACEHOLDER})(?=${LINE_END}))(?:${LINE_VALUE})`,
   'gim'
 );
 

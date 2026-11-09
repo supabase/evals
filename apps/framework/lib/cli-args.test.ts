@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { positiveInteger, readFlag } from './cli-args.js';
+import {
+  positiveInteger,
+  readExperimentFilters,
+  readFlag,
+} from './cli-args.js';
 
 describe('readFlag', () => {
   it('reads flags in both --name value and --name=value form', () => {
@@ -33,5 +37,16 @@ describe('positiveInteger', () => {
     expect(() => positiveInteger('abc', 'runs')).toThrow(
       '--runs must be a positive integer'
     );
+  });
+});
+
+describe('readExperimentFilters', () => {
+  it('reads repeated and comma-separated experiment names', () => {
+    expect(
+      readExperimentFilters(['--experiment', 'grok-4.7,codex-gpt-6-luna'])
+    ).toEqual(['grok-4.7', 'codex-gpt-6-luna']);
+    expect(() =>
+      readExperimentFilters(['--experiment', 'benchmark/grok-4.7'])
+    ).toThrow('Expected an experiment name');
   });
 });

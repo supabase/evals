@@ -28,11 +28,10 @@ Agent-backed runs require the relevant provider key in `.env` (e.g. `OPENAI_API_
 ## Concepts
 
 - An **eval** is one scenario under `evals/<suite>/<id>/`. It contains the prompt, scorer, and optional starting state for the two environments: `remote/` (the hosted project) and `local/` (the agent's working files).
-- An **experiment** is one agent/runtime/model setup under `experiments/<owner>/<name>.experiment.ts`. Its ID remains `<name>`.
-- An **eval suite** is a named set of evals to run together. An eval's suite is its parent folder under `evals/` (`benchmark`, `regression`, `docs`, `cli`, or `other`).
-- An **experiment suite** is a named set of experiments with related configurations, for head to head comparisons.
+- An **experiment** is one agent/runtime/model setup under `experiments/<suite>/<name>.experiment.ts`. Its ID remains `<name>`.
+- A **suite** is a named set of evals and the experiments that run them. Each suite gets a folder under `evals/` and `experiments/`. Experiments used in several suites can use a shared preset from `experiments/presets.ts`. The suites are defined in `packages/core/src/eval-metadata.ts`.
 - An **agent** is the model driver that receives the eval prompt and calls the configured tools.
-- A **runtime** is the local Supabase-like environment and tool surface an experiment gives to the agent.
+- A **runtime** is the local or hosted environment and tool surface an experiment gives to the agent.
 - `platform-lite` exposes a Supabase Management API-compatible HTTP surface backed by [`@supabase/lite`](https://github.com/supabase/supabase-lite), so real tools like `@supabase/mcp-server-supabase` can run against a lightweight project.
 
 ## Running evals
@@ -56,10 +55,10 @@ pnpm eval -- \
   --eval investigate-auth-001-deleted-user-access
 ```
 
-`--suite`, `--experiment-suite`, `--experiment`, and `--eval` accept multiple inputs via repeated flags as well as comma-separated values.
+`--suite`, `--experiment`, and `--eval` accept multiple inputs via repeated flags as well as comma-separated values. `--experiment` takes the experiment name. Each eval runs experiments from its own suite folder.
 
 Use `--runs N` to score each experiment and eval pair independently `N` times.
-Each run writes to `results/<experiment>/<eval>/run-<n>/result.json`. Add
+Each run writes to `results/<suite>/<experiment>/<eval>/run-<n>/result.json`. Add
 `--skip-existing` to resume without replacing completed runs:
 
 ```bash
@@ -69,32 +68,21 @@ pnpm eval -- --eval resolve-dataapi-001-empty-results \
   --skip-existing
 ```
 
-Run all benchmark and no-skills experiments across all benchmark evals:
+Run every experiment in `experiments/benchmark/` across all benchmark evals:
 
 ```bash
-pnpm eval -- --suite benchmark --experiment-suite benchmark,no-skills
+pnpm eval -- --suite benchmark
 ```
 
 ### View results in the web app
 
-After running evals locally, export their results to `eval-results.json` for the web app:
-
-```bash
-pnpm export-results
-```
-
-For multi-run results, pass the requested run count to skip incomplete sample
-sets instead of averaging them:
-
-```bash
-pnpm export-results -- --runs 3
-```
-
-Start the web app development server:
+Set `BRAINTRUST_API_KEY` and `BRAINTRUST_PROJECT_ID` in the repository's `.env`, then run:
 
 ```bash
 pnpm web
 ```
+
+The server fetches results once at startup. See [CONTRIBUTING.md](CONTRIBUTING.md#publishing-and-consuming-results) for publishing and querying results.
 
 ## Eval Shape
 
@@ -131,7 +119,7 @@ There are two runtimes, chosen automatically per eval:
 - **Tools evals** run the agent against the experiment's MCP/tool surface (no `local/` directory, no `interface: cli`), then score the resulting project state or report.
 - **Local-stack evals** run the agent inside a Docker sandbox — a `bash` tool plus file tools with the real Supabase CLI installed — so it can run `supabase init/start/db/test` against a real local stack. An eval uses this runtime when it ships a `local/` workspace **or** declares `interface: cli` (the latter covers bootstrap scenarios that start from an empty workspace).
 
-`interface` (`mcp` | `cli`) is otherwise a benchmark dimension (a cross-team KPI label), not the runtime switch — the `local/` directory and `interface: cli` are what decide whether a sandbox boots.
+`interface` (`mcp` | `cli` | `rest`) is otherwise a benchmark dimension (a cross-team KPI label), not the runtime switch — the `local/` directory and `interface: cli` are what decide whether a sandbox boots.
 
 ### Local-stack evals
 

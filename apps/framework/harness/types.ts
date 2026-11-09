@@ -35,7 +35,6 @@ export type {
   EvalProduct,
   EvalStage,
   EvalSuite,
-  ExperimentSuite,
   JudgeCall,
 } from '@supabase-evals/core/eval-metadata';
 

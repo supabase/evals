@@ -6,13 +6,13 @@ import { parseEvalMarkdown } from '@supabase-evals/core/eval-markdown';
 import {
   evalSuiteSchema,
   rawEvalResultSchema,
+  type EvalSuite,
 } from '@supabase-evals/core/eval-metadata';
 import {
   getExperimentDisplayMetadata,
   type ExperimentConfig,
   type ExperimentDisplayMetadata,
 } from '@supabase-evals/core';
-import type { ExperimentSuite } from '@supabase-evals/core/eval-metadata';
 import { discoverExperimentFiles } from './experiment-files.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -23,7 +23,7 @@ const EXPERIMENTS_DIR = join(ROOT, 'experiments');
 
 export interface ExperimentMetadata {
   display: ExperimentDisplayMetadata;
-  suites: ExperimentSuite[];
+  skills: string[];
 }
 
 export async function loadExperimentMetadata(): Promise<
@@ -33,9 +33,9 @@ export async function loadExperimentMetadata(): Promise<
   for (const experiment of await discoverExperimentFiles(EXPERIMENTS_DIR)) {
     const mod = await import(pathToFileURL(experiment.path).href);
     const config: ExperimentConfig = mod.default;
-    map.set(experiment.name, {
+    map.set(`${experiment.suite}/${experiment.name}`, {
       display: getExperimentDisplayMetadata(config),
-      suites: config.suite ?? [],
+      skills: config.skills ?? [],
     });
   }
   return map;
@@ -80,15 +80,17 @@ export interface ResultFile {
 
 export interface CollectOptions {
   includeExperiment?: (experiment: string) => boolean;
+  includeSuite?: (suite: EvalSuite) => boolean;
   includeEval?: (evalId: string) => boolean;
   /** Called when a result file fails schema validation. */
   onUnparseable?: (sourcePath: string, message: string) => void;
   resultsDir?: string;
 }
 
-/** Reads the canonical `results/<experiment>/<eval>/run-<n>/result.json` layout. */
+/** Reads results from `results/<suite>/<experiment>/<eval>/run-<n>/result.json`. */
 export async function collectResultFiles({
   includeExperiment,
+  includeSuite,
   includeEval,
   onUnparseable,
   resultsDir = RESULTS_DIR,
@@ -100,21 +102,25 @@ export async function collectResultFiles({
   const paths: string[] = [];
   // Two patterns because `*` alone skips dot-prefixed eval directories.
   for await (const absolutePath of glob([
-    join(resultsDir, '*', '*', 'run-*', 'result.json'),
-    join(resultsDir, '*', '.*', 'run-*', 'result.json'),
+    join(resultsDir, '*', '*', '*', 'run-*', 'result.json'),
+    join(resultsDir, '*', '*', '.*', 'run-*', 'result.json'),
   ])) {
     paths.push(absolutePath);
   }
   for (const absolutePath of paths.sort()) {
     const sourcePath = relative(resultsDir, absolutePath).split(sep).join('/');
-    const [experiment, evalId, runEntry] = sourcePath.split('/');
-    if (experiment.startsWith('.') || experiment.startsWith('_')) {
+    const [suite, name, evalId, runEntry] = sourcePath.split('/');
+    const parsedSuite = evalSuiteSchema.safeParse(suite);
+    if (!parsedSuite.success || name.startsWith('.') || name.startsWith('_')) {
+      continue;
+    }
+    if (includeSuite && !includeSuite(parsedSuite.data)) {
       continue;
     }
     if (!/^run-\d+$/.test(runEntry)) {
       continue;
     }
-    if (includeExperiment && !includeExperiment(experiment)) {
+    if (includeExperiment && !includeExperiment(name)) {
       continue;
     }
     if (includeEval && !includeEval(evalId)) {
@@ -125,6 +131,14 @@ export async function collectResultFiles({
     if (!parsed.success) {
       onUnparseable?.(sourcePath, parsed.error.issues[0]?.message ?? '');
       continue;
+    }
+    if (
+      parsed.data.experiment !== name ||
+      (parsed.data.suite !== undefined && parsed.data.suite !== suite)
+    ) {
+      throw new Error(
+        `Result does not match its suite/experiment path: ${sourcePath}. Rerun the eval.`
+      );
     }
     files.push({ sourcePath, absolutePath, result: parsed.data });
   }

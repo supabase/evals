@@ -6,7 +6,6 @@ import { skipUnlessCli } from './lib/skip.js';
 
 export default defineExperiment({
   ...codexGpt6Luna,
-  suite: ['cli'],
   localStack: localStackRuntime({ cliVersion: 'beta', env: EVAL_ENV }),
   skipEval: skipUnlessCli,
 });

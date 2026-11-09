@@ -115,5 +115,11 @@ describe('MCP platform integration', () => {
       expect(Array.isArray(result.lints)).toBe(true);
       expect(result.lints.length).toBeGreaterThan(0);
     });
+
+    it('rejects health advisors as unavailable', async () => {
+      await expect(platform.debugging!.getHealthAdvisors!(REF)).rejects.toThrow(
+        'Health advisors are not available on this project.'
+      );
+    });
   });
 });

@@ -114,12 +114,15 @@ export function getVisibleExperiments(sourceResults: ParsedResult[]) {
   ).sort((a, b) => a.localeCompare(b))
 }
 
-/** The runs shown when the results view is set to one experiment suite. */
+/** The runs shown when the results view is set to with or without skills. */
 export function getSuiteResults(
   suite: ExperimentSuite,
   sourceResults = sortedResults
 ) {
-  return sourceResults.filter((result) => result.experimentSuite === suite)
+  return sourceResults.filter(
+    (result) =>
+      (result.skills?.available.length === 0) === (suite === "no-skills")
+  )
 }
 
 export function getExperimentDisplay(experiment: string) {
@@ -138,7 +141,7 @@ export function getExperimentRationale(
 
   return experimentRationales.find(
     (entry) =>
-      entry.experiment === experiment &&
+      entry.experiment === experiment.replace(/-no-skills$/, "") &&
       results.every(
         ({ experimentDisplay }) =>
           experimentDisplay &&

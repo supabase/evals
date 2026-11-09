@@ -7,7 +7,10 @@ import {
   it,
   vi,
 } from 'vitest';
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
+import { promisify } from 'node:util';
+import { createPlatform } from '@supabase-evals/platform-lite';
+import { rewriteLoopback } from './agents/shared.js';
 import {
   mkdirSync,
   mkdtempSync,
@@ -39,8 +42,8 @@ beforeAll(() => {
   // container mount view), so unresolved tmpdir paths (macOS /var symlink)
   // would fail every exact-path assertion below.
   fixtureDir = realpathSync(mkdtempSync(join(tmpdir(), 'mcp-override-')));
-  fixtureEntry = join(fixtureDir, 'dist', 'transports', 'stdio.js');
-  mkdirSync(join(fixtureDir, 'dist', 'transports'), { recursive: true });
+  fixtureEntry = join(fixtureDir, 'dist', 'cli.js');
+  mkdirSync(join(fixtureDir, 'dist'), { recursive: true });
   writeFileSync(fixtureEntry, '');
 });
 afterAll(() => rmSync(fixtureDir, { recursive: true, force: true }));
@@ -122,6 +125,85 @@ describe('supabaseMcpServer().createConfig', () => {
   });
 });
 
+describe('supabaseMcpServer feedback redirect', () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("sends staging feedback calls to platform-lite's feedback project", async () => {
+    clearEnv();
+    await using platform = await createPlatform({ accessToken: 't' });
+    await using server = await platform.listen();
+    const { config } = await supabaseMcpServer().createConfig({
+      apiUrl: server.url,
+    });
+
+    // Same calls the MCP server makes, against the real staging origin.
+    const script = `
+      const base = 'https://actixlblmrqglneypada.supabase.co/rest/v1';
+      const submit = await fetch(base + '/rpc/submit_interfaces_feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ feedback: 'hi' }),
+      });
+      const token = await submit.json();
+      const del = await fetch(base + '/interfaces_feedback?delete_token=eq.' + token, {
+        method: 'DELETE',
+        headers: { Prefer: 'count=exact', 'x-feedback-token': token },
+      });
+      console.log(del.headers.get('content-range'));
+    `;
+    const { stdout } = await promisify(execFile)(
+      process.execPath,
+      ['--input-type=module', '-e', script],
+      { env: { ...process.env, ...config.env } }
+    );
+
+    expect(stdout.trim()).toBe('*/1');
+  });
+
+  it('keeps the redirect target rewritable for sandboxes', async () => {
+    clearEnv();
+    const { config } = await supabaseMcpServer().createConfig({
+      apiUrl: 'http://127.0.0.1:5000',
+    });
+
+    const { env } = rewriteLoopback({ mcp: config }).mcp;
+
+    expect(decodeURIComponent(env?.NODE_OPTIONS ?? '')).toContain(
+      '"http://host.docker.internal:5000/feedback"'
+    );
+  });
+
+  it('leaves the environment alone when feedback is disabled', async () => {
+    clearEnv();
+    const { config } = await supabaseMcpServer({
+      features: ['database'],
+    }).createConfig({ apiUrl: 'http://127.0.0.1:5000' });
+
+    expect(config.env).toBeUndefined();
+  });
+
+  it.each([
+    ['no apiUrl', undefined],
+    ['the production apiUrl', 'https://api.supabase.com'],
+  ])('drops feedback with %s', async (_, apiUrl) => {
+    clearEnv();
+    const { config } = await supabaseMcpServer({
+      features: ['docs', 'feedback'],
+    }).createConfig({ apiUrl });
+
+    const i = config.args.indexOf('--features');
+    expect(config.args[i + 1]).toBe('docs');
+    expect(config.env).toBeUndefined();
+  });
+
+  it('refuses feedback-only production config instead of enabling defaults', async () => {
+    clearEnv();
+    await expect(
+      supabaseMcpServer({ features: ['feedback'] }).createConfig({})
+    ).rejects.toThrow(/non-production apiUrl/);
+  });
+});
+
 describe('supabaseMcpServerMounts', () => {
   afterEach(() => vi.unstubAllEnvs());
 
@@ -137,8 +219,8 @@ describe('supabaseMcpServerMounts', () => {
     try {
       execFileSync('git', ['init', '-q'], { cwd: checkout });
       const pkgDir = join(checkout, 'packages', 'server');
-      mkdirSync(join(pkgDir, 'dist', 'transports'), { recursive: true });
-      writeFileSync(join(pkgDir, 'dist', 'transports', 'stdio.js'), '');
+      mkdirSync(join(pkgDir, 'dist'), { recursive: true });
+      writeFileSync(join(pkgDir, 'dist', 'cli.js'), '');
       vi.stubEnv('SUPABASE_MCP_SERVER_PATH', pkgDir);
       expect(supabaseMcpServerMounts()).toEqual([
         { hostPath: checkout, readonly: true },

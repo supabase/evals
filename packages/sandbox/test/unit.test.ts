@@ -604,6 +604,9 @@ describe('interface frontmatter', () => {
     expect(
       parseEvalMarkdown(buildMarkdown('interface: mcp')).metadata.interface
     ).toBe('mcp');
+    expect(
+      parseEvalMarkdown(buildMarkdown('interface: rest')).metadata.interface
+    ).toBe('rest');
   });
 
   it('rejects a scenario with no interface, naming the source file', () => {
@@ -613,9 +616,9 @@ describe('interface frontmatter', () => {
   });
 
   it('rejects an unknown interface', () => {
-    expect(() => parseEvalMarkdown(buildMarkdown('interface: rest'))).toThrow(
-      /interface/
-    );
+    expect(() =>
+      parseEvalMarkdown(buildMarkdown('interface: unknown'))
+    ).toThrow(/interface/);
   });
 });
 

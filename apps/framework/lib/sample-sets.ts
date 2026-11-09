@@ -1,4 +1,9 @@
-type SampleRow = { experiment: string; eval: string; run?: number };
+type SampleRow = {
+  experiment: string;
+  suite?: string;
+  eval: string;
+  run?: number;
+};
 
 export type IncompleteSampleSet = { key: string; runs: number };
 
@@ -13,7 +18,7 @@ export function splitBySampleSetCompleteness<T extends SampleRow>(
 ): { complete: T[]; incomplete: IncompleteSampleSet[] } {
   const sampleSets = new Map<string, { runs: number; indexes: Set<number> }>();
   for (const row of rows) {
-    const key = `${row.experiment}::${row.eval}`;
+    const key = `${row.suite ? `${row.suite}/` : ''}${row.experiment}::${row.eval}`;
     let sampleSet = sampleSets.get(key);
     if (!sampleSet) {
       sampleSet = { runs: 0, indexes: new Set() };
@@ -38,7 +43,10 @@ export function splitBySampleSetCompleteness<T extends SampleRow>(
   const dropped = new Set(incomplete.map(({ key }) => key));
   return {
     complete: rows.filter(
-      (row) => !dropped.has(`${row.experiment}::${row.eval}`)
+      (row) =>
+        !dropped.has(
+          `${row.suite ? `${row.suite}/` : ''}${row.experiment}::${row.eval}`
+        )
     ),
     incomplete,
   };

@@ -138,6 +138,23 @@ export function createDebuggingRoutes(
     return c.json({ lints: [] });
   });
 
+  // Health lints score hosted log error rates, so error loudly. An empty list would read as healthy.
+  // https://github.com/supabase/mcp/blob/0edc736f256871b1d539a320def43a001bd8c7a8/packages/mcp-server-supabase/src/platform/api-platform.ts#L66-L71
+  routes.post('/v2/projects/:ref/advisors/run', (c) => {
+    const { ref } = c.req.param();
+    if (!store.get(ref)) {
+      return c.json({ error: { message: 'Project not found' } }, 404);
+    }
+    return c.json(
+      {
+        error: {
+          message: 'Health advisors are not available on this project.',
+        },
+      },
+      501
+    );
+  });
+
   return routes;
 }
 
