@@ -1,3 +1,6 @@
+import { createElement } from "react"
+import { renderToStaticMarkup } from "react-dom/server"
+import { ExperimentRationale } from "@/components/experiment-rationale"
 import { describe, expect, it } from "vitest"
 
 import { makeResult } from "@/lib/eval-results.fixture"
@@ -235,7 +238,7 @@ describe("getExperimentRationale", () => {
   it("shows current rationale for matching results", () => {
     expect(
       getExperimentRationale(match.experiment, [match])?.summary
-    ).toContain("open-weight")
+    ).toContainEqual(expect.objectContaining({ text: "open-weight option" }))
   })
 
   it("hides rationale for mixed or missing metadata", () => {
@@ -293,5 +296,16 @@ describe("benchmark rationale coverage", () => {
     expect(getExperimentRationale(old.experiment, [old])?.asOf).toBe(
       "2026-07-02"
     )
+  })
+})
+
+describe("inline rationale links", () => {
+  it("links the claim inside the sentence", () => {
+    const html = renderToStaticMarkup(createElement(ExperimentRationale))
+    expect(html).toContain(
+      'href="https://code.claude.com/docs/en/model-config#default-model-setting"'
+    )
+    expect(html).toContain(">default model</a> on most plans, at its ")
+    expect(html).toContain(">default effort</a>.")
   })
 })

@@ -1,7 +1,6 @@
 import { z } from "zod"
 import {
   experimentDisplayMetadataSchema,
-  experimentRationaleSchema,
   type ExperimentDisplayMetadata,
 } from "@supabase-evals/core/eval-metadata"
 import rawRationales from "../data/experiment-rationales.json" with { type: "json" }
@@ -11,8 +10,15 @@ export const experimentRationales = z
     z.object({
       experiment: z.string(),
       display: experimentDisplayMetadataSchema,
-      rationale: experimentRationaleSchema.extend({
-        summary: z.string().trim().min(1),
+      rationale: z.object({
+        summary: z
+          .array(
+            z.union([
+              z.string().min(1),
+              z.object({ text: z.string().min(1), url: z.url() }),
+            ])
+          )
+          .min(1),
         asOf: z.iso.date(),
       }),
     })

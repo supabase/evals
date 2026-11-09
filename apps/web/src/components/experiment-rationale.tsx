@@ -34,26 +34,25 @@ export function ExperimentRationale() {
               key={experiment}
               className="flex flex-col gap-1 px-5 py-3 text-sm"
             >
-              <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-                <span className="text-foreground">
-                  <ExperimentLabel experiment={experiment} />
-                </span>
-                <span className="flex flex-wrap gap-x-4 text-xs">
-                  {rationale?.sources.map((source) => (
+              <span className="text-foreground">
+                <ExperimentLabel experiment={experiment} />
+              </span>
+              <p className="leading-6 text-muted-foreground">
+                {rationale?.summary.map((part, index) =>
+                  typeof part === "string" ? (
+                    part
+                  ) : (
                     <a
-                      key={source.url}
-                      href={source.url}
+                      key={index}
+                      href={part.url}
                       target="_blank"
                       rel="noreferrer"
-                      className="whitespace-nowrap text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                      className="underline underline-offset-2 hover:text-foreground"
                     >
-                      {source.label}
+                      {part.text}
                     </a>
-                  ))}
-                </span>
-              </div>
-              <p className="leading-6 text-muted-foreground">
-                {rationale?.summary}
+                  )
+                )}
               </p>
               {rationale && (
                 <p className="text-xs text-muted-foreground">
