@@ -466,13 +466,13 @@ export const experimentRationaleSchema = z.object({
       ])
     )
     .min(1),
-  asOf: z.iso.date(),
 });
 
 // Web-facing result; a clean strict object so its inferred type stays usable.
 export const evalResultSchema = z.object({
   ...evalResultShape,
   experimentRationale: experimentRationaleSchema.optional(),
+  experimentCreatedAt: z.iso.datetime().optional(),
   passed: z.boolean(),
   prompt: z.string().optional(),
   promptSourcePath: z.string().optional(),

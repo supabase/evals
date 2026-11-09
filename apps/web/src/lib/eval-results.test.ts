@@ -17,7 +17,7 @@ import {
 } from "@/lib/eval-results"
 
 it("reads the rationale carried by the published result", () => {
-  const rationale = { summary: ["Published choice."], asOf: "2026-01-01" }
+  const rationale = { summary: ["Published choice."] }
   const result = makeResult({
     experiment: "pinned",
     experimentRationale: rationale,

@@ -12,6 +12,7 @@ import {
 const id = "63331944-8a8c-4396-8add-d6fbe88f80d3"
 const experiment: Parameters<typeof assemble>[0][number] = {
   id,
+  created: "2026-10-28T18:53:01.928Z",
   metadata: {
     experiment: "example",
     expected_runs: 1,
@@ -64,7 +65,6 @@ const make = (roots = [root], children = [score, task], usages = [usage]) =>
 test("carries the pinned experiment's rationale into published results", () => {
   const rationale = {
     summary: ["A ", { text: "model", url: "https://example.com" }, "."],
-    asOf: "2026-01-01",
   }
   const withoutSkills = "d2e33ddc-64f1-4392-892c-d4db9f3d0146"
   const entries = [
@@ -83,11 +83,12 @@ test("carries the pinned experiment's rationale into published results", () => {
     ["example-eval"]
   )
   assert.deepEqual(result.experimentRationale, rationale)
+  assert.equal(result.experimentCreatedAt, experiment.created)
   assert.throws(() => attachRationales([experiment], []), /Missing rationale/)
 })
 
 test("requires both variants outside partial mode and rejects duplicate names", () => {
-  const rationale = { summary: ["A model."], asOf: "2026-01-01" }
+  const rationale = { summary: ["A model."] }
   const entry = { experiment: "example", withSkills: id, rationale }
   assert.throws(
     () => publicationPins([entry], false),

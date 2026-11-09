@@ -32,7 +32,6 @@ const entries = [
         },
         ".",
       ],
-      asOf: "2026-10-26",
     },
   },
   {
@@ -53,7 +52,6 @@ const entries = [
         },
         ".",
       ],
-      asOf: "2026-10-26",
     },
   },
   {
@@ -69,7 +67,6 @@ const entries = [
         },
         ".",
       ],
-      asOf: "2026-10-26",
     },
   },
   {
@@ -85,7 +82,6 @@ const entries = [
         },
         ".",
       ],
-      asOf: "2026-11-09",
     },
   },
   {
@@ -106,7 +102,6 @@ const entries = [
         },
         ".",
       ],
-      asOf: "2026-10-26",
     },
   },
   {
@@ -122,7 +117,6 @@ const entries = [
         },
         " in OpenCode.",
       ],
-      asOf: "2026-10-26",
     },
   },
 ] satisfies Publication[]

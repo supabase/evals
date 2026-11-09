@@ -20,7 +20,11 @@ const metadataSchema = z
     expected_runs: z.number().int().positive().optional(),
   })
   .passthrough()
-const experimentSchema = z.object({ id: uuid, metadata: metadataSchema })
+const experimentSchema = z.object({
+  id: uuid,
+  created: z.iso.datetime(),
+  metadata: metadataSchema,
+})
 const rootSchema = z.object({
   id: z.string(),
   experiment_id: uuid,
@@ -179,6 +183,7 @@ export function assemble(
     const parsed = evalResultSchema.safeParse({
       experiment: em.experiment,
       experimentRationale: exp.rationale,
+      experimentCreatedAt: exp.created,
       experimentDisplay: {
         agent: em.agent,
         modelProvider: em.model_provider,

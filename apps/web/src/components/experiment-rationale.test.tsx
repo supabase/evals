@@ -5,13 +5,15 @@ vi.mock("@/lib/eval-results", () => ({
   getSuiteResults: () => [],
   getVisibleExperiments: () => ["test-experiment"],
   getExperimentDisplay: () => undefined,
+  getExperimentResults: () => [
+    { experimentCreatedAt: "2026-10-28T18:53:01.928Z" },
+  ],
   getExperimentRationale: () => ({
     summary: [
       "See the ",
       { text: "model", url: "https://example.com/model" },
       ".",
     ],
-    asOf: "2026-01-01",
   }),
 }))
 
@@ -22,5 +24,9 @@ describe("inline rationale links", () => {
     const html = renderToStaticMarkup(<ExperimentRationale />)
     expect(html).toContain('See the <a href="https://example.com/model"')
     expect(html).toContain(">model</a>.")
+    expect(html).toContain("Experiment upload dates")
+    expect(html).toContain(
+      'dateTime="2026-10-28T18:53:01.928Z">2026-10-28</time>'
+    )
   })
 })

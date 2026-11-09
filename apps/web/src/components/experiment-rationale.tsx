@@ -1,6 +1,7 @@
 import { ExperimentLabel } from "@/components/results/experiment-label"
 import {
   getExperimentRationale,
+  getExperimentResults,
   getSuiteResults,
   getVisibleExperiments,
 } from "@/lib/eval-results"
@@ -56,26 +57,21 @@ export function ExperimentRationale() {
       </ul>
       <details className="mt-4 text-xs text-muted-foreground">
         <summary className="w-fit cursor-pointer hover:text-foreground">
-          Source review dates
+          Experiment upload dates
         </summary>
-        <p className="mt-3 leading-5">
-          When the sources supporting each model and effort choice were last
-          reviewed.
-        </p>
         <table className="mt-2 text-left">
-          <caption className="sr-only">
-            Source review dates by experiment
-          </caption>
+          <caption className="sr-only">Experiment upload dates</caption>
           <tbody>
             {experiments.map((experiment) => {
-              const rationale = getExperimentRationale(experiment)
+              const createdAt =
+                getExperimentResults(experiment)[0]?.experimentCreatedAt
               return (
                 <tr key={experiment}>
                   <th scope="row" className="py-1 pr-6 font-normal">
                     <ExperimentLabel experiment={experiment} />
                   </th>
                   <td className="py-1 align-top whitespace-nowrap tabular-nums">
-                    <time dateTime={rationale?.asOf}>{rationale?.asOf}</time>
+                    <time dateTime={createdAt}>{createdAt?.slice(0, 10)}</time>
                   </td>
                 </tr>
               )
