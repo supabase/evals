@@ -27,9 +27,14 @@ motivation: >-
   that can tell a sound use from an unsound one, and for the default execute
   permission on new functions to stop being granted to everyone. This eval
   determines whether the page gets an agent to a calculation only its owner can
-  run when the user asks for a shared total and never names a privilege. The
-  prompt deliberately omits the vocabulary the page teaches, so read README.md
-  before editing it.
+  run when the user asks for a shared total and never names a privilege. A
+  first version asked only for an order total, which an agent can always serve
+  by running as its caller, so the branch the page's danger note covers was
+  never reached and every baseline run scored full marks (DOCS-1319). The
+  second request, a store credit balance over a ledger no customer can read
+  directly, leaves no caller's-privileges answer that keeps the table closed.
+  The prompt deliberately omits the vocabulary the page teaches, so read
+  README.md before editing it.
 ---
 
 Our web app and our mobile app each work out an order's total themselves, tax
@@ -40,6 +45,11 @@ Both apps will call it as `order_total`, pass the order's id, and expect the
 total back in cents.
 
 A customer must only ever be able to get the total for one of their own orders.
+
+The apps also show each customer their store credit balance, and those two have
+drifted too. Make that one database answer as well: call it `credit_balance`,
+pass the customer's id, and expect the balance in cents back. A customer must
+only ever be able to get their own balance.
 
 Then get the local stack running so I can try it.
 

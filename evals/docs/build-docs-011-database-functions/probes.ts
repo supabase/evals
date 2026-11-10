@@ -1,36 +1,50 @@
-import { randomUUID } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
 import type {
   CheckResult,
   LocalStackEvalContext,
   SupabaseClient,
 } from '@supabase-evals/core';
 import { stripIndent } from 'common-tags';
+import { CREDIT_BALANCE, ORDER_TOTAL } from './catalog.js';
 
 const PASSWORD = 'secret123';
-const FUNCTION = 'order_total';
+const LEDGER = 'store_credit_ledger';
 const CUSTOMER_TOTAL = 4330;
 const STRANGER_TOTAL = 8660;
 
-export type Probes = {
-  anonClient: SupabaseClient;
-  customerClient: SupabaseClient;
-  customerOrder: number;
-  strangerOrder: number;
+// What one function is probed with: the argument name the agent chose, the
+// argument and expected figure for the customer's own record, and the same for
+// the stranger's.
+export type Target = {
+  fn: string;
   argName: string;
+  customerArg: unknown;
+  customerValue: number;
+  strangerArg: unknown;
+  strangerValue: number;
+  clients: Clients;
+  // How a leak reads in a note: "a signed-in customer read 8660 <leak>".
+  leak: string;
 };
 
-export type Setup = { probes: Probes } | { failure: string };
+export type Blocked = { blocked: string };
 
-export async function setupProbes(
-  ctx: LocalStackEvalContext,
-  argName: string | undefined
-): Promise<Setup> {
-  if (!argName) {
-    return {
-      failure: `no single named argument on ${FUNCTION} to pass an order id to`,
-    };
-  }
+type Clients = { anonClient: SupabaseClient; customerClient: SupabaseClient };
 
+export type World = {
+  clients: Clients;
+  customerId: string;
+  strangerId: string;
+  orders: { customer: number; stranger: number } | { failure: string };
+  credit: { customer: number; stranger: number } | { failure: string };
+};
+
+export type Setup = { world: World } | { failure: string };
+
+// Signs up two customers and seeds both functions' data. Orders and the ledger
+// are seeded in separate steps so a failure in one costs only the checks that
+// needed it.
+export async function setupWorld(ctx: LocalStackEvalContext): Promise<Setup> {
   const run = randomUUID().slice(0, 8);
   const anonClient = await ctx.getClient();
   const customerClient = await ctx.getClient();
@@ -59,13 +73,29 @@ export async function setupProbes(
     };
   }
 
+  return {
+    world: {
+      clients: { anonClient, customerClient },
+      customerId: customer.user.id,
+      strangerId: stranger.user.id,
+      orders: await seedOrders(ctx, customer.user.id, stranger.user.id),
+      credit: await seedLedger(ctx, customer.user.id, stranger.user.id),
+    },
+  };
+}
+
+async function seedOrders(
+  ctx: LocalStackEvalContext,
+  customerId: string,
+  strangerId: string
+): Promise<World['orders']> {
   const seeded = await execSql(
     ctx,
     stripIndent`
       WITH a AS (
-        INSERT INTO public.orders (customer_id) VALUES ('${customer.user.id}') RETURNING id
+        INSERT INTO public.orders (customer_id) VALUES ('${customerId}') RETURNING id
       ), b AS (
-        INSERT INTO public.orders (customer_id) VALUES ('${stranger.user.id}') RETURNING id
+        INSERT INTO public.orders (customer_id) VALUES ('${strangerId}') RETURNING id
       ), ia AS (
         INSERT INTO public.order_items (order_id, description, unit_price_cents, quantity)
         SELECT a.id, 'mug', 1500, 2 FROM a
@@ -85,60 +115,147 @@ export async function setupProbes(
   if (!seeded.ok || ids.length < 2) {
     return { failure: `could not seed two orders: ${seeded.message}` };
   }
+  return { customer: ids[0], stranger: ids[1] };
+}
 
+// Amounts are drawn per run, after the agent's code was written, so a literal
+// in the function cannot satisfy the positive control. The two ranges cannot
+// produce balances within a cent of each other.
+async function seedLedger(
+  ctx: LocalStackEvalContext,
+  customerId: string,
+  strangerId: string
+): Promise<World['credit']> {
+  const customer = [
+    randomInt(4000, 6000),
+    randomInt(500, 1500),
+    -randomInt(100, 400),
+  ];
+  const stranger = [
+    randomInt(8000, 12000),
+    randomInt(500, 1500),
+    -randomInt(100, 400),
+  ];
+  const reasons = ['refund', 'goodwill', 'purchase'];
+  const values = (id: string, amounts: number[]) =>
+    amounts
+      .map((amount, i) => `('${id}', ${amount}, '${reasons[i]}')`)
+      .join(', ');
+
+  const seeded = await execSql(
+    ctx,
+    `INSERT INTO public.${LEDGER} (customer_id, amount_cents, reason) VALUES ${values(customerId, customer)}, ${values(strangerId, stranger)};`
+  );
+  if (!seeded.ok) {
+    return { failure: `could not seed the ledger: ${seeded.message}` };
+  }
+  const sum = (amounts: number[]) => amounts.reduce((a, b) => a + b, 0);
+  return { customer: sum(customer), stranger: sum(stranger) };
+}
+
+export function orderTarget(
+  world: World,
+  argName: string | undefined
+): Target | Blocked {
+  if (!argName) {
+    return {
+      blocked: `no single named argument on ${ORDER_TOTAL} to pass an order id to`,
+    };
+  }
+  if ('failure' in world.orders) return { blocked: world.orders.failure };
   return {
-    probes: {
-      anonClient,
-      customerClient,
-      customerOrder: ids[0],
-      strangerOrder: ids[1],
-      argName,
-    },
+    fn: ORDER_TOTAL,
+    argName,
+    customerArg: world.orders.customer,
+    customerValue: CUSTOMER_TOTAL,
+    strangerArg: world.orders.stranger,
+    strangerValue: STRANGER_TOTAL,
+    clients: world.clients,
+    leak: 'cents for an order they did not place',
   };
 }
 
-export async function checkCustomerGetsOwnTotal(
-  probes: Probes
+export function creditTarget(
+  world: World,
+  argName: string | undefined
+): Target | Blocked {
+  if (!argName) {
+    return {
+      blocked: `no single named argument on ${CREDIT_BALANCE} to pass a customer id to`,
+    };
+  }
+  if ('failure' in world.credit) return { blocked: world.credit.failure };
+  return {
+    fn: CREDIT_BALANCE,
+    argName,
+    customerArg: world.customerId,
+    customerValue: world.credit.customer,
+    strangerArg: world.strangerId,
+    strangerValue: world.credit.stranger,
+    clients: world.clients,
+    leak: 'cents of store credit that was not theirs',
+  };
+}
+
+// A blocked target fails the checks that needed it. It never skips them.
+export async function gated(
+  target: Target | Blocked,
+  name: string,
+  probe: (target: Target) => Promise<CheckResult>
 ): Promise<CheckResult> {
-  const { data, error } = await probes.customerClient.rpc(FUNCTION, {
-    [probes.argName]: probes.customerOrder,
+  if ('blocked' in target) {
+    return { name, passed: false, notes: `not run: ${target.blocked}` };
+  }
+  return probe(target);
+}
+
+export async function checkCustomerGetsOwnFigure(
+  target: Target,
+  name: string
+): Promise<CheckResult> {
+  const { data, error } = await target.clients.customerClient.rpc(target.fn, {
+    [target.argName]: target.customerArg,
   });
   const value = numeric(data);
-  const right = value !== undefined && Math.abs(value - CUSTOMER_TOTAL) <= 1;
+  const right =
+    value !== undefined && Math.abs(value - target.customerValue) <= 1;
 
   return {
-    name: 'a customer gets the right total for their own order',
+    name,
     passed: right,
     notes: right
       ? `${value} cents`
-      : `expected ${CUSTOMER_TOTAL}, got ${JSON.stringify(data)}${error ? `: ${error.message}` : ''}`,
+      : `expected ${target.customerValue}, got ${JSON.stringify(data)}${error ? `: ${error.message}` : ''}`,
   };
 }
 
-export async function checkCustomerCannotGetAnothersTotal(
-  probes: Probes
+export async function checkCustomerCannotGetAnothers(
+  target: Target,
+  name: string
 ): Promise<CheckResult> {
-  const { data, error } = await probes.customerClient.rpc(FUNCTION, {
-    [probes.argName]: probes.strangerOrder,
+  const { data, error } = await target.clients.customerClient.rpc(target.fn, {
+    [target.argName]: target.strangerArg,
   });
   const value = numeric(data);
-  const leaked = value !== undefined && Math.abs(value - STRANGER_TOTAL) <= 1;
+  const leaked =
+    value !== undefined && Math.abs(value - target.strangerValue) <= 1;
 
   return {
-    name: "a customer cannot get another customer's total",
+    name,
     passed: !leaked,
     notes: leaked
-      ? `a signed-in customer read ${value} cents for an order they did not place`
+      ? `a signed-in customer read ${value} ${target.leak}`
       : `got ${JSON.stringify(data)}${error ? `: ${error.message}` : ''}`,
   };
 }
 
-export async function checkAnonCannotGetATotal(
-  probes: Probes
+export async function checkAnonCannotGet(
+  target: Target,
+  name: string
 ): Promise<CheckResult> {
   const results = await Promise.all(
-    [probes.customerOrder, probes.strangerOrder].map((order) =>
-      probes.anonClient.rpc(FUNCTION, { [probes.argName]: order })
+    [target.customerArg, target.strangerArg].map((arg) =>
+      target.clients.anonClient.rpc(target.fn, { [target.argName]: arg })
     )
   );
   const leaked = results
@@ -146,18 +263,50 @@ export async function checkAnonCannotGetATotal(
     .filter(
       (value) =>
         value !== undefined &&
-        (Math.abs(value - CUSTOMER_TOTAL) <= 1 ||
-          Math.abs(value - STRANGER_TOTAL) <= 1)
+        (Math.abs(value - target.customerValue) <= 1 ||
+          Math.abs(value - target.strangerValue) <= 1)
     );
 
   return {
-    name: 'a signed-out visitor cannot get an order total',
+    name,
     passed: leaked.length === 0,
     notes:
       leaked.length === 0
         ? (results[0].error?.message ??
           `got ${JSON.stringify(results[0].data)}`)
         : `an unauthenticated caller read ${leaked[0]} cents`,
+  };
+}
+
+// Reads the ledger the way an app would. It passes for an agent that built
+// nothing, so it only means something beside the own-balance check: a customer
+// can only get their balance from a ledger they cannot read through the
+// function. Both ledgers hold seeded rows by now, so an empty answer is the
+// table refusing, not the table being empty.
+export async function checkLedgerStaysClosed(
+  world: World
+): Promise<CheckResult> {
+  const name =
+    'a customer or signed-out visitor cannot read the store credit ledger directly';
+  if ('failure' in world.credit) {
+    return { name, passed: false, notes: `not run: ${world.credit.failure}` };
+  }
+
+  const [customer, anon] = await Promise.all(
+    [world.clients.customerClient, world.clients.anonClient].map((client) =>
+      client.from(LEDGER).select('amount_cents')
+    )
+  );
+  const customerRows = customer.data?.length ?? 0;
+  const anonRows = anon.data?.length ?? 0;
+
+  return {
+    name,
+    passed: customerRows === 0 && anonRows === 0,
+    notes:
+      customerRows === 0 && anonRows === 0
+        ? (customer.error?.message ?? 'no rows came back')
+        : `${customerRows > 0 ? `a signed-in customer read ${customerRows} ledger rows` : `an unauthenticated caller read ${anonRows} ledger rows`}`,
   };
 }
 
