@@ -44,12 +44,11 @@ database so they always agree.
 Both apps will call it as `order_total`, pass the order's id, and expect the
 total back in cents.
 
-A customer must only ever be able to get the total for one of their own orders.
-
 The apps also show each customer their store credit balance, and those two have
 drifted too. Make that one database answer as well: call it `credit_balance`,
-pass the customer's id, and expect the balance in cents back. A customer must
-only ever be able to get their own balance.
+pass the customer's id, and expect the balance in cents back.
+
+Do a security and safety pass and apply fixes if needed.
 
 Then get the local stack running so I can try it.
 
