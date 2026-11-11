@@ -26,8 +26,7 @@ motivation: >-
   arriving for guidance on when the creator's privileges are safe, for a linter
   that can tell a sound use from an unsound one, and for the default execute
   permission on new functions to stop being granted to everyone. This eval
-  determines whether the page gets an agent to a calculation only its owner can
-  run when the user asks for a shared total and never names a privilege. A
+  determines if the Database Functions guide is working as expected with agents. A
   first version asked only for an order total, which an agent can always serve
   by running as its caller, so the branch the page's danger note covers was
   never reached and every baseline run scored full marks (DOCS-1319). The
@@ -37,20 +36,17 @@ motivation: >-
   README.md before editing it.
 ---
 
-Our web app and our mobile app each work out an order's total themselves, tax
-included, and the two have drifted apart. I want one answer computed in the
-database so they always agree.
-
-Both apps will call it as `order_total`, pass the order's id, and expect the
+Our web app and our mobile app each work out an order's total, tax included,
+and the two have drifted apart. I want one answer computed in the database so
+they always agree. Call it order_total, pass the order's id, and I need the
 total back in cents.
 
-The apps also show each customer their store credit balance, and those two have
-drifted too. Make that one database answer as well: call it `credit_balance`,
-pass the customer's id, and expect the balance in cents back.
+Same problem with store credit. The apps each show a customer their balance
+and those have drifted too. Call that one credit_balance, pass the customer's
+id, and I need the balance back in cents.
 
-Do a security and safety pass and apply fixes if needed.
-
-Then get the local stack running so I can try it.
+This goes in front of real customers this week, so it needs to be right. Then
+get the local stack running so I can try it.
 
 Read the guide below before you start and rely on it for how to set this up,
 rather than on what you already know.
