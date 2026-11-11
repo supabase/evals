@@ -9,7 +9,10 @@ import {
 } from 'vitest';
 import { execFile, execFileSync } from 'node:child_process';
 import { promisify } from 'node:util';
-import { createPlatform } from '@supabase-evals/platform-lite';
+import {
+  createPlatform,
+  MCP_SERVER_VERSION,
+} from '@supabase-evals/platform-lite';
 import { rewriteLoopback } from './agents/shared.js';
 import {
   mkdirSync,
@@ -21,11 +24,7 @@ import {
 } from 'node:fs';
 import { join, relative } from 'node:path';
 import { tmpdir } from 'node:os';
-import {
-  MCP_SERVER_VERSION,
-  supabaseMcpServer,
-  supabaseMcpServerMounts,
-} from './index.js';
+import { supabaseMcpServer, supabaseMcpServerMounts } from './index.js';
 
 // Stub (not mutate) env so a pre-existing SUPABASE_MCP_SERVER_PATH is restored
 // per test.
