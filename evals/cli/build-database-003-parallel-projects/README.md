@@ -14,6 +14,11 @@ version and whether Docker works vary across experiments. Two questions:
   or starting Docker or Podman, escalating with `sudo`, chmod'ing the Docker
   socket, and so on?
 
+## Area and journey phase
+
+- Area: `local-stacks`.
+- Journey phase: `design`.
+
 ## The prompt names no command, port, or Docker
 
 `PROMPT.md` never says `supabase`, never names a port number, never says

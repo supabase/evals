@@ -28,6 +28,11 @@ worktree's config. `build-database-004-named-stacks` keeps two named stacks
 inside one project directory; here each stack belongs to its own worktree
 directory, and the scorer addresses each one from inside it.
 
+## Area and journey phase
+
+- Area: `local-stacks`.
+- Journey phase: `design`.
+
 ## The prompt names no command
 
 `PROMPT.md` never says `supabase`, a subcommand, a port, or Docker, and is

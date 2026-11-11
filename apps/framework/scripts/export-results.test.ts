@@ -1,4 +1,8 @@
-import { rawEvalResultSchema } from '@supabase-evals/core/eval-metadata';
+import {
+  type EvalArea,
+  type EvalJourneyPhase,
+  rawEvalResultSchema,
+} from '@supabase-evals/core/eval-metadata';
 import { describe, expect, it } from 'vitest';
 import { readPrompt } from '../lib/result-files.js';
 import { toEvalResult } from './export-results.js';
@@ -30,5 +34,35 @@ describe('toEvalResult cliVersion precedence', () => {
   it('falls back to the frontmatter pin when the run recorded no version', async () => {
     const result = await build({});
     expect(result.cliVersion).toBe('2.109.1');
+  });
+});
+
+describe('toEvalResult area and journeyPhase', () => {
+  const build = async (area?: EvalArea, journeyPhase?: EvalJourneyPhase) => {
+    const prompt = await readPrompt(PINNED_EVAL_ID);
+    return toEvalResult(
+      rawEvalResultSchema.parse({
+        experiment: 'test-experiment',
+        eval: PINNED_EVAL_ID,
+        interface: 'cli',
+      }),
+      'test-experiment/run-1/result.json',
+      prompt && { ...prompt, area, journeyPhase },
+      undefined
+    );
+  };
+
+  it('carries both from the prompt metadata', async () => {
+    const result = await build('local-stacks', 'design');
+    expect(result).toMatchObject({
+      area: 'local-stacks',
+      journeyPhase: 'design',
+    });
+  });
+
+  it('leaves both undefined when the prompt omits them', async () => {
+    const result = await build();
+    expect(result.area).toBeUndefined();
+    expect(result.journeyPhase).toBeUndefined();
   });
 });

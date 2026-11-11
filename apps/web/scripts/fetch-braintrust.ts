@@ -166,6 +166,8 @@ export function assemble(
       topic: m.topic,
       suite: m.eval_suite,
       interface: m.interface,
+      area: m.area,
+      journeyPhase: m.journey_phase,
       cliVersion: m.cli_version,
       passed: row.scores.passed === 1,
       checks: score.output,

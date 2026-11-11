@@ -393,6 +393,8 @@ async function collectRows(
         eval_suite: suite,
         stage: promptData?.stage ?? result.stage,
         interface: promptData?.interface ?? result.interface,
+        area: promptData?.area,
+        journey_phase: promptData?.journeyPhase,
         skills: result.skills ?? { available: [], loaded: [] },
         docs: result.docs,
         product: promptData?.product ?? result.product ?? [],
