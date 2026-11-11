@@ -12262,194 +12262,7 @@
       {
         "name": "a customer gets the right store credit balance for their own account",
         "passed": true,
-        "notes": "4800 cents"
-      },
-      {
-        "name": "a customer cannot get another customer's store credit balance",
-        "passed": true,
-        "notes": "got null: Cannot read another customer's credit balance"
-      },
-      {
-        "name": "a signed-out visitor cannot get a store credit balance",
-        "passed": true,
-        "notes": "permission denied for function credit_balance"
-      },
-      {
-        "name": "a customer or signed-out visitor cannot read the store credit ledger directly",
-        "passed": true,
-        "notes": "permission denied for table store_credit_ledger"
-      },
-      {
-        "name": "the agent read the Database Functions guide the prompt referenced",
-        "passed": true,
-        "notes": "web_search, search_docs, web_search, search_docs"
-      }
-    ],
-    "skills": {
-      "available": [],
-      "loaded": []
-    },
-    "docs": {
-      "calls": [
-        {
-          "source": "web_search",
-          "query": "https://supabase.com/docs/guides/database/functions.md",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/database/functions.md"
-            }
-          ]
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"Database Functions create function security invoker search_path grant execute roles Supabase\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/database/extensions/wrappers/overview",
-              "title": "Foreign Data Wrappers"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/functions",
-              "title": "Database functions"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-hooks",
-              "title": "Configure Auth Hooks"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
-              "title": "Row Level Security"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/auth-hooks",
-              "title": "Auth Hooks"
-            }
-          ],
-          "resultChars": 90321
-        },
-        {
-          "source": "web_search",
-          "query": "site:supabase.com/docs/guides/database/functions \"Database Functions\" security invoker",
-          "pages": []
-        },
-        {
-          "source": "web_search",
-          "query": "https://supabase.com/docs/guides/database/functions",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/database/functions"
-            }
-          ]
-        },
-        {
-          "source": "search_docs",
-          "query": "query { searchDocs(query: \"database functions security invoker security definer search_path Postgres function grant execute\", limit: 3) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/database/functions",
-              "title": "Database functions"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
-              "title": "Row Level Security"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/extensions/wrappers/overview",
-              "title": "Foreign Data Wrappers"
-            }
-          ],
-          "resultChars": 55134
-        }
-      ]
-    },
-    "usage": [
-      {
-        "model": "gpt-6-luna",
-        "inputTokens": 537069,
-        "cacheReadInputTokens": 475362,
-        "cacheWriteInputTokens": 49900,
-        "outputTokens": 10758
-      }
-    ],
-    "stepCount": 20,
-    "toolCallCount": 20,
-    "agentRunDurationMs": 174173,
-    "sandboxUsage": {
-      "activeCpuDurationMs": 243403,
-      "duration": 267774,
-      "memory": 8192,
-      "networkTransfer": {
-        "ingress": 1628046854,
-        "egress": 9291713
-      }
-    },
-    "prompt": "Our web app and our mobile app each work out an order's total themselves, tax\nincluded, and the two have drifted apart. I want one answer computed in the\ndatabase so they always agree.\n\nBoth apps will call it as `order_total`, pass the order's id, and expect the\ntotal back in cents.\n\nThe apps also show each customer their store credit balance, and those two have\ndrifted too. Make that one database answer as well: call it `credit_balance`,\npass the customer's id, and expect the balance in cents back.\n\nDo a security and safety pass and apply fixes if needed.\n\nThen get the local stack running so I can try it.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/functions.md",
-    "promptSourcePath": "evals/docs/build-docs-011-database-functions/PROMPT.md",
-    "run": 1,
-    "sourcePath": "docs/codex-gpt-6-luna-no-skills/build-docs-011-database-functions/run-1/result.json"
-  },
-  {
-    "experiment": "codex-gpt-6-luna-no-skills",
-    "experimentDisplay": {
-      "agent": "codex",
-      "modelProvider": "openai",
-      "modelId": "gpt-6-luna",
-      "reasoningEffort": "medium"
-    },
-    "eval": "build-docs-011-database-functions",
-    "stage": "build",
-    "product": [
-      "database",
-      "data-api"
-    ],
-    "topic": [
-      "sql",
-      "security",
-      "rls"
-    ],
-    "suite": "docs",
-    "interface": "cli",
-    "cliVersion": "2.117.0",
-    "passed": true,
-    "checks": [
-      {
-        "name": "the database has an order_total function",
-        "passed": true,
-        "notes": "order_total(order_id bigint)"
-      },
-      {
-        "name": "the database has a credit_balance function",
-        "passed": true,
-        "notes": "credit_balance(customer_id uuid)"
-      },
-      {
-        "name": "a function that runs as its creator pins its search path",
-        "passed": true,
-        "notes": "pinned: credit_balance search_path=\"\""
-      },
-      {
-        "name": "a customer gets the right total for their own order",
-        "passed": true,
-        "notes": "4330 cents"
-      },
-      {
-        "name": "a customer cannot get another customer's total",
-        "passed": true,
-        "notes": "got null"
-      },
-      {
-        "name": "a signed-out visitor cannot get an order total",
-        "passed": true,
-        "notes": "permission denied for function order_total"
-      },
-      {
-        "name": "a customer gets the right store credit balance for their own account",
-        "passed": true,
-        "notes": "6936 cents"
+        "notes": "4631 cents"
       },
       {
         "name": "a customer cannot get another customer's store credit balance",
@@ -12490,7 +12303,7 @@
         },
         {
           "source": "search_docs",
-          "query": "query { searchDocs(query: \"Database Functions Postgres functions security definer search_path grants execute\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "query": "query { searchDocs(query: \"database functions SQL security definer search_path grant execute\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -12502,49 +12315,196 @@
               "title": "Row Level Security"
             },
             {
+              "url": "https://supabase.com/docs/guides/database/extensions/wrappers/overview",
+              "title": "Foreign Data Wrappers"
+            },
+            {
               "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-auth-hooks",
               "title": "Configure Auth Hooks"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/full-text-search",
-              "title": "Full Text Search"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/extensions/wrappers/overview",
-              "title": "Foreign Data Wrappers"
+              "url": "https://supabase.com/docs/guides/database/postgres/roles",
+              "title": "Postgres Roles"
             }
           ],
-          "resultChars": 110466
-        },
-        {
-          "source": "web_search",
-          "query": "site:supabase.com/docs/guides/database/functions Database Functions security invoker grants execute search_path",
-          "pages": []
+          "resultChars": 75992
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 863786,
-        "cacheReadInputTokens": 801133,
-        "cacheWriteInputTokens": 54217,
-        "outputTokens": 16080
+        "inputTokens": 1470211,
+        "cacheReadInputTokens": 1403782,
+        "cacheWriteInputTokens": 62105,
+        "outputTokens": 22335
       }
     ],
-    "stepCount": 30,
-    "toolCallCount": 20,
-    "agentRunDurationMs": 290997,
+    "stepCount": 43,
+    "toolCallCount": 28,
+    "agentRunDurationMs": 409767,
     "sandboxUsage": {
-      "activeCpuDurationMs": 427215,
-      "duration": 415822,
+      "activeCpuDurationMs": 301455,
+      "duration": 509998,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 1627145739,
-        "egress": 10167549
+        "ingress": 1634359596,
+        "egress": 18114756
       }
     },
-    "prompt": "Our web app and our mobile app each work out an order's total themselves, tax\nincluded, and the two have drifted apart. I want one answer computed in the\ndatabase so they always agree.\n\nBoth apps will call it as `order_total`, pass the order's id, and expect the\ntotal back in cents.\n\nThe apps also show each customer their store credit balance, and those two have\ndrifted too. Make that one database answer as well: call it `credit_balance`,\npass the customer's id, and expect the balance in cents back.\n\nDo a security and safety pass and apply fixes if needed.\n\nThen get the local stack running so I can try it.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/functions.md",
+    "prompt": "Our web app and our mobile app each work out an order's total, tax included,\nand the two have drifted apart. I want one answer computed in the database so\nthey always agree. Call it order_total, pass the order's id, and I need the\ntotal back in cents.\n\nSame problem with store credit. The apps each show a customer their balance\nand those have drifted too. Call that one credit_balance, pass the customer's\nid, and I need the balance back in cents.\n\nThis goes in front of real customers this week, so it needs to be right. Then\nget the local stack running so I can try it.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/functions.md",
+    "promptSourcePath": "evals/docs/build-docs-011-database-functions/PROMPT.md",
+    "run": 1,
+    "sourcePath": "docs/codex-gpt-6-luna-no-skills/build-docs-011-database-functions/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-011-database-functions",
+    "stage": "build",
+    "product": [
+      "database",
+      "data-api"
+    ],
+    "topic": [
+      "sql",
+      "security",
+      "rls"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "the database has an order_total function",
+        "passed": true,
+        "notes": "order_total(p_order_id bigint)"
+      },
+      {
+        "name": "the database has a credit_balance function",
+        "passed": true,
+        "notes": "credit_balance(p_customer_id uuid)"
+      },
+      {
+        "name": "a function that runs as its creator pins its search path",
+        "passed": true,
+        "notes": "pinned: credit_balance search_path=\"\""
+      },
+      {
+        "name": "a customer gets the right total for their own order",
+        "passed": true,
+        "notes": "4330 cents"
+      },
+      {
+        "name": "a customer cannot get another customer's total",
+        "passed": true,
+        "notes": "got null"
+      },
+      {
+        "name": "a signed-out visitor cannot get an order total",
+        "passed": true,
+        "notes": "permission denied for function order_total"
+      },
+      {
+        "name": "a customer gets the right store credit balance for their own account",
+        "passed": true,
+        "notes": "5435 cents"
+      },
+      {
+        "name": "a customer cannot get another customer's store credit balance",
+        "passed": true,
+        "notes": "got null: not authorized"
+      },
+      {
+        "name": "a signed-out visitor cannot get a store credit balance",
+        "passed": true,
+        "notes": "permission denied for function credit_balance"
+      },
+      {
+        "name": "a customer or signed-out visitor cannot read the store credit ledger directly",
+        "passed": true,
+        "notes": "permission denied for table store_credit_ledger"
+      },
+      {
+        "name": "the agent read the Database Functions guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, search_docs"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/functions.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/functions.md"
+            }
+          ]
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"database functions create function SQL SECURITY INVOKER SECURITY DEFINER rpc grant execute\", limit: 5) { nodes { ... on Guide { title href content } ... on ClientLibraryFunctionReference { title href content methodName } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/functions",
+              "title": "Database functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/wrappers/overview",
+              "title": "Foreign Data Wrappers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advisors?queryGroups=lint&lint=0028_anon_security_definer_function_executable",
+              "title": "Database Advisor: Lint 0028_anon_security_definer_function_executable"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/roles",
+              "title": "Postgres Roles"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advisors?queryGroups=lint&lint=0029_authenticated_security_definer_function_executable",
+              "title": "Database Advisor: Lint 0029_authenticated_security_definer_function_executable"
+            }
+          ],
+          "resultChars": 50324
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 807022,
+        "cacheReadInputTokens": 751841,
+        "cacheWriteInputTokens": 50896,
+        "outputTokens": 12627
+      }
+    ],
+    "stepCount": 29,
+    "toolCallCount": 17,
+    "agentRunDurationMs": 263613,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 253551,
+      "duration": 359364,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1631031753,
+        "egress": 12187411
+      }
+    },
+    "prompt": "Our web app and our mobile app each work out an order's total, tax included,\nand the two have drifted apart. I want one answer computed in the database so\nthey always agree. Call it order_total, pass the order's id, and I need the\ntotal back in cents.\n\nSame problem with store credit. The apps each show a customer their balance\nand those have drifted too. Call that one credit_balance, pass the customer's\nid, and I need the balance back in cents.\n\nThis goes in front of real customers this week, so it needs to be right. Then\nget the local stack running so I can try it.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/functions.md",
     "promptSourcePath": "evals/docs/build-docs-011-database-functions/PROMPT.md",
     "run": 2,
     "sourcePath": "docs/codex-gpt-6-luna-no-skills/build-docs-011-database-functions/run-2/result.json"
@@ -12576,12 +12536,12 @@
       {
         "name": "the database has an order_total function",
         "passed": true,
-        "notes": "order_total(order_id bigint)"
+        "notes": "order_total(p_order_id bigint)"
       },
       {
         "name": "the database has a credit_balance function",
         "passed": true,
-        "notes": "credit_balance(customer_id uuid)"
+        "notes": "credit_balance(p_customer_id uuid)"
       },
       {
         "name": "a function that runs as its creator pins its search path",
@@ -12606,7 +12566,7 @@
       {
         "name": "a customer gets the right store credit balance for their own account",
         "passed": true,
-        "notes": "5602 cents"
+        "notes": "5683 cents"
       },
       {
         "name": "a customer cannot get another customer's store credit balance",
@@ -12626,7 +12586,7 @@
       {
         "name": "the agent read the Database Functions guide the prompt referenced",
         "passed": true,
-        "notes": "web_search, web_search, web_search"
+        "notes": "web_search, search_docs, search_docs"
       }
     ],
     "skills": {
@@ -12646,64 +12606,85 @@
           ]
         },
         {
-          "source": "web_search",
-          "query": "site:supabase.com/docs/guides/database/functions database functions Supabase SQL functions security invoker definer",
-          "pages": []
-        },
-        {
-          "source": "web_search",
-          "query": "site:supabase.com/docs/guides/database/functions \"SECURITY INVOKER\"",
-          "pages": []
-        },
-        {
-          "source": "web_search",
-          "query": "Supabase Database Functions documentation functions security invoker security definer",
-          "pages": []
-        },
-        {
-          "source": "web_search",
-          "query": "https://supabase.com/docs/guides/database/functions",
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Postgres database functions SQL create function RPC security invoker grants search_path\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/database/functions"
+              "url": "https://supabase.com/docs/guides/database/functions",
+              "title": "Database functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/wrappers/overview",
+              "title": "Foreign Data Wrappers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advisors?queryGroups=lint&lint=0011_function_search_path_mutable",
+              "title": "Database Advisor: Lint 0011_function_search_path_mutable"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/swift/rpc",
+              "title": "Postgres functions: rpc()"
             }
-          ]
+          ],
+          "resultChars": 59820
         },
         {
-          "source": "web_search",
-          "query": "https://supabase.com/docs/guides/database/functions",
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Database functions security invoker security definer fixed search_path grants execute authenticated RLS\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/database/functions"
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advisors?queryGroups=lint&lint=0029_authenticated_security_definer_function_executable",
+              "title": "Database Advisor: Lint 0029_authenticated_security_definer_function_executable"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/functions",
+              "title": "Database functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/resources/glossary",
+              "title": "Glossary"
             }
-          ]
+          ],
+          "resultChars": 84015
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 542265,
-        "cacheReadInputTokens": 457932,
-        "cacheWriteInputTokens": 47782,
-        "outputTokens": 13426
+        "inputTokens": 552580,
+        "cacheReadInputTokens": 497448,
+        "cacheWriteInputTokens": 50973,
+        "outputTokens": 11000
       }
     ],
     "stepCount": 21,
-    "toolCallCount": 20,
-    "agentRunDurationMs": 240608,
+    "toolCallCount": 15,
+    "agentRunDurationMs": 216561,
     "sandboxUsage": {
-      "activeCpuDurationMs": 354040,
-      "duration": 359224,
+      "activeCpuDurationMs": 257641,
+      "duration": 313632,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 1625574692,
-        "egress": 7231111
+        "ingress": 1630495799,
+        "egress": 9883307
       }
     },
-    "prompt": "Our web app and our mobile app each work out an order's total themselves, tax\nincluded, and the two have drifted apart. I want one answer computed in the\ndatabase so they always agree.\n\nBoth apps will call it as `order_total`, pass the order's id, and expect the\ntotal back in cents.\n\nThe apps also show each customer their store credit balance, and those two have\ndrifted too. Make that one database answer as well: call it `credit_balance`,\npass the customer's id, and expect the balance in cents back.\n\nDo a security and safety pass and apply fixes if needed.\n\nThen get the local stack running so I can try it.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/functions.md",
+    "prompt": "Our web app and our mobile app each work out an order's total, tax included,\nand the two have drifted apart. I want one answer computed in the database so\nthey always agree. Call it order_total, pass the order's id, and I need the\ntotal back in cents.\n\nSame problem with store credit. The apps each show a customer their balance\nand those have drifted too. Call that one credit_balance, pass the customer's\nid, and I need the balance back in cents.\n\nThis goes in front of real customers this week, so it needs to be right. Then\nget the local stack running so I can try it.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/functions.md",
     "promptSourcePath": "evals/docs/build-docs-011-database-functions/PROMPT.md",
     "run": 3,
     "sourcePath": "docs/codex-gpt-6-luna-no-skills/build-docs-011-database-functions/run-3/result.json"
