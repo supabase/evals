@@ -1,0 +1,68 @@
+name: Update MCP version
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Published MCP package version
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: update-mcp-version
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - name: Update MCP dependency
+        id: update
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          CURRENT=$(node -p "require('./packages/platform-lite/package.json').devDependencies['@supabase/mcp-server-supabase']")
+          [[ "$CURRENT" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          if [[ "$CURRENT" == "$VERSION" || "$(printf '%s\n' "$CURRENT" "$VERSION" | sort -V | tail -n1)" != "$VERSION" ]]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          test "$(npm view @supabase/mcp-server-supabase dist-tags.latest)" = "$VERSION"
+          pnpm --filter @supabase-evals/platform-lite add --lockfile-only --ignore-scripts --save-dev --save-exact "@supabase/mcp-server-supabase@$VERSION"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+      - name: Generate GitHub App token
+        if: steps.update.outputs.changed == 'true'
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+      - name: Create pull request
+        if: steps.update.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          add-paths: |
+            packages/platform-lite/package.json
+            pnpm-lock.yaml
+          branch: chore/update-mcp-version
+          commit-message: 'chore: bump MCP to ${{ inputs.version }}'
+          title: 'chore: bump MCP to ${{ inputs.version }}'
+          body: |
+            Updates the MCP version used by platform-lite tests and evals.
+
+            Release notes: https://github.com/supabase/mcp/releases/tag/mcp-server-supabase-v${{ inputs.version }}
+          draft: true
