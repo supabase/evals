@@ -1,7 +1,4 @@
 import vm from 'node:vm';
-import platformLitePackage from '../../platform-lite/package.json' with {
-  type: 'json',
-};
 import { createRequire } from 'node:module';
 import { createHash, createHmac } from 'node:crypto';
 import { execFile, execFileSync } from 'node:child_process';
@@ -36,6 +33,7 @@ import {
   createManagementApiClient,
   createPlatform,
   loadFunctionSeeds,
+  MCP_SERVER_VERSION,
   type ManagementApiClient,
   type PgServerHandle,
   type PlatformHandle,
@@ -1418,13 +1416,7 @@ async function getAvailablePort(): Promise<number> {
 }
 
 export const ACCESS_TOKEN = 'eval-token';
-export const MCP_SERVER_VERSION = z
-  .string()
-  .regex(
-    /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/,
-    'MCP version must be an exact stable version'
-  )
-  .parse(platformLitePackage.devDependencies['@supabase/mcp-server-supabase']);
+export { MCP_SERVER_VERSION };
 // Well-formed but inert PAT used when a Supabase MCP server is docs-only: the
 // server requires a token to boot but never authenticates without a platform.
 const THROWAWAY_ACCESS_TOKEN = `sbp_${'0'.repeat(40)}`;

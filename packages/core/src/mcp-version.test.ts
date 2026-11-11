@@ -5,6 +5,14 @@ afterEach(() => {
   vi.resetModules();
 });
 
+it('exports the same MCP version from platform-lite and core', async () => {
+  const platformLite = await import('@supabase-evals/platform-lite');
+  const core = await import('./index.js');
+
+  expect(platformLite.MCP_SERVER_VERSION).toBeTypeOf('string');
+  expect(core.MCP_SERVER_VERSION).toBe(platformLite.MCP_SERVER_VERSION);
+});
+
 it('rejects a version range before configuring the MCP server', async () => {
   vi.doMock('../../platform-lite/package.json', () => ({
     default: {
