@@ -52,11 +52,11 @@ export function ExperimentRationale() {
           )
         })}
       </ul>
-      <details className="mt-4 text-xs text-muted-foreground">
-        <summary className="w-fit cursor-pointer hover:text-foreground">
+      <div className="mt-6 text-xs text-muted-foreground">
+        <h3 className="text-sm font-medium text-foreground">
           Experiment upload dates
-        </summary>
-        <table className="mt-2 text-left">
+        </h3>
+        <table className="mt-3 text-left">
           <caption className="sr-only">Experiment upload dates</caption>
           <tbody>
             {experiments.map((experiment) => {
@@ -75,7 +75,7 @@ export function ExperimentRationale() {
             })}
           </tbody>
         </table>
-      </details>
+      </div>
     </section>
   )
 }
