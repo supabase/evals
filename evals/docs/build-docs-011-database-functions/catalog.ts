@@ -1,6 +1,7 @@
 import type { CheckResult, LocalStackEvalContext } from '@supabase-evals/core';
 
-const FUNCTION = 'order_total';
+export const ORDER_TOTAL = 'order_total';
+export const CREDIT_BALANCE = 'credit_balance';
 
 export type FunctionRow = {
   name: string;
@@ -12,7 +13,8 @@ export type FunctionRow = {
 };
 
 export async function loadFunctions(
-  ctx: LocalStackEvalContext
+  ctx: LocalStackEvalContext,
+  name: string
 ): Promise<FunctionRow[]> {
   const { rows } = await ctx.query(`
     SELECT p.proname AS name,
@@ -23,7 +25,7 @@ export async function loadFunctions(
            COALESCE(p.proargnames[1], '') AS first_arg_name
     FROM pg_proc p
     JOIN pg_namespace n ON n.oid = p.pronamespace
-    WHERE n.nspname = 'public' AND p.proname = '${FUNCTION}';
+    WHERE n.nspname = 'public' AND p.proname = '${name}';
   `);
 
   return rows.map((row) => ({
@@ -41,17 +43,22 @@ export function pickArgumentName(functions: FunctionRow[]): string | undefined {
     ?.firstArgName;
 }
 
-export function checkFunctionExists(functions: FunctionRow[]): CheckResult {
+export function checkFunctionExists(
+  functions: FunctionRow[],
+  name: string
+): CheckResult {
   return {
-    name: 'the database has an order_total function',
+    name: `the database has ${/^[aeiou]/.test(name) ? 'an' : 'a'} ${name} function`,
     passed: functions.length > 0,
     notes:
       functions.length > 0
         ? functions.map((fn) => `${fn.name}(${fn.args})`).join(', ')
-        : `no function named ${FUNCTION} in public`,
+        : `no function named ${name} in public`,
   };
 }
 
+// Ranges over every function the prompt asks for. Reports itself not applicable
+// when none of them runs as its creator.
 export function checkDefinerPinsSearchPath(
   functions: FunctionRow[]
 ): CheckResult {
@@ -65,11 +72,11 @@ export function checkDefinerPinsSearchPath(
     passed: unpinned.length === 0,
     notes:
       functions.length === 0
-        ? `not applicable: no function named ${FUNCTION} in public`
+        ? `not applicable: no function named ${ORDER_TOTAL} or ${CREDIT_BALANCE} in public`
         : definers.length === 0
-          ? `not applicable: ${FUNCTION} runs as its caller`
+          ? `not applicable: ${functions.map((fn) => fn.name).join(', ')} run as the caller`
           : unpinned.length > 0
             ? `runs as its creator with no search path pinned: ${unpinned.map((fn) => fn.name).join(', ')}`
-            : `pinned: ${definers.map((fn) => fn.config).join(', ')}`,
+            : `pinned: ${definers.map((fn) => `${fn.name} ${fn.config}`).join(', ')}`,
   };
 }
