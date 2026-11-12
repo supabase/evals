@@ -345,6 +345,7 @@ async function runPairOnce(
   const label = jobLabel(pair, run);
   let sandbox: Sandbox | undefined;
   let pendingResult: PendingResult | undefined;
+  let sparkSetupInstalled = false;
   const spark = pair.eval_suite === 'spark';
   const sparkConfig = spark
     ? Object.fromEntries(
@@ -432,6 +433,7 @@ async function runPairOnce(
         },
         true
       );
+      sparkSetupInstalled = true;
       for (const cmd of ['warp-svc', 'dockerd']) {
         await sandbox.runCommand({ cmd, sudo: true, detached: true });
       }
@@ -600,6 +602,26 @@ async function runPairOnce(
     throw new Error(String(error));
   } finally {
     if (sandbox) {
+      if (sparkSetupInstalled) {
+        try {
+          await runSandboxCommand(
+            sandbox,
+            label,
+            'deregister WARP',
+            {
+              cmd: 'python3',
+              args: ['/tmp/setup-spark-warp.py', 'cleanup'],
+              sudo: true,
+              timeoutMs: 30_000,
+            },
+            true
+          );
+        } catch {
+          console.warn(
+            `${label} WARP deregistration failed. Continuing VM cleanup.`
+          );
+        }
+      }
       const sandboxUsage = await cleanupSandbox(sandbox, label);
       if (pendingResult) finalizeResult(pendingResult, sandboxUsage);
     }

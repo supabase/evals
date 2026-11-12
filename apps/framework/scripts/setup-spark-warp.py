@@ -40,7 +40,10 @@ def sanitize(path):
     secrets.append(urlsplit(config["SPARK_API_URL"]).hostname)
     secrets.extend(json.loads(Path("/tmp/spark-redactions.json").read_text()))
     result = Path(path)
-    result.write_text(json.dumps(redact(json.loads(result.read_text()), secrets)))
+    payload = json.dumps(redact(json.loads(result.read_text()), secrets))
+    if any(secret and (secret in payload or quote(secret, safe="") in payload) for secret in secrets):
+        raise RuntimeError("Result still contains a private value")
+    result.write_text(payload)
 
 
 def setup():
@@ -83,8 +86,6 @@ update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
 
 
 def connect():
-    os.umask(0o077)
-    config = json.loads(Path("/tmp/spark-warp-config.json").read_text())
     for _ in range(60):
         registration = subprocess.run(["warp-cli", "--accept-tos", "registration", "show"], capture_output=True)
         if registration.returncode == 0:
@@ -97,26 +98,35 @@ def connect():
         if "Status update: Connected" in warp.stdout and docker.returncode == 0:
             Path("/var/run/docker.sock").chmod(0o666)
             status = checked("curl", "-s", "--max-time", "20", "-H", "Authorization: Bearer injected-by-sandbox-firewall", "-o", "/dev/null", "-w", "%{http_code}", "https://api.openai.com/v1/models")
-            print(f"Provider credential brokering HTTP {status}")
+            print(f"Provider credential brokering HTTP {status} with placeholder key")
             if status != "200":
                 raise RuntimeError("Provider credential brokering failed")
-            print("Provider credential brokering HTTP 200 with placeholder key")
-            # The SDK owns the uploaded file. Replace it before writing as root in /tmp.
-            config_path = Path("/tmp/spark-warp-config.json")
-            config_path.unlink()
-            config_path.write_text(json.dumps({"SPARK_API_URL": config["SPARK_API_URL"]}))
+            # Retain the private token values so publication also redacts WARP credentials.
             return
         time.sleep(1)
     raise RuntimeError("WARP did not connect")
+
+
+def cleanup():
+    Path("/var/lib/cloudflare-warp/mdm.xml").unlink(missing_ok=True)
+    checked("warp-cli", "--accept-tos", "disconnect")
+    checked("warp-cli", "--accept-tos", "registration", "delete")
+    registration = subprocess.run(["warp-cli", "--accept-tos", "registration", "show"], capture_output=True)
+    if registration.returncode == 0:
+        raise RuntimeError("WARP registration still present")
+    print("WARP registration deleted")
 
 
 if __name__ == "__main__":
     try:
         if sys.argv[1:] == ["--self-check"]:
             secret = "https://private.example/a?token=secret"
+            assert redact({"tool": "warp-client-secret", "project": "spark-project-key"}, ["warp-client-secret", "spark-project-key"]) == {"tool": "[REDACTED]", "project": "[REDACTED]"}
             assert redact({"nested": [secret, quote(secret, safe=""), 4]}, [secret]) == {"nested": ["[REDACTED]", "[REDACTED]", 4]}
         elif sys.argv[1:2] == ["sanitize"] and len(sys.argv) == 3:
             sanitize(sys.argv[2])
+        elif sys.argv[1:] == ["cleanup"]:
+            cleanup()
         elif sys.argv[1:] == ["connect"]:
             connect()
         elif not sys.argv[1:]:
