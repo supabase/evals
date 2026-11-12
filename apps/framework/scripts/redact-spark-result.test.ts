@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { sanitizeResult } from './redact-spark-result.js';
 
-const accessToken = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.c2lnbmF0dXJl';
-const refreshToken = 'opaque-refresh+/token=';
+// Dummy JWT signature is base64url for the word "signature".
+const fakeAccessToken = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.c2lnbmF0dXJl';
+const fakeRefreshToken = 'opaque-refresh+/token=';
 
 describe('Spark result sanitization', () => {
   it('redacts configured values, encoded copies and object keys', () => {
@@ -17,8 +18,8 @@ describe('Spark result sanitization', () => {
     'discovers session tokens in %s responses and redacts every copy',
     (format) => {
       const session = {
-        access_token: accessToken,
-        refresh_token: refreshToken,
+        access_token: fakeAccessToken,
+        refresh_token: fakeRefreshToken,
         token_type: 'bearer',
       };
       const response =
@@ -29,12 +30,16 @@ describe('Spark result sanitization', () => {
             : JSON.stringify(JSON.stringify(session));
       const checks = [{ passed: false, notes: 'found: JWT-shaped token' }];
       const value = {
-        copies: [accessToken, refreshToken, encodeURIComponent(refreshToken)],
+        copies: [
+          fakeAccessToken,
+          fakeRefreshToken,
+          encodeURIComponent(fakeRefreshToken),
+        ],
         response,
         checks,
       };
       const payload = sanitizeResult(value, []);
-      for (const token of [accessToken, refreshToken]) {
+      for (const token of [fakeAccessToken, fakeRefreshToken]) {
         expect(payload).not.toContain(token);
         expect(payload).not.toContain(encodeURIComponent(token));
       }
@@ -48,7 +53,7 @@ describe('Spark result sanitization', () => {
 
   it('redacts JWTs printed without a session field', () => {
     expect(
-      JSON.parse(sanitizeResult({ report: `Bearer ${accessToken}` }, []))
+      JSON.parse(sanitizeResult({ report: `Bearer ${fakeAccessToken}` }, []))
     ).toEqual({
       report: 'Bearer [REDACTED]',
     });
