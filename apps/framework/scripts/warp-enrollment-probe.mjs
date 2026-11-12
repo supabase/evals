@@ -58,7 +58,7 @@ try {
     for (const [key, item] of Object.entries(value)) {
       if (fields.has(key) && (typeof item === 'boolean' || typeof item === 'number')) receipt[key] = item;
     }
-    if (value.stage === 'installation error' && typeof value.install_error === 'string' && value.install_error.length <= 600 && !/[A-Za-z0-9-]\.[A-Za-z0-9-]|https?:/.test(value.install_error)) {
+    if (value.stage === 'installation error' && typeof value.install_error === 'string' && value.install_error.length <= 1500 && !/[A-Za-z0-9-]\.[A-Za-z0-9-]|https?:/.test(value.install_error)) {
       receipt.install_error = value.install_error;
     }
     console.log(JSON.stringify(receipt));
