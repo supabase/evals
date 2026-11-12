@@ -156,6 +156,10 @@ Add to this file. A documentation eval is not finished until whatever went wrong
   stale keys alive, so renaming an eval leaves the old row beside the new one and a skipped pair keeps
   its last recorded verdict. #168, #108
   **Fix.** Pass the requested pairs and drop rows that were requested but produced nothing.
+- **A url the tool refused crashes the scorer.** The navigator refuses a malformed url such as
+  `https://%`, but the scorer parsed the same url to record the refused jump, so `new URL` threw and
+  the run had no score. #475
+  **Fix.** Parse agent-supplied urls with `URL.canParse` first, and keep the raw string when they fail.
 - **An empty `results/` overwrites the export with `[]`** rather than refusing. #228
 - **A bot pushed refreshed results onto a measurement branch**, where the results were measured against
   a preview url rather than the published page. #218
