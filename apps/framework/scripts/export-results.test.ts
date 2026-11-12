@@ -65,4 +65,23 @@ describe('toEvalResult area and journeyPhase', () => {
     expect(result.area).toBeUndefined();
     expect(result.journeyPhase).toBeUndefined();
   });
+
+  it('falls back to the recorded result when the prompt is missing', () => {
+    const result = toEvalResult(
+      rawEvalResultSchema.parse({
+        experiment: 'test-experiment',
+        eval: 'deleted-eval',
+        interface: 'cli',
+        area: 'local-stacks',
+        journeyPhase: 'resolve',
+      }),
+      'test-experiment/run-1/result.json',
+      undefined,
+      undefined
+    );
+    expect(result).toMatchObject({
+      area: 'local-stacks',
+      journeyPhase: 'resolve',
+    });
+  });
 });
