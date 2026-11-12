@@ -75,8 +75,11 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 apt-get install -y -qq curl gpg iproute2 ca-certificates
 curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | gpg --dearmor --yes -o /usr/share/keyrings/cloudflare-warp.gpg
+# apt's signature verifier reads the public key as an unprivileged user.
+chmod 644 /usr/share/keyrings/cloudflare-warp.gpg
 . /etc/os-release
 echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp.gpg] https://pkg.cloudflareclient.com/ $VERSION_CODENAME main" > /etc/apt/sources.list.d/cloudflare-client.list
+chmod 644 /etc/apt/sources.list.d/cloudflare-client.list
 apt-get update -qq
 apt-get install -y -qq cloudflare-warp
 """, timeout=300)
