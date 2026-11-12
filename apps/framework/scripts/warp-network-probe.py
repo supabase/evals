@@ -217,7 +217,7 @@ apt-get install -y -qq cloudflare-warp
                         break
                     time.sleep(1)
                 log = Path("/tmp/warp-probe-docker.log").read_text(errors="replace")
-                report("normal Docker networking", ready=ready, default_networking=bool(config.get("WARP_PROBE_REAL_EVAL")), legacy_iptables=bool(config.get("WARP_PROBE_REAL_EVAL")), iptables_unsupported="Operation not supported" in log and "iptables" in log)
+                report("Docker daemon", ready=ready, default_daemon_flags=bool(config.get("WARP_PROBE_REAL_EVAL")), legacy_iptables=bool(config.get("WARP_PROBE_REAL_EVAL")), iptables_unsupported="Operation not supported" in log and "iptables" in log)
                 checked("docker", "info")
                 bridge = json.loads(checked("ip", "-j", "-4", "addr", "show", "docker0"))[0]["addr_info"][0]["local"]
                 with open("/tmp/warp-probe-forwarder.log", "w") as log:

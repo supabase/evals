@@ -7,14 +7,14 @@ const stages = new Set([
   'validate configuration', 'install WARP', 'enroll and connect', 'probe environment', 'command failure', 'installation error',
   'resolve Spark', 'discover routes', 'before manual routes', 'Spark GET through WARP',
   'after route rollback', 'result', 'cleanup', 'Spark proxy GET', 'install nested Docker', 'nested Docker proxy GET',
-  'normal Docker networking', 'provider credential brokering', 'prepare real eval', 'real Spark eval', 'Spark request timings',
+  'Docker daemon', 'provider credential brokering', 'prepare real eval', 'real Spark eval', 'Spark request timings',
   'Spark HTTP proxy fetch',
   'eval networking', 'build agent image',
 ]);
 const fields = new Set([
   'warp_credentials_present', 'apt_available', 'dnf_available', 'exit_code', 'missing_command', 'missing_repository', 'package_missing', 'ok', 'connected', 'nft_unsupported', 'address_count', 'routed',
   'curl_exit', 'http_status', 'address_index', 'projects_created', 'route_count', 'numeric_table_count',
-  'default_networking', 'ready', 'iptables_unsupported', 'eval_passed', 'check_count', 'passed_check_count',
+  'default_daemon_flags', 'ready', 'iptables_unsupported', 'eval_passed', 'check_count', 'passed_check_count',
   'request_count', 'failed_request_count', 'over_ten_seconds_count', 'max_elapsed_ms', 'result_exists', 'timeout_mentions',
   'elapsed_ms', 'legacy_iptables', 'host_networking', 'bridge_networking',
 ]);
