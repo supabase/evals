@@ -56,6 +56,7 @@ def probe(config):
     stage = "validate configuration"
     added = []
     daemon = None
+    sidecars = []
     mdm = Path("/var/lib/cloudflare-warp/mdm.xml")
     try:
         client_id = config["CLOUDFLARE_WARP_CLIENT_ID"]
@@ -126,6 +127,30 @@ apt-get install -y -qq cloudflare-warp
             report(stage, exit_code=result.returncode, http_status=status)
             if result.returncode or status not in (200, 405):
                 raise RuntimeError("proxy request failed")
+            if config.get("WARP_PROBE_NESTED"):
+                stage = "install nested Docker"
+                checked("bash", "-c", "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends docker.io socat", timeout=300)
+                with open("/tmp/warp-probe-docker.log", "w") as log:
+                    # This experiment only needs container-to-host access, so no NAT rules.
+                    sidecars.append(subprocess.Popen(["dockerd", "--iptables=false", "--ip6tables=false", "--ip-masq=false"], stdout=log, stderr=log))
+                for _ in range(60):
+                    if command("docker", "info").returncode == 0:
+                        break
+                    time.sleep(1)
+                checked("docker", "info")
+                bridge = json.loads(checked("ip", "-j", "-4", "addr", "show", "docker0"))[0]["addr_info"][0]["local"]
+                with open("/tmp/warp-probe-forwarder.log", "w") as log:
+                    sidecars.append(subprocess.Popen(["socat", f"TCP-LISTEN:40001,bind={bridge},reuseaddr,fork", "TCP:127.0.0.1:40000"], stdout=log, stderr=log))
+                image = "curlimages/curl:8.17.0"
+                checked("docker", "pull", image, timeout=180)
+                stage = "nested Docker proxy GET"
+                script = '''test -z "${CLOUDFLARE_WARP_CLIENT_SECRET-}${CLOUDFLARE_WARP_CLIENT_ID-}" || exit 97
+exec curl -s --proxy socks5h://host.docker.internal:40001 --connect-timeout 5 --max-time 15 -o /dev/null -w '%{http_code}' "$PROBE_URL"'''
+                nested = command("docker", "run", "--rm", "--network", "bridge", "--add-host", "host.docker.internal:host-gateway", "--env", f"PROBE_URL={url}", "--entrypoint", "sh", image, "-c", script, timeout=45)
+                status = int(nested.stdout) if re.fullmatch(r"[0-9]{3}", nested.stdout) else 0
+                report(stage, exit_code=nested.returncode, http_status=status, warp_credentials_present=nested.returncode == 97)
+                if nested.returncode or status not in (200, 405):
+                    raise RuntimeError("nested proxy request failed")
             report("result", ok=True, projects_created=0)
             return 0
 
@@ -188,6 +213,8 @@ apt-get install -y -qq cloudflare-warp
                 pass
         if daemon:
             daemon.terminate()
+        for process in reversed(sidecars):
+            process.terminate()
 
 
 if __name__ == "__main__":

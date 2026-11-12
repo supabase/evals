@@ -4,10 +4,10 @@ import { Sandbox } from '@vercel/sandbox';
 const stages = new Set([
   'validate configuration', 'install WARP', 'enroll and connect', 'probe environment', 'command failure', 'installation error',
   'resolve Spark', 'discover routes', 'before manual routes', 'Spark GET through WARP',
-  'after route rollback', 'result', 'cleanup', 'Spark proxy GET',
+  'after route rollback', 'result', 'cleanup', 'Spark proxy GET', 'install nested Docker', 'nested Docker proxy GET',
 ]);
 const fields = new Set([
-  'apt_available', 'dnf_available', 'exit_code', 'missing_command', 'missing_repository', 'package_missing', 'ok', 'connected', 'nft_unsupported', 'address_count', 'routed',
+  'warp_credentials_present', 'apt_available', 'dnf_available', 'exit_code', 'missing_command', 'missing_repository', 'package_missing', 'ok', 'connected', 'nft_unsupported', 'address_count', 'routed',
   'curl_exit', 'http_status', 'address_index', 'projects_created', 'route_count', 'numeric_table_count',
 ]);
 
@@ -37,6 +37,7 @@ try {
   const config = Object.fromEntries([
     'CLOUDFLARE_WARP_CLIENT_ID', 'CLOUDFLARE_WARP_CLIENT_SECRET', 'SPARK_API_URL', 'WARP_PROBE_MODE',
   ].map(name => [name, process.env[name]]));
+  config.WARP_PROBE_NESTED = true;
   await sandbox.writeFiles([
     { path: '/tmp/warp-network-probe.py', content: await readFile(new URL('./warp-network-probe.py', import.meta.url)) },
     { path: '/tmp/warp-probe-config.json', content: Buffer.from(JSON.stringify(config)), mode: 0o600 },
