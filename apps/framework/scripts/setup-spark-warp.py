@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 import sys
 import time
+import traceback
 from urllib.parse import quote, urlsplit
 from xml.etree.ElementTree import Element, SubElement, tostring
 
@@ -95,6 +96,7 @@ def connect():
         if "Status update: Connected" in warp.stdout and docker.returncode == 0:
             Path("/var/run/docker.sock").chmod(0o666)
             status = checked("curl", "-s", "--max-time", "20", "-H", "Authorization: Bearer injected-by-sandbox-firewall", "-o", "/dev/null", "-w", "%{http_code}", "https://api.openai.com/v1/models")
+            print(f"Provider credential brokering HTTP {status}")
             if status != "200":
                 raise RuntimeError("Provider credential brokering failed")
             print("Provider credential brokering HTTP 200 with placeholder key")
@@ -118,6 +120,6 @@ if __name__ == "__main__":
         else:
             raise RuntimeError("Invalid arguments")
     except Exception as error:
-        print(f"Spark setup error type {type(error).__name__}", file=sys.stderr)
+        print(f"Spark setup error type {type(error).__name__} at line {traceback.extract_tb(error.__traceback__)[-1].lineno}", file=sys.stderr)
         print("Spark setup or result sanitization failed. Inspect private Sandbox logs.", file=sys.stderr)
         sys.exit(1)

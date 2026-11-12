@@ -584,7 +584,17 @@ async function runPairOnce(
     if (spark) {
       const step =
         error instanceof SandboxCommandError ? error.step : 'setup or download';
-      throw new Error(`Spark ${step} failed. Inspect private Sandbox logs.`);
+      const receipt =
+        error instanceof Error
+          ? error.message
+              .match(
+                /Spark setup error type [A-Za-z]+ at line [0-9]+|Provider credential brokering HTTP [0-9]{3}/g
+              )
+              ?.join(', ')
+          : undefined;
+      throw new Error(
+        `Spark ${step} failed. ${receipt ?? 'Inspect private Sandbox logs.'}`
+      );
     }
     if (error instanceof Error) throw error;
     throw new Error(String(error));
