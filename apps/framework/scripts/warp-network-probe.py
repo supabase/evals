@@ -18,8 +18,8 @@ def report(stage, **fields):
     print(json.dumps(dict(stage=stage, **fields)), flush=True)
 
 
-def command(*args, timeout=30, input=None):
-    return subprocess.run(args, input=input, capture_output=True, text=True, timeout=timeout)
+def command(*args, timeout=30, input=None, env=None):
+    return subprocess.run(args, input=input, env=env, capture_output=True, text=True, timeout=timeout)
 
 
 def checked(*args, timeout=30, input=None):
@@ -50,6 +50,55 @@ def receipt(url, host, address):
     result = command("curl", "-4", "-s", "--connect-timeout", "5", "--max-time", "15", "--resolve", f"{host}:443:{address}", "-o", "/dev/null", "-w", "%{http_code}", url)
     status = int(result.stdout) if re.fullmatch(r"[0-9]{3}", result.stdout) else 0
     return dict(curl_exit=result.returncode, http_status=status)
+
+
+def real_eval(config):
+    stage = "prepare real eval"
+    os.chdir(config["WARP_PROBE_REPO_ROOT"])
+    checked("git", "-c", f"safe.directory={os.getcwd()}", "-c", "url.https://github.com/.insteadOf=git@github.com:", "submodule", "update", "--init", "--recursive", timeout=180)
+    checked("npm", "install", "--global", "pnpm@10.24.0", timeout=180)
+    checked("pnpm", "install", "--frozen-lockfile", timeout=360)
+    Path(".env").write_text("OPENAI_API_KEY=injected-by-sandbox-firewall\nSPARK_API_URL=" + config["SPARK_API_URL"] + "\nSPARK_PROXY_URL=http://host.docker.internal:40001\n")
+    env = dict(os.environ, HTTPS_PROXY="http://127.0.0.1:40000", NO_PROXY=config["WARP_PROBE_BYPASS"], NODE_USE_ENV_PROXY="1")
+    selection = command("pnpm", "--silent", "eval", "--", "list", "--suite", "spark", "--eval", "build-database-001-task-due-dates", env=env)
+    if selection.returncode or "spark/codex-gpt-6-luna" not in json.loads(selection.stdout):
+        raise RuntimeError("experiment not in Spark suite")
+    report(stage, ok=True)
+
+    ca = checked("node", "--import", "tsx/esm", "--input-type=module", "-e", "import {proxyCaArgs} from './packages/sandbox/src/docker-sandbox.ts'; console.log(JSON.stringify(proxyCaArgs()));")
+    image = "curlimages/curl:8.17.0"
+    docker = ["docker", "run", "--rm", "--network", "bridge", "--add-host", "host.docker.internal:host-gateway", *json.loads(ca), "--env", "HTTPS_PROXY=http://host.docker.internal:40001", "--env", "NO_PROXY=" + config["WARP_PROBE_BYPASS"], "--env", "OPENAI_API_KEY=injected-by-sandbox-firewall", "--entrypoint", "sh", image]
+    provider = command(*docker, "-c", '''test "$OPENAI_API_KEY" = injected-by-sandbox-firewall && test -z "${CLOUDFLARE_WARP_CLIENT_SECRET-}${CLOUDFLARE_WARP_CLIENT_ID-}" || exit 97
+exec curl -s --max-time 20 -H "Authorization: Bearer $OPENAI_API_KEY" -o /dev/null -w '%{http_code}' https://api.openai.com/v1/models''', timeout=45)
+    status = int(provider.stdout) if re.fullmatch(r"[0-9]{3}", provider.stdout) else 0
+    report("provider credential brokering", exit_code=provider.returncode, http_status=status, warp_credentials_present=provider.returncode == 97)
+    if provider.returncode or status != 200:
+        raise RuntimeError("nested provider broker failed")
+    script = "fetch(new URL('/v1/projects',process.env.SPARK_API_URL),{signal:AbortSignal.timeout(15000)}).then(r=>console.log(r.status)).catch(()=>process.exitCode=1)"
+    native = command("node", "--env-file=.env", "-e", script, env=env)
+    status = int(native.stdout.strip()) if native.stdout.strip().isdigit() else 0
+    report("Spark HTTP proxy fetch", exit_code=native.returncode, http_status=status)
+    if native.returncode or status != 405:
+        raise RuntimeError("native fetch proxy failed")
+
+    started = time.monotonic()
+    with open("/tmp/warp-real-eval.log", "w") as output:
+        result = subprocess.run(["node", "--env-file=.env", "--import", "./apps/framework/scripts/warp-eval-observe.mjs", "--import", "tsx/esm", "apps/framework/harness/run-eval.ts", "--suite", "spark", "--experiment", "codex-gpt-6-luna", "--eval", "build-database-001-task-due-dates", "--runs", "1", "--timeout-sec", "720"], env=env, stdout=output, stderr=output, timeout=1200)
+    path = Path("results/spark/codex-gpt-6-luna/build-database-001-task-due-dates/run-1/result.json")
+    # A committed result cannot stand in for this run's real project and result.
+    project_exists = Path("/tmp/warp-eval-project.json").exists()
+    exists = path.exists() and project_exists
+    data = json.loads(path.read_text()) if exists else {}
+    checks = data.get("checks", [])
+    report("real Spark eval", exit_code=result.returncode, result_exists=exists, eval_passed=data.get("passed", False), check_count=len(checks), passed_check_count=sum(item.get("passed", False) for item in checks), elapsed_ms=round((time.monotonic()-started)*1000))
+    timing = Path("/tmp/warp-eval-timing.jsonl")
+    requests = [json.loads(line) for line in timing.read_text().splitlines()] if timing.exists() else []
+    text = Path("/tmp/warp-real-eval.log").read_text(errors="replace")
+    summary = dict(request_count=len(requests), failed_request_count=sum(item["failed"] for item in requests), over_ten_seconds_count=sum(item["elapsed_ms"] >= 10000 for item in requests), max_elapsed_ms=max((item["elapsed_ms"] for item in requests), default=0), timeout_mentions=len(re.findall(r"timed out|ETIMEDOUT|proxy.*timeout", text, re.IGNORECASE)))
+    report("Spark request timings", **summary)
+    projects = sum(item["path"] == "/v1/projects" and 200 <= item["status"] < 300 for item in requests)
+    report("result", ok=exists and data.get("passed", False), projects_created=projects)
+    return result.returncode == 0 and exists and data.get("passed", False)
 
 
 def probe(config):
@@ -132,11 +181,16 @@ apt-get install -y -qq cloudflare-warp
                 checked("bash", "-c", "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends docker.io socat", timeout=300)
                 with open("/tmp/warp-probe-docker.log", "w") as log:
                     # This experiment only needs container-to-host access, so no NAT rules.
-                    sidecars.append(subprocess.Popen(["dockerd", "--iptables=false", "--ip6tables=false", "--ip-masq=false"], stdout=log, stderr=log))
+                    docker_args = ["dockerd"] if config.get("WARP_PROBE_REAL_EVAL") else ["dockerd", "--iptables=false", "--ip6tables=false", "--ip-masq=false"]
+                    sidecars.append(subprocess.Popen(docker_args, stdout=log, stderr=log))
+                ready = False
                 for _ in range(60):
                     if command("docker", "info").returncode == 0:
+                        ready = True
                         break
                     time.sleep(1)
+                log = Path("/tmp/warp-probe-docker.log").read_text(errors="replace")
+                report("normal Docker networking", ready=ready, default_networking=bool(config.get("WARP_PROBE_REAL_EVAL")), iptables_unsupported="Operation not supported" in log and "iptables" in log)
                 checked("docker", "info")
                 bridge = json.loads(checked("ip", "-j", "-4", "addr", "show", "docker0"))[0]["addr_info"][0]["local"]
                 with open("/tmp/warp-probe-forwarder.log", "w") as log:
@@ -151,6 +205,10 @@ exec curl -s --proxy socks5h://host.docker.internal:40001 --connect-timeout 5 --
                 report(stage, exit_code=nested.returncode, http_status=status, warp_credentials_present=nested.returncode == 97)
                 if nested.returncode or status not in (200, 405):
                     raise RuntimeError("nested proxy request failed")
+            if config.get("WARP_PROBE_REAL_EVAL"):
+                if not real_eval(config):
+                    raise RuntimeError("eval failed")
+                return 0
             report("result", ok=True, projects_created=0)
             return 0
 

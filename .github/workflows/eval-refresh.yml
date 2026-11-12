@@ -8,6 +8,10 @@ on:
         type: boolean
         required: false
         default: false
+      warp_eval:
+        description: "Run one real Spark eval (creates a test project)"
+        type: boolean
+        default: false
       warp_target:
         description: "WARP diagnostic environment"
         type: choice
@@ -94,7 +98,7 @@ jobs:
     runs-on: ubuntu-26.04
     permissions:
       contents: read
-    timeout-minutes: 20
+    timeout-minutes: ${{ inputs.warp_eval && 45 || 20 }}
     steps:
       - name: Checkout
         uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
@@ -128,10 +132,12 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          WARP_PROBE_REAL_EVAL: ${{ inputs.warp_eval }}
           WARP_PROBE_IMAGE: ${{ inputs.warp_image }}
           WARP_PROBE_MODE: ${{ inputs.warp_mode }}
         working-directory: apps/framework
-        run: node scripts/warp-enrollment-probe.mjs
+        run: node --import tsx/esm scripts/warp-enrollment-probe.mjs
 
   prepare:
     # 291952723 is supabase-evals-releaser[bot], which pushes the results commit.

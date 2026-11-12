@@ -11,7 +11,10 @@ const projectSchema = z.object({
 });
 const rowsSchema = z.array(z.record(z.string(), z.unknown()));
 
-export function sparkRuntime(apiUrl: string): EvalRuntime {
+export const SPARK_PROXY_BYPASS =
+  'localhost,127.0.0.1,.openai.com,.anthropic.com,api.x.ai,ai-gateway.vercel.sh,.npmjs.org,.github.com,.githubusercontent.com';
+
+export function sparkRuntime(apiUrl: string, proxyUrl?: string): EvalRuntime {
   return {
     id: 'spark',
     async startSession(args) {
@@ -76,6 +79,13 @@ export function sparkRuntime(apiUrl: string): EvalRuntime {
       return {
         mcpServers: {},
         env: {
+          ...(proxyUrl
+            ? {
+                HTTPS_PROXY: proxyUrl,
+                NO_PROXY: SPARK_PROXY_BYPASS,
+                NODE_USE_ENV_PROXY: '1',
+              }
+            : {}),
           SPARK_PROJECT_URL: project.url,
           SPARK_SECRET_KEY: secret,
           SPARK_PUBLISHABLE_KEY: publishable,

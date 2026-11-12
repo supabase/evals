@@ -43,10 +43,13 @@ it('creates fresh projects, seeds before execution and reads scoring state', asy
   });
   vi.stubGlobal('fetch', fetchMock);
   try {
-    const runtime = sparkRuntime('https://control.example');
+    const runtime = sparkRuntime('https://control.example', 'http://proxy.example');
     const session = await runtime.startSession({ projectSeedSql: fixture });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(session.env?.SPARK_PROJECT_URL).toBe('https://project1.example');
+    expect(session.env?.HTTPS_PROXY).toBe('http://proxy.example');
+    expect(session.env?.NO_PROXY).toContain('.openai.com');
+    expect(session.env?.NODE_USE_ENV_PROXY).toBe('1');
     expect(session.mcpServers).toEqual({});
     expect(await session.scoringContext.query('select 1')).toEqual({
       rows: [{ value: 1 }],

@@ -1,16 +1,24 @@
 import { readFile } from 'node:fs/promises';
 import { Sandbox } from '@vercel/sandbox';
+import { brokeredNetworkPolicy } from './run-vercel-evals.ts';
+import { SPARK_PROXY_BYPASS } from '../../../experiments/spark/lib/runtime.ts';
 
 const stages = new Set([
   'validate configuration', 'install WARP', 'enroll and connect', 'probe environment', 'command failure', 'installation error',
   'resolve Spark', 'discover routes', 'before manual routes', 'Spark GET through WARP',
   'after route rollback', 'result', 'cleanup', 'Spark proxy GET', 'install nested Docker', 'nested Docker proxy GET',
+  'normal Docker networking', 'provider credential brokering', 'prepare real eval', 'real Spark eval', 'Spark request timings',
+  'Spark HTTP proxy fetch',
 ]);
 const fields = new Set([
   'warp_credentials_present', 'apt_available', 'dnf_available', 'exit_code', 'missing_command', 'missing_repository', 'package_missing', 'ok', 'connected', 'nft_unsupported', 'address_count', 'routed',
   'curl_exit', 'http_status', 'address_index', 'projects_created', 'route_count', 'numeric_table_count',
+  'default_networking', 'ready', 'iptables_unsupported', 'eval_passed', 'check_count', 'passed_check_count',
+  'request_count', 'failed_request_count', 'over_ten_seconds_count', 'max_elapsed_ms', 'result_exists', 'timeout_mentions',
+  'elapsed_ms',
 ]);
 
+const realEval = process.env.WARP_PROBE_REAL_EVAL === 'true';
 let sandbox;
 let stage = 'create sandbox';
 try {
@@ -18,12 +26,31 @@ try {
     token: process.env.VERCEL_TOKEN,
     teamId: process.env.VERCEL_TEAM_ID,
     projectId: process.env.VERCEL_PROJECT_ID,
+    ...(realEval ? {
+      name: `spark-real-eval-${process.env.GITHUB_RUN_ID}`,
+      source: { type: 'git', url: 'https://github.com/supabase/evals.git', revision: process.env.GITHUB_SHA, depth: 1 },
+      resources: { vcpus: 4 },
+    } : {}),
     image: process.env.WARP_PROBE_IMAGE === 'universal' ? 'vercel/sandbox/universal' : 'vercel/sandbox/node:24',
-    timeout: 900000,
+    timeout: realEval ? 2400000 : 900000,
     persistent: false,
     networkPolicy: 'allow-all',
   });
   console.log(JSON.stringify({ stage, ok: true }));
+  if (realEval) {
+    stage = 'provider without brokering';
+    const probeArgs = ['-s', '--max-time', '20', '-o', '/dev/null', '-w', '%{http_code}', 'https://api.openai.com/v1/models'];
+    const before = await sandbox.runCommand({ cmd: 'curl', args: probeArgs });
+    const beforeStatus = await before.stdout();
+    console.log(JSON.stringify({ stage, http_status: Number(beforeStatus) }));
+    if (before.exitCode || beforeStatus !== '401' || !process.env.OPENAI_API_KEY) throw new Error('Provider control failed');
+    await sandbox.update({ networkPolicy: brokeredNetworkPolicy() });
+    stage = 'provider with brokering';
+    const after = await sandbox.runCommand({ cmd: 'curl', args: probeArgs });
+    const afterStatus = await after.stdout();
+    console.log(JSON.stringify({ stage, http_status: Number(afterStatus) }));
+    if (after.exitCode || afterStatus !== '200') throw new Error('Provider broker failed');
+  }
   stage = 'bootstrap sandbox';
   const bootstrap = await sandbox.runCommand({
     cmd: 'bash',
@@ -38,6 +65,10 @@ try {
     'CLOUDFLARE_WARP_CLIENT_ID', 'CLOUDFLARE_WARP_CLIENT_SECRET', 'SPARK_API_URL', 'WARP_PROBE_MODE',
   ].map(name => [name, process.env[name]]));
   config.WARP_PROBE_NESTED = true;
+  config.WARP_PROBE_REAL_EVAL = realEval;
+  config.WARP_PROBE_BYPASS = SPARK_PROXY_BYPASS;
+  const cwd = await sandbox.runCommand({ cmd: 'pwd' });
+  config.WARP_PROBE_REPO_ROOT = (await cwd.stdout()).trim();
   await sandbox.writeFiles([
     { path: '/tmp/warp-network-probe.py', content: await readFile(new URL('./warp-network-probe.py', import.meta.url)) },
     { path: '/tmp/warp-probe-config.json', content: Buffer.from(JSON.stringify(config)), mode: 0o600 },
@@ -47,7 +78,7 @@ try {
     cmd: 'python3',
     args: ['/tmp/warp-network-probe.py', '/tmp/warp-probe-config.json'],
     sudo: true,
-    timeoutMs: 780000,
+    timeoutMs: realEval ? 2100000 : 780000,
   });
   console.log(JSON.stringify({ stage, exit_code: result.exitCode }));
   // Only the probe's fixed stages and numeric/boolean receipts reach public logs.
@@ -65,6 +96,14 @@ try {
     console.log(JSON.stringify(receipt));
   }
   if (result.exitCode) process.exitCode = 1;
+  if (realEval) {
+    console.log(JSON.stringify({ stage: 'private inspection window', ready: true }));
+    for (let attempt = 0; attempt < 90; attempt++) {
+      const release = await sandbox.runCommand({ cmd: 'test', args: ['-f', '/tmp/warp-eval-release'] });
+      if (release.exitCode === 0) break;
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+  }
 } catch {
   console.log(JSON.stringify({ stage, ok: false }));
   process.exitCode = 1;
