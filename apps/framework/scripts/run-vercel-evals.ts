@@ -411,9 +411,9 @@ export async function runPairOnce(
     if (spark) {
       await sandbox.writeFiles([
         {
-          path: '/tmp/setup-spark-warp.py',
+          path: '/tmp/setup-spark-warp.ts',
           content: readFileSync(
-            new URL('./setup-spark-warp.py', import.meta.url)
+            new URL('./setup-spark-warp.ts', import.meta.url)
           ),
         },
         {
@@ -427,8 +427,8 @@ export async function runPairOnce(
         label,
         'install Spark WARP proxy',
         {
-          cmd: 'python3',
-          args: ['/tmp/setup-spark-warp.py'],
+          cmd: 'node',
+          args: ['/tmp/setup-spark-warp.ts'],
           sudo: true,
           timeoutMs: 10 * 60 * 1_000,
         },
@@ -443,8 +443,8 @@ export async function runPairOnce(
         label,
         'connect Spark WARP proxy',
         {
-          cmd: 'python3',
-          args: ['/tmp/setup-spark-warp.py', 'connect'],
+          cmd: 'node',
+          args: ['/tmp/setup-spark-warp.ts', 'connect'],
           sudo: true,
           timeoutMs: 3 * 60 * 1_000,
         },
@@ -550,9 +550,9 @@ export async function runPairOnce(
     });
     if (spark) {
       await runSandboxCommand(sandbox, label, 'sanitize Spark result', {
-        cmd: 'python3',
+        cmd: 'node',
         args: [
-          '/tmp/setup-spark-warp.py',
+          '/tmp/setup-spark-warp.ts',
           'sanitize',
           `${repoCwd}/results/${pair.eval_suite}/${pair.experiment}/${pair.eval_id}/run-${run}/result.json`,
         ],
@@ -606,8 +606,8 @@ export async function runPairOnce(
             label,
             'deregister WARP',
             {
-              cmd: 'python3',
-              args: ['/tmp/setup-spark-warp.py', 'cleanup'],
+              cmd: 'node',
+              args: ['/tmp/setup-spark-warp.ts', 'cleanup'],
               sudo: true,
               timeoutMs: 30_000,
             },
