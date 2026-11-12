@@ -15,7 +15,7 @@ const fields = new Set([
   'curl_exit', 'http_status', 'address_index', 'projects_created', 'route_count', 'numeric_table_count',
   'default_networking', 'ready', 'iptables_unsupported', 'eval_passed', 'check_count', 'passed_check_count',
   'request_count', 'failed_request_count', 'over_ten_seconds_count', 'max_elapsed_ms', 'result_exists', 'timeout_mentions',
-  'elapsed_ms',
+  'elapsed_ms', 'legacy_iptables',
 ]);
 
 const realEval = process.env.WARP_PROBE_REAL_EVAL === 'true';

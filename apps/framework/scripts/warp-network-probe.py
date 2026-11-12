@@ -179,6 +179,10 @@ apt-get install -y -qq cloudflare-warp
             if config.get("WARP_PROBE_NESTED"):
                 stage = "install nested Docker"
                 checked("bash", "-c", "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends docker.io socat", timeout=300)
+                if config.get("WARP_PROBE_REAL_EVAL"):
+                    # Sandbox supports classic iptables NAT, while nftables calls fail.
+                    checked("update-alternatives", "--set", "iptables", "/usr/sbin/iptables-legacy")
+                    checked("update-alternatives", "--set", "ip6tables", "/usr/sbin/ip6tables-legacy")
                 with open("/tmp/warp-probe-docker.log", "w") as log:
                     # This experiment only needs container-to-host access, so no NAT rules.
                     docker_args = ["dockerd"] if config.get("WARP_PROBE_REAL_EVAL") else ["dockerd", "--iptables=false", "--ip6tables=false", "--ip-masq=false"]
@@ -190,7 +194,7 @@ apt-get install -y -qq cloudflare-warp
                         break
                     time.sleep(1)
                 log = Path("/tmp/warp-probe-docker.log").read_text(errors="replace")
-                report("normal Docker networking", ready=ready, default_networking=bool(config.get("WARP_PROBE_REAL_EVAL")), iptables_unsupported="Operation not supported" in log and "iptables" in log)
+                report("normal Docker networking", ready=ready, default_networking=bool(config.get("WARP_PROBE_REAL_EVAL")), legacy_iptables=bool(config.get("WARP_PROBE_REAL_EVAL")), iptables_unsupported="Operation not supported" in log and "iptables" in log)
                 checked("docker", "info")
                 bridge = json.loads(checked("ip", "-j", "-4", "addr", "show", "docker0"))[0]["addr_info"][0]["local"]
                 with open("/tmp/warp-probe-forwarder.log", "w") as log:
