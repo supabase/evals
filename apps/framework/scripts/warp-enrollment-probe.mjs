@@ -9,7 +9,7 @@ const stages = new Set([
   'after route rollback', 'result', 'cleanup', 'Spark proxy GET', 'install nested Docker', 'nested Docker proxy GET',
   'normal Docker networking', 'provider credential brokering', 'prepare real eval', 'real Spark eval', 'Spark request timings',
   'Spark HTTP proxy fetch',
-  'eval networking',
+  'eval networking', 'build agent image',
 ]);
 const fields = new Set([
   'warp_credentials_present', 'apt_available', 'dnf_available', 'exit_code', 'missing_command', 'missing_repository', 'package_missing', 'ok', 'connected', 'nft_unsupported', 'address_count', 'routed',

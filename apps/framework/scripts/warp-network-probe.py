@@ -18,12 +18,12 @@ def report(stage, **fields):
     print(json.dumps(dict(stage=stage, **fields)), flush=True)
 
 
-def command(*args, timeout=30, input=None, env=None):
-    return subprocess.run(args, input=input, env=env, capture_output=True, text=True, timeout=timeout)
+def command(*args, timeout=30, input=None, env=None, cwd=None):
+    return subprocess.run(args, input=input, env=env, cwd=cwd, capture_output=True, text=True, timeout=timeout)
 
 
-def checked(*args, timeout=30, input=None):
-    result = command(*args, timeout=timeout, input=input)
+def checked(*args, timeout=30, input=None, cwd=None):
+    result = command(*args, timeout=timeout, input=input, cwd=cwd)
     if result.returncode:
         report("command failure", exit_code=result.returncode, missing_command="command not found" in result.stderr, missing_repository="does not have a Release file" in result.stderr, package_missing="Unable to locate package" in result.stderr)
         if args[:2] == ("bash", "-c"):
@@ -65,7 +65,8 @@ def real_eval(config):
         raise RuntimeError("experiment not in Spark suite")
     report(stage, ok=True)
 
-    ca = checked("node", "--import", "tsx/esm", "--input-type=module", "-e", "import {proxyCaArgs} from './packages/sandbox/src/docker-sandbox.ts'; console.log(JSON.stringify(proxyCaArgs()));")
+    framework = str(Path.cwd() / "apps/framework")
+    ca = checked("node", "--import", "tsx/esm", "--input-type=module", "-e", "import {proxyCaArgs} from '../../packages/sandbox/src/docker-sandbox.ts'; console.log(JSON.stringify(proxyCaArgs()));", cwd=framework)
     image = "curlimages/curl:8.17.0"
     network = config.get("WARP_PROBE_NETWORK", "bridge")
     docker = ["docker", "run", "--rm", "--network", network, "--add-host", "host.docker.internal:host-gateway", *json.loads(ca), "--env", "HTTPS_PROXY=http://host.docker.internal:40001", "--env", "NO_PROXY=" + config["WARP_PROBE_BYPASS"], "--env", "OPENAI_API_KEY=injected-by-sandbox-firewall", "--entrypoint", "sh", image]
@@ -96,10 +97,15 @@ os.execv('/usr/bin/docker', ['docker', *args])
         wrapper.chmod(0o700)
         env.update(PATH=str(directory) + ":" + env["PATH"], DOCKER_BUILDKIT="0")
     report("eval networking", host_networking=network == "host", bridge_networking=network == "bridge")
+    build = command("node", "--import", "tsx/esm", "--input-type=module", "-e", "import {ensureSupabaseSandboxImage} from '../../packages/sandbox/src/supabase.ts'; await ensureSupabaseSandboxImage();", env=env, cwd=framework, timeout=600)
+    Path("/tmp/warp-agent-build.log").write_text(build.stdout + build.stderr)
+    report("build agent image", exit_code=build.returncode)
+    if build.returncode:
+        raise RuntimeError("agent image build failed")
 
     started = time.monotonic()
     with open("/tmp/warp-real-eval.log", "w") as output:
-        result = subprocess.run(["node", "--env-file=.env", "--import", "./apps/framework/scripts/warp-eval-observe.mjs", "--import", "tsx/esm", "apps/framework/harness/run-eval.ts", "--suite", "spark", "--experiment", "codex-gpt-6-luna", "--eval", "build-database-001-task-due-dates", "--runs", "1", "--timeout-sec", "720"], env=env, stdout=output, stderr=output, timeout=1200)
+        result = subprocess.run(["node", "--env-file=../../.env", "--import", "./scripts/warp-eval-observe.mjs", "--import", "tsx/esm", "harness/run-eval.ts", "--suite", "spark", "--experiment", "codex-gpt-6-luna", "--eval", "build-database-001-task-due-dates", "--runs", "1", "--timeout-sec", "720"], env=env, cwd=framework, stdout=output, stderr=output, timeout=1200)
     path = Path("results/spark/codex-gpt-6-luna/build-database-001-task-due-dates/run-1/result.json")
     # A committed result cannot stand in for this run's real project and result.
     project_exists = Path("/tmp/warp-eval-project.json").exists()
