@@ -26,6 +26,11 @@ def checked(*args, timeout=30, input=None):
     result = command(*args, timeout=timeout, input=input)
     if result.returncode:
         report("command failure", exit_code=result.returncode, missing_command="command not found" in result.stderr, missing_repository="does not have a Release file" in result.stderr, package_missing="Unable to locate package" in result.stderr)
+        if args[:2] == ("bash", "-c"):
+            errors = " ".join(line for line in result.stderr.splitlines() if line.startswith("E:"))
+            errors = re.sub(r"https?://\S+", "<url>", errors)
+            errors = re.sub(r"\b(?:[A-Za-z0-9-]+\.)+[A-Za-z0-9-]+\b", "<host>", errors)
+            report("installation error", install_error=errors[:600])
         raise RuntimeError("command failed")
     return result.stdout
 

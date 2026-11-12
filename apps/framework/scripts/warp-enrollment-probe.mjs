@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { Sandbox } from '@vercel/sandbox';
 
 const stages = new Set([
-  'validate configuration', 'install WARP', 'enroll and connect', 'probe environment', 'command failure',
+  'validate configuration', 'install WARP', 'enroll and connect', 'probe environment', 'command failure', 'installation error',
   'resolve Spark', 'discover routes', 'before manual routes', 'Spark GET through WARP',
   'after route rollback', 'result', 'cleanup',
 ]);
@@ -57,6 +57,9 @@ try {
     const receipt = { stage: value.stage };
     for (const [key, item] of Object.entries(value)) {
       if (fields.has(key) && (typeof item === 'boolean' || typeof item === 'number')) receipt[key] = item;
+    }
+    if (value.stage === 'installation error' && typeof value.install_error === 'string' && value.install_error.length <= 600 && !/[A-Za-z0-9-]\.[A-Za-z0-9-]|https?:/.test(value.install_error)) {
+      receipt.install_error = value.install_error;
     }
     console.log(JSON.stringify(receipt));
   }
