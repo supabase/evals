@@ -423,12 +423,27 @@ async function runPairOnce(
       await runSandboxCommand(
         sandbox,
         label,
-        'connect Spark WARP proxy',
+        'install Spark WARP proxy',
         {
           cmd: 'python3',
           args: ['/tmp/setup-spark-warp.py'],
           sudo: true,
           timeoutMs: 10 * 60 * 1_000,
+        },
+        true
+      );
+      for (const cmd of ['warp-svc', 'dockerd']) {
+        await sandbox.runCommand({ cmd, sudo: true, detached: true });
+      }
+      await runSandboxCommand(
+        sandbox,
+        label,
+        'connect Spark WARP proxy',
+        {
+          cmd: 'python3',
+          args: ['/tmp/setup-spark-warp.py', 'connect'],
+          sudo: true,
+          timeoutMs: 3 * 60 * 1_000,
         },
         true
       );

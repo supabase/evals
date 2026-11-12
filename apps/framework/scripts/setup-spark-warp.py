@@ -79,9 +79,10 @@ update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
     mdm.parent.mkdir(parents=True, exist_ok=True)
     mdm.write_bytes(tostring(document))
     mdm.chmod(0o600)
-    for name in ("warp-svc", "dockerd"):
-        with open(f"/tmp/spark-{name}.log", "w") as output:
-            subprocess.Popen([name], stdout=output, stderr=output, start_new_session=True)
+
+
+def connect():
+    config = json.loads(Path("/tmp/spark-warp-config.json").read_text())
     for _ in range(60):
         registration = subprocess.run(["warp-cli", "--accept-tos", "registration", "show"], capture_output=True)
         if registration.returncode == 0:
@@ -89,8 +90,9 @@ update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
         time.sleep(1)
     checked("warp-cli", "--accept-tos", "connect")
     for _ in range(60):
-        if "Status update: Connected" in checked("warp-cli", "--accept-tos", "status"):
-            checked("docker", "info")
+        warp = subprocess.run(["warp-cli", "--accept-tos", "status"], capture_output=True, text=True)
+        docker = subprocess.run(["docker", "info"], capture_output=True)
+        if "Status update: Connected" in warp.stdout and docker.returncode == 0:
             Path("/var/run/docker.sock").chmod(0o666)
             status = checked("curl", "-s", "--max-time", "20", "-H", "Authorization: Bearer injected-by-sandbox-firewall", "-o", "/dev/null", "-w", "%{http_code}", "https://api.openai.com/v1/models")
             if status != "200":
@@ -109,6 +111,8 @@ if __name__ == "__main__":
             assert redact({"nested": [secret, quote(secret, safe=""), 4]}, [secret]) == {"nested": ["[REDACTED]", "[REDACTED]", 4]}
         elif sys.argv[1:2] == ["sanitize"] and len(sys.argv) == 3:
             sanitize(sys.argv[2])
+        elif sys.argv[1:] == ["connect"]:
+            connect()
         elif not sys.argv[1:]:
             setup()
         else:
