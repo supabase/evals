@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sanitizeResult } from './setup-spark-warp.js';
+import { sanitizeResult } from './redact-spark-result.js';
 
 const accessToken = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.c2lnbmF0dXJl';
 const refreshToken = 'opaque-refresh+/token=';

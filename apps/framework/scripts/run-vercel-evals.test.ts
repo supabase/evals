@@ -34,11 +34,21 @@ import {
   tagValue,
   expandJobs,
   type EvalPair,
+  sparkWarpMdm,
 } from './run-vercel-evals.js';
 
 vi.mock('@supabase-evals/sandbox', () => ({ resolveCliVersion: vi.fn() }));
 
 const BROKERED_NAMES = BROKERED_KEYS.map(({ name }) => name);
+
+it('escapes credentials as XML text in the WARP configuration', () => {
+  expect(sparkWarpMdm('client<&>', 'secret<&>')).toContain(
+    '<key>auth_client_id</key><string>client&lt;&amp;&gt;</string>'
+  );
+  expect(sparkWarpMdm('client<&>', 'secret<&>')).toContain(
+    '<key>auth_client_secret</key><string>secret&lt;&amp;&gt;</string>'
+  );
+});
 
 describe('Spark terminal failures', () => {
   const options = {
@@ -66,33 +76,28 @@ describe('Spark terminal failures', () => {
     vi.stubEnv('SPARK_API_URL', 'https://control.example');
     vi.stubEnv('CLOUDFLARE_WARP_CLIENT_ID', 'test.access');
     vi.stubEnv('CLOUDFLARE_WARP_CLIENT_SECRET', 'test');
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.restoreAllMocks();
   });
 
-  it('preserves terminal create failures so the outer retry loop stops', async () => {
-    const create = vi
-      .spyOn(Sandbox, 'create')
-      .mockRejectedValue(new APIError(new Response(null, { status: 401 })));
-    await expect(runPairOnce(options, credentials)).rejects.toBeInstanceOf(
-      AbortError
-    );
-    expect(create).toHaveBeenCalledTimes(1);
-  });
-
-  it('does not retry missing credentials or allocate a VM', async () => {
-    vi.stubEnv('CLOUDFLARE_WARP_CLIENT_SECRET', '');
-    const create = vi
-      .spyOn(Sandbox, 'create')
-      .mockRejectedValue(new APIError(new Response(null, { status: 401 })));
-    await expect(runPairOnce(options, credentials)).rejects.toBeInstanceOf(
-      AbortError
-    );
-    expect(create).not.toHaveBeenCalled();
-  });
+  it.each(['unauthorized Sandbox', 'missing credentials'])(
+    'aborts %s without retrying',
+    async (reason) => {
+      if (reason === 'missing credentials')
+        vi.stubEnv('CLOUDFLARE_WARP_CLIENT_SECRET', '');
+      const create = vi
+        .spyOn(Sandbox, 'create')
+        .mockRejectedValue(new APIError(new Response(null, { status: 401 })));
+      await expect(runPairOnce(options, credentials)).rejects.toBeInstanceOf(
+        AbortError
+      );
+      expect(create).toHaveBeenCalledTimes(
+        reason === 'missing credentials' ? 0 : 1
+      );
+    }
+  );
 });
 
 describe('agentEnvironment', () => {
@@ -480,37 +485,24 @@ describe('Vercel eval controller', () => {
   });
 
   it('downloads only sanitized JSON for Spark, never workspace or session archives', async () => {
-    const temporary = mkdtempSync(join(tmpdir(), 'spark-download-test-'));
-    const paths: string[] = [];
-    try {
-      await downloadResults(
-        {
-          downloadFile: async (source, destination) => {
-            paths.push(source.path);
-            mkdirSync(dirname(destination.path), { recursive: true });
-            writeFileSync(destination.path, '{"passed":true}');
-            return destination.path;
-          },
-        },
-        { eval_id: 'eval-1', experiment: 'experiment-1', eval_suite: 'spark' },
-        1,
-        temporary,
-        '/vercel/evals'
-      );
-      expect(paths).toEqual([
-        '/vercel/evals/results/spark/experiment-1/eval-1/run-1/result.json',
-      ]);
-      expect(
-        readdirSync(
-          join(
-            temporary,
-            'raw-results-spark__experiment-1__eval-1/eval-1/run-1'
-          )
-        )
-      ).toEqual(['result.json.partial']);
-    } finally {
-      rmSync(temporary, { recursive: true, force: true });
-    }
+    const downloadFile = vi.fn().mockResolvedValue('downloaded');
+    const result = await downloadResults(
+      { downloadFile },
+      { eval_id: 'eval-1', experiment: 'experiment-1', eval_suite: 'spark' },
+      1,
+      '/tmp/unused-spark-results',
+      '/vercel/evals'
+    );
+    expect(downloadFile).toHaveBeenCalledExactlyOnceWith(
+      {
+        path: '/vercel/evals/results/spark/experiment-1/eval-1/run-1/result.json',
+      },
+      { path: result.partialPath },
+      { mkdirRecursive: true }
+    );
+    expect(result.partialPath).toBe(
+      '/tmp/unused-spark-results/raw-results-spark__experiment-1__eval-1/eval-1/run-1/result.json.partial'
+    );
   });
 
   it('downloads result metadata separately from agent workspace files', async () => {

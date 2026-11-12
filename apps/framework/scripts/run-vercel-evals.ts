@@ -338,6 +338,20 @@ async function runPairs(options: RunnerOptions): Promise<void> {
   }
 }
 
+export function sparkWarpMdm(clientId: string, clientSecret: string): string {
+  const entries = Object.entries({
+    organization: 'supabase',
+    auth_client_id: clientId,
+    auth_client_secret: clientSecret,
+    service_mode: 'proxy',
+    warp_tunnel_protocol: 'masque',
+  }).map(
+    ([key, value]) =>
+      `<key>${key}</key><string>${value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')}</string>`
+  );
+  return `<dict>${entries.join('')}<key>proxy_port</key><integer>40000</integer></dict>`;
+}
+
 export async function runPairOnce(
   options: PairOptions,
   credentials: VercelCredentials
@@ -411,45 +425,102 @@ export async function runPairOnce(
     if (spark) {
       await sandbox.writeFiles([
         {
-          path: '/tmp/setup-spark-warp.ts',
+          path: '/tmp/redact-spark-result.ts',
           content: readFileSync(
-            new URL('./setup-spark-warp.ts', import.meta.url)
+            new URL('./redact-spark-result.ts', import.meta.url)
           ),
         },
         {
-          path: '/tmp/spark-warp-config.json',
-          content: Buffer.from(JSON.stringify(sparkConfig)),
+          path: '/tmp/spark-warp-secrets.json',
+          content: Buffer.from(
+            JSON.stringify([
+              ...Object.values(sparkConfig),
+              new URL(sparkConfig.SPARK_API_URL).hostname,
+            ])
+          ),
+          mode: 0o600,
+        },
+        {
+          path: '/tmp/spark-warp-mdm.xml',
+          content: Buffer.from(
+            sparkWarpMdm(
+              sparkConfig.CLOUDFLARE_WARP_CLIENT_ID,
+              sparkConfig.CLOUDFLARE_WARP_CLIENT_SECRET
+            )
+          ),
           mode: 0o600,
         },
       ]);
-      await runSandboxCommand(
-        sandbox,
-        label,
-        'install Spark WARP proxy',
-        {
-          cmd: 'node',
-          args: ['/tmp/setup-spark-warp.ts'],
-          sudo: true,
-          timeoutMs: 10 * 60 * 1_000,
-        },
-        true
-      );
+      await runSandboxCommand(sandbox, label, 'install Spark WARP proxy', {
+        cmd: 'bash',
+        args: [
+          '-euo',
+          'pipefail',
+          '-c',
+          `umask 077
+exec >>/tmp/spark-setup.log 2>&1
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -qq
+apt-get install -y -qq curl gpg ca-certificates docker.io
+curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | gpg --dearmor --yes -o /usr/share/keyrings/cloudflare-warp.gpg
+chmod 644 /usr/share/keyrings/cloudflare-warp.gpg
+. /etc/os-release
+echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp.gpg] https://pkg.cloudflareclient.com/ $VERSION_CODENAME main" > /etc/apt/sources.list.d/cloudflare-client.list
+chmod 644 /etc/apt/sources.list.d/cloudflare-client.list
+apt-get update -qq
+apt-get install -y -qq cloudflare-warp
+update-alternatives --set iptables /usr/sbin/iptables-legacy
+update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
+install -D -m 600 /tmp/spark-warp-mdm.xml /var/lib/cloudflare-warp/mdm.xml
+# shortcut: Sandbox lacks bridge raw-table support, use host networking for Spark only.
+cat > /usr/local/bin/docker <<'DOCKER'
+#!/bin/bash
+set -euo pipefail
+case "\${1:-}" in
+  run|build)
+    for arg in "$@"; do
+      case "$arg" in --network|--network=*) exec /usr/bin/docker "$@";; esac
+    done
+    exec /usr/bin/docker "$1" --network host "\${@:2}"
+    ;;
+esac
+exec /usr/bin/docker "$@"
+DOCKER
+chmod 755 /usr/local/bin/docker`,
+        ],
+        sudo: true,
+        timeoutMs: 10 * 60 * 1_000,
+      });
       sparkSetupInstalled = true;
       for (const cmd of ['warp-svc', 'dockerd']) {
         await sandbox.runCommand({ cmd, sudo: true, detached: true });
       }
-      await runSandboxCommand(
-        sandbox,
-        label,
-        'connect Spark WARP proxy',
-        {
-          cmd: 'node',
-          args: ['/tmp/setup-spark-warp.ts', 'connect'],
-          sudo: true,
-          timeoutMs: 3 * 60 * 1_000,
-        },
-        true
-      );
+      await runSandboxCommand(sandbox, label, 'connect Spark WARP proxy', {
+        cmd: 'bash',
+        args: [
+          '-euo',
+          'pipefail',
+          '-c',
+          `umask 077
+exec >>/tmp/spark-setup.log 2>&1
+for attempt in {1..60}; do
+  warp-cli --accept-tos registration show >/dev/null 2>&1 && break
+  sleep 1
+done
+warp-cli --accept-tos connect
+for attempt in {1..60}; do
+  if warp-cli --accept-tos status | grep -F 'Status update: Connected' >/dev/null && docker info >/dev/null 2>&1; then
+    chmod 666 /var/run/docker.sock
+    exit 0
+  fi
+  sleep 1
+done
+echo 'WARP did not connect' >&2
+exit 1`,
+        ],
+        sudo: true,
+        timeoutMs: 3 * 60 * 1_000,
+      });
     } else {
       await runSandboxCommand(sandbox, label, 'install Docker', {
         cmd: 'dnf',
@@ -552,8 +623,7 @@ export async function runPairOnce(
       await runSandboxCommand(sandbox, label, 'sanitize Spark result', {
         cmd: 'node',
         args: [
-          '/tmp/setup-spark-warp.ts',
-          'sanitize',
+          '/tmp/redact-spark-result.ts',
           `${repoCwd}/results/${pair.eval_suite}/${pair.experiment}/${pair.eval_id}/run-${run}/result.json`,
         ],
         sudo: true,
@@ -584,14 +654,8 @@ export async function runPairOnce(
     if (spark) {
       const step =
         error instanceof SandboxCommandError ? error.step : 'setup or download';
-      const receipt =
-        error instanceof Error
-          ? error.message
-              .match(/Spark setup error type [A-Za-z]+ at line [0-9]+/g)
-              ?.join(', ')
-          : undefined;
       const safeError = new Error(
-        `Spark ${step} failed. ${receipt ?? 'Inspect private Sandbox logs.'}`
+        `Spark ${step} failed. Inspect private Sandbox logs.`
       );
       throw error instanceof AbortError ? new AbortError(safeError) : safeError;
     }
@@ -601,18 +665,26 @@ export async function runPairOnce(
     if (sandbox) {
       if (sparkSetupInstalled) {
         try {
-          await runSandboxCommand(
-            sandbox,
-            label,
-            'deregister WARP',
-            {
-              cmd: 'node',
-              args: ['/tmp/setup-spark-warp.ts', 'cleanup'],
-              sudo: true,
-              timeoutMs: 30_000,
-            },
-            true
-          );
+          await runSandboxCommand(sandbox, label, 'deregister WARP', {
+            cmd: 'bash',
+            args: [
+              '-euo',
+              'pipefail',
+              '-c',
+              `umask 077
+exec >>/tmp/spark-setup.log 2>&1
+rm -f /var/lib/cloudflare-warp/mdm.xml
+warp-cli --accept-tos disconnect
+warp-cli --accept-tos registration delete
+if warp-cli --accept-tos registration show >/dev/null 2>&1; then
+  echo 'WARP registration still present' >&2
+  exit 1
+fi`,
+            ],
+            sudo: true,
+            timeoutMs: 30_000,
+          });
+          console.log(`${label} WARP registration deleted`);
         } catch {
           console.warn(
             `${label} WARP deregistration failed. Continuing VM cleanup.`
