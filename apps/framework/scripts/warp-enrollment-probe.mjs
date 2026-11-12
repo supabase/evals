@@ -24,6 +24,15 @@ try {
     networkPolicy: 'allow-all',
   });
   console.log(JSON.stringify({ stage, ok: true }));
+  stage = 'bootstrap sandbox';
+  const bootstrap = await sandbox.runCommand({
+    cmd: 'bash',
+    args: ['-c', 'command -v python3 >/dev/null || { apt-get update -qq && apt-get install -y -qq python3; }'],
+    sudo: true,
+    timeoutMs: 180000,
+  });
+  console.log(JSON.stringify({ stage, exit_code: bootstrap.exitCode }));
+  if (bootstrap.exitCode) throw new Error('Bootstrap failed');
   stage = 'write probe';
   const config = Object.fromEntries([
     'CLOUDFLARE_WARP_CLIENT_ID', 'CLOUDFLARE_WARP_CLIENT_SECRET', 'SPARK_API_URL',
@@ -39,6 +48,7 @@ try {
     sudo: true,
     timeoutMs: 780000,
   });
+  console.log(JSON.stringify({ stage, exit_code: result.exitCode }));
   // Only the probe's fixed stages and numeric/boolean receipts reach public logs.
   for (const line of (await result.stdout()).split('\n')) {
     if (!line.trim()) continue;
