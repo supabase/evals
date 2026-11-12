@@ -14,6 +14,7 @@ import {
   localStackRuntime,
 } from '../src/local-stack-runtime.js';
 import { DockerSandbox } from '../src/docker-sandbox.js';
+import { createBareSandbox } from '../src/bare-sandbox.js';
 import {
   ensureSupabaseSandboxImage,
   setupSupabaseSandbox,
@@ -32,6 +33,27 @@ const TEST_TIMEOUT_MS = 600_000;
 describe.runIf(process.env.SANDBOX_DOCKER_TESTS)(
   'local-stack sandbox (docker)',
   () => {
+    it(
+      'bare agents honor Docker socket access',
+      { timeout: TEST_TIMEOUT_MS },
+      async () => {
+        for (const mountDockerSocket of [undefined, false]) {
+          const handle = await createBareSandbox({ mountDockerSocket });
+          try {
+            const result = await handle.sandbox.exec(
+              'if [ -S /var/run/docker.sock ]; then printf present; else printf absent; fi'
+            );
+            expect(result.ok).toBe(true);
+            expect(result.stdout).toBe(
+              mountDockerSocket === false ? 'absent' : 'present'
+            );
+          } finally {
+            await handle.close();
+          }
+        }
+      }
+    );
+
     it(
       'boots a sandbox, starts a minimal local stack, and reaches it',
       { timeout: TEST_TIMEOUT_MS },

@@ -34,6 +34,7 @@ export interface LocalStackSetup {
 }
 
 export interface AgentEnvironmentOptions {
+  mountDockerSocket?: boolean;
   /** Supabase CLI version baked into the sandbox image. */
   cliVersion?: string;
   /** Host directory whose contents seed the workspace. */
@@ -74,6 +75,7 @@ export async function createAgentEnvironment(
   const image = await ensureSupabaseSandboxImage();
   const sandbox = await DockerSandbox.create({
     image,
+    mountDockerSocket: options.mountDockerSocket,
     // The local stack needs host networking so the Supabase CLI can health-check
     // the ports `supabase start` publishes on 127.0.0.1. Tools mode runs no
     // stack and instead reaches host-side platform-lite over the default bridge

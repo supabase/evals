@@ -530,6 +530,7 @@ async function runOne(
     ? disposable(
         await createBareSandbox({
           env: session.env,
+          mountDockerSocket: session.mountDockerSocket,
           skills: skillSources,
           mounts: supabaseMcpServerMounts(),
         })
