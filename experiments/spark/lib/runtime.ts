@@ -21,7 +21,7 @@ export type SparkProjectStatus = {
   secretKey: string;
 };
 
-/** Scoring context plus the project's URL and keys. */
+/** Scoring context plus the project's URL and keys, for scorers that act as an end user or look for leaked keys. */
 export type SparkScoringContext = ToolScoringContext & {
   project: SparkProjectStatus;
 };
@@ -105,6 +105,8 @@ export function sparkRuntime(
           auth: { persistSession: false, autoRefreshToken: false },
         });
       return {
+        // WARP credentials live on the VM.
+        mountDockerSocket: false,
         mcpServers: {},
         env: {
           ...(proxyUrl

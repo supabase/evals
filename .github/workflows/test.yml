@@ -27,6 +27,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Check Spark result redaction
+        run: python3 -I apps/framework/scripts/setup-spark-warp.py --self-check
+
       - name: Run tests
         # The framework smoke test calls an LLM judge. This is expected to fail on fork PRs.
         env:

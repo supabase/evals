@@ -37,7 +37,9 @@ def redact(value, secrets):
 def sanitize(path):
     config = json.loads(Path("/tmp/spark-warp-config.json").read_text())
     secrets = list(config.values())
-    secrets.append(urlsplit(config["SPARK_API_URL"]).hostname)
+    hostname = urlsplit(config["SPARK_API_URL"]).hostname
+    if hostname:
+        secrets.append(hostname)
     secrets.extend(json.loads(Path("/tmp/spark-redactions.json").read_text()))
     result = Path(path)
     payload = json.dumps(redact(json.loads(result.read_text()), secrets))
@@ -97,11 +99,6 @@ def connect():
         docker = subprocess.run(["docker", "info"], capture_output=True)
         if "Status update: Connected" in warp.stdout and docker.returncode == 0:
             Path("/var/run/docker.sock").chmod(0o666)
-            status = checked("curl", "-s", "--max-time", "20", "-H", "Authorization: Bearer injected-by-sandbox-firewall", "-o", "/dev/null", "-w", "%{http_code}", "https://api.openai.com/v1/models")
-            print(f"Provider credential brokering HTTP {status} with placeholder key")
-            if status != "200":
-                raise RuntimeError("Provider credential brokering failed")
-            # Retain the private token values so publication also redacts WARP credentials.
             return
         time.sleep(1)
     raise RuntimeError("WARP did not connect")

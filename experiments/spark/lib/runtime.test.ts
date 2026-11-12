@@ -50,6 +50,7 @@ it('creates fresh projects, seeds before execution and reads scoring state', asy
       redactionPath
     );
     const session = await runtime.startSession({ projectSeedSql: fixture });
+    expect(session.mountDockerSocket).toBe(false);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(JSON.parse(await readFile(redactionPath, 'utf8'))).toEqual([
       'project1',

@@ -90,6 +90,8 @@ The runner needs `SPARK_API_URL`, `CLOUDFLARE_WARP_CLIENT_ID`, and
 Vercel and provider credentials. Only Spark uses the Ubuntu universal image,
 WARP's local HTTP proxy on port 40000, and Docker host networking. Provider
 requests bypass WARP and retain Sandbox credential brokering.
+Spark agents do not receive the host Docker socket. The runner does not
+restrict WARP's proxy to Spark hosts.
 
 Spark results are sanitized inside Sandbox before download. Public artifacts
 contain result JSON without agent workspaces or binary session archives.

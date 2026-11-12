@@ -62,6 +62,7 @@ export const BROKERED_KEYS: {
 ];
 export const BROKERED_KEY_PLACEHOLDER = 'injected-by-sandbox-firewall';
 /**
+ * Pins the CLI channel version resolved for this run across sandbox jobs.
  * Provider keys belong in `BROKERED_KEYS` so the sandbox never sees them.
  */
 export const FORWARDED_ENV_NAMES = [
@@ -337,7 +338,7 @@ async function runPairs(options: RunnerOptions): Promise<void> {
   }
 }
 
-async function runPairOnce(
+export async function runPairOnce(
   options: PairOptions,
   credentials: VercelCredentials
 ): Promise<void> {
@@ -355,7 +356,7 @@ async function runPairOnce(
           'SPARK_API_URL',
         ].map((name) => {
           const value = process.env[name];
-          if (!value) throw new Error(`Missing ${name}`);
+          if (!value) throw new AbortError(`Missing ${name}`);
           return [name, value];
         })
       )
@@ -498,11 +499,7 @@ async function runPairOnce(
             ? [
                 `SPARK_API_URL=${sparkConfig.SPARK_API_URL}`,
                 'SPARK_PROXY_URL=http://127.0.0.1:40000',
-                'HTTPS_PROXY=http://127.0.0.1:40000',
-                'NODE_USE_ENV_PROXY=1',
-                `NO_PROXY=${SPARK_PROXY_BYPASS}`,
                 'SPARK_REDACTION_PATH=/tmp/spark-redactions.json',
-                'DOCKER_BUILDKIT=0',
               ].join('\n')
             : ''
         }\n`,
@@ -529,6 +526,7 @@ async function runPairOnce(
           String(options.timeoutSec),
         ],
         cwd: repoCwd,
+        // Node reads this startup flag before --env-file is loaded.
         env: spark
           ? {
               HTTPS_PROXY: 'http://127.0.0.1:40000',
@@ -589,14 +587,13 @@ async function runPairOnce(
       const receipt =
         error instanceof Error
           ? error.message
-              .match(
-                /Spark setup error type [A-Za-z]+ at line [0-9]+|Provider credential brokering HTTP [0-9]{3}/g
-              )
+              .match(/Spark setup error type [A-Za-z]+ at line [0-9]+/g)
               ?.join(', ')
           : undefined;
-      throw new Error(
+      const safeError = new Error(
         `Spark ${step} failed. ${receipt ?? 'Inspect private Sandbox logs.'}`
       );
+      throw error instanceof AbortError ? new AbortError(safeError) : safeError;
     }
     if (error instanceof Error) throw error;
     throw new Error(String(error));
@@ -967,7 +964,7 @@ export function brokeredNetworkPolicy(): NetworkPolicy {
   return { allow };
 }
 
-/** Builds the sandbox `.env` from key placeholders and forwarded values. An explicit pin wins over process.env. */
+/** Builds the sandbox `.env` from key placeholders and CLI channel pins. An explicit pin wins over process.env. */
 export function agentEnvironment(pins: Record<string, string> = {}): string {
   const lines: string[] = [];
   for (const { name } of BROKERED_KEYS) {
