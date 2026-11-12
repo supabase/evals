@@ -70,7 +70,7 @@ try {
   config.WARP_PROBE_BYPASS = SPARK_PROXY_BYPASS;
   config.WARP_PROBE_NETWORK = process.env.WARP_PROBE_NETWORK || 'bridge';
   const cwd = await sandbox.runCommand({ cmd: 'pwd' });
-  config.WARP_PROBE_REPO_ROOT = (await cwd.stdout()).trim();
+  config.WARP_PROBE_REPO_ROOT = `${(await cwd.stdout()).trim()}/evals`;
   await sandbox.writeFiles([
     { path: '/tmp/warp-network-probe.py', content: await readFile(new URL('./warp-network-probe.py', import.meta.url)) },
     { path: '/tmp/warp-probe-config.json', content: Buffer.from(JSON.stringify(config)), mode: 0o600 },
