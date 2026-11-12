@@ -60,7 +60,9 @@ function isSupabaseApexUrl(value: string): boolean {
   try {
     const hostname = new URL(value).hostname;
     return (
-      hostname === 'supabase.com' || hostname === process.env.DOCS_PREVIEW_HOST
+      hostname === 'supabase.com' ||
+      (process.env.DOCS_PREVIEW_HOST !== undefined &&
+        /^docs-[a-z0-9-]+-supabase\.vercel\.app$/.test(hostname))
     );
   } catch {
     return false;
