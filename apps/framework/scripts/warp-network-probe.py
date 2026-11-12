@@ -140,6 +140,17 @@ apt-get install -y -qq cloudflare-warp
             report(stage, address_index=index, **result)
             if result["curl_exit"] or result["http_status"] not in (200, 405):
                 raise RuntimeError("HTTP check failed")
+        if os.environ.get("GITHUB_ACTIONS") == "true":
+            stage = "nested Docker GET"
+            checked("docker", "pull", "node:22-slim", timeout=180)
+            script = """fetch(process.env.PROBE_URL, {signal: AbortSignal.timeout(15000)})
+.then(response => console.log(JSON.stringify({http_status: response.status, warp_credentials_present: Boolean(process.env.CLOUDFLARE_WARP_CLIENT_SECRET)})))
+.catch(() => { console.log(JSON.stringify({http_status: 0})); process.exitCode = 1; });"""
+            nested = command("docker", "run", "--rm", "--network", "bridge", "--env", f"PROBE_URL={url}", "node:22-slim", "node", "-e", script, timeout=45)
+            result = json.loads(nested.stdout)
+            report(stage, exit_code=nested.returncode, **result)
+            if nested.returncode or result["http_status"] not in (200, 405) or result["warp_credentials_present"]:
+                raise RuntimeError("nested request failed")
         for address, table in added:
             checked("ip", "-4", "route", "del", f"{address}/32", "dev", "CloudflareWARP", "table", str(table))
         added.clear()
