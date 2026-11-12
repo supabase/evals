@@ -422,6 +422,40 @@ describe('Vercel eval controller', () => {
     }
   });
 
+  it('downloads only sanitized JSON for Spark, never workspace or session archives', async () => {
+    const temporary = mkdtempSync(join(tmpdir(), 'spark-download-test-'));
+    const paths: string[] = [];
+    try {
+      await downloadResults(
+        {
+          downloadFile: async (source, destination) => {
+            paths.push(source.path);
+            mkdirSync(dirname(destination.path), { recursive: true });
+            writeFileSync(destination.path, '{"passed":true}');
+            return destination.path;
+          },
+        },
+        { eval_id: 'eval-1', experiment: 'experiment-1', eval_suite: 'spark' },
+        1,
+        temporary,
+        '/vercel/evals'
+      );
+      expect(paths).toEqual([
+        '/vercel/evals/results/spark/experiment-1/eval-1/run-1/result.json',
+      ]);
+      expect(
+        readdirSync(
+          join(
+            temporary,
+            'raw-results-spark__experiment-1__eval-1/eval-1/run-1'
+          )
+        )
+      ).toEqual(['result.json.partial']);
+    } finally {
+      rmSync(temporary, { recursive: true, force: true });
+    }
+  });
+
   it('downloads result metadata separately from agent workspace files', async () => {
     const temporary = mkdtempSync(join(tmpdir(), 'vercel-eval-test-'));
     const sandboxFiles = join(temporary, 'sandbox');

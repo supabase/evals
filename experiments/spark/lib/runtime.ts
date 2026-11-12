@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { createClient } from '@supabase/supabase-js';
 import { createManagementApiClient } from '@supabase-evals/platform-lite';
 import { z } from 'zod';
@@ -26,7 +26,11 @@ export type SparkScoringContext = ToolScoringContext & {
   project: SparkProjectStatus;
 };
 
-export function sparkRuntime(apiUrl: string, proxyUrl?: string): EvalRuntime {
+export function sparkRuntime(
+  apiUrl: string,
+  proxyUrl?: string,
+  redactionPath?: string
+): EvalRuntime {
   return {
     id: 'spark',
     async startSession(args) {
@@ -50,6 +54,18 @@ export function sparkRuntime(apiUrl: string, proxyUrl?: string): EvalRuntime {
           `Spark project creation failed (${createResponse.status})`
         );
       const project = projectSchema.parse(await createResponse.json());
+      if (redactionPath) {
+        await writeFile(
+          redactionPath,
+          JSON.stringify([
+            project.ref,
+            project.url,
+            new URL(project.url).hostname,
+            ...project.api_keys.map((key) => key.api_key),
+          ]),
+          { mode: 0o600 }
+        );
+      }
 
       const secret = project.api_keys.find(
         (key) => key.type === 'secret'
@@ -61,7 +77,7 @@ export function sparkRuntime(apiUrl: string, proxyUrl?: string): EvalRuntime {
         throw new Error(`Spark project ${project.ref} is missing API keys`);
 
       // shortcut: projects remain allocated, add teardown once a deletion endpoint is confirmed.
-      process.stderr.write(`Spark project created: ${project.ref}\n`);
+      process.stderr.write('Spark project created\n');
 
       const headers = { apikey: secret, 'content-type': 'application/json' };
       if (seedSql) {
