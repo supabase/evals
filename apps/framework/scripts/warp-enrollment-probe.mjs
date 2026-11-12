@@ -4,7 +4,7 @@ import { Sandbox } from '@vercel/sandbox';
 const stages = new Set([
   'validate configuration', 'install WARP', 'enroll and connect', 'probe environment', 'command failure', 'installation error',
   'resolve Spark', 'discover routes', 'before manual routes', 'Spark GET through WARP',
-  'after route rollback', 'result', 'cleanup',
+  'after route rollback', 'result', 'cleanup', 'Spark proxy GET',
 ]);
 const fields = new Set([
   'apt_available', 'dnf_available', 'exit_code', 'missing_command', 'missing_repository', 'package_missing', 'ok', 'connected', 'nft_unsupported', 'address_count', 'routed',
@@ -35,7 +35,7 @@ try {
   if (bootstrap.exitCode) throw new Error('Bootstrap failed');
   stage = 'write probe';
   const config = Object.fromEntries([
-    'CLOUDFLARE_WARP_CLIENT_ID', 'CLOUDFLARE_WARP_CLIENT_SECRET', 'SPARK_API_URL',
+    'CLOUDFLARE_WARP_CLIENT_ID', 'CLOUDFLARE_WARP_CLIENT_SECRET', 'SPARK_API_URL', 'WARP_PROBE_MODE',
   ].map(name => [name, process.env[name]]));
   await sandbox.writeFiles([
     { path: '/tmp/warp-network-probe.py', content: await readFile(new URL('./warp-network-probe.py', import.meta.url)) },

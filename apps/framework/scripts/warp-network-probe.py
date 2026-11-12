@@ -60,8 +60,9 @@ def probe(config):
     try:
         client_id = config["CLOUDFLARE_WARP_CLIENT_ID"]
         secret = config["CLOUDFLARE_WARP_CLIENT_SECRET"]
+        mode = config.get("WARP_PROBE_MODE", "warp")
         api = urlsplit(config["SPARK_API_URL"])
-        if not client_id.endswith(".access") or not secret or api.scheme != "https" or not api.hostname or api.username or api.password or api.port not in (None, 443):
+        if mode not in ("warp", "proxy") or not client_id.endswith(".access") or not secret or api.scheme != "https" or not api.hostname or api.username or api.password or api.port not in (None, 443):
             raise RuntimeError("invalid configuration")
         host = api.hostname
         url = f"https://{host}/v1/projects"
@@ -87,9 +88,12 @@ apt-get install -y -qq cloudflare-warp
         stage = "enroll and connect"
         mdm.parent.mkdir(parents=True, exist_ok=True)
         document = Element("dict")
-        for key, value in [("organization", "supabase"), ("auth_client_id", client_id), ("auth_client_secret", secret), ("service_mode", "warp")]:
+        for key, value in [("organization", "supabase"), ("auth_client_id", client_id), ("auth_client_secret", secret), ("service_mode", mode), ("warp_tunnel_protocol", "masque")]:
             SubElement(document, "key").text = key
             SubElement(document, "string").text = value
+        if mode == "proxy":
+            SubElement(document, "key").text = "proxy_port"
+            SubElement(document, "integer").text = "40000"
         mdm.write_bytes(tostring(document))
         mdm.chmod(0o600)
         if os.environ.get("GITHUB_ACTIONS") == "true":
@@ -114,6 +118,16 @@ apt-get install -y -qq cloudflare-warp
         report(stage, connected=connected, nft_unsupported="Operation not supported" in text and "nft" in text)
         if not connected:
             raise RuntimeError("connection failed")
+
+        if mode == "proxy":
+            stage = "Spark proxy GET"
+            result = command("curl", "-s", "--proxy", "socks5h://127.0.0.1:40000", "--connect-timeout", "5", "--max-time", "15", "-o", "/dev/null", "-w", "%{http_code}", url)
+            status = int(result.stdout) if re.fullmatch(r"[0-9]{3}", result.stdout) else 0
+            report(stage, exit_code=result.returncode, http_status=status)
+            if result.returncode or status not in (200, 405):
+                raise RuntimeError("proxy request failed")
+            report("result", ok=True, projects_created=0)
+            return 0
 
         stage = "resolve Spark"
         addresses = sorted({item[4][0] for item in socket.getaddrinfo(host, 443, socket.AF_INET, socket.SOCK_STREAM)})

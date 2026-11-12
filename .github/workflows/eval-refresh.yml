@@ -13,6 +13,11 @@ on:
         type: choice
         options: [runner, sandbox]
         default: runner
+      warp_mode:
+        description: "Native tunnel or application proxy experiment"
+        type: choice
+        options: [warp, proxy]
+        default: warp
       warp_image:
         description: "Sandbox image for WARP diagnostics"
         type: choice
@@ -124,6 +129,7 @@ jobs:
           VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
           WARP_PROBE_IMAGE: ${{ inputs.warp_image }}
+          WARP_PROBE_MODE: ${{ inputs.warp_mode }}
         working-directory: apps/framework
         run: node scripts/warp-enrollment-probe.mjs
 
