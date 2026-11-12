@@ -83,6 +83,7 @@ update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
 
 
 def connect():
+    os.umask(0o077)
     config = json.loads(Path("/tmp/spark-warp-config.json").read_text())
     for _ in range(60):
         registration = subprocess.run(["warp-cli", "--accept-tos", "registration", "show"], capture_output=True)
@@ -100,7 +101,10 @@ def connect():
             if status != "200":
                 raise RuntimeError("Provider credential brokering failed")
             print("Provider credential brokering HTTP 200 with placeholder key")
-            Path("/tmp/spark-warp-config.json").write_text(json.dumps({"SPARK_API_URL": config["SPARK_API_URL"]}))
+            # The SDK owns the uploaded file. Replace it before writing as root in /tmp.
+            config_path = Path("/tmp/spark-warp-config.json")
+            config_path.unlink()
+            config_path.write_text(json.dumps({"SPARK_API_URL": config["SPARK_API_URL"]}))
             return
         time.sleep(1)
     raise RuntimeError("WARP did not connect")
