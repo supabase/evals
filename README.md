@@ -93,8 +93,8 @@ requests bypass WARP and retain Sandbox credential brokering.
 
 Spark results are sanitized inside Sandbox before download. Public artifacts
 contain result JSON without agent workspaces or binary session archives.
-Raw eval output stays inside Sandbox. Cloudflare documents a 10-second proxy
-request limit, so longer Spark requests may fail. Projects currently remain
+Raw eval output stays inside Sandbox. [Cloudflare documents a 10-second proxy
+request limit](https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/cloudflare-one-client/configure/modes/#local-proxy-mode), so longer Spark requests may fail. Projects currently remain
 allocated after a run because a deletion endpoint is not implemented.
 
 ### View results in the web app

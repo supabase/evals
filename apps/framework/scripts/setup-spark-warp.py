@@ -13,6 +13,8 @@ from xml.etree.ElementTree import Element, SubElement, tostring
 def checked(*args):
     result = subprocess.run(args, capture_output=True, text=True, timeout=300)
     if result.returncode:
+        Path("/tmp/spark-setup-error.log").write_text(result.stdout + result.stderr)
+        print(f"Spark setup executable {args[0]} failed with exit {result.returncode}", file=sys.stderr)
         raise RuntimeError("Spark setup command failed")
     return result.stdout
 
@@ -94,7 +96,6 @@ update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
             if status != "200":
                 raise RuntimeError("Provider credential brokering failed")
             print("Provider credential brokering HTTP 200 with placeholder key")
-            mdm.unlink()
             Path("/tmp/spark-warp-config.json").write_text(json.dumps({"SPARK_API_URL": config["SPARK_API_URL"]}))
             return
         time.sleep(1)
@@ -112,6 +113,7 @@ if __name__ == "__main__":
             setup()
         else:
             raise RuntimeError("Invalid arguments")
-    except Exception:
+    except Exception as error:
+        print(f"Spark setup error type {type(error).__name__}", file=sys.stderr)
         print("Spark setup or result sanitization failed. Inspect private Sandbox logs.", file=sys.stderr)
         sys.exit(1)

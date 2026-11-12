@@ -65,7 +65,6 @@ export const BROKERED_KEY_PLACEHOLDER = 'injected-by-sandbox-firewall';
  * Provider keys belong in `BROKERED_KEYS` so the sandbox never sees them.
  */
 export const FORWARDED_ENV_NAMES = [
-  'SPARK_API_URL',
   'SUPABASE_CLI_STABLE_VERSION',
   'SUPABASE_CLI_BETA_VERSION',
   'SUPABASE_CLI_NEXT_VERSION',
@@ -235,7 +234,11 @@ interface SandboxCommandOptions {
 }
 
 class SandboxCommandError extends Error {
-  constructor(step: string, exitCode: number, output: string) {
+  constructor(
+    readonly step: string,
+    exitCode: number,
+    output: string
+  ) {
     const detail = output.trim().slice(-4_000);
     super(`${step} exited with code ${exitCode}${detail ? `\n${detail}` : ''}`);
     this.name = 'SandboxCommandError';
@@ -417,12 +420,18 @@ async function runPairOnce(
           mode: 0o600,
         },
       ]);
-      await runSandboxCommand(sandbox, label, 'connect Spark WARP proxy', {
-        cmd: 'python3',
-        args: ['/tmp/setup-spark-warp.py'],
-        sudo: true,
-        timeoutMs: 10 * 60 * 1_000,
-      });
+      await runSandboxCommand(
+        sandbox,
+        label,
+        'connect Spark WARP proxy',
+        {
+          cmd: 'python3',
+          args: ['/tmp/setup-spark-warp.py'],
+          sudo: true,
+          timeoutMs: 10 * 60 * 1_000,
+        },
+        true
+      );
     } else {
       await runSandboxCommand(sandbox, label, 'install Docker', {
         cmd: 'dnf',
@@ -470,6 +479,7 @@ async function runPairOnce(
         content: `${agentEnvironment(options.pins)}\n${
           spark
             ? [
+                `SPARK_API_URL=${sparkConfig.SPARK_API_URL}`,
                 'SPARK_PROXY_URL=http://127.0.0.1:40000',
                 'HTTPS_PROXY=http://127.0.0.1:40000',
                 'NODE_USE_ENV_PROXY=1',
@@ -556,8 +566,11 @@ async function runPairOnce(
       spark ? repoCwd : ''
     );
   } catch (error) {
-    if (spark)
-      throw new Error('Spark eval failed. Inspect private Sandbox logs.');
+    if (spark) {
+      const step =
+        error instanceof SandboxCommandError ? error.step : 'setup or download';
+      throw new Error(`Spark ${step} failed. Inspect private Sandbox logs.`);
+    }
     if (error instanceof Error) throw error;
     throw new Error(String(error));
   } finally {
