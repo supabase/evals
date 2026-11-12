@@ -74,6 +74,31 @@ Run every experiment in `experiments/benchmark/` across all benchmark evals:
 pnpm eval -- --suite benchmark
 ```
 
+### Spark in CI
+
+Dispatch the normal workflow with the Spark suite:
+
+```bash
+gh workflow run eval-refresh.yml -R supabase/evals \
+  -f suite=spark -f experiments=codex-gpt-6-luna \
+  -f eval=build-database-001-task-due-dates -f runs=1 \
+  -f commit_results=none
+```
+
+The runner needs `SPARK_API_URL`, `CLOUDFLARE_WARP_CLIENT_ID`, and
+`CLOUDFLARE_WARP_CLIENT_SECRET` in repository secrets, alongside the existing
+Vercel and provider credentials. Only Spark uses the Ubuntu universal image,
+WARP's local HTTP proxy on port 40000, and Docker host networking. Provider
+requests bypass WARP and retain Sandbox credential brokering.
+Spark agents do not receive the host Docker socket. The runner does not
+restrict WARP's proxy to Spark hosts.
+
+Spark results are sanitized inside Sandbox before download. Public artifacts
+contain result JSON without agent workspaces or binary session archives.
+Raw eval output stays inside Sandbox. [Cloudflare documents a 10-second proxy
+request limit](https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/cloudflare-one-client/configure/modes/#local-proxy-mode), so longer Spark requests may fail. Projects currently remain
+allocated after a run because a deletion endpoint is not implemented.
+
 ### View results in the web app
 
 Set `BRAINTRUST_API_KEY` and `BRAINTRUST_PROJECT_ID` in the repository's `.env`, then run:

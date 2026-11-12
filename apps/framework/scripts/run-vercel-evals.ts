@@ -22,6 +22,7 @@ import pLimit from 'p-limit';
 import pRetry, { AbortError } from 'p-retry';
 import { z } from 'zod';
 import { positiveInteger, readFlag } from '../lib/cli-args.js';
+import { SPARK_PROXY_BYPASS } from '../../../experiments/spark/lib/runtime.js';
 import { discoverExperimentFiles } from '../lib/experiment-files.js';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
@@ -234,7 +235,11 @@ interface SandboxCommandOptions {
 }
 
 class SandboxCommandError extends Error {
-  constructor(step: string, exitCode: number, output: string) {
+  constructor(
+    readonly step: string,
+    exitCode: number,
+    output: string
+  ) {
     const detail = output.trim().slice(-4_000);
     super(`${step} exited with code ${exitCode}${detail ? `\n${detail}` : ''}`);
     this.name = 'SandboxCommandError';
@@ -333,7 +338,7 @@ async function runPairs(options: RunnerOptions): Promise<void> {
   }
 }
 
-async function runPairOnce(
+export async function runPairOnce(
   options: PairOptions,
   credentials: VercelCredentials
 ): Promise<void> {
@@ -341,12 +346,29 @@ async function runPairOnce(
   const label = jobLabel(pair, run);
   let sandbox: Sandbox | undefined;
   let pendingResult: PendingResult | undefined;
+  let sparkSetupInstalled = false;
+  const spark = pair.eval_suite === 'spark';
+  const sparkConfig = spark
+    ? Object.fromEntries(
+        [
+          'CLOUDFLARE_WARP_CLIENT_ID',
+          'CLOUDFLARE_WARP_CLIENT_SECRET',
+          'SPARK_API_URL',
+        ].map((name) => {
+          const value = process.env[name];
+          if (!value) throw new AbortError(`Missing ${name}`);
+          return [name, value];
+        })
+      )
+    : {};
 
   try {
     sandbox = await createSandbox(label, {
       ...credentials,
       name: sandboxName(pair, run),
-      runtime: 'node24',
+      ...(spark
+        ? { image: 'vercel/sandbox/universal' }
+        : { runtime: 'node24' }),
       source: {
         type: 'git',
         url: options.repoUrl,
@@ -372,6 +394,7 @@ async function runPairOnce(
       `${label} attempt ${options.attempt}: ${SANDBOX_DASHBOARD_URL}/${sandbox.name}`
     );
 
+    const repoCwd = spark ? `${sandbox.cwd}/evals` : sandbox.cwd;
     await runSandboxCommand(sandbox, label, 'initialize submodules', {
       cmd: 'git',
       args: [
@@ -382,29 +405,73 @@ async function runPairOnce(
         '--init',
         '--recursive',
       ],
-      cwd: sandbox.cwd,
+      cwd: repoCwd,
       timeoutMs: 2 * 60 * 1_000,
     });
-    await runSandboxCommand(sandbox, label, 'install Docker', {
-      cmd: 'dnf',
-      args: ['install', '-y', '-q', 'docker'],
-      sudo: true,
-      timeoutMs: 3 * 60 * 1_000,
-    });
-    await sandbox.runCommand({
-      cmd: 'dockerd',
-      sudo: true,
-      detached: true,
-    });
-    await runSandboxCommand(sandbox, label, 'start Docker', {
-      cmd: 'bash',
-      args: [
-        '-c',
-        'for i in $(seq 60); do docker info >/dev/null 2>&1 && chmod 666 /var/run/docker.sock && exit 0; sleep 1; done; echo "dockerd not ready" >&2; exit 1',
-      ],
-      sudo: true,
-      timeoutMs: 90_000,
-    });
+    if (spark) {
+      await sandbox.writeFiles([
+        {
+          path: '/tmp/setup-spark-warp.py',
+          content: readFileSync(
+            new URL('./setup-spark-warp.py', import.meta.url)
+          ),
+        },
+        {
+          path: '/tmp/spark-warp-config.json',
+          content: Buffer.from(JSON.stringify(sparkConfig)),
+          mode: 0o600,
+        },
+      ]);
+      await runSandboxCommand(
+        sandbox,
+        label,
+        'install Spark WARP proxy',
+        {
+          cmd: 'python3',
+          args: ['/tmp/setup-spark-warp.py'],
+          sudo: true,
+          timeoutMs: 10 * 60 * 1_000,
+        },
+        true
+      );
+      sparkSetupInstalled = true;
+      for (const cmd of ['warp-svc', 'dockerd']) {
+        await sandbox.runCommand({ cmd, sudo: true, detached: true });
+      }
+      await runSandboxCommand(
+        sandbox,
+        label,
+        'connect Spark WARP proxy',
+        {
+          cmd: 'python3',
+          args: ['/tmp/setup-spark-warp.py', 'connect'],
+          sudo: true,
+          timeoutMs: 3 * 60 * 1_000,
+        },
+        true
+      );
+    } else {
+      await runSandboxCommand(sandbox, label, 'install Docker', {
+        cmd: 'dnf',
+        args: ['install', '-y', '-q', 'docker'],
+        sudo: true,
+        timeoutMs: 3 * 60 * 1_000,
+      });
+      await sandbox.runCommand({
+        cmd: 'dockerd',
+        sudo: true,
+        detached: true,
+      });
+      await runSandboxCommand(sandbox, label, 'start Docker', {
+        cmd: 'bash',
+        args: [
+          '-c',
+          'for i in $(seq 60); do docker info >/dev/null 2>&1 && chmod 666 /var/run/docker.sock && exit 0; sleep 1; done; echo "dockerd not ready" >&2; exit 1',
+        ],
+        sudo: true,
+        timeoutMs: 90_000,
+      });
+    }
     // Installs the pnpm version pinned by packageManager in the checked-out
     // root package.json so the two can't drift.
     await runSandboxCommand(sandbox, label, 'install pnpm', {
@@ -413,21 +480,30 @@ async function runPairOnce(
         '-c',
         `npm install --global "$(node -p 'require("./package.json").packageManager')"`,
       ],
-      cwd: sandbox.cwd,
+      cwd: repoCwd,
       sudo: true,
       timeoutMs: 2 * 60 * 1_000,
     });
     await runSandboxCommand(sandbox, label, 'install dependencies', {
       cmd: 'pnpm',
       args: ['install', '--frozen-lockfile'],
-      cwd: sandbox.cwd,
+      cwd: repoCwd,
       timeoutMs: 6 * 60 * 1_000,
     });
 
     await sandbox.writeFiles([
       {
-        path: '.env',
-        content: `${agentEnvironment(options.pins)}\n`,
+        path: `${repoCwd}/.env`,
+        content: `${agentEnvironment(options.pins)}\n${
+          spark
+            ? [
+                `SPARK_API_URL=${sparkConfig.SPARK_API_URL}`,
+                'SPARK_PROXY_URL=http://127.0.0.1:40000',
+                'SPARK_REDACTION_PATH=/tmp/spark-redactions.json',
+              ].join('\n')
+            : ''
+        }\n`,
+        mode: 0o600,
       },
     ]);
     console.log(`${label} run eval`);
@@ -449,10 +525,19 @@ async function runPairOnce(
           '--timeout-sec',
           String(options.timeoutSec),
         ],
-        cwd: sandbox.cwd,
+        cwd: repoCwd,
+        // Node reads this startup flag before --env-file is loaded.
+        env: spark
+          ? {
+              HTTPS_PROXY: 'http://127.0.0.1:40000',
+              NODE_USE_ENV_PROXY: '1',
+              NO_PROXY: SPARK_PROXY_BYPASS,
+              DOCKER_BUILDKIT: '0',
+            }
+          : undefined,
         timeoutMs: options.timeoutSec * 1_000 + EVAL_TIMEOUT_BUFFER_MS,
       },
-      true
+      !spark
     );
     await runSandboxCommand(sandbox, label, 'validate result', {
       cmd: 'test',
@@ -460,32 +545,80 @@ async function runPairOnce(
         '-f',
         `results/${pair.eval_suite}/${pair.experiment}/${pair.eval_id}/run-${run}/result.json`,
       ],
-      cwd: sandbox.cwd,
+      cwd: repoCwd,
       timeoutMs: 30_000,
     });
-    await runSandboxCommand(sandbox, label, 'pack workspace', {
-      cmd: 'sh',
-      args: [
-        '-c',
-        packWorkspaceScript(
-          `results/${pair.eval_suite}/${pair.experiment}/${pair.eval_id}/run-${run}/workspace`,
-          '/tmp/eval-workspace.tgz'
-        ),
-      ],
-      cwd: sandbox.cwd,
-      timeoutMs: 3 * 60 * 1_000,
-    });
+    if (spark) {
+      await runSandboxCommand(sandbox, label, 'sanitize Spark result', {
+        cmd: 'python3',
+        args: [
+          '/tmp/setup-spark-warp.py',
+          'sanitize',
+          `${repoCwd}/results/${pair.eval_suite}/${pair.experiment}/${pair.eval_id}/run-${run}/result.json`,
+        ],
+        sudo: true,
+        timeoutMs: 30_000,
+      });
+    } else {
+      await runSandboxCommand(sandbox, label, 'pack workspace', {
+        cmd: 'sh',
+        args: [
+          '-c',
+          packWorkspaceScript(
+            `results/${pair.eval_suite}/${pair.experiment}/${pair.eval_id}/run-${run}/workspace`,
+            '/tmp/eval-workspace.tgz'
+          ),
+        ],
+        cwd: repoCwd,
+        timeoutMs: 3 * 60 * 1_000,
+      });
+    }
     pendingResult = await downloadResults(
       sandbox,
       pair,
       run,
-      options.outputDir
+      options.outputDir,
+      spark ? repoCwd : ''
     );
   } catch (error) {
+    if (spark) {
+      const step =
+        error instanceof SandboxCommandError ? error.step : 'setup or download';
+      const receipt =
+        error instanceof Error
+          ? error.message
+              .match(/Spark setup error type [A-Za-z]+ at line [0-9]+/g)
+              ?.join(', ')
+          : undefined;
+      const safeError = new Error(
+        `Spark ${step} failed. ${receipt ?? 'Inspect private Sandbox logs.'}`
+      );
+      throw error instanceof AbortError ? new AbortError(safeError) : safeError;
+    }
     if (error instanceof Error) throw error;
     throw new Error(String(error));
   } finally {
     if (sandbox) {
+      if (sparkSetupInstalled) {
+        try {
+          await runSandboxCommand(
+            sandbox,
+            label,
+            'deregister WARP',
+            {
+              cmd: 'python3',
+              args: ['/tmp/setup-spark-warp.py', 'cleanup'],
+              sudo: true,
+              timeoutMs: 30_000,
+            },
+            true
+          );
+        } catch {
+          console.warn(
+            `${label} WARP deregistration failed. Continuing VM cleanup.`
+          );
+        }
+      }
       const sandboxUsage = await cleanupSandbox(sandbox, label);
       if (pendingResult) finalizeResult(pendingResult, sandboxUsage);
     }
@@ -664,7 +797,8 @@ export async function downloadResults(
   sandbox: Pick<Sandbox, 'downloadFile'>,
   pair: EvalPair,
   run: number,
-  outputDir: string
+  outputDir: string,
+  repoRoot = ''
 ): Promise<PendingResult> {
   const destination = join(
     outputDir,
@@ -681,27 +815,33 @@ export async function downloadResults(
   const workspacePartial = `${workspace}.partial`;
   const resultDownloaded = await sandbox.downloadFile(
     {
-      path: `results/${pair.eval_suite}/${pair.experiment}/${pair.eval_id}/run-${run}/result.json`,
+      path: join(
+        repoRoot,
+        `results/${pair.eval_suite}/${pair.experiment}/${pair.eval_id}/run-${run}/result.json`
+      ),
     },
     { path: resultPartial },
     { mkdirRecursive: true }
   );
   if (!resultDownloaded) throw new Error('result.json was missing');
-  const workspaceDownloaded = await sandbox.downloadFile(
-    { path: '/tmp/eval-workspace.tgz' },
-    { path: workspacePartial },
-    { mkdirRecursive: true }
-  );
-  if (!workspaceDownloaded) throw new Error('workspace archive was missing');
-  renameSync(workspacePartial, workspace);
-  // Missing for agents without a `sessionDir` (e.g. ai-sdk).
-  await sandbox.downloadFile(
-    {
-      path: `results/${pair.eval_suite}/${pair.experiment}/${pair.eval_id}/run-${run}/session-archive.tar.gz`,
-    },
-    { path: join(destination, 'session-archive.tar.gz') },
-    { mkdirRecursive: true }
-  );
+  // Spark workspaces and binary sessions can contain project credentials.
+  if (pair.eval_suite !== 'spark') {
+    const workspaceDownloaded = await sandbox.downloadFile(
+      { path: '/tmp/eval-workspace.tgz' },
+      { path: workspacePartial },
+      { mkdirRecursive: true }
+    );
+    if (!workspaceDownloaded) throw new Error('workspace archive was missing');
+    renameSync(workspacePartial, workspace);
+    // Missing for agents without a `sessionDir` (e.g. ai-sdk).
+    await sandbox.downloadFile(
+      {
+        path: `results/${pair.eval_suite}/${pair.experiment}/${pair.eval_id}/run-${run}/session-archive.tar.gz`,
+      },
+      { path: join(destination, 'session-archive.tar.gz') },
+      { mkdirRecursive: true }
+    );
+  }
   console.log(`${jobLabel(pair, run)} results downloaded to ${destination}`);
   return { partialPath: resultPartial, finalPath: result };
 }

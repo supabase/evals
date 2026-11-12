@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { createClient } from '@supabase/supabase-js';
 import { createManagementApiClient } from '@supabase-evals/platform-lite';
 import { z } from 'zod';
@@ -10,6 +10,9 @@ const projectSchema = z.object({
   api_keys: z.array(z.object({ type: z.string(), api_key: z.string().min(1) })),
 });
 const rowsSchema = z.array(z.record(z.string(), z.unknown()));
+
+export const SPARK_PROXY_BYPASS =
+  'localhost,127.0.0.1,.openai.com,.anthropic.com,api.x.ai,ai-gateway.vercel.sh,.npmjs.org,.github.com,.githubusercontent.com';
 
 /** The Spark project's URL and API keys, like `LocalStackStatus` for the local stack. */
 export type SparkProjectStatus = {
@@ -23,7 +26,11 @@ export type SparkScoringContext = ToolScoringContext & {
   project: SparkProjectStatus;
 };
 
-export function sparkRuntime(apiUrl: string): EvalRuntime {
+export function sparkRuntime(
+  apiUrl: string,
+  proxyUrl?: string,
+  redactionPath?: string
+): EvalRuntime {
   return {
     id: 'spark',
     async startSession(args) {
@@ -47,6 +54,18 @@ export function sparkRuntime(apiUrl: string): EvalRuntime {
           `Spark project creation failed (${createResponse.status})`
         );
       const project = projectSchema.parse(await createResponse.json());
+      if (redactionPath) {
+        await writeFile(
+          redactionPath,
+          JSON.stringify([
+            project.ref,
+            project.url,
+            new URL(project.url).hostname,
+            ...project.api_keys.map((key) => key.api_key),
+          ]),
+          { mode: 0o600 }
+        );
+      }
 
       const secret = project.api_keys.find(
         (key) => key.type === 'secret'
@@ -58,7 +77,7 @@ export function sparkRuntime(apiUrl: string): EvalRuntime {
         throw new Error(`Spark project ${project.ref} is missing API keys`);
 
       // shortcut: projects remain allocated, add teardown once a deletion endpoint is confirmed.
-      process.stderr.write(`Spark project created: ${project.ref}\n`);
+      process.stderr.write('Spark project created\n');
 
       const headers = { apikey: secret, 'content-type': 'application/json' };
       if (seedSql) {
@@ -86,8 +105,17 @@ export function sparkRuntime(apiUrl: string): EvalRuntime {
           auth: { persistSession: false, autoRefreshToken: false },
         });
       return {
+        // WARP credentials live on the VM.
+        mountDockerSocket: false,
         mcpServers: {},
         env: {
+          ...(proxyUrl
+            ? {
+                HTTPS_PROXY: proxyUrl,
+                NO_PROXY: SPARK_PROXY_BYPASS,
+                NODE_USE_ENV_PROXY: '1',
+              }
+            : {}),
           SPARK_PROJECT_URL: project.url,
           SPARK_SECRET_KEY: secret,
           SPARK_PUBLISHABLE_KEY: publishable,
