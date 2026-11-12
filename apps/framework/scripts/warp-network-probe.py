@@ -29,7 +29,11 @@ def checked(*args, timeout=30, input=None):
 
 
 def route_table(routes):
-    tables = {item["table"] for item in routes if item.get("dev") == "CloudflareWARP" and isinstance(item.get("table"), int)}
+    tables = set()
+    for item in routes:
+        value = item.get("table")
+        if item.get("dev") == "CloudflareWARP" and item.get("type", "unicast") == "unicast" and str(value).isdecimal():
+            tables.add(int(value))
     if len(tables) != 1:
         raise RuntimeError("WARP routing table ambiguous")
     return tables.pop()
@@ -153,7 +157,8 @@ apt-get install -y -qq cloudflare-warp
 if __name__ == "__main__":
     os.umask(0o077)
     if sys.argv[1:] == ["--self-check"]:
-        assert route_table([{"dev": "CloudflareWARP", "table": "local"}, {"dev": "CloudflareWARP", "table": 123}]) == 123
+        assert route_table([{"dev": "CloudflareWARP", "table": "local"}, {"dev": "CloudflareWARP", "table": "123"}]) == 123
+        assert route_table([{"dev": "CloudflareWARP", "table": 123}]) == 123
         try:
             route_table([{"dev": "CloudflareWARP", "table": 123}, {"dev": "CloudflareWARP", "table": 456}])
         except RuntimeError:
