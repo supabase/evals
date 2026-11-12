@@ -4,25 +4,15 @@ import { fileURLToPath } from "node:url"
 import { setTimeout as delay } from "node:timers/promises"
 import { z } from "zod"
 import pRetry, { AbortError } from "p-retry"
-import { evalResultSchema } from "@supabase-evals/core/eval-metadata"
+import {
+  evalResultSchema,
+  experimentRationaleSchema,
+} from "@supabase-evals/core/eval-metadata"
+import { publication } from "../src/data/publication.ts"
 
 const app = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const root = resolve(app, "../..")
 const output = resolve(app, "src/data/braintrust-results.json")
-const publication = {
-  "claude-code-opus-5.5": "c8e0f865-ca59-4703-a19d-507a234e100a",
-  "claude-code-opus-5.5-no-skills": "e0fd16ad-e117-4165-8e30-9346ebe7e835",
-  "claude-code-sonnet-5.5": "ede84738-9f79-428f-bdfe-9d8adb2a6489",
-  "claude-code-sonnet-5.5-no-skills": "15a067ef-f04e-44f5-9f94-7b8c0b0e10f1",
-  "codex-gpt-6-luna": "b4a9c5ce-60fc-4604-bc99-595269b7fd7d",
-  "codex-gpt-6-luna-no-skills": "123ecf1b-1004-458c-98cf-b17450b65c92",
-  "codex-gpt-6.1-sol": "d2e33ddc-64f1-4392-892c-d4db9f3d0146",
-  "codex-gpt-6.1-sol-no-skills": "f2a8dad6-2d8b-4088-8f5f-165d00a24058",
-  "grok-4.7": "e986dead-a1d3-4523-b47d-33a82ff1348b",
-  "grok-4.7-no-skills": "545924a6-a02c-482c-9ef7-b4dfc1a993c7",
-  "opencode-kimi-k3": "66f84377-4b0d-4be2-8f41-8e0756cbc40a",
-  "opencode-kimi-k3-no-skills": "63331944-8a8c-4396-8add-d6fbe88f80d3",
-}
 const uuid = z.uuid()
 const metadataSchema = z
   .object({
@@ -30,7 +20,11 @@ const metadataSchema = z
     expected_runs: z.number().int().positive().optional(),
   })
   .passthrough()
-const experimentSchema = z.object({ id: uuid, metadata: metadataSchema })
+const experimentSchema = z.object({
+  id: uuid,
+  created: z.iso.datetime(),
+  metadata: metadataSchema,
+})
 const rootSchema = z.object({
   id: z.string(),
   experiment_id: uuid,
@@ -64,7 +58,41 @@ const usageSchema = z.object({
   input_tokens: z.number().nullable(),
   output_tokens: z.number().nullable(),
 })
-type Experiment = z.infer<typeof experimentSchema>
+type Experiment = z.infer<typeof experimentSchema> & {
+  rationale?: z.infer<typeof experimentRationaleSchema>
+}
+
+export function attachRationales(
+  experiments: Experiment[],
+  entries: typeof publication
+) {
+  return experiments.map((experiment) => {
+    const entry = entries.find(
+      ({ withSkills, withoutSkills }) =>
+        withSkills === experiment.id || withoutSkills === experiment.id
+    )
+    if (!entry) throw new Error(`Missing rationale for ${experiment.id}`)
+    return { ...experiment, rationale: entry.rationale }
+  })
+}
+
+export function publicationPins(
+  entries: typeof publication,
+  allowPartial: boolean
+) {
+  const pinEntries: [string, string][] = []
+  for (const { experiment, withSkills, withoutSkills } of entries) {
+    if ((!withSkills || !withoutSkills) && !allowPartial)
+      throw new Error(`Missing pinned variants: ${experiment}`)
+    if (withSkills) pinEntries.push([experiment, withSkills])
+    if (withoutSkills)
+      pinEntries.push([`${experiment}-no-skills`, withoutSkills])
+  }
+  const pins = Object.fromEntries(pinEntries)
+  if (Object.keys(pins).length !== pinEntries.length)
+    throw new Error("Publication must contain distinct experiment names")
+  return pins
+}
 type Root = z.infer<typeof rootSchema>
 type Child = z.infer<typeof childSchema>
 type Usage = z.infer<typeof usageSchema>
@@ -154,6 +182,8 @@ export function assemble(
           }
     const parsed = evalResultSchema.safeParse({
       experiment: em.experiment,
+      experimentRationale: exp.rationale,
+      experimentCreatedAt: exp.created,
       experimentDisplay: {
         agent: em.agent,
         modelProvider: em.model_provider,
@@ -419,37 +449,24 @@ async function main() {
     "Content-Type": "application/json",
   }
   const request = createBraintrustRequest(headers, fetch)
-  const experiments = await fetchExperiments(request, projectId, publication)
+  const pins = publicationPins(publication, allowPartial)
+  const experiments = attachRationales(
+    await fetchExperiments(request, projectId, pins),
+    publication
+  )
   const experimentNames = (
     await readdir(resolve(root, "experiments/benchmark"))
   )
-    .filter((f) => f.endsWith(".experiment.ts"))
-    .map((f) => f.slice(0, -".experiment.ts".length))
-    .sort()
-  const selectedNames = experiments.map((e) => e.metadata.experiment).sort()
-  if (
-    !allowPartial &&
-    JSON.stringify(experimentNames) !== JSON.stringify(selectedNames)
-  ) {
-    const missing = experimentNames.filter(
-      (name) => !selectedNames.includes(name)
+    .filter((name) => name.endsWith(".experiment.ts"))
+    .map((name) => name.slice(0, -".experiment.ts".length))
+  const missing = experimentNames.filter((name) => !(name in pins))
+  const unexpected = Object.keys(pins).filter(
+    (name) => !experimentNames.includes(name)
+  )
+  if (!allowPartial && (missing.length || unexpected.length))
+    console.warn(
+      `Published experiments differ from current benchmark. Missing: ${missing.join(", ") || "none"}. Unexpected: ${unexpected.join(", ") || "none"}.`
     )
-    const unexpected = selectedNames.filter(
-      (name) => !experimentNames.includes(name)
-    )
-    throw new Error(
-      [
-        "Pinned experiments do not match active benchmark experiments.",
-        ...(missing.length ? [`Missing: ${missing.join(", ")}`] : []),
-        ...(unexpected.length ? [`Unexpected: ${unexpected.join(", ")}`] : []),
-        ...(process.argv.includes("--dev")
-          ? [
-              "To run with partial results locally, use EVALS_ALLOW_PARTIAL=1 pnpm web.",
-            ]
-          : []),
-      ].join("\n")
-    )
-  }
   const evalIds = []
   for (const dir of await readdir(resolve(root, "evals/benchmark"), {
     withFileTypes: true,

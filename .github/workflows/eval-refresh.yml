@@ -3,78 +3,76 @@ name: Refresh eval results
 on:
   workflow_dispatch:
     inputs:
-      warp_probe:
-        description: "Probe WARP service-token enrollment"
-        type: boolean
-        required: false
-        default: false
-      warp_eval:
-        description: "Run one real Spark eval (creates a test project)"
-        type: boolean
-        default: false
-      warp_target:
-        description: "WARP diagnostic environment"
-        type: choice
-        options: [runner, sandbox]
-        default: runner
-      warp_mode:
-        description: "Native tunnel or application proxy experiment"
-        type: choice
-        options: [warp, proxy]
-        default: warp
-      warp_image:
-        description: "Sandbox image for WARP diagnostics"
-        type: choice
-        options: [node24, universal]
-        default: node24
-      experiments:
+      experiments: &experiments
         description: "Comma-separated experiment names to run within each selected eval suite"
+        type: string
         required: false
         default: ""
-      eval:
+      eval: &eval
         description: "Comma-separated eval ids to run (overrides suite)"
+        type: string
         required: false
         default: ""
-      suite:
+      suite: &suite
         description: "Comma-separated suites to run (evals/<suite> with experiments/<suite>)"
+        type: string
         required: false
         default: ""
-      runs:
+      runs: &runs
         description: "Independent scored runs per experiment/eval pair"
-        required: true
+        type: string
         default: "3"
-      timeout_sec:
+      timeout_sec: &timeout_sec
         description: "Timeout per run in seconds"
-        required: true
+        type: string
         default: "720"
-      sandbox_concurrency:
+      sandbox_concurrency: &sandbox_concurrency
         description: "Maximum Vercel Sandboxes running at once"
-        required: true
+        type: string
         default: "250"
-      merge:
+      merge: &merge
         description: "Merge into existing results instead of overwriting (graft new experiment/eval pairs)"
         type: boolean
         required: false
         default: true
-      commit_to_branch:
-        description: "Commit exported results to the dispatched branch instead of opening a PR"
-        type: boolean
-        required: false
-        default: false
-      cli_stable_version:
+      commit_results:
+        description: "Where to commit exported results JSON"
+        type: choice
+        options:
+          - results-pr
+          - current-branch
+          - none
+        default: results-pr
+      cli_stable_version: &cli_stable_version
         description: "Pin the cli suite's stable CLI version instead of resolving npm's latest dist-tag (blank to resolve)"
+        type: string
         required: false
         default: ""
-      cli_beta_version:
+      cli_beta_version: &cli_beta_version
         description: "Pin the cli suite's beta CLI version instead of resolving npm's beta dist-tag (blank to resolve)"
+        type: string
         required: false
         default: ""
-      cli_next_version:
+      cli_next_version: &cli_next_version
         description: "Pin the cli suite's next CLI version instead of resolving npm's next dist-tag (blank to resolve)"
+        type: string
         required: false
         default: ""
-  schedule:
-    - cron: '15 6 * * *'
+  workflow_call:
+    inputs:
+      experiments: *experiments
+      eval: *eval
+      suite: *suite
+      runs: *runs
+      timeout_sec: *timeout_sec
+      sandbox_concurrency: *sandbox_concurrency
+      merge: *merge
+      cli_stable_version: *cli_stable_version
+      cli_beta_version: *cli_beta_version
+      cli_next_version: *cli_next_version
+      commit_results:
+        type: string
+        default: results-pr
   pull_request:
     # Run whenever a PR carrying the run-evals label is opened, pushed to, or
     # receives the run-evals label. The job-level `if` gates on those cases.
@@ -87,62 +85,16 @@ permissions:
 
 concurrency:
   # The results app's pushes get a unique group so they can't cancel the run that pushed them.
-  group: eval-refresh-${{ github.event.sender.id == 291952723 && github.run_id || github.event_name == 'pull_request' && github.event.pull_request.number || github.ref }}
+  group: eval-refresh-${{ github.workflow }}-${{ github.event.sender.id == 291952723 && github.run_id || github.event_name == 'pull_request' && github.event.pull_request.number || github.ref }}
   # Supersede an in-flight run when a new commit is pushed to the same PR, but
-  # never cancel a workflow_dispatch run (those open the refresh PR).
+  # never cancel a workflow_dispatch run.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  warp-enrollment-probe:
-    if: github.event_name == 'workflow_dispatch' && inputs.warp_probe
-    runs-on: ubuntu-26.04
-    permissions:
-      contents: read
-    timeout-minutes: ${{ inputs.warp_eval && 45 || 20 }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
-      - name: Check probe
-        run: python3 apps/framework/scripts/warp-network-probe.py --self-check
-      - name: Probe GitHub runner routing
-        if: inputs.warp_target == 'runner'
-        env:
-          CLOUDFLARE_WARP_CLIENT_ID: ${{ secrets.CLOUDFLARE_WARP_CLIENT_ID }}
-          CLOUDFLARE_WARP_CLIENT_SECRET: ${{ secrets.CLOUDFLARE_WARP_CLIENT_SECRET }}
-          SPARK_API_URL: ${{ secrets.SPARK_API_URL }}
-        run: sudo --preserve-env=CLOUDFLARE_WARP_CLIENT_ID,CLOUDFLARE_WARP_CLIENT_SECRET,SPARK_API_URL,GITHUB_ACTIONS python3 apps/framework/scripts/warp-network-probe.py
-      - name: Install pnpm
-        if: inputs.warp_target == 'sandbox'
-        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
-      - name: Setup Node.js
-        if: inputs.warp_target == 'sandbox'
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-        with:
-          node-version-file: .node-version
-          cache: pnpm
-      - name: Install dependencies
-        if: inputs.warp_target == 'sandbox'
-        run: pnpm install --frozen-lockfile
-      - name: Probe Vercel Sandbox routing
-        if: inputs.warp_target == 'sandbox'
-        env:
-          CLOUDFLARE_WARP_CLIENT_ID: ${{ secrets.CLOUDFLARE_WARP_CLIENT_ID }}
-          CLOUDFLARE_WARP_CLIENT_SECRET: ${{ secrets.CLOUDFLARE_WARP_CLIENT_SECRET }}
-          SPARK_API_URL: ${{ secrets.SPARK_API_URL }}
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          WARP_PROBE_REAL_EVAL: ${{ inputs.warp_eval }}
-          WARP_PROBE_IMAGE: ${{ inputs.warp_image }}
-          WARP_PROBE_MODE: ${{ inputs.warp_mode }}
-        working-directory: apps/framework
-        run: node --import tsx/esm scripts/warp-enrollment-probe.mjs
-
   prepare:
     # 291952723 is supabase-evals-releaser[bot], which pushes the results commit.
     if: >-
-      (github.event_name == 'workflow_dispatch' && !inputs.warp_probe) ||
+      github.event_name == 'workflow_dispatch' ||
       github.event_name == 'schedule' ||
       (github.event_name == 'pull_request' &&
         github.event.sender.id != 291952723 &&
@@ -167,10 +119,19 @@ jobs:
       - name: Prepare inputs
         id: inputs
         shell: bash
+        env:
+          COMMIT_RESULTS: ${{ inputs.commit_results }}
         run: |
           set -euo pipefail
 
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            case "$COMMIT_RESULTS" in
+              results-pr|current-branch|none) ;;
+              *) echo "::error::Invalid commit_results: $COMMIT_RESULTS"; exit 1 ;;
+            esac
+          fi
+
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
             experiments_override="${{ inputs.experiments }}"
             eval_id="${{ inputs.eval }}"
             suite="${{ inputs.suite }}"
@@ -185,16 +146,6 @@ jobs:
               echo "::error::Set suite or eval to choose which evals to run."
               exit 1
             fi
-          elif [ "${{ github.event_name }}" = "schedule" ]; then
-            experiments_override=""
-            eval_id=""
-            suite="regression,cli"
-            runs="3"
-            timeout_sec="720"
-            sandbox_concurrency="250"
-            cli_stable_version=""
-            cli_beta_version=""
-            cli_next_version=""
           else
             experiments_override=""
             eval_id=""
@@ -369,7 +320,6 @@ jobs:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-      SPARK_API_URL: ${{ secrets.SPARK_API_URL }}
       SUPABASE_CLI_STABLE_VERSION: ${{ needs.prepare.outputs.cli_stable_version }}
       SUPABASE_CLI_BETA_VERSION: ${{ needs.prepare.outputs.cli_beta_version }}
       SUPABASE_CLI_NEXT_VERSION: ${{ needs.prepare.outputs.cli_next_version }}
@@ -401,7 +351,6 @@ jobs:
             echo "OPENAI_API_KEY=${OPENAI_API_KEY}"
             echo "AI_GATEWAY_API_KEY=${AI_GATEWAY_API_KEY}"
             echo "XAI_API_KEY=${XAI_API_KEY}"
-            echo "SPARK_API_URL=${SPARK_API_URL}"
             echo "SUPABASE_CLI_STABLE_VERSION=${SUPABASE_CLI_STABLE_VERSION}"
             echo "SUPABASE_CLI_BETA_VERSION=${SUPABASE_CLI_BETA_VERSION}"
             echo "SUPABASE_CLI_NEXT_VERSION=${SUPABASE_CLI_NEXT_VERSION}"
@@ -588,12 +537,17 @@ jobs:
           echo "PR_URLS=$urls" >> "$GITHUB_ENV"
 
       - name: Upload results to Braintrust
-        # A Braintrust outage shouldn't block publishing results.
-        continue-on-error: true
+        # A Braintrust outage shouldn't block publishing results, but with no results PR it is the only record.
+        continue-on-error: ${{ github.event_name == 'pull_request' || inputs.commit_results != 'none' }}
         env:
           BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
           BRAINTRUST_PROJECT_ID: ${{ secrets.BRAINTRUST_PROJECT_ID }}
-        run: pnpm upload-braintrust --runs "${{ needs.prepare.outputs.runs }}"
+        run: |
+          if [ "${{ inputs.commit_results }}" = "none" ] && { [ -z "$BRAINTRUST_API_KEY" ] || [ -z "$BRAINTRUST_PROJECT_ID" ]; }; then
+            echo "::error::Braintrust credentials are required when commit_results is none."
+            exit 1
+          fi
+          pnpm upload-braintrust --runs "${{ needs.prepare.outputs.runs }}"
 
       - name: Upload exported results
         if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
@@ -605,13 +559,10 @@ jobs:
           retention-days: 7
 
       - name: Commit exported results to branch
-        # PR runs commit to the PR head branch. Manual dispatch commits to the
-        # selected branch only when commit_to_branch is enabled. Scheduled runs
-        # go through a PR instead (see "Create results pull request" below):
-        # main's branch protection rejects a direct push.
+        # PR runs commit to the PR head branch.
         if: >-
           github.event_name == 'pull_request' ||
-          (github.event_name == 'workflow_dispatch' && inputs.commit_to_branch)
+          (github.event_name != 'pull_request' && inputs.commit_results == 'current-branch')
         shell: bash
         run: |
           set -euo pipefail
@@ -635,8 +586,7 @@ jobs:
 
       - name: Create results pull request
         if: >-
-          github.event_name == 'schedule' ||
-          (github.event_name == 'workflow_dispatch' && !inputs.commit_to_branch)
+          github.event_name != 'pull_request' && inputs.commit_results == 'results-pr'
         id: cpr
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:

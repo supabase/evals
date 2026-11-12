@@ -38,3 +38,20 @@ using (
       and o.customer_id = (select auth.uid())
   )
 );
+
+-- Store credit. Staff work it out of this ledger: a refund adds to it, a
+-- purchase paid with credit takes from it. A customer is only ever shown their
+-- own balance, never the ledger itself, and neither app reads this table
+-- directly or starts to. Nothing here is a customer's to open.
+
+create table public.store_credit_ledger (
+  id bigint primary key generated always as identity,
+  customer_id uuid not null references auth.users on delete cascade,
+  -- Positive adds credit, negative spends it. A balance is the sum.
+  amount_cents int not null,
+  reason text not null
+);
+
+alter table public.store_credit_ledger enable row level security;
+
+revoke all on public.store_credit_ledger from anon, authenticated;

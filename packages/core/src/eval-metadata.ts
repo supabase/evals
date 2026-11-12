@@ -457,9 +457,22 @@ const evalResultShape = {
 // Raw result files may carry extra fields we don't model; tolerate them.
 export const rawEvalResultSchema = z.looseObject(evalResultShape);
 
+export const experimentRationaleSchema = z.object({
+  summary: z
+    .array(
+      z.union([
+        z.string().min(1),
+        z.object({ text: z.string().min(1), url: z.url() }),
+      ])
+    )
+    .min(1),
+});
+
 // Web-facing result; a clean strict object so its inferred type stays usable.
 export const evalResultSchema = z.object({
   ...evalResultShape,
+  experimentRationale: experimentRationaleSchema.optional(),
+  experimentCreatedAt: z.iso.datetime().optional(),
   passed: z.boolean(),
   prompt: z.string().optional(),
   promptSourcePath: z.string().optional(),
