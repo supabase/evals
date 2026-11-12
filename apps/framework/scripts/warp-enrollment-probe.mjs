@@ -3,12 +3,12 @@ import { Sandbox } from '@vercel/sandbox';
 
 const stages = new Set([
   'validate configuration', 'install WARP', 'enroll and connect',
-  'discover routes', 'before manual routes', 'Spark GET through WARP',
+  'resolve Spark', 'discover routes', 'before manual routes', 'Spark GET through WARP',
   'after route rollback', 'result', 'cleanup',
 ]);
 const fields = new Set([
   'ok', 'connected', 'nft_unsupported', 'address_count', 'routed',
-  'curl_exit', 'http_status', 'address_index', 'projects_created',
+  'curl_exit', 'http_status', 'address_index', 'projects_created', 'route_count', 'numeric_table_count',
 ]);
 
 let sandbox;

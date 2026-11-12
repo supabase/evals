@@ -100,7 +100,7 @@ apt-get install -y -qq cloudflare-warp
         if not connected:
             raise RuntimeError("connection failed")
 
-        stage = "discover routes"
+        stage = "resolve Spark"
         addresses = sorted({item[4][0] for item in socket.getaddrinfo(host, 443, socket.AF_INET, socket.SOCK_STREAM)})
         if not addresses:
             raise RuntimeError("no addresses")
@@ -108,7 +108,12 @@ apt-get install -y -qq cloudflare-warp
             ipaddress.IPv4Address(address)
             if os.environ.get("GITHUB_ACTIONS") == "true":
                 print(f"::add-mask::{address}", flush=True)
-        table = route_table(json.loads(checked("ip", "-j", "-4", "route", "show", "table", "all")))
+        report(stage, address_count=len(addresses))
+        stage = "discover routes"
+        routes = json.loads(checked("ip", "-j", "-4", "route", "show", "table", "all"))
+        warp_routes = [item for item in routes if item.get("dev") == "CloudflareWARP"]
+        report(stage, route_count=len(warp_routes), numeric_table_count=len({item["table"] for item in warp_routes if isinstance(item.get("table"), int)}))
+        table = route_table(routes)
         report("before manual routes", **receipt(url, host, addresses[0]))
         for address in addresses:
             checked("ip", "-4", "route", "add", f"{address}/32", "dev", "CloudflareWARP", "table", str(table))
@@ -129,8 +134,8 @@ apt-get install -y -qq cloudflare-warp
         report("after route rollback", **receipt(url, host, addresses[0]))
         report("result", ok=True, projects_created=0)
         return 0
-    except Exception:
-        report(stage, ok=False)
+    except Exception as error:
+        report(stage, ok=False, failure_type=type(error).__name__)
         return 1
     finally:
         for address, table in added:
