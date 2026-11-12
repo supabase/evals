@@ -68,7 +68,6 @@ try {
   config.WARP_PROBE_NESTED = true;
   config.WARP_PROBE_REAL_EVAL = realEval;
   config.WARP_PROBE_BYPASS = SPARK_PROXY_BYPASS;
-  config.WARP_PROBE_NETWORK = process.env.WARP_PROBE_NETWORK || 'bridge';
   const cwd = await sandbox.runCommand({ cmd: 'pwd' });
   config.WARP_PROBE_REPO_ROOT = `${(await cwd.stdout()).trim()}/evals`;
   await sandbox.writeFiles([

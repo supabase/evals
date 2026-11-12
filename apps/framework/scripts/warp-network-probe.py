@@ -58,7 +58,7 @@ def real_eval(config):
     checked("git", "-c", f"safe.directory={os.getcwd()}", "-c", "url.https://github.com/.insteadOf=git@github.com:", "submodule", "update", "--init", "--recursive", timeout=180)
     checked("npm", "install", "--global", "pnpm@10.24.0", timeout=180)
     checked("pnpm", "install", "--frozen-lockfile", timeout=360)
-    Path(".env").write_text("OPENAI_API_KEY=injected-by-sandbox-firewall\nSPARK_API_URL=" + config["SPARK_API_URL"] + "\nSPARK_PROXY_URL=http://host.docker.internal:40001\n")
+    Path(".env").write_text("OPENAI_API_KEY=injected-by-sandbox-firewall\nSPARK_API_URL=" + config["SPARK_API_URL"] + "\nSPARK_PROXY_URL=http://127.0.0.1:40000\n")
     env = dict(os.environ, HTTPS_PROXY="http://127.0.0.1:40000", NO_PROXY=config["WARP_PROBE_BYPASS"], NODE_USE_ENV_PROXY="1")
     selection = command("pnpm", "--silent", "eval", "--", "list", "--suite", "spark", "--eval", "build-database-001-task-due-dates", env=env)
     if selection.returncode or "spark/codex-gpt-6-luna" not in json.loads(selection.stdout):
@@ -68,8 +68,7 @@ def real_eval(config):
     framework = str(Path.cwd() / "apps/framework")
     ca = checked("node", "--import", "tsx/esm", "--input-type=module", "-e", "import {proxyCaArgs} from '../../packages/sandbox/src/docker-sandbox.ts'; console.log(JSON.stringify(proxyCaArgs()));", cwd=framework)
     image = "curlimages/curl:8.17.0"
-    network = config.get("WARP_PROBE_NETWORK", "bridge")
-    docker = ["docker", "run", "--rm", "--network", network, "--add-host", "host.docker.internal:host-gateway", *json.loads(ca), "--env", "HTTPS_PROXY=http://host.docker.internal:40001", "--env", "NO_PROXY=" + config["WARP_PROBE_BYPASS"], "--env", "OPENAI_API_KEY=injected-by-sandbox-firewall", "--entrypoint", "sh", image]
+    docker = ["docker", "run", "--rm", "--network", "host", *json.loads(ca), "--env", "HTTPS_PROXY=http://127.0.0.1:40000", "--env", "NO_PROXY=" + config["WARP_PROBE_BYPASS"], "--env", "OPENAI_API_KEY=injected-by-sandbox-firewall", "--entrypoint", "sh", image]
     provider = command(*docker, "-c", '''test "$OPENAI_API_KEY" = injected-by-sandbox-firewall && test -z "${CLOUDFLARE_WARP_CLIENT_SECRET-}${CLOUDFLARE_WARP_CLIENT_ID-}" || exit 97
 exec curl -s --max-time 20 -H "Authorization: Bearer $OPENAI_API_KEY" -o /dev/null -w '%{http_code}' https://api.openai.com/v1/models''', timeout=45)
     status = int(provider.stdout) if re.fullmatch(r"[0-9]{3}", provider.stdout) else 0
@@ -83,20 +82,20 @@ exec curl -s --max-time 20 -H "Authorization: Bearer $OPENAI_API_KEY" -o /dev/nu
     if native.returncode or status != 405:
         raise RuntimeError("native fetch proxy failed")
 
-    if network == "host":
-        directory = Path("/tmp/warp-eval-bin")
-        directory.mkdir(exist_ok=True)
-        wrapper = directory / "docker"
-        wrapper.write_text('''#!/usr/bin/env python3
+    # shortcut: host networking shares the VM network, restore bridge when its firewall rules are supported.
+    directory = Path("/tmp/warp-eval-bin")
+    directory.mkdir(exist_ok=True)
+    wrapper = directory / "docker"
+    wrapper.write_text('''#!/usr/bin/env python3
 import os, sys
 args = sys.argv[1:]
 if args and args[0] in ('run', 'build') and '--network' not in args:
     args[1:1] = ['--network', 'host']
 os.execv('/usr/bin/docker', ['docker', *args])
 ''')
-        wrapper.chmod(0o700)
-        env.update(PATH=str(directory) + ":" + env["PATH"], DOCKER_BUILDKIT="0")
-    report("eval networking", host_networking=network == "host", bridge_networking=network == "bridge")
+    wrapper.chmod(0o700)
+    env.update(PATH=str(directory) + ":" + env["PATH"], DOCKER_BUILDKIT="0")
+    report("eval networking", host_networking=True, bridge_networking=False)
     build = command("node", "--import", "tsx/esm", "--input-type=module", "-e", "import {ensureSupabaseSandboxImage} from '../../packages/sandbox/src/supabase.ts'; await ensureSupabaseSandboxImage();", env=env, cwd=framework, timeout=600)
     Path("/tmp/warp-agent-build.log").write_text(build.stdout + build.stderr)
     report("build agent image", exit_code=build.returncode)
@@ -201,7 +200,7 @@ apt-get install -y -qq cloudflare-warp
                 raise RuntimeError("proxy request failed")
             if config.get("WARP_PROBE_NESTED"):
                 stage = "install nested Docker"
-                checked("bash", "-c", "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends docker.io socat", timeout=300)
+                checked("bash", "-c", "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends docker.io", timeout=300)
                 if config.get("WARP_PROBE_REAL_EVAL"):
                     # Sandbox supports classic iptables NAT, while nftables calls fail.
                     checked("update-alternatives", "--set", "iptables", "/usr/sbin/iptables-legacy")
@@ -219,15 +218,12 @@ apt-get install -y -qq cloudflare-warp
                 log = Path("/tmp/warp-probe-docker.log").read_text(errors="replace")
                 report("Docker daemon", ready=ready, default_daemon_flags=bool(config.get("WARP_PROBE_REAL_EVAL")), legacy_iptables=bool(config.get("WARP_PROBE_REAL_EVAL")), iptables_unsupported="Operation not supported" in log and "iptables" in log)
                 checked("docker", "info")
-                bridge = json.loads(checked("ip", "-j", "-4", "addr", "show", "docker0"))[0]["addr_info"][0]["local"]
-                with open("/tmp/warp-probe-forwarder.log", "w") as log:
-                    sidecars.append(subprocess.Popen(["socat", f"TCP-LISTEN:40001,bind={bridge},reuseaddr,fork", "TCP:127.0.0.1:40000"], stdout=log, stderr=log))
                 image = "curlimages/curl:8.17.0"
                 checked("docker", "pull", image, timeout=180)
                 stage = "nested Docker proxy GET"
                 script = '''test -z "${CLOUDFLARE_WARP_CLIENT_SECRET-}${CLOUDFLARE_WARP_CLIENT_ID-}" || exit 97
-exec curl -s --proxy socks5h://host.docker.internal:40001 --connect-timeout 5 --max-time 15 -o /dev/null -w '%{http_code}' "$PROBE_URL"'''
-                nested = command("docker", "run", "--rm", "--network", config.get("WARP_PROBE_NETWORK", "bridge"), "--add-host", "host.docker.internal:host-gateway", "--env", f"PROBE_URL={url}", "--entrypoint", "sh", image, "-c", script, timeout=45)
+exec curl -s --proxy http://127.0.0.1:40000 --connect-timeout 5 --max-time 15 -o /dev/null -w '%{http_code}' "$PROBE_URL"'''
+                nested = command("docker", "run", "--rm", "--network", "host", "--env", f"PROBE_URL={url}", "--entrypoint", "sh", image, "-c", script, timeout=45)
                 status = int(nested.stdout) if re.fullmatch(r"[0-9]{3}", nested.stdout) else 0
                 report(stage, exit_code=nested.returncode, http_status=status, warp_credentials_present=nested.returncode == 97)
                 if nested.returncode or status not in (200, 405):
@@ -305,6 +301,10 @@ exec curl -s --proxy socks5h://host.docker.internal:40001 --connect-timeout 5 --
 if __name__ == "__main__":
     os.umask(0o077)
     if sys.argv[1:] == ["--self-check"]:
+        import ast
+        for node in ast.walk(ast.parse(Path(__file__).read_text())):
+            if isinstance(node, ast.Constant) and isinstance(node.value, str) and node.value.startswith("#!/usr/bin/env python3"):
+                compile(node.value, "docker wrapper", "exec")
         assert route_table([{"dev": "CloudflareWARP", "table": "local"}, {"dev": "CloudflareWARP", "table": "123"}]) == 123
         assert route_table([{"dev": "CloudflareWARP", "table": 123}]) == 123
         try:
