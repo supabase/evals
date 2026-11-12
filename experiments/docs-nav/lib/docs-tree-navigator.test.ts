@@ -79,4 +79,13 @@ describe('createTreeSession', () => {
     expect(chosen.text).toContain(`Tree: ${URL}`);
     expect(session.choose('2').isError).toBe(true);
   });
+
+  it('shows the second level under each top-level section when asked', () => {
+    const session = createTreeSession(TREE, URL, { topLevels: 2 });
+    const top = session.open('root').text;
+    expect(top).toContain('  - [1.1] Network (a page, and a section)');
+    expect(top).not.toContain('SSL enforcement');
+    expect(session.open('1.1').isError).toBeUndefined();
+    expect(session.choose('1.2').isError).toBeUndefined();
+  });
 });
