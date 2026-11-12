@@ -103,10 +103,11 @@ os.execv('/usr/bin/docker', ['docker', *args])
     if build.returncode:
         raise RuntimeError("agent image build failed")
 
+    path = Path("results/spark/codex-gpt-6-luna/build-database-001-task-due-dates/run-1/result.json")
+    path.unlink(missing_ok=True)
     started = time.monotonic()
     with open("/tmp/warp-real-eval.log", "w") as output:
         result = subprocess.run(["node", "--env-file=../../.env", "--import", "./scripts/warp-eval-observe.mjs", "--import", "tsx/esm", "harness/run-eval.ts", "--suite", "spark", "--experiment", "codex-gpt-6-luna", "--eval", "build-database-001-task-due-dates", "--runs", "1", "--timeout-sec", "720"], env=env, cwd=framework, stdout=output, stderr=output, timeout=1200)
-    path = Path("results/spark/codex-gpt-6-luna/build-database-001-task-due-dates/run-1/result.json")
     # A committed result cannot stand in for this run's real project and result.
     project_exists = Path("/tmp/warp-eval-project.json").exists()
     exists = path.exists() and project_exists
