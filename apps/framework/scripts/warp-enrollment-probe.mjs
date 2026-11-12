@@ -9,13 +9,14 @@ const stages = new Set([
   'after route rollback', 'result', 'cleanup', 'Spark proxy GET', 'install nested Docker', 'nested Docker proxy GET',
   'normal Docker networking', 'provider credential brokering', 'prepare real eval', 'real Spark eval', 'Spark request timings',
   'Spark HTTP proxy fetch',
+  'eval networking',
 ]);
 const fields = new Set([
   'warp_credentials_present', 'apt_available', 'dnf_available', 'exit_code', 'missing_command', 'missing_repository', 'package_missing', 'ok', 'connected', 'nft_unsupported', 'address_count', 'routed',
   'curl_exit', 'http_status', 'address_index', 'projects_created', 'route_count', 'numeric_table_count',
   'default_networking', 'ready', 'iptables_unsupported', 'eval_passed', 'check_count', 'passed_check_count',
   'request_count', 'failed_request_count', 'over_ten_seconds_count', 'max_elapsed_ms', 'result_exists', 'timeout_mentions',
-  'elapsed_ms', 'legacy_iptables',
+  'elapsed_ms', 'legacy_iptables', 'host_networking', 'bridge_networking',
 ]);
 
 const realEval = process.env.WARP_PROBE_REAL_EVAL === 'true';
@@ -67,6 +68,7 @@ try {
   config.WARP_PROBE_NESTED = true;
   config.WARP_PROBE_REAL_EVAL = realEval;
   config.WARP_PROBE_BYPASS = SPARK_PROXY_BYPASS;
+  config.WARP_PROBE_NETWORK = process.env.WARP_PROBE_NETWORK || 'bridge';
   const cwd = await sandbox.runCommand({ cmd: 'pwd' });
   config.WARP_PROBE_REPO_ROOT = (await cwd.stdout()).trim();
   await sandbox.writeFiles([

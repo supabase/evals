@@ -67,7 +67,8 @@ def real_eval(config):
 
     ca = checked("node", "--import", "tsx/esm", "--input-type=module", "-e", "import {proxyCaArgs} from './packages/sandbox/src/docker-sandbox.ts'; console.log(JSON.stringify(proxyCaArgs()));")
     image = "curlimages/curl:8.17.0"
-    docker = ["docker", "run", "--rm", "--network", "bridge", "--add-host", "host.docker.internal:host-gateway", *json.loads(ca), "--env", "HTTPS_PROXY=http://host.docker.internal:40001", "--env", "NO_PROXY=" + config["WARP_PROBE_BYPASS"], "--env", "OPENAI_API_KEY=injected-by-sandbox-firewall", "--entrypoint", "sh", image]
+    network = config.get("WARP_PROBE_NETWORK", "bridge")
+    docker = ["docker", "run", "--rm", "--network", network, "--add-host", "host.docker.internal:host-gateway", *json.loads(ca), "--env", "HTTPS_PROXY=http://host.docker.internal:40001", "--env", "NO_PROXY=" + config["WARP_PROBE_BYPASS"], "--env", "OPENAI_API_KEY=injected-by-sandbox-firewall", "--entrypoint", "sh", image]
     provider = command(*docker, "-c", '''test "$OPENAI_API_KEY" = injected-by-sandbox-firewall && test -z "${CLOUDFLARE_WARP_CLIENT_SECRET-}${CLOUDFLARE_WARP_CLIENT_ID-}" || exit 97
 exec curl -s --max-time 20 -H "Authorization: Bearer $OPENAI_API_KEY" -o /dev/null -w '%{http_code}' https://api.openai.com/v1/models''', timeout=45)
     status = int(provider.stdout) if re.fullmatch(r"[0-9]{3}", provider.stdout) else 0
@@ -81,6 +82,21 @@ exec curl -s --max-time 20 -H "Authorization: Bearer $OPENAI_API_KEY" -o /dev/nu
     if native.returncode or status != 405:
         raise RuntimeError("native fetch proxy failed")
 
+    if network == "host":
+        directory = Path("/tmp/warp-eval-bin")
+        directory.mkdir(exist_ok=True)
+        wrapper = directory / "docker"
+        wrapper.write_text('''#!/usr/bin/env python3
+import os, sys
+args = sys.argv[1:]
+if args and args[0] in ('run', 'build') and '--network' not in args:
+    args[1:1] = ['--network', 'host']
+os.execv('/usr/bin/docker', ['docker', *args])
+''')
+        wrapper.chmod(0o700)
+        env.update(PATH=str(directory) + ":" + env["PATH"], DOCKER_BUILDKIT="0")
+    report("eval networking", host_networking=network == "host", bridge_networking=network == "bridge")
+
     started = time.monotonic()
     with open("/tmp/warp-real-eval.log", "w") as output:
         result = subprocess.run(["node", "--env-file=.env", "--import", "./apps/framework/scripts/warp-eval-observe.mjs", "--import", "tsx/esm", "apps/framework/harness/run-eval.ts", "--suite", "spark", "--experiment", "codex-gpt-6-luna", "--eval", "build-database-001-task-due-dates", "--runs", "1", "--timeout-sec", "720"], env=env, stdout=output, stderr=output, timeout=1200)
@@ -93,8 +109,8 @@ exec curl -s --max-time 20 -H "Authorization: Bearer $OPENAI_API_KEY" -o /dev/nu
     report("real Spark eval", exit_code=result.returncode, result_exists=exists, eval_passed=data.get("passed", False), check_count=len(checks), passed_check_count=sum(item.get("passed", False) for item in checks), elapsed_ms=round((time.monotonic()-started)*1000))
     timing = Path("/tmp/warp-eval-timing.jsonl")
     requests = [json.loads(line) for line in timing.read_text().splitlines()] if timing.exists() else []
-    text = Path("/tmp/warp-real-eval.log").read_text(errors="replace")
-    summary = dict(request_count=len(requests), failed_request_count=sum(item["failed"] for item in requests), over_ten_seconds_count=sum(item["elapsed_ms"] >= 10000 for item in requests), max_elapsed_ms=max((item["elapsed_ms"] for item in requests), default=0), timeout_mentions=len(re.findall(r"timed out|ETIMEDOUT|proxy.*timeout", text, re.IGNORECASE)))
+    text = Path("/tmp/warp-real-eval.log").read_text(errors="replace") + json.dumps(data)
+    summary = dict(request_count=len(requests), failed_request_count=sum(item["failed"] for item in requests), over_ten_seconds_count=sum(item["elapsed_ms"] >= 10000 for item in requests), max_elapsed_ms=max((item["elapsed_ms"] for item in requests), default=0), timeout_mentions=len(re.findall(r"timed out|ETIMEDOUT|UND_ERR_(?:CONNECT|HEADERS|BODY)_TIMEOUT", text, re.IGNORECASE)))
     report("Spark request timings", **summary)
     projects = sum(item["path"] == "/v1/projects" and 200 <= item["status"] < 300 for item in requests)
     report("result", ok=exists and data.get("passed", False), projects_created=projects)
@@ -204,7 +220,7 @@ apt-get install -y -qq cloudflare-warp
                 stage = "nested Docker proxy GET"
                 script = '''test -z "${CLOUDFLARE_WARP_CLIENT_SECRET-}${CLOUDFLARE_WARP_CLIENT_ID-}" || exit 97
 exec curl -s --proxy socks5h://host.docker.internal:40001 --connect-timeout 5 --max-time 15 -o /dev/null -w '%{http_code}' "$PROBE_URL"'''
-                nested = command("docker", "run", "--rm", "--network", "bridge", "--add-host", "host.docker.internal:host-gateway", "--env", f"PROBE_URL={url}", "--entrypoint", "sh", image, "-c", script, timeout=45)
+                nested = command("docker", "run", "--rm", "--network", config.get("WARP_PROBE_NETWORK", "bridge"), "--add-host", "host.docker.internal:host-gateway", "--env", f"PROBE_URL={url}", "--entrypoint", "sh", image, "-c", script, timeout=45)
                 status = int(nested.stdout) if re.fullmatch(r"[0-9]{3}", nested.stdout) else 0
                 report(stage, exit_code=nested.returncode, http_status=status, warp_credentials_present=nested.returncode == 97)
                 if nested.returncode or status not in (200, 405):

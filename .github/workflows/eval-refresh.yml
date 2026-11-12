@@ -12,6 +12,11 @@ on:
         description: "Run one real Spark eval (creates a test project)"
         type: boolean
         default: false
+      warp_eval_network:
+        description: "Real eval container networking (host is a kernel compatibility fallback)"
+        type: choice
+        options: [bridge, host]
+        default: bridge
       warp_target:
         description: "WARP diagnostic environment"
         type: choice
@@ -134,6 +139,7 @@ jobs:
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           WARP_PROBE_REAL_EVAL: ${{ inputs.warp_eval }}
+          WARP_PROBE_NETWORK: ${{ inputs.warp_eval_network }}
           WARP_PROBE_IMAGE: ${{ inputs.warp_image }}
           WARP_PROBE_MODE: ${{ inputs.warp_mode }}
         working-directory: apps/framework
