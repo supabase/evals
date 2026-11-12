@@ -13,6 +13,11 @@ on:
         type: choice
         options: [runner, sandbox]
         default: runner
+      warp_image:
+        description: "Sandbox image for WARP diagnostics"
+        type: choice
+        options: [node24, universal]
+        default: node24
       experiments:
         description: "Comma-separated experiment names to run within each selected eval suite"
         required: false
@@ -118,6 +123,7 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          WARP_PROBE_IMAGE: ${{ inputs.warp_image }}
         working-directory: apps/framework
         run: node scripts/warp-enrollment-probe.mjs
 

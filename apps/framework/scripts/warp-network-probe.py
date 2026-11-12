@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import socket
 import subprocess
 import sys
@@ -24,6 +25,7 @@ def command(*args, timeout=30, input=None):
 def checked(*args, timeout=30, input=None):
     result = command(*args, timeout=timeout, input=input)
     if result.returncode:
+        report("command failure", exit_code=result.returncode, missing_command="command not found" in result.stderr, missing_repository="does not have a Release file" in result.stderr, package_missing="Unable to locate package" in result.stderr)
         raise RuntimeError("command failed")
     return result.stdout
 
@@ -62,6 +64,7 @@ def probe(config):
             print(f"::add-mask::{host}", flush=True)
 
         stage = "install WARP"
+        report("probe environment", apt_available=shutil.which("apt-get") is not None, dnf_available=shutil.which("dnf") is not None)
         checked("bash", "-c", """set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq

@@ -2,12 +2,12 @@ import { readFile } from 'node:fs/promises';
 import { Sandbox } from '@vercel/sandbox';
 
 const stages = new Set([
-  'validate configuration', 'install WARP', 'enroll and connect',
+  'validate configuration', 'install WARP', 'enroll and connect', 'probe environment', 'command failure',
   'resolve Spark', 'discover routes', 'before manual routes', 'Spark GET through WARP',
   'after route rollback', 'result', 'cleanup',
 ]);
 const fields = new Set([
-  'ok', 'connected', 'nft_unsupported', 'address_count', 'routed',
+  'apt_available', 'dnf_available', 'exit_code', 'missing_command', 'missing_repository', 'package_missing', 'ok', 'connected', 'nft_unsupported', 'address_count', 'routed',
   'curl_exit', 'http_status', 'address_index', 'projects_created', 'route_count', 'numeric_table_count',
 ]);
 
@@ -18,7 +18,7 @@ try {
     token: process.env.VERCEL_TOKEN,
     teamId: process.env.VERCEL_TEAM_ID,
     projectId: process.env.VERCEL_PROJECT_ID,
-    image: 'vercel/sandbox/node:24',
+    image: process.env.WARP_PROBE_IMAGE === 'universal' ? 'vercel/sandbox/universal' : 'vercel/sandbox/node:24',
     timeout: 900000,
     persistent: false,
     networkPolicy: 'allow-all',
