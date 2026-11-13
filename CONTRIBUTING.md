@@ -94,7 +94,7 @@ Tag #team-ai on Slack only for framework, runtime, experiment, result schema, or
 
 ## Docs evals
 
-The docs team owns `evals/docs/` and its results. Docs evals run without skills on a single experiment (`codex-gpt-6-luna-no-skills`, under `experiments/docs/`).
+The docs team owns `evals/docs/` and its results. Docs evals run without skills on a single experiment (`codex-gpt-6-luna-no-skills`, under `experiments/docs/`). The exception is the `build-docs-report-*` evals: they run only on the `codex-gpt-6-luna-docs-report-*` experiments. All of them except `none` need local inputs and skip without them, so CI runs only `none` (see `evals/docs/build-docs-report-001-outdated-page/README.md`).
 
 Common workflows:
 
