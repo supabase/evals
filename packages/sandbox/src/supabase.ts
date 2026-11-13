@@ -14,6 +14,7 @@
  * needed.
  */
 
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
@@ -103,14 +104,16 @@ export const SANDBOX_DOCKERFILE_PATH = fileURLToPath(
  * the layer cache makes repeat calls effectively free.
  */
 export async function ensureSupabaseSandboxImage(): Promise<string> {
-  // The base image carries only common tooling; its sole version input is the
-  // skills CLI. The Supabase CLI is installed per local-stack session
-  // (installSupabaseCli), so the image is shared across modes and CLI versions.
-  const tag = `${SANDBOX_IMAGE_REPOSITORY}:base-skills-${SKILLS_CLI_VERSION}`;
+  // Hashing the Dockerfile into the tag makes an edit rebuild the image.
+  const dockerfile = readFileSync(SANDBOX_DOCKERFILE_PATH, 'utf8');
+  const dockerfileHash = createHash('sha256')
+    .update(dockerfile)
+    .digest('hex')
+    .slice(0, 12);
+  const tag = `${SANDBOX_IMAGE_REPOSITORY}:base-skills-${SKILLS_CLI_VERSION}-${dockerfileHash}`;
   const existing = await dockerCli(['image', 'inspect', tag]);
   if (existing.ok) return tag;
 
-  const dockerfile = readFileSync(SANDBOX_DOCKERFILE_PATH, 'utf8');
   await withTransientRetries(
     `build ${tag}`,
     () =>
@@ -256,6 +259,16 @@ export async function setupSupabaseSandbox(
 
   if (options.localDir) {
     await sandbox.copyToContainer(options.localDir, sandbox.workdir);
+  }
+
+  // Remove a stack left by a run that died before teardown, so `supabase start`
+  // doesn't boot from its database. This runs after the hosted link because
+  // SUPABASE_PROJECT_ID names the stack.
+  if (
+    !options.skipCliInstall &&
+    (await sandbox.fileExists('supabase/config.toml'))
+  ) {
+    await stopSupabaseProject(sandbox);
   }
 
   // When linked to a hosted project with a wire endpoint, the CLI wrapper routes
@@ -478,17 +491,30 @@ export async function ensureEdgeRuntime(
 export async function teardownSupabaseProject(
   sandbox: DockerSandbox
 ): Promise<void> {
+  await stopSupabaseProject(sandbox);
+  await cleanupEvalSupabaseResources(sandbox);
+}
+
+/**
+ * Stop this workspace's stack and delete its volumes, leaving other local
+ * stacks alone. Logs a failure instead of throwing.
+ */
+async function stopSupabaseProject(sandbox: DockerSandbox): Promise<void> {
   try {
-    // Scoped stop for this workspace's project (no --all: a developer's own
-    // unrelated local stacks must survive eval runs).
-    await sandbox.runShell('supabase stop --no-backup', { timeoutMs: 120_000 });
+    const stop = await sandbox.runShell('supabase stop --no-backup', {
+      timeoutMs: 120_000,
+    });
+    if (!stop.ok) {
+      console.warn(
+        `[sandbox] supabase stop --no-backup exited ${stop.exitCode}: ${(stop.stderr || stop.stdout).trim()}`
+      );
+    }
   } catch (err) {
     console.warn(
-      '[sandbox] supabase stop failed (continuing with docker cleanup):',
+      '[sandbox] supabase stop --no-backup failed:',
       err instanceof Error ? err.message : err
     );
   }
-  await cleanupEvalSupabaseResources(sandbox);
 }
 
 /**

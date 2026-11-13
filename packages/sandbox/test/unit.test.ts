@@ -40,7 +40,11 @@ describe('sandbox Dockerfile', () => {
     expect(dockerfile).toContain('FROM node:22-slim');
     // Common tooling shared by both eval modes.
     expect(dockerfile).toContain('postgresql-client');
-    expect(dockerfile).toContain('docker.io');
+    // Docker CLI 23 or newer. The Dockerfile says why.
+    expect(dockerfile).toMatch(
+      /COPY --from=docker:2[3-9][.\d]*-cli \/usr\/local\/bin\/docker /
+    );
+    expect(dockerfile).not.toContain('docker.io');
     // The Supabase CLI is NOT baked in — it's a local-stack component installed
     // at setup time (installSupabaseCli), so tools-mode sandboxes genuinely lack
     // it. The base image is therefore shared across modes and CLI versions.
