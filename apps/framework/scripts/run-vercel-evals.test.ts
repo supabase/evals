@@ -1,4 +1,5 @@
-import { APIError } from '@vercel/sandbox';
+import { APIError, Sandbox } from '@vercel/sandbox';
+import { AbortError } from 'p-retry';
 import { resolveCliVersion, type CliChannel } from '@supabase-evals/sandbox';
 import { execFileSync } from 'node:child_process';
 import {
@@ -29,14 +30,75 @@ import {
   requiredCliChannels,
   resolveChannelPins,
   runBounded,
+  runPairOnce,
   tagValue,
   expandJobs,
   type EvalPair,
+  sparkWarpMdm,
 } from './run-vercel-evals.js';
 
 vi.mock('@supabase-evals/sandbox', () => ({ resolveCliVersion: vi.fn() }));
 
 const BROKERED_NAMES = BROKERED_KEYS.map(({ name }) => name);
+
+it('escapes credentials as XML text in the WARP configuration', () => {
+  expect(sparkWarpMdm('client<&>', 'secret<&>')).toContain(
+    '<key>auth_client_id</key><string>client&lt;&amp;&gt;</string>'
+  );
+  expect(sparkWarpMdm('client<&>', 'secret<&>')).toContain(
+    '<key>auth_client_secret</key><string>secret&lt;&amp;&gt;</string>'
+  );
+});
+
+describe('Spark terminal failures', () => {
+  const options = {
+    pair: {
+      eval_id: 'eval-1',
+      experiment: 'experiment-1',
+      eval_suite: 'spark',
+    },
+    pairs: [],
+    revision: 'test',
+    repoUrl: 'https://github.com/supabase/evals',
+    outputDir: '/tmp/unused-spark-results',
+    runs: 1,
+    timeoutSec: 1,
+    concurrency: 1,
+    vcpus: 1,
+    attempt: 1,
+    run: 1,
+    pins: {},
+  };
+  const credentials = { token: 'test', teamId: 'test', projectId: 'test' };
+
+  beforeEach(() => {
+    for (const name of BROKERED_NAMES) vi.stubEnv(name, '');
+    vi.stubEnv('SPARK_API_URL', 'https://control.example');
+    vi.stubEnv('CLOUDFLARE_WARP_CLIENT_ID', 'test.access');
+    vi.stubEnv('CLOUDFLARE_WARP_CLIENT_SECRET', 'test');
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it.each(['unauthorized Sandbox', 'missing credentials'])(
+    'aborts %s without retrying',
+    async (reason) => {
+      if (reason === 'missing credentials')
+        vi.stubEnv('CLOUDFLARE_WARP_CLIENT_SECRET', '');
+      const create = vi
+        .spyOn(Sandbox, 'create')
+        .mockRejectedValue(new APIError(new Response(null, { status: 401 })));
+      await expect(runPairOnce(options, credentials)).rejects.toBeInstanceOf(
+        AbortError
+      );
+      expect(create).toHaveBeenCalledTimes(
+        reason === 'missing credentials' ? 0 : 1
+      );
+    }
+  );
+});
 
 describe('agentEnvironment', () => {
   const originalValues = new Map<string, string | undefined>();
@@ -420,6 +482,27 @@ describe('Vercel eval controller', () => {
     } finally {
       rmSync(temporary, { recursive: true, force: true });
     }
+  });
+
+  it('downloads only sanitized JSON for Spark, never workspace or session archives', async () => {
+    const downloadFile = vi.fn().mockResolvedValue('downloaded');
+    const result = await downloadResults(
+      { downloadFile },
+      { eval_id: 'eval-1', experiment: 'experiment-1', eval_suite: 'spark' },
+      1,
+      '/tmp/unused-spark-results',
+      '/vercel/evals'
+    );
+    expect(downloadFile).toHaveBeenCalledExactlyOnceWith(
+      {
+        path: '/vercel/evals/results/spark/experiment-1/eval-1/run-1/result.json',
+      },
+      { path: result.partialPath },
+      { mkdirRecursive: true }
+    );
+    expect(result.partialPath).toBe(
+      '/tmp/unused-spark-results/raw-results-spark__experiment-1__eval-1/eval-1/run-1/result.json.partial'
+    );
   });
 
   it('downloads result metadata separately from agent workspace files', async () => {
