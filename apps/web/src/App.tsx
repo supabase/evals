@@ -1,6 +1,7 @@
 import { useQueryStates } from "nuqs"
 
 import { EvalOverviewCards } from "@/components/eval-overview-cards"
+import { ExperimentRationale } from "@/components/experiment-rationale"
 import { PageContainer } from "@/components/page-container"
 import { ResultsTable } from "@/components/results/results-table"
 import { SiteFooter } from "@/components/site-footer"
@@ -43,8 +44,11 @@ export function App() {
                 }}
               />
             </PageContainer>
-            <PageContainer className="pb-24 md:pb-28">
+            <PageContainer className="pb-10 md:pb-12">
               <EvalOverviewCards />
+            </PageContainer>
+            <PageContainer className="pb-24 md:pb-28">
+              <ExperimentRationale />
             </PageContainer>
             <SiteFooter />
           </>

@@ -7,6 +7,7 @@ import {
   JOURNEY_STAGES,
   UNASSIGNED_PRODUCT,
   getEvalIds,
+  getExperimentRationale,
   getProductKeys,
   getProductResults,
   getVisibleExperiments,
@@ -14,6 +15,16 @@ import {
   sortResults,
   sortedResults,
 } from "@/lib/eval-results"
+
+it("reads the rationale carried by the published result", () => {
+  const rationale = { summary: ["Published choice."] }
+  const result = makeResult({
+    experiment: "pinned",
+    experimentRationale: rationale,
+  })
+  expect(getExperimentRationale("pinned", [result])).toEqual(rationale)
+  expect(getExperimentRationale("other", [result])).toBeUndefined()
+})
 
 describe("sortResults", () => {
   const order = (results: ReturnType<typeof makeResult>[]) =>

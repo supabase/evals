@@ -2,14 +2,17 @@ import { test } from "vitest"
 import assert from "node:assert/strict"
 import {
   assemble,
+  attachRationales,
   createBraintrustRequest,
   fetchExperiments,
+  publicationPins,
   retryAfterMs,
 } from "./fetch-braintrust.ts"
 
 const id = "63331944-8a8c-4396-8add-d6fbe88f80d3"
 const experiment: Parameters<typeof assemble>[0][number] = {
   id,
+  created: "2026-10-28T18:53:01.928Z",
   metadata: {
     experiment: "example",
     expected_runs: 1,
@@ -58,6 +61,45 @@ const usage: Parameters<typeof assemble>[3][number] = {
 }
 const make = (roots = [root], children = [score, task], usages = [usage]) =>
   assemble([experiment], roots, children, usages, ["example-eval"])
+
+test("carries the pinned experiment's rationale into published results", () => {
+  const rationale = {
+    summary: ["A ", { text: "model", url: "https://example.com" }, "."],
+  }
+  const withoutSkills = "d2e33ddc-64f1-4392-892c-d4db9f3d0146"
+  const entries = [
+    { experiment: "example", withSkills: id, withoutSkills, rationale },
+  ]
+  const [pinned, unskilled] = attachRationales(
+    [experiment, { ...experiment, id: withoutSkills }],
+    entries
+  )
+  assert.deepEqual(unskilled.rationale, rationale)
+  const [result] = assemble(
+    [pinned],
+    [root],
+    [score, task],
+    [usage],
+    ["example-eval"]
+  )
+  assert.deepEqual(result.experimentRationale, rationale)
+  assert.equal(result.experimentCreatedAt, experiment.created)
+  assert.throws(() => attachRationales([experiment], []), /Missing rationale/)
+})
+
+test("requires both variants outside partial mode and rejects duplicate names", () => {
+  const rationale = { summary: ["A model."] }
+  const entry = { experiment: "example", withSkills: id, rationale }
+  assert.throws(
+    () => publicationPins([entry], false),
+    /Missing pinned variants/
+  )
+  assert.deepEqual(publicationPins([entry], true), { example: id })
+  assert.throws(
+    () => publicationPins([entry, entry], true),
+    /distinct experiment names/
+  )
+})
 
 test("joins failed runs, scorer checks, task duration, and trace usage", () => {
   const [result] = make()

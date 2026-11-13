@@ -5,8 +5,12 @@
 FROM node:22-slim
 
 RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
-    ca-certificates curl git docker.io postgresql-client \
+    ca-certificates curl git postgresql-client \
   && rm -rf /var/lib/apt/lists/*
+
+# Debian's Docker CLI is too old for `supabase stop --no-backup` to delete
+# volumes before CLI 2.122.0 (https://github.com/supabase/cli/pull/7177).
+COPY --from=docker:27.5.1-cli /usr/local/bin/docker /usr/local/bin/docker
 
 # Global npm installs (both the baked-in skills CLI below and the agent's own
 # `npm install -g supabase` at setup time) land in a node-owned prefix instead

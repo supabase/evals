@@ -12,8 +12,6 @@ const htmlFile = path.join(appDir, "dist", "index.html")
 const serverEntryFile = path.join(appDir, "dist-ssr", "entry-server.js")
 
 const ROOT_DIV = '<div id="root"></div>'
-/** The results table renders one header row above its data rows. */
-const HEADER_ROWS = 1
 /** Rendered by App when the results file parses to nothing. */
 const EMPTY_STATE = "No result files found"
 
@@ -73,15 +71,10 @@ if (markup.includes(EMPTY_STATE)) {
   fail("the app rendered its empty state, so the results data did not load")
 }
 
-const expectedRows = expectedTableRows + HEADER_ROWS
-const tableRows = markup.match(/<tr\b/g)?.length ?? 0
-if (!markup.includes("<table")) {
-  fail("the rendered markup has no results table")
-}
-
-if (tableRows !== expectedRows) {
+const renderedResultRowCount = markup.split('data-result-row=""').length - 1
+if (renderedResultRowCount !== expectedTableRows) {
   fail(
-    `the rendered table has ${tableRows} rows, expected ${expectedRows} (${expectedTableRows} data rows plus a header)`
+    `rendered ${renderedResultRowCount} results rows, expected ${expectedTableRows}`
   )
 }
 
@@ -104,5 +97,5 @@ copyFileSync(
 )
 writeFileSync(htmlFile, prerendered)
 console.log(
-  `prerender: wrote ${path.relative(appDir, htmlFile)} (${tableRows} table rows, ${markup.length} bytes of markup)`
+  `prerender: wrote ${path.relative(appDir, htmlFile)} (${renderedResultRowCount} result rows, ${markup.length} bytes of markup)`
 )
