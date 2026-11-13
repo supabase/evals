@@ -104,11 +104,7 @@ export const SANDBOX_DOCKERFILE_PATH = fileURLToPath(
  * the layer cache makes repeat calls effectively free.
  */
 export async function ensureSupabaseSandboxImage(): Promise<string> {
-  // The base image carries only common tooling; its inputs are the skills CLI
-  // version and the Dockerfile itself, hashed so an edited Dockerfile gets a
-  // new tag instead of reusing a stale cached image. The Supabase CLI is
-  // installed per local-stack session (installSupabaseCli), so the image is
-  // shared across modes and CLI versions.
+  // Hashing the Dockerfile into the tag makes an edit rebuild the image.
   const dockerfile = readFileSync(SANDBOX_DOCKERFILE_PATH, 'utf8');
   const dockerfileHash = createHash('sha256')
     .update(dockerfile)
@@ -265,10 +261,9 @@ export async function setupSupabaseSandbox(
     await sandbox.copyToContainer(options.localDir, sandbox.workdir);
   }
 
-  // A run that died before teardown (Ctrl-C, crash) leaves its stack behind
-  // under this workspace's project id, and the next `supabase start` would
-  // boot from its database. Remove it first, scoped to this project. After the
-  // hosted link, whose SUPABASE_PROJECT_ID names the stack.
+  // Remove a stack left by a run that died before teardown, so `supabase start`
+  // doesn't boot from its database. This runs after the hosted link because
+  // SUPABASE_PROJECT_ID names the stack.
   if (
     !options.skipCliInstall &&
     (await sandbox.fileExists('supabase/config.toml'))
@@ -501,10 +496,8 @@ export async function teardownSupabaseProject(
 }
 
 /**
- * Stop this workspace's local stack and delete its volumes. Scoped to the
- * workspace's project (no --all: a developer's own unrelated local stacks must
- * survive eval runs). Best-effort: never throws, but logs a failure, which
- * would otherwise leave the database volume for the next run to boot from.
+ * Stop this workspace's stack and delete its volumes, leaving other local
+ * stacks alone. Logs a failure instead of throwing.
  */
 async function stopSupabaseProject(sandbox: DockerSandbox): Promise<void> {
   try {

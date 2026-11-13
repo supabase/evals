@@ -101,8 +101,7 @@ export async function createAgentEnvironment(
     const skills = await installSkills(sandbox, options.skills ?? []);
     return { sandbox, skills, close: () => sandbox.stop() };
   } catch (err) {
-    // A failed setup (e.g. `supabase start` timing out) can leave a stack
-    // running; stopping the sandbox alone would leak it into the next run.
+    // A failed setup can leave a stack running.
     if (options.localStack) await teardownSupabaseProject(sandbox);
     await sandbox.stop();
     throw err;

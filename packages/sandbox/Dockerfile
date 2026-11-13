@@ -8,11 +8,8 @@ RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
     ca-certificates curl git postgresql-client \
   && rm -rf /var/lib/apt/lists/*
 
-# The Docker CLI (talking to the host daemon through the mounted socket), from
-# Docker's official static build rather than Debian's package, which ships
-# 20.10. With a client older than 23.0, `supabase stop --no-backup`
-# on CLI versions before 2.122.0 removes the containers but fails to prune the
-# database volume (CLI-2637), so the next run would boot from it.
+# Debian's Docker CLI is too old for `supabase stop --no-backup` to delete
+# volumes before CLI 2.122.0 (https://github.com/supabase/cli/pull/7177).
 COPY --from=docker:27.5.1-cli /usr/local/bin/docker /usr/local/bin/docker
 
 # Global npm installs (both the baked-in skills CLI below and the agent's own

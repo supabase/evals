@@ -40,8 +40,7 @@ describe('sandbox Dockerfile', () => {
     expect(dockerfile).toContain('FROM node:22-slim');
     // Common tooling shared by both eval modes.
     expect(dockerfile).toContain('postgresql-client');
-    // Docker's own CLI, not Debian's docker.io (20.10): older than 23.0, it makes
-    // `supabase stop --no-backup` leave the database volume behind (CLI-2637).
+    // Docker CLI 23 or newer. The Dockerfile says why.
     expect(dockerfile).toMatch(
       /COPY --from=docker:2[3-9][.\d]*-cli \/usr\/local\/bin\/docker /
     );

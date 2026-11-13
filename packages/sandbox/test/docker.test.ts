@@ -346,8 +346,8 @@ describe.runIf(process.env.SANDBOX_DOCKER_TESTS)(
     );
 
     describe('each session starts from a fresh database', () => {
-      // A fixture project id without the `sandbox-` prefix, like most eval
-      // fixtures, on its own ports so it can't collide with other stacks.
+      // No `sandbox-` prefix, so the prefix-based leftover sweep can't mask a
+      // failure. Its own ports keep it clear of other stacks.
       const projectId = `evals-fresh-db-${randomUUID().slice(0, 8)}`;
       const label = `label=com.supabase.cli.project=${projectId}`;
       const fixture = mkdtempSync(join(tmpdir(), 'fresh-db-fixture-'));
@@ -399,7 +399,7 @@ describe.runIf(process.env.SANDBOX_DOCKER_TESTS)(
         rmSync(fixture, { recursive: true, force: true });
       });
 
-      /** Boot a session on the fixture, as the local-stack runtime does. */
+      /** Mirrors the local-stack runtime's session setup and close. */
       async function startRun() {
         const env = await createAgentEnvironment({
           localDir: fixture,
@@ -414,8 +414,9 @@ describe.runIf(process.env.SANDBOX_DOCKER_TESTS)(
         };
       }
 
-      /** What an agent leaves behind: an applied migration and a new table. */
-      async function changeDatabase(sandbox: DockerSandbox): Promise<void> {
+      async function applyAgentMigration(
+        sandbox: DockerSandbox
+      ): Promise<void> {
         await sandbox.writeFiles({
           [`supabase/migrations/${agentMigration}_agent.sql`]:
             'create table public.agent_change (id int);\n',
@@ -440,26 +441,24 @@ describe.runIf(process.env.SANDBOX_DOCKER_TESTS)(
       }
 
       it(
-        'after a torn-down run and after a run killed before teardown',
+        'after teardown and after a killed run',
         { timeout: TEST_TIMEOUT_MS },
         async () => {
           const first = await startRun();
           try {
-            await changeDatabase(first.sandbox);
+            await applyAgentMigration(first.sandbox);
           } finally {
             await first.close();
           }
-          // Teardown deletes the database volume, not just the containers.
           expect(await listed('volume')).toEqual([]);
 
           const second = await startRun();
           await expectFreshDatabase(second.sandbox);
-          await changeDatabase(second.sandbox);
-          // Killed before teardown (e.g. Ctrl-C): the stack leaks...
+          await applyAgentMigration(second.sandbox);
+          // Simulate a run killed before teardown.
           await second.sandbox.stop();
           expect(await listed('volume')).not.toEqual([]);
 
-          // ...and the next run removes it before starting.
           const third = await startRun();
           try {
             await expectFreshDatabase(third.sandbox);
