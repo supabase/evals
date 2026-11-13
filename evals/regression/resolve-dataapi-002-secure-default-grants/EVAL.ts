@@ -304,13 +304,13 @@ async function checkSecureDefaultDiagnosisAndFix(
       Pass if the assistant handles the empty Data API results as a secure-by-default Data API exposure issue and fixes the missing explicit grants for authenticated clients without weakening the existing owner-scoped RLS policies.
 
       A passing answer should:
-      - Diagnose that the project has api.auto_expose_new_tables disabled or equivalent secure-by-default behavior, so SQL-created tables need explicit grants before authenticated clients can use them through the Data API.
+      - Diagnose that the table is missing explicit Data API grants for authenticated clients, because SQL-created tables are not exposed automatically (api.auto_expose_new_tables is disabled). Naming the setting is not required: a correct diagnosis that the table lacks grants for authenticated, while RLS policies already exist, is enough.
       - Distinguish Data API table privileges from RLS. Grants make the table reachable; RLS policies decide which rows signed-in users can see or insert.
       - Notice that the journal_entries table already has owner-scoped SELECT and INSERT RLS policies, or at least avoid blaming the whole issue on missing RLS policies.
       - Grant SELECT and INSERT on public.journal_entries to authenticated, not anon or public.
       - Keep RLS enabled on the journal_entries table.
 
-      Fail if the assistant only adds or edits RLS policies without addressing missing grants, disables RLS, grants access to anon/public, creates permissive policies such as USING (true), claims the core problem is missing RLS policies, blames the empty results only on data/query/connection problems, or never recognizes the secure-by-default Data API exposure behavior.
+      Fail if the assistant only adds or edits RLS policies without addressing missing grants, disables RLS, grants access to anon/public, creates permissive policies such as USING (true), claims the core problem is missing RLS policies, blames the empty results only on data/query/connection problems, or never identifies missing table grants for authenticated as the cause.
     `,
   });
 
