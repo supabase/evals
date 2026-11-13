@@ -5,16 +5,18 @@
  *
  *   pnpm --filter @supabase-evals/sandbox test:docker
  */
+import { randomUUID } from 'node:crypto';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
+import { createAgentEnvironment } from '../src/agent-environment.js';
 import {
   buildLocalStackScoringContext,
   localStackRuntime,
 } from '../src/local-stack-runtime.js';
-import { DockerSandbox } from '../src/docker-sandbox.js';
 import { createBareSandbox } from '../src/bare-sandbox.js';
+import { DockerSandbox, dockerCli } from '../src/docker-sandbox.js';
 import {
   ensureSupabaseSandboxImage,
   setupSupabaseSandbox,
@@ -364,5 +366,131 @@ describe.runIf(process.env.SANDBOX_DOCKER_TESTS)(
         }
       }
     );
+
+    describe('each session starts from a fresh database', () => {
+      // No `sandbox-` prefix, so the prefix-based leftover sweep can't mask a
+      // failure. Its own ports keep it clear of other stacks.
+      const projectId = `evals-fresh-db-${randomUUID().slice(0, 8)}`;
+      const label = `label=com.supabase.cli.project=${projectId}`;
+      const fixture = mkdtempSync(join(tmpdir(), 'fresh-db-fixture-'));
+      mkdirSync(join(fixture, 'supabase', 'migrations'), { recursive: true });
+      writeFileSync(
+        join(fixture, 'supabase', 'config.toml'),
+        [
+          `project_id = "${projectId}"`,
+          '[api]',
+          'port = 55621',
+          '[db]',
+          'port = 55622',
+          'shadow_port = 55620',
+          '[studio]',
+          'port = 55623',
+          '[inbucket]',
+          'port = 55624',
+          '[analytics]',
+          'port = 55627',
+          '',
+        ].join('\n')
+      );
+      writeFileSync(
+        join(fixture, 'supabase', 'migrations', '20260101000000_seed.sql'),
+        'create table public.seeded (id int);\n'
+      );
+      const agentMigration = '20260102000000';
+
+      async function listed(kind: 'ps' | 'volume'): Promise<string[]> {
+        const args = kind === 'ps' ? ['ps', '-aq'] : ['volume', 'ls', '-q'];
+        const result = await dockerCli([...args, '--filter', label]);
+        return result.stdout.split('\n').filter(Boolean);
+      }
+
+      afterAll(async () => {
+        const containers = await listed('ps');
+        if (containers.length) await dockerCli(['rm', '-f', ...containers]);
+        const volumes = await listed('volume');
+        if (volumes.length) await dockerCli(['volume', 'rm', ...volumes]);
+        const networks = await dockerCli([
+          'network',
+          'ls',
+          '-q',
+          '--filter',
+          label,
+        ]);
+        const ids = networks.stdout.split('\n').filter(Boolean);
+        if (ids.length) await dockerCli(['network', 'rm', ...ids]);
+        rmSync(fixture, { recursive: true, force: true });
+      });
+
+      /** Mirrors the local-stack runtime's session setup and close. */
+      async function startRun() {
+        const env = await createAgentEnvironment({
+          localDir: fixture,
+          localStack: { includeServices: [] },
+        });
+        return {
+          sandbox: env.sandbox,
+          close: async () => {
+            await teardownSupabaseProject(env.sandbox);
+            await env.close();
+          },
+        };
+      }
+
+      async function applyAgentMigration(
+        sandbox: DockerSandbox
+      ): Promise<void> {
+        await sandbox.writeFiles({
+          [`supabase/migrations/${agentMigration}_agent.sql`]:
+            'create table public.agent_change (id int);\n',
+        });
+        const up = await sandbox.runShell('supabase migration up --local');
+        expect(up.ok, up.stderr).toBe(true);
+      }
+
+      async function expectFreshDatabase(
+        sandbox: DockerSandbox
+      ): Promise<void> {
+        const { rows } = await buildLocalStackScoringContext(sandbox).query(
+          "select to_regclass('public.seeded')::text as seeded, to_regclass('public.agent_change')::text as agent_change"
+        );
+        expect(rows).toEqual([{ seeded: 'seeded', agent_change: null }]);
+        const history = await sandbox.runShell(
+          'supabase migration list --local'
+        );
+        expect(history.ok, history.stderr).toBe(true);
+        expect(history.stdout).toContain('20260101000000');
+        expect(history.stdout).not.toContain(agentMigration);
+      }
+
+      it(
+        'after teardown and after a killed run',
+        { timeout: TEST_TIMEOUT_MS },
+        async () => {
+          const first = await startRun();
+          try {
+            await applyAgentMigration(first.sandbox);
+          } finally {
+            await first.close();
+          }
+          expect(await listed('volume')).toEqual([]);
+
+          const second = await startRun();
+          await expectFreshDatabase(second.sandbox);
+          await applyAgentMigration(second.sandbox);
+          // Simulate a run killed before teardown.
+          await second.sandbox.stop();
+          expect(await listed('volume')).not.toEqual([]);
+
+          const third = await startRun();
+          try {
+            await expectFreshDatabase(third.sandbox);
+          } finally {
+            await third.close();
+          }
+          expect(await listed('volume')).toEqual([]);
+          expect(await listed('ps')).toEqual([]);
+        }
+      );
+    });
   }
 );

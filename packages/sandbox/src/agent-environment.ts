@@ -18,6 +18,7 @@ import { DockerSandbox } from './docker-sandbox.js';
 import {
   ensureSupabaseSandboxImage,
   setupSupabaseSandbox,
+  teardownSupabaseProject,
 } from './supabase.js';
 import { installSkills, type SkillEntry } from './skills.js';
 
@@ -102,6 +103,8 @@ export async function createAgentEnvironment(
     const skills = await installSkills(sandbox, options.skills ?? []);
     return { sandbox, skills, close: () => sandbox.stop() };
   } catch (err) {
+    // A failed setup can leave a stack running.
+    if (options.localStack) await teardownSupabaseProject(sandbox);
     await sandbox.stop();
     throw err;
   }
