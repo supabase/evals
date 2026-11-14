@@ -69,9 +69,6 @@ diagnosis paths: a run that skips `inspect` is the signal this eval records.
 - `area: diagnostics`
 - `journeyPhase: observe`
 
-Both are the CLI evals plan's unofficial frontmatter keys. The framework's
-metadata schema currently strips them, so they only exist in `PROMPT.md`.
-
 ## The prompt names no subcommand, table, column, or fix
 
 `PROMPT.md` never says `inspect`, `index`, `query`, `queries`, `scan`,

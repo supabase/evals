@@ -40,6 +40,33 @@ export const evalTopicSchema = z.enum([
 export const EVAL_TOPICS = evalTopicSchema.options;
 export type EvalTopic = z.infer<typeof evalTopicSchema>;
 
+// KPI 2 journey phases for CLI evals; these differ from `stage`.
+export const evalJourneyPhaseSchema = z.enum([
+  'design',
+  'deploy',
+  'observe',
+  'detect',
+  'resolve',
+]);
+export const EVAL_JOURNEY_PHASES = evalJourneyPhaseSchema.options;
+export type EvalJourneyPhase = z.infer<typeof evalJourneyPhaseSchema>;
+
+// CLI product areas from the CLI evals coverage grid; a closed set like `topic`.
+export const evalAreaSchema = z.enum([
+  'local-stacks',
+  'schema-and-migrations',
+  'type-generation',
+  'edge-functions',
+  'linking-and-login',
+  'config-and-secrets',
+  'branching',
+  'tests-and-lint',
+  'diagnostics',
+  'storage',
+]);
+export const EVAL_AREAS = evalAreaSchema.options;
+export type EvalArea = z.infer<typeof evalAreaSchema>;
+
 export const evalSuiteSchema = z.enum([
   'benchmark',
   'regression',
@@ -112,6 +139,8 @@ export type EvalMetadata = {
   product: EvalProduct[];
   topic: EvalTopic[];
   interface: EvalInterface;
+  area?: EvalArea;
+  journeyPhase?: EvalJourneyPhase;
   /** Supabase CLI version this scenario requires (sandbox evals only). */
   cliVersion?: string;
   /**
@@ -170,6 +199,8 @@ export const evalMetadataSchema = z.object({
   product: z.array(evalProductSchema).min(1),
   topic: z.array(evalTopicSchema).min(1),
   interface: evalInterfaceSchema,
+  area: evalAreaSchema.optional(),
+  journeyPhase: evalJourneyPhaseSchema.optional(),
   cliVersion: cliVersionSchema.optional(),
   services: z.array(z.string().min(1)).optional(),
   // Real YAML booleans or quoted string forms ("true"/"false", yes/no/on/off);
@@ -243,6 +274,8 @@ export const evalFrontmatterSchema = z.preprocess((raw) => {
     product: toTokenList(data.product ?? data.products),
     topic: toTokenList(data.topic ?? data.topics),
     interface: toToken(data.interface),
+    area: toToken(data.area),
+    journeyPhase: toToken(data.journeyPhase),
     cliVersion: data.cliVersion,
     // `services: []` means database only; an omitted key means the full stack.
     // Only an explicit list is honored — any other value is treated as absent.
@@ -420,6 +453,8 @@ const evalResultShape = {
   topic: z.array(evalTopicSchema).optional(),
   suite: evalSuiteSchema.optional(),
   interface: evalInterfaceSchema,
+  area: evalAreaSchema.optional(),
+  journeyPhase: evalJourneyPhaseSchema.optional(),
   cliVersion: cliVersionSchema.optional(),
   passed: z.boolean().optional(),
   checks: z.array(checkResultSchema).optional(),
