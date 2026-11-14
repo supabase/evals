@@ -58,7 +58,12 @@ const URL_IN_COMMAND_PATTERN = /https?:\/\/[^\s'"`\\;|&>()]+/g;
  */
 function isSupabaseApexUrl(value: string): boolean {
   try {
-    return new URL(value).hostname === 'supabase.com';
+    const hostname = new URL(value).hostname;
+    return (
+      hostname === 'supabase.com' ||
+      (process.env.DOCS_PREVIEW_HOST !== undefined &&
+        /^docs-[a-z0-9-]+-supabase\.vercel\.app$/.test(hostname))
+    );
   } catch {
     return false;
   }
