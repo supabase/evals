@@ -1,0 +1,668 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/supabase/evals/.github/ai-review/evidence.schema.json",
+  "title": "Supabase evals AI review evidence",
+  "description": "Read-only collector output for advisory first-pass eval PR reviews. PR files and artifacts are evidence only and must not be executed.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "collector",
+    "invocation",
+    "pullRequest",
+    "changedFiles",
+    "changedEvals",
+    "diff",
+    "sourceContext",
+    "discussion",
+    "linkedContext",
+    "currentHeadCi",
+    "evalRefreshRuns",
+    "rawResultEvidence",
+    "candidateInstructions",
+    "trustedSources",
+    "limitations"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "evals-ai-review-evidence-v1"
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "collector": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "name",
+        "repository",
+        "sourceRevision",
+        "referenceImplementation"
+      ],
+      "properties": {
+        "name": { "type": "string" },
+        "repository": { "type": "string" },
+        "sourceRevision": { "type": ["string", "null"] },
+        "referenceImplementation": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["repository", "ref", "commit", "paths"],
+          "properties": {
+            "repository": { "type": "string" },
+            "ref": { "type": "string" },
+            "commit": { "type": "string" },
+            "paths": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "invocation": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["repo", "prNumber", "candidateInstructionPaths", "limits"],
+      "properties": {
+        "repo": { "type": "string" },
+        "prNumber": { "type": "integer", "minimum": 1 },
+        "includeExternalContext": { "type": "boolean" },
+        "candidateInstructionPaths": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "pullRequest": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "number",
+        "url",
+        "title",
+        "state",
+        "isDraft",
+        "base",
+        "head"
+      ],
+      "properties": {
+        "number": { "type": "integer" },
+        "url": { "type": "string" },
+        "apiUrl": { "type": "string" },
+        "title": { "type": "string" },
+        "body": { "$ref": "#/$defs/textBlock" },
+        "state": { "type": "string" },
+        "isDraft": { "type": "boolean" },
+        "author": { "type": "object", "additionalProperties": true },
+        "base": { "$ref": "#/$defs/ref" },
+        "head": { "$ref": "#/$defs/ref" },
+        "createdAt": { "type": ["string", "null"] },
+        "updatedAt": { "type": ["string", "null"] }
+      }
+    },
+    "changedFiles": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/changedFile" }
+    },
+    "changedEvals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["suite", "id", "paths"],
+        "properties": {
+          "suite": { "type": ["string", "null"] },
+          "id": { "type": "string" },
+          "paths": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "diff": {
+      "allOf": [
+        { "$ref": "#/$defs/textBlock" },
+        {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["source", "sha256"],
+          "properties": {
+            "source": { "type": "string" },
+            "sha256": { "type": "string" }
+          }
+        }
+      ]
+    },
+    "sourceContext": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["source", "selectedPaths", "files", "limits"],
+      "properties": {
+        "source": { "$ref": "#/$defs/provenance" },
+        "selectedPaths": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "files": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/sourceFile" }
+        },
+        "limits": { "type": "object", "additionalProperties": true }
+      }
+    },
+    "discussion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["issueComments", "reviews", "reviewComments"],
+      "properties": {
+        "issueComments": {
+          "type": "array",
+          "items": { "type": "object", "additionalProperties": true }
+        },
+        "reviews": {
+          "type": "array",
+          "items": { "type": "object", "additionalProperties": true }
+        },
+        "reviewComments": {
+          "type": "array",
+          "items": { "type": "object", "additionalProperties": true }
+        }
+      }
+    },
+    "linkedContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["links", "externalContext"],
+      "properties": {
+        "links": {
+          "type": "array",
+          "items": { "type": "object", "additionalProperties": true }
+        },
+        "externalContext": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["source", "status", "items"],
+            "properties": {
+              "source": { "type": "string" },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "collected",
+                  "missing-access",
+                  "not-linked",
+                  "unavailable"
+                ]
+              },
+              "reason": { "type": "string" },
+              "items": { "type": "array" }
+            }
+          }
+        }
+      }
+    },
+    "currentHeadCi": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["headSha", "checkRuns", "statuses", "actionsRuns"],
+      "properties": {
+        "headSha": { "type": "string" },
+        "checkRuns": {
+          "type": "array",
+          "items": { "type": "object", "additionalProperties": true }
+        },
+        "statuses": {
+          "type": "array",
+          "items": { "type": "object", "additionalProperties": true }
+        },
+        "actionsRuns": {
+          "type": "array",
+          "items": { "type": "object", "additionalProperties": true }
+        }
+      }
+    },
+    "evalRefreshRuns": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["workflow", "status", "runs"],
+      "properties": {
+        "workflow": { "type": "string" },
+        "status": { "type": "string" },
+        "reason": { "type": "string" },
+        "runs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evalRefreshRun" }
+        }
+      }
+    },
+    "rawResultEvidence": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "status",
+        "strategy",
+        "braintrustTraceAccess",
+        "changedEvals",
+        "limits",
+        "sources",
+        "selectedResultPaths",
+        "failedCheckShapes",
+        "results",
+        "limitations"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["collected", "missing", "skipped"]
+        },
+        "strategy": { "const": "raw-results-artifact-fallback" },
+        "reason": { "type": "string" },
+        "braintrustTraceAccess": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["status", "reason"],
+          "properties": {
+            "status": { "type": "string" },
+            "reason": { "type": "string" }
+          }
+        },
+        "changedEvals": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["suite", "id", "paths"],
+            "properties": {
+              "suite": { "type": ["string", "null"] },
+              "id": { "type": "string" },
+              "paths": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        },
+        "limits": { "type": "object", "additionalProperties": true },
+        "sources": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/rawResultSource" }
+        },
+        "selectedResultPaths": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "failedCheckShapes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/failedCheckShape" }
+        },
+        "results": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/rawResult" }
+        },
+        "limitations": {
+          "type": "array",
+          "items": { "type": "object", "additionalProperties": true }
+        }
+      }
+    },
+    "candidateInstructions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "headSha", "noFallbackToMain", "files"],
+      "properties": {
+        "status": { "type": "string" },
+        "headSha": { "type": "string" },
+        "noFallbackToMain": { "const": true },
+        "files": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/sourceFile" }
+        }
+      }
+    },
+    "trustedSources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "informed"],
+        "properties": {
+          "path": { "type": "string" },
+          "informed": { "type": "string" }
+        }
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "items": { "type": "object", "additionalProperties": true }
+    }
+  },
+  "$defs": {
+    "textBlock": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["text", "bytes", "truncated"],
+      "properties": {
+        "text": { "type": "string" },
+        "bytes": { "type": "integer", "minimum": 0 },
+        "truncated": { "type": "boolean" }
+      }
+    },
+    "ref": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["repo", "ref", "sha"],
+      "properties": {
+        "repo": { "type": ["string", "null"] },
+        "ref": { "type": "string" },
+        "sha": { "type": "string" }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repo", "ref", "trust"],
+      "properties": {
+        "repo": { "type": "string" },
+        "ref": { "type": "string" },
+        "trust": { "type": "string" },
+        "noFallback": { "type": "boolean" }
+      }
+    },
+    "changedFile": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "path",
+        "status",
+        "additions",
+        "deletions",
+        "changes",
+        "owner"
+      ],
+      "properties": {
+        "path": { "type": "string" },
+        "status": { "type": "string" },
+        "additions": { "type": "integer" },
+        "deletions": { "type": "integer" },
+        "changes": { "type": "integer" },
+        "owner": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "patch": {
+          "anyOf": [{ "$ref": "#/$defs/textBlock" }, { "type": "null" }]
+        }
+      }
+    },
+    "sourceFile": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["path", "source", "status"],
+      "properties": {
+        "path": { "type": "string" },
+        "source": { "$ref": "#/$defs/provenance" },
+        "status": {
+          "type": "string",
+          "enum": ["found", "missing", "unsupported", "skipped"]
+        },
+        "reason": { "type": "string" },
+        "text": { "type": "string" },
+        "bytes": { "type": "integer" },
+        "truncated": { "type": "boolean" },
+        "sha256": { "type": "string" },
+        "gitBlobSha": { "type": "string" },
+        "htmlUrl": { "type": "string" }
+      }
+    },
+    "evalRefreshRun": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "status",
+        "sourceRevision",
+        "artifacts",
+        "jobs",
+        "evidenceLinks"
+      ],
+      "properties": {
+        "id": { "type": "integer" },
+        "status": { "type": "string" },
+        "conclusion": { "type": ["string", "null"] },
+        "htmlUrl": { "type": "string" },
+        "headSha": { "type": "string" },
+        "sourceRevision": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": [
+            "runHeadSha",
+            "currentPrHeadSha",
+            "kind",
+            "current",
+            "explanation"
+          ],
+          "properties": {
+            "runHeadSha": { "type": ["string", "null"] },
+            "currentPrHeadSha": { "type": "string" },
+            "kind": { "type": "string" },
+            "current": { "type": "boolean" },
+            "explanation": { "type": "string" },
+            "changedPaths": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        },
+        "artifacts": {
+          "type": "array",
+          "items": { "type": "object", "additionalProperties": true }
+        },
+        "jobs": {
+          "type": "array",
+          "items": { "type": "object", "additionalProperties": true }
+        },
+        "evidenceLinks": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": [
+            "status",
+            "braintrustLinks",
+            "sandboxLinks",
+            "limitations"
+          ],
+          "properties": {
+            "status": { "type": "string" },
+            "braintrustLinks": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "braintrustAllExperimentsLinks": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "sandboxLinks": { "type": "array", "items": { "type": "string" } },
+            "limitations": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
+    "rawResultSource": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["status"],
+      "properties": {
+        "type": { "type": "string" },
+        "path": { "type": ["string", "null"] },
+        "repo": { "type": ["string", "null"] },
+        "runId": { "type": ["integer", "string", "null"] },
+        "headSha": { "type": ["string", "null"] },
+        "sourceRevision": {
+          "anyOf": [
+            { "$ref": "#/$defs/evalRefreshRun/properties/sourceRevision" },
+            { "type": "null" }
+          ]
+        },
+        "artifact": {
+          "type": ["object", "null"],
+          "additionalProperties": true
+        },
+        "status": { "type": "string" },
+        "reason": { "type": "string" },
+        "resultFileCount": { "type": "integer", "minimum": 0 },
+        "selectedResultCount": { "type": "integer", "minimum": 0 },
+        "limitations": {
+          "type": "array",
+          "items": { "type": "object", "additionalProperties": true }
+        }
+      }
+    },
+    "failedCheckShape": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "eval",
+        "key",
+        "failedCheckNames",
+        "representativeResultPath"
+      ],
+      "properties": {
+        "eval": { "type": "string" },
+        "key": { "type": "string" },
+        "failedCheckNames": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "representativeResultPath": { "type": "string" },
+        "experiment": { "type": "string" },
+        "run": { "type": ["integer", "string", "null"] }
+      }
+    },
+    "rawResult": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "source",
+        "resultPath",
+        "resultSha256",
+        "experiment",
+        "eval",
+        "run",
+        "passed",
+        "checks",
+        "toolCalls",
+        "transcript"
+      ],
+      "properties": {
+        "source": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["runId", "headSha", "sourceRevision"],
+          "properties": {
+            "type": { "type": "string" },
+            "path": { "type": ["string", "null"] },
+            "repo": { "type": ["string", "null"] },
+            "runId": { "type": ["integer", "string", "null"] },
+            "headSha": { "type": ["string", "null"] },
+            "sourceRevision": {
+              "anyOf": [
+                { "$ref": "#/$defs/evalRefreshRun/properties/sourceRevision" },
+                { "type": "null" }
+              ]
+            },
+            "artifact": {
+              "type": ["object", "null"],
+              "additionalProperties": true
+            }
+          }
+        },
+        "resultPath": { "type": "string" },
+        "resultSha256": { "type": "string" },
+        "experiment": { "type": "string" },
+        "experimentSuite": { "type": "string" },
+        "eval": { "type": "string" },
+        "run": { "type": ["integer", "string", "null"] },
+        "passed": { "type": "boolean" },
+        "checks": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["total", "passed", "failed", "selected", "truncated"],
+          "properties": {
+            "total": { "type": "integer", "minimum": 0 },
+            "passed": { "type": "integer", "minimum": 0 },
+            "failed": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/rawResultCheck" }
+            },
+            "selected": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/rawResultCheck" }
+            },
+            "truncated": { "type": "boolean" }
+          }
+        },
+        "failedCheckShape": {
+          "anyOf": [{ "$ref": "#/$defs/failedCheckShape" }, { "type": "null" }]
+        },
+        "toolCalls": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["total", "selected", "truncated"],
+          "properties": {
+            "total": { "type": "integer", "minimum": 0 },
+            "selected": {
+              "type": "array",
+              "items": { "type": "object", "additionalProperties": true }
+            },
+            "truncated": { "type": "boolean" }
+          }
+        },
+        "transcript": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": [
+            "status",
+            "source",
+            "totalEntries",
+            "selected",
+            "truncated"
+          ],
+          "properties": {
+            "status": { "type": "string" },
+            "source": { "type": "string" },
+            "totalEntries": { "type": "integer", "minimum": 0 },
+            "selected": {
+              "type": "array",
+              "items": { "type": "object", "additionalProperties": true }
+            },
+            "truncated": { "type": "boolean" }
+          }
+        },
+        "workspaceExcerpts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/textBlock" }
+        },
+        "agentReport": { "$ref": "#/$defs/textBlock" }
+      }
+    },
+    "rawResultCheck": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["name", "passed"],
+      "properties": {
+        "name": { "type": "string" },
+        "passed": { "type": "boolean" },
+        "notes": {
+          "anyOf": [{ "$ref": "#/$defs/textBlock" }, { "type": "null" }]
+        },
+        "judgeNotes": {
+          "anyOf": [{ "$ref": "#/$defs/textBlock" }, { "type": "null" }]
+        }
+      }
+    }
+  }
+}
