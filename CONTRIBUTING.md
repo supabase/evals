@@ -46,10 +46,6 @@ Add a `*.experiment.ts` file under `experiments/<suite>/` for the agent, model, 
 
 The suite folder decides which evals the experiment runs: `experiments/<suite>/` runs the evals in `evals/<suite>/`. If this experiment should be part of our published benchmark, put it in `experiments/benchmark/` and include a corresponding `*-no-skills` variant (`skills: []`) to compare results with and without skills. To run one experiment in several suites, export a shared preset from `experiments/presets.ts` and spread it in a file under each suite folder.
 
-## Spark evals
-
-Local runs need `SPARK_API_URL` and WARP access. For CI, configure `SPARK_API_URL`, `CLOUDFLARE_WARP_CLIENT_ID`, and `CLOUDFLARE_WARP_CLIENT_SECRET` as repository secrets alongside the existing Vercel and provider credentials.
-
 ## Submitting evals for review
 
 Before submitting an eval for review, try running it locally to sanity check that it can complete without errors. It's okay if agents fail the eval, we just don't want them to be scored unfairly for framework limitations.
@@ -95,6 +91,12 @@ Use this checklist after the author has followed [Submitting evals for review](#
 - Classify each failure before requesting changes: agent gap, product gap, scorer bug, or harness/runtime failure. Ideally, show that the scorer rejects at least one known-bad solution or counterexample with a scorer unit test or a failing run linked in the PR.
 
 Tag #team-ai on Slack only for framework, runtime, experiment, result schema, or contract changes; scenario wording and scorer tuning should stay with the owning team.
+
+## Spark evals
+
+Local runs need `SPARK_API_URL` and WARP access. For CI, configure `SPARK_API_URL`, `CLOUDFLARE_WARP_CLIENT_ID`, and `CLOUDFLARE_WARP_CLIENT_SECRET` as repository secrets.
+
+The [Spark eval schedule](.github/workflows/spark-eval-schedule.yml) runs the suite daily and uploads results to Braintrust.
 
 ## Docs evals
 
