@@ -2,11 +2,20 @@ import { randomUUID } from 'node:crypto';
 import type { CheckResult } from '@supabase-evals/core';
 import { stripIndent } from 'common-tags';
 
-// Query reads, Run writes. Plain functions so the probes also run on PGlite.
+// Query reads, Run writes and never throws. Plain functions so the probes also
+// run on PGlite.
 export type Query = (
   sql: string
 ) => Promise<{ rows: Record<string, unknown>[] }>;
 export type Run = (sql: string) => Promise<{ ok: boolean; message: string }>;
+
+export const CHECK = {
+  leaver: 'deleting a member who left keeps the comments they wrote',
+  teamDelete: 'deleting a team succeeds',
+  rowsGone: "the closed team's members, projects, tasks and comments are gone",
+  invoices: "the closed team's invoices are kept",
+  otherTeam: "the other team's rows are all still there",
+} as const;
 
 // Every name starts with a per-run marker. Team a closes, team b is left alone.
 export type World = { marker: string };
@@ -57,7 +66,7 @@ export async function checkLeaverCommentsKept(
   run: Run,
   world: World
 ): Promise<CheckResult> {
-  const name = 'deleting a member who left keeps the comments they wrote';
+  const name = CHECK.leaver;
   const { marker } = world;
   const deleted = await run(
     `DELETE FROM public.members WHERE name = '${marker}-a-leaves';`
@@ -69,21 +78,17 @@ export async function checkLeaverCommentsKept(
       notes: `the member could not be deleted: ${deleted.message}`,
     };
   }
-  const left = await count(
-    query,
-    `SELECT count(*) FROM public.members WHERE name = '${marker}-a-leaves'`
-  );
-  const kept = await count(
-    query,
-    `SELECT count(*) FROM public.comments WHERE body = '${marker}-a-by-leaves'`
-  );
+  const n = await counts(query, {
+    members: `name = '${marker}-a-leaves'`,
+    comments: `body = '${marker}-a-by-leaves'`,
+  });
   return {
     name,
-    passed: left === 0 && kept === 1,
+    passed: n.members === 0 && n.comments === 1,
     notes:
-      left !== 0
+      n.members !== 0
         ? 'the delete ran but the member is still there'
-        : kept === 1
+        : n.comments === 1
           ? 'member gone, comment kept'
           : 'the comment was deleted with its author',
   };
@@ -103,7 +108,7 @@ export async function deleteClosedTeam(
 
 export function checkTeamDeleteSucceeds(result: TeamDelete): CheckResult {
   return {
-    name: 'deleting a team succeeds',
+    name: CHECK.teamDelete,
     passed: result.ok,
     notes: result.ok ? 'deleted' : result.error,
   };
@@ -123,29 +128,16 @@ export async function checkClosedTeamRowsGone(
   world: World,
   result: TeamDelete
 ): Promise<CheckResult> {
-  const name =
-    "the closed team's members, projects, tasks and comments are gone";
+  const name = CHECK.rowsGone;
   const blocked = notRun(name, result);
   if (blocked) return blocked;
-  const like = `'${world.marker}-a-%'`;
-  const left = {
-    members: await count(
-      query,
-      `SELECT count(*) FROM public.members WHERE name LIKE ${like}`
-    ),
-    projects: await count(
-      query,
-      `SELECT count(*) FROM public.projects WHERE name LIKE ${like}`
-    ),
-    tasks: await count(
-      query,
-      `SELECT count(*) FROM public.tasks WHERE title LIKE ${like}`
-    ),
-    comments: await count(
-      query,
-      `SELECT count(*) FROM public.comments WHERE body LIKE ${like}`
-    ),
-  };
+  const like = `LIKE '${world.marker}-a-%'`;
+  const left = await counts(query, {
+    members: `name ${like}`,
+    projects: `name ${like}`,
+    tasks: `title ${like}`,
+    comments: `body ${like}`,
+  });
   const remaining = Object.entries(left).filter(([, n]) => n > 0);
   return {
     name,
@@ -162,46 +154,50 @@ export async function checkInvoicesKept(
   world: World,
   result: TeamDelete
 ): Promise<CheckResult> {
-  const name = "the closed team's invoices are kept";
+  const name = CHECK.invoices;
   const blocked = notRun(name, result);
   if (blocked) return blocked;
-  const kept = await count(
-    query,
-    `SELECT count(*) FROM public.invoices WHERE team_name = '${world.marker}-a'`
-  );
+  const { invoices } = await counts(query, {
+    invoices: `team_name = '${world.marker}-a'`,
+  });
   return {
     name,
-    passed: kept === 1,
-    notes: kept === 1 ? 'kept' : 'the invoice was deleted with the team',
+    passed: invoices === 1,
+    notes: invoices === 1 ? 'kept' : 'the invoice was deleted with the team',
   };
 }
 
 // Exact counts, so deleting even one extra row fails.
-const BYSTANDER: [string, string, string, number][] = [
-  ['teams', 'name', "= '{m}-b'", 1],
-  ['members', 'name', "LIKE '{m}-b-%'", 2],
-  ['projects', 'name', "LIKE '{m}-b-%'", 1],
-  ['tasks', 'title', "LIKE '{m}-b-%'", 1],
-  ['comments', 'body', "LIKE '{m}-b-%'", 2],
-  ['invoices', 'team_name', "= '{m}-b'", 1],
-];
+const BYSTANDER = {
+  teams: 1,
+  members: 2,
+  projects: 1,
+  tasks: 1,
+  comments: 2,
+  invoices: 1,
+};
 
 export async function checkOtherTeamUntouched(
   query: Query,
   world: World,
   result: TeamDelete
 ): Promise<CheckResult> {
-  const name = "the other team's rows are all still there";
+  const name = CHECK.otherTeam;
   const blocked = notRun(name, result);
   if (blocked) return blocked;
-  const short: string[] = [];
-  for (const [table, column, predicate, expected] of BYSTANDER) {
-    const n = await count(
-      query,
-      `SELECT count(*) FROM public.${table} WHERE ${column} ${predicate.replace('{m}', world.marker)}`
-    );
-    if (n !== expected) short.push(`${table} ${n}/${expected}`);
-  }
+  const team = `= '${world.marker}-b'`;
+  const like = `LIKE '${world.marker}-b-%'`;
+  const found = await counts(query, {
+    teams: `name ${team}`,
+    members: `name ${like}`,
+    projects: `name ${like}`,
+    tasks: `title ${like}`,
+    comments: `body ${like}`,
+    invoices: `team_name ${team}`,
+  });
+  const short = Object.entries(BYSTANDER)
+    .filter(([table, expected]) => found[table] !== expected)
+    .map(([table, expected]) => `${table} ${found[table]}/${expected}`);
   return {
     name,
     passed: short.length === 0,
@@ -209,7 +205,17 @@ export async function checkOtherTeamUntouched(
   };
 }
 
-async function count(query: Query, sql: string): Promise<number> {
-  const { rows } = await query(sql.replace('count(*)', 'count(*)::int AS n'));
-  return Number(rows[0]?.n ?? 0);
+// One query for every count, keyed by table.
+async function counts(
+  query: Query,
+  where: Record<string, string>
+): Promise<Record<string, number>> {
+  const columns = Object.entries(where).map(
+    ([table, predicate]) =>
+      `(SELECT count(*)::int FROM public.${table} WHERE ${predicate}) AS ${table}`
+  );
+  const { rows } = await query(`SELECT ${columns.join(', ')}`);
+  return Object.fromEntries(
+    Object.keys(where).map((table) => [table, Number(rows[0]?.[table] ?? 0)])
+  );
 }

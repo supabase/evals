@@ -7,22 +7,11 @@ topic:
   - sql
 services: []
 motivation: >-
-  the Cascade Deletes guide is the page agents are pointed at when deleting a
-  row has to take its related rows with it, and getting it wrong either way
-  costs a customer data. A review of production databases found cascade rules
-  that silently delete far more than intended and missing rules that leave
-  orphans or block deletes (FDBKIN-4474). Customers have lost a project's data
-  to a cascade they did not know was there (FDBKIN-30100, and a support case
-  restoring from backup in October 2026), have hit "violates foreign key
-  constraint" errors when deleting a user (SQLSTATE 23503, #team-support March
-  2026), and ask how to delete a parent with its related data at all
-  (FDBKIN-20630). An agent has already widened a delete without checking what
-  it would cascade into (supabase/agent-skills#149). The page explains each
-  action but not how to choose one per relationship, nor that a single
-  blocking path fails the whole delete, which is its own worked example. This
-  eval determines whether an agent that reads the page deletes the right rows
-  and keeps the right ones. The prompt deliberately omits the vocabulary the
-  page teaches, so read README.md before editing it.
+  Customers lose data to cascades they did not expect, or hit blocked deletes
+  when a link has no rule. This checks that an agent reading the Cascade
+  Deletes guide picks the right action per relationship, so the right rows go
+  and the right rows stay. The prompt omits the page's vocabulary on purpose,
+  so read README.md before editing it.
 ---
 
 Customers can close their team from the settings page, but closing a team

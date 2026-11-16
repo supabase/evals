@@ -70,4 +70,8 @@ content. Read `docs.calls` before reading a score; an empty one means the run me
 - **Links to `auth.users`.** The seed has none, so the eval stays on Postgres and off Auth.
 - **Soft deletes.** "Leaving" is read as the member row being deleted. A design that marks members inactive instead
   still fails the leaver check, because the scorer deletes the row. That is a recorded design choice.
-- **How the agent applied the migration.** Any route that leaves it applied passes.
+- **How the agent applied the migration.** Any route that leaves it applied passes. Writing the change as a
+  migration file is its own check, `the agent wrote its change as a migration`.
+- **Schema changes beyond the delete rules.** The scorer inserts into the agent's final schema, so a new `NOT NULL`
+  column or a renamed table fails every probe with a `could not build the two teams` note. The prompt asks for no
+  such change, so that reads as the agent going off task.

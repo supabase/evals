@@ -7,9 +7,11 @@ import {
 import { stripIndent } from 'common-tags';
 import {
   applyPendingMigrations,
+  checkChangeWasAMigration,
   checkMigrationsWereApplied,
 } from './migrations.js';
 import {
+  CHECK,
   checkClosedTeamRowsGone,
   checkInvoicesKept,
   checkLeaverCommentsKept,
@@ -22,14 +24,6 @@ import {
 } from './probes.js';
 
 const GUIDE_PATH = 'guides/database/postgres/cascade-deletes';
-
-const NAMES = [
-  'deleting a member who left keeps the comments they wrote',
-  'deleting a team succeeds',
-  "the closed team's members, projects, tasks and comments are gone",
-  "the closed team's invoices are kept",
-  "the other team's rows are all still there",
-];
 
 const scorer: LocalStackScorer = async (ctx) => {
   try {
@@ -44,25 +38,27 @@ const scorer: LocalStackScorer = async (ctx) => {
     // with no author.
     let probes: CheckResult[];
     if ('failure' in setup) {
-      probes = NAMES.map((name) => ({
+      probes = Object.values(CHECK).map((name) => ({
         name,
         passed: false,
         notes: `not run: ${setup.failure}`,
       }));
     } else {
       const { world } = setup;
-      const leaver = await guard(NAMES[0], () =>
+      const leaver = await guard(CHECK.leaver, () =>
         checkLeaverCommentsKept(query, run, world)
       );
       const deleted = await deleteClosedTeam(run, world);
       probes = [
         leaver,
         checkTeamDeleteSucceeds(deleted),
-        await guard(NAMES[2], () =>
+        await guard(CHECK.rowsGone, () =>
           checkClosedTeamRowsGone(query, world, deleted)
         ),
-        await guard(NAMES[3], () => checkInvoicesKept(query, world, deleted)),
-        await guard(NAMES[4], () =>
+        await guard(CHECK.invoices, () =>
+          checkInvoicesKept(query, world, deleted)
+        ),
+        await guard(CHECK.otherTeam, () =>
           checkOtherTeamUntouched(query, world, deleted)
         ),
       ];
@@ -70,6 +66,7 @@ const scorer: LocalStackScorer = async (ctx) => {
 
     const checks: CheckResult[] = [
       checkMigrationsWereApplied(migrations),
+      checkChangeWasAMigration(ctx.hostWorkspace),
       ...probes,
       checkGuideWasRead(ctx),
     ];
@@ -93,8 +90,20 @@ const scorer: LocalStackScorer = async (ctx) => {
 export default scorer;
 
 // ctx.query wraps SQL in a SELECT, so writes go through psql (same as
-// build-docs-002).
+// build-docs-002). Errors come back as { ok: false }, never thrown.
 async function execSql(
+  ctx: LocalStackEvalContext,
+  sql: string
+): Promise<{ ok: boolean; message: string }> {
+  try {
+    return await psql(ctx, sql);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { ok: false, message: message.slice(0, 300) };
+  }
+}
+
+async function psql(
   ctx: LocalStackEvalContext,
   sql: string
 ): Promise<{ ok: boolean; message: string }> {
@@ -115,7 +124,6 @@ async function execSql(
   };
 }
 
-// A thrown query fails its own check, not the whole result.
 async function guard(
   name: string,
   run: () => Promise<CheckResult>

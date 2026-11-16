@@ -10,6 +10,15 @@ export type MigrationState = {
 export async function applyPendingMigrations(
   ctx: LocalStackEvalContext
 ): Promise<MigrationState> {
+  try {
+    return await apply(ctx);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { pending: ['unknown'], applyFailed: message.slice(0, 300) };
+  }
+}
+
+async function apply(ctx: LocalStackEvalContext): Promise<MigrationState> {
   const pending = await pendingVersions(ctx);
 
   if (pending.length === 0) {
@@ -42,6 +51,23 @@ export function checkMigrationsWereApplied(state: MigrationState): CheckResult {
           : `pending: ${state.pending.join(', ')}; the scorer applied them so the rest of the checks could run`,
   };
 }
+
+// The seed is the only migration the repo starts with.
+export function checkChangeWasAMigration(hostWorkspace: string): CheckResult {
+  const added = migrationVersionsOnDisk(hostWorkspace).filter(
+    (version) => version !== SEED_VERSION
+  );
+  return {
+    name: 'the agent wrote its change as a migration',
+    passed: added.length > 0,
+    notes:
+      added.length > 0
+        ? `new: ${added.join(', ')}`
+        : 'no migration beyond the seed',
+  };
+}
+
+const SEED_VERSION = '20240101000000';
 
 async function pendingVersions(ctx: LocalStackEvalContext): Promise<string[]> {
   const onDisk = migrationVersionsOnDisk(ctx.hostWorkspace);
