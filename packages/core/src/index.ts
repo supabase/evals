@@ -1230,8 +1230,7 @@ let localMcpRepoCache: { key: string; value: string } | null = null;
 function resolveLocalMcpRepo(): string | null {
   const localRepoPath = process.env.SUPABASE_MCP_REPO_PATH;
   if (!localRepoPath) return null;
-  if (localMcpRepoCache?.key === localRepoPath)
-    return localMcpRepoCache.value;
+  if (localMcpRepoCache?.key === localRepoPath) return localMcpRepoCache.value;
 
   const anchor =
     gitToplevel(dirname(fileURLToPath(import.meta.url))) ?? process.cwd();
