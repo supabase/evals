@@ -9,7 +9,8 @@ import type { ConfigFormat } from './config-edit-checks.js';
 
 export type ConfigEditCounts = {
   validateRuns: number;
-  validateFailures: number;
+  validateInvalid: number;
+  validateUnavailable: number;
   otherConfigRuns: number;
   otherConfigFailures: number;
 };
@@ -30,16 +31,18 @@ const NO_CONFIG_VERBS = new Set([
 export type ConfigEditEntry = CommandEntry & { output?: string };
 
 const INVALID_REPORT_RE =
-  /"valid"\s*:\s*false|✗\s*\d+\s+errors?\b|\bhas \d+ problems?|unknown command|(?:^|\n)\s*error:/i;
+  /"valid"\s*:\s*false|✗\s*\d+\s+errors?\b|\bhas \d+ problems?/i;
+const UNAVAILABLE_RE = /UnknownSubcommand|unknown command|"_tag"\s*:\s*"Help"/i;
 
-/** A command fails when its tool call errored or, for validate, its output reports the config invalid or the command unknown, even if the shell hid the exit code. */
+/** Validate runs are classified by their own report, since agents often chain validate with edits whose failure marks the whole tool call failed; other config-loading commands count a failed tool call. */
 export function countConfigEditInvocations(
   entries: readonly ConfigEditEntry[],
   invocations: readonly SupabaseInvocation[]
 ): ConfigEditCounts {
   const counts: ConfigEditCounts = {
     validateRuns: 0,
-    validateFailures: 0,
+    validateInvalid: 0,
+    validateUnavailable: 0,
     otherConfigRuns: 0,
     otherConfigFailures: 0,
   };
@@ -49,15 +52,14 @@ export function countConfigEditInvocations(
     const entry = entries[invocation.commandIndex];
     const isValidate =
       verb === 'config' && invocationSubcommand(invocation) === 'validate';
-    const failed =
-      entry?.failed === true ||
-      (isValidate && INVALID_REPORT_RE.test(entry?.output ?? ''));
     if (isValidate) {
+      const output = entry?.output ?? '';
       counts.validateRuns++;
-      if (failed) counts.validateFailures++;
+      if (INVALID_REPORT_RE.test(output)) counts.validateInvalid++;
+      else if (UNAVAILABLE_RE.test(output)) counts.validateUnavailable++;
     } else {
       counts.otherConfigRuns++;
-      if (failed) counts.otherConfigFailures++;
+      if (entry?.failed === true) counts.otherConfigFailures++;
     }
   }
   return counts;

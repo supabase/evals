@@ -14,8 +14,11 @@ describe('countConfigEditInvocations', () => {
   it('separates validate runs from other config-loading commands', () => {
     expect(
       count([
-        { command: 'supabase config validate', failed: true },
-        { command: 'supabase config validate' },
+        {
+          command: 'supabase config validate',
+          output: '{"valid":false,"errors":[]}',
+        },
+        { command: 'supabase config validate', output: '{"valid":true}' },
         { command: 'supabase start', failed: true },
         { command: 'supabase db lint' },
         { command: 'supabase login' },
@@ -24,40 +27,54 @@ describe('countConfigEditInvocations', () => {
       ])
     ).toEqual({
       validateRuns: 2,
-      validateFailures: 1,
+      validateInvalid: 1,
+      validateUnavailable: 0,
       otherConfigRuns: 2,
       otherConfigFailures: 1,
     });
   });
 });
 
-describe('validate failures hidden from the exit code', () => {
+describe('validate runs classified by their report', () => {
   it.each([
     'supabase config validate 2>&1 | tail -20',
     'supabase config validate || true',
-  ])('classifies %s by its output', (command) => {
+  ])('counts an invalid report from %s', (command) => {
     const outputs = [
       '{"valid":false,"errors":[{"path":"auth"}]}',
       '✗ 2 error(s) in supabase/config.toml',
       'supabase/config.jsonc has 1 problem',
-      'Error: auth.external.github.secret: env(X) is not set',
-      'unknown command "validate" for "supabase config"',
     ];
     for (const output of outputs) {
-      expect(count([{ command, output }]).validateFailures).toBe(1);
+      expect(count([{ command, output }]).validateInvalid).toBe(1);
     }
   });
 
-  it('does not fail a validate run whose output reports a valid config', () => {
+  it('counts a CLI without validate as unavailable, not invalid', () => {
+    const outputs = [
+      '{"_tag":"Error","error":{"code":"UnknownSubcommand"}}',
+      '{"_tag":"Help","doc":{"description":"Manage Supabase project configurations."}}',
+      'unknown command "validate" for "supabase config"',
+    ];
+    for (const output of outputs) {
+      expect(
+        count([{ command: 'supabase config validate', output }])
+      ).toMatchObject({ validateInvalid: 0, validateUnavailable: 1 });
+    }
+  });
+
+  it('ignores a failed tool call when the chained validate reported a valid config', () => {
     expect(
       count([
         {
-          command: 'supabase config validate',
-          output: '{"valid":true,"errors":[]}',
+          command: 'python3 edit.py && supabase config validate',
+          failed: true,
+          output:
+            '{"valid":true,"errors":[]}\n/bin/bash: line 2: python3: command not found',
         },
         { command: 'supabase config validate', output: 'Config is valid.' },
-      ]).validateFailures
-    ).toBe(0);
+      ])
+    ).toMatchObject({ validateRuns: 2, validateInvalid: 0 });
   });
 });
 

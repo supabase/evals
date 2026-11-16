@@ -220,8 +220,11 @@ export async function scoreConfigEdit(
   try {
     const marker = await ctx.environmentMarker();
     const commands = extractCommands(ctx.toolCalls);
-    const outputs = commandToolCalls(ctx.toolCalls).map(({ result }) =>
-      typeof result === 'string' ? result : JSON.stringify(result ?? '')
+    const outputs = commandToolCalls(ctx.toolCalls).map(({ result, error }) =>
+      [result, error]
+        .filter((part) => part !== undefined && part !== null)
+        .map((part) => (typeof part === 'string' ? part : JSON.stringify(part)))
+        .join('\n')
     );
     const entries = extractCommandEntries(ctx.toolCalls).map((entry, i) => ({
       ...entry,

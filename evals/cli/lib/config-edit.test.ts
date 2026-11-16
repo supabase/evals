@@ -571,7 +571,10 @@ describe.each(['toml', 'jsonc'] as const)('scoreConfigEdit (%s)', (format) => {
   it('records validate usage in the metrics', async () => {
     const { result } = await score({
       toolCalls: [
-        shellCall('supabase config validate', 'exit 1'),
+        shellCall(
+          'supabase config validate',
+          '{"schema_version":1,"valid":false,"errors":[{"code":"syntax"}]}'
+        ),
         shellCall('supabase config validate'),
         shellCall('supabase start'),
       ],
@@ -581,7 +584,8 @@ describe.each(['toml', 'jsonc'] as const)('scoreConfigEdit (%s)', (format) => {
       format,
       validateConvention: true,
       validateRuns: 2,
-      validateFailures: 1,
+      validateInvalid: 1,
+      validateUnavailable: 0,
       otherConfigRuns: 1,
       otherConfigFailures: 0,
       ranValidate: true,

@@ -66,15 +66,16 @@ config, with the parse error in the notes.
 | `no container-runtime detours` | the usual detour judge; nothing here needs Docker |
 
 `metrics` always passes and records: `format`, `validateConvention`,
-`validateRuns` and `validateFailures` (`supabase config validate`),
-`otherConfigRuns` and `otherConfigFailures` (other `supabase` commands that
-load config, such as `start` or `db lint`), `ranValidate`, `commentsKept` (the
-share of the seed's comment lines, `#` in TOML and `//` or `/* */` in JSONC,
-that survive in the final file) and the CLI versions. A command counts as
-failed when its tool call errored; a `config validate` call also counts as failed
-when its output shows an invalid report (`"valid":false`, `✗ N error(s) in`,
-`has N problem`), an `Error:` line or an unknown command, so `2>&1 | tail` and
-`|| true` don't hide failures.
+`validateRuns`, `validateInvalid` (validate reported the config invalid:
+`"valid":false`, `✗ N error(s) in`, `has N problem`) and `validateUnavailable`
+(the CLI has no `config validate` and printed an unknown-subcommand error or the
+`config` help), `otherConfigRuns` and `otherConfigFailures` (other `supabase`
+commands that load config, such as `start` or `db lint`, whose tool call
+errored), `ranValidate`, `commentsKept` (the share of the seed's comment lines,
+`#` in TOML and `//` or `/* */` in JSONC, that survive in the final file) and
+the CLI versions. A validate run is classified from its own report, never from
+the tool call's error flag, because agents often chain validate with an edit
+script whose failure marks the whole call failed.
 
 ## CLI facts
 
