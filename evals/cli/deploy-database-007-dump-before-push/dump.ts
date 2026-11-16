@@ -155,7 +155,12 @@ export function readDbDumps(
       dryRun: booleanFlag(inv.argv, '--dry-run'),
       roleOnly: booleanFlag(inv.argv, '--role-only'),
       dataOnly: booleanFlag(inv.argv, '--data-only'),
-      explicitlyLocal: isExplicitlyLocal(inv, command, { remoteEndpoints }),
+      explicitlyLocal: isExplicitlyLocal(
+        inv,
+        command,
+        { remoteEndpoints },
+        call
+      ),
       files: [
         ...new Set(
           written
@@ -198,7 +203,7 @@ function wroteCompleteBackup(dump: DbDump, scan: BackupScan): boolean {
 }
 
 // A bare `db dump` is schema-only on CLI 2.x, so it counts only with --data-only or when its file is a complete backup.
-// It targets the linked project there, while next dumps the local stack, whose database holds no coupon rows.
+// It targets the linked project on 2.x; on 3.x+ it dumps the local stack, whose database holds no coupon rows, and its target line marks it explicitlyLocal.
 export function isCreditedDump(dump: DbDump, scan: BackupScan): boolean {
   return (
     !dump.dryRun &&

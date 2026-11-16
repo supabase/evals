@@ -15,6 +15,7 @@ import {
   isLoopbackUrl,
   POOLER_URL_PATH,
   readHostedEndpoints,
+  reportsLocalTarget,
   type TargetOptions,
   toolCallFailed,
   toolCallFailureLine,
@@ -235,6 +236,77 @@ describe('dryRunCommandIndexes', () => {
     expect(
       indexes('dump', 'supabase db dump --dry-run -f a.sql && supabase db push')
     ).toEqual([0]);
+  });
+});
+
+const LOCAL_TARGET_TEXT =
+  'Target: local stack (127.0.0.1:54322)\nFinished supabase db push.\n';
+const PROJECT_TARGET_TEXT = `Target: project ${HOSTED_REF}\nFinished supabase db push.\n`;
+const LOCAL_TARGET_JSON =
+  '{"target":{"kind":"local","host":"127.0.0.1","port":54322},"applied":[]}';
+const LINKED_TARGET_JSON = `{"target":{"kind":"linked","ref":"${HOSTED_REF}"},"applied":[]}`;
+
+describe('reportsLocalTarget', () => {
+  it.each([
+    ['the text local target line', call({ result: LOCAL_TARGET_TEXT }), true],
+    ['the JSON local target', call({ result: LOCAL_TARGET_JSON }), true],
+    [
+      'a local target line in a failed call',
+      call({ error: LOCAL_TARGET_TEXT }),
+      true,
+    ],
+    ['a project target line', call({ result: PROJECT_TARGET_TEXT }), false],
+    ['a linked JSON target', call({ result: LINKED_TARGET_JSON }), false],
+    [
+      'a custom Postgres target line',
+      call({ result: 'Target: custom Postgres (db.example.com:5432)\n' }),
+      false,
+    ],
+    [
+      'a local line next to a project line',
+      call({ result: `${LOCAL_TARGET_TEXT}${PROJECT_TARGET_TEXT}` }),
+      false,
+    ],
+    [
+      'output with no target line',
+      call({ result: 'Finished supabase db push.' }),
+      false,
+    ],
+    ['no call', undefined, false],
+  ])('reads %s as local %s', (_, record, expected) => {
+    expect(reportsLocalTarget(record)).toBe(expected);
+  });
+});
+
+describe('isExplicitlyLocal with the call output', () => {
+  const withCall = (command: string, record?: ToolCallRecord) =>
+    isExplicitlyLocal(lastInvocation(command), command, undefined, record);
+
+  it('reads a bare push on 3.x that prints the local target line as local', () => {
+    expect(
+      withCall('supabase db push', call({ result: LOCAL_TARGET_TEXT }))
+    ).toBe(true);
+  });
+
+  it('reads a bare push on 2.x with no target line as not local', () => {
+    expect(
+      withCall(
+        'supabase db push',
+        call({
+          result:
+            'Applying migration 20250101000000_init.sql...\nFinished supabase db push.',
+        })
+      )
+    ).toBe(false);
+  });
+
+  it('reads a --remote push that prints a project target line as not local', () => {
+    expect(
+      withCall(
+        'supabase db push --remote',
+        call({ result: PROJECT_TARGET_TEXT })
+      )
+    ).toBe(false);
   });
 });
 

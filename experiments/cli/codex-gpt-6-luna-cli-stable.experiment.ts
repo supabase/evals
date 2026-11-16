@@ -6,8 +6,10 @@ import { skipUnlessCli } from './lib/skip.js';
 
 export default defineExperiment({
   ...codexGpt6Luna,
-  // Currently equal to the pin (npm `latest` == SUPABASE_CLI_VERSION); kept
-  // as drift insurance between pin bumps.
-  localStack: localStackRuntime({ cliVersion: 'stable', env: EVAL_ENV }),
+  localStack: localStackRuntime({
+    cliVersion: 'stable',
+    env: EVAL_ENV,
+    experimentalFallback: true,
+  }),
   skipEval: skipUnlessCli,
 });

@@ -1,6 +1,9 @@
 import { execFileSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
-import { assertLocalMatchesInterface } from './run-eval.js';
+import {
+  assertLocalMatchesInterface,
+  combineExperimentalAttempts,
+} from './run-eval.js';
 
 describe('assertLocalMatchesInterface', () => {
   it('throws when a local/ workspace is declared as interface: mcp', () => {
@@ -100,4 +103,56 @@ describe('experiment selection', () => {
       plan('--suite', 'benchmark,regression', '--experiment', 'grok-4.7')
     ).toThrow('regression/grok-4.7');
   }, 15000);
+});
+
+describe('combineExperimentalAttempts', () => {
+  const first = {
+    passed: false,
+    checks: [{ name: 'default', passed: false }],
+    cliVersion: '3.1.0',
+    marker: 'first',
+  };
+  const applied = ['SUPABASE_EXPERIMENTAL=true (same as --experimental)'];
+
+  it('reports the retry as the result when it passes', () => {
+    const retry = {
+      passed: true,
+      checks: [{ name: 'default', passed: true }],
+      cliVersion: '3.1.0',
+      marker: 'retry',
+    };
+    expect(combineExperimentalAttempts(first, retry, applied)).toEqual({
+      ...retry,
+      experimentalFallback: {
+        outcome: 'passed-with-experimental',
+        applied,
+        otherAttempt: {
+          passed: false,
+          checks: first.checks,
+          cliVersion: '3.1.0',
+        },
+      },
+    });
+  });
+
+  it('keeps the default failure when the retry also fails', () => {
+    const retry = {
+      passed: false,
+      checks: [{ name: 'experimental', passed: false }],
+      cliVersion: '3.1.0',
+      marker: 'retry',
+    };
+    expect(combineExperimentalAttempts(first, retry, applied)).toEqual({
+      ...first,
+      experimentalFallback: {
+        outcome: 'failed-with-experimental',
+        applied,
+        otherAttempt: {
+          passed: false,
+          checks: retry.checks,
+          cliVersion: '3.1.0',
+        },
+      },
+    });
+  });
 });

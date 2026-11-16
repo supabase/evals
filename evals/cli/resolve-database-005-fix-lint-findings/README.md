@@ -137,14 +137,17 @@ are both fine.
 ## CLI facts that shape the scenario
 
 Verified on `supabase@2.117.0` (this repo's pin), `2.121.0` (npm `latest`),
-`2.122.0-beta.12` (`beta`) and `3.0.0-next.22` (`next`).
+`2.122.0-beta.12` (`beta`) and `3.0.0-next.22` (`next`). Rechecked 2026-11-16 on stable 3.1.0, beta 3.2.0-beta.17
+and next 4.0.0-next.26: `db lint` is local by default with `--remote` for the
+linked project, and `--local`, `--linked`, `--db-url` and `--project-ref` print a
+deprecation warning; the flags and output below weren't rechecked on 3.x+.
 
 - All four have `supabase db lint` and `supabase db advisors`. On 2.x both take
   `--local`, `--linked`, `--db-url` and `--fail-on`. `db lint` also has
   `--schema`/`-s` and `--level warning|error` (default `warning`, which also
   shows `warning extra` and `warning performance`); `db advisors` has
   `--type all|security|performance` and `--level info|warn|error` (default
-  `warn`). On next (3.0) the target flags are replaced by
+  `warn`). On 3.x+ (next 3.0 checked; stable and beta rechecked for the target flags only) the target flags are replaced by
   `--remote[=<ref|branch|url>]` and local is the default. Output is a JSON array
   on stdout (`--output-format json` wraps it in an envelope), diagnostics go to
   stderr.
@@ -163,7 +166,7 @@ Verified on `supabase@2.117.0` (this repo's pin), `2.121.0` (npm `latest`),
   does
   ([CLI-2534](https://linear.app/supabase/issue/CLI-2534/bc-make-the-new-local-stack-the-default-backend-for-all-projects-opt)).
 - The scorer doesn't run `db lint` or `db advisors` itself: their flags differ
-  between 2.x and 3.0 (`--remote`), and the replayed state exists only inside the
+  between 2.x and 3.x+ (`--remote`), and the replayed state exists only inside the
   scorer's rolled-back transaction, so the CLI couldn't see it. It mirrors their
   predicates in SQL instead; see the probe below.
 
@@ -267,10 +270,10 @@ ground truth or the transcript's own output contradicts fail.
 | experiment | CLI version | container runtime | expected |
 | --- | --- | --- | --- |
 | `codex-gpt-6-luna-cli-pinned` | this repo's pin, 2.117.0 | Docker available | pass when the agent fixes all five findings in a migration and applies it through the CLI |
-| `codex-gpt-6-luna-cli-stable` | npm `latest` (2.121.0 when verified) | Docker available | pass |
+| `codex-gpt-6-luna-cli-stable` | npm `latest` (2.121.0 when verified; 3.1.0 on 2026-11-16) | Docker available | pass; `--local` is deprecated and local is the default target, as on next |
 | `codex-gpt-6-luna-cli-beta` | npm `beta` (2.122.0-beta.12 when verified) | Docker available | pass |
 | `codex-gpt-6-luna-cli-next` | npm `next` (3.0.0-next.22 when verified) | Docker available | pass; `--local` is gone, local is the default target |
-| `codex-gpt-6-luna-cli-nodaemon` | `beta` | Docker client present, daemon unreachable | the stack check and every check that needs the database fail: the Docker-less gap. `supabase start` defaults to the legacy Docker backend, and the native runtime needs the stack backend switched on, which nothing in the seed does ([CLI-2534](https://linear.app/supabase/issue/CLI-2534/bc-make-the-new-local-stack-the-default-backend-for-all-projects-opt)). The ran-checks check fails too when the agent's runs can't connect, and detours, metrics and the truthful report can pass. A run passes only if the agent finds the stack backend |
+| `codex-gpt-6-luna-cli-nodaemon` | `beta` | Docker client present, daemon unreachable | the stack check and every check that needs the database fail: the Docker-less gap. `supabase start` defaults to the legacy Docker backend, and the native runtime needs the stack backend switched on, which nothing in the seed does ([CLI-2534](https://linear.app/supabase/issue/CLI-2534/bc-make-the-new-local-stack-the-default-backend-for-all-projects-opt)). The ran-checks check fails too when the agent's runs can't connect, and detours, metrics and the truthful report can pass. A run passes only if the agent finds the stack backend, or through the experimental fallback (it writes `[experimental] stack = true` since `projectRunning: false`; a pass that needed it is recorded as `passed-with-experimental`, not a plain pass). The same rows run on stable and next as `-stable-nodaemon`/`-stable-absent` and `-next-nodaemon`/`-next-absent`, and the stack backend exists on all three channels behind the same opt-in |
 | `codex-gpt-6-luna-cli-absent` | `beta` | no Docker at all | as nodaemon |
 
 The four Docker arms are expected to pass, because every CLI can start a stack,

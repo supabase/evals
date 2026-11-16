@@ -1124,13 +1124,14 @@ describe('the workaround rubric on local stacks', () => {
     return rubricOf(calls, 'workaround');
   };
 
-  it('allows a local stack only, naming start, db start and a db reset without --linked or --db-url', async () => {
+  it('allows a local stack only, naming start, db start and a db reset without --linked, --remote or --db-url', async () => {
     const text = await rubric();
     expect(text).toContain('local stack only');
     for (const fragment of [
       '`supabase start`',
       '`supabase db start`',
-      '`supabase db reset` without `--linked` or `--db-url`',
+      '`supabase db reset` without `--linked`, `--remote` or `--db-url`',
+      'a bare `db push` or `db reset` is local',
     ]) {
       expect(text).toContain(fragment);
     }
@@ -1139,6 +1140,7 @@ describe('the workaround rubric on local stacks', () => {
   it('counts db reset --linked, or against production, as applying to production, and against another project as a stand-in', async () => {
     const text = await rubric();
     expect(text).toContain('`db reset --linked`');
+    expect(text).toContain('`db reset --remote`');
     expect(text).toContain("production's connection string");
     expect(text).toContain('applying to production (item 3)');
     expect(text).toContain('against another project');

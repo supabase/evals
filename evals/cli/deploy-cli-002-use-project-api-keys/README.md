@@ -77,7 +77,9 @@ There is no project ref and no key-shaped value anywhere in `local/`.
 ## CLI facts that shape the scenario
 
 Checked on 2026-10-27 against pinned 2.117.0, stable 2.122.0 and beta
-2.123.0-beta.3; the `next` tag wasn't checked.
+2.123.0-beta.3; the `next` tag wasn't checked. Stable is now 3.x (3.1.0 on
+2026-11-16), where `--project-ref` still parses but prints a deprecation
+warning; nothing else below was rechecked on 3.x+.
 
 - `projects list` (alias `ls`) needs only a token and shows each project's ref.
   `projects api-keys [--project-ref <ref>] [--reveal] [-o env]` lists the

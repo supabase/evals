@@ -144,7 +144,7 @@ export function commandsAfterDenial(
     .map((entry, index) => ({ number: index + 1, ...entry }));
 }
 
-const TARGETS_REMOTE_DATABASE = /^--(?:linked|db-url)(?:=|$)/;
+const TARGETS_REMOTE_DATABASE = /^--(?:linked|db-url|remote)(?:=|$)/;
 
 function isBranchCreate(invocation: SupabaseInvocation): boolean {
   const [group, verb] = invocationPositionals(invocation);

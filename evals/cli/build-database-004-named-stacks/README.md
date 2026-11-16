@@ -54,7 +54,13 @@ seeds both stacks.
 
 ## CLI facts that shape the scenario
 
-Verified on `supabase@2.121.0-beta.10`, macOS native runtime.
+Verified on `supabase@2.121.0-beta.10`, macOS native runtime. Rechecked
+2026-11-16: `stack` and `start --runtime auto|docker|native` exist on stable
+3.1.0, beta 3.2.0-beta.17 and next 4.0.0-next.26 behind the same opt-in
+(`SUPABASE_EXPERIMENTAL_STACK=1` or `[experimental] stack = true`; the global
+`--experimental` flag doesn't unlock it), and `stack list --output-format json`
+returns `{"stacks":[],"message":""}` with no stacks; port behaviour and the rest
+weren't rechecked on 3.x+.
 
 - Named stacks exist only behind `SUPABASE_EXPERIMENTAL_STACK=1`; the global
   `--experimental` flag does not unlock `stack` (checked on 2.120.0 and
@@ -237,10 +243,10 @@ why agents relocate the home.
 | experiment | CLI version | container runtime | expected today |
 | --- | --- | --- | --- |
 | pinned | this repo's pinned version (2.117.0, no `stack` command) | Docker available | stack and data checks fail (no `stack` command); targeting and behaviour checks pass when the agent reports the blocker truthfully |
-| stable | npm `latest` tag | Docker available | pass; 2.120.0 has named stacks behind `SUPABASE_EXPERIMENTAL_STACK=1`, but stack-backed commands cannot target a named stack yet, so the reset goes through the database URL |
+| stable | npm `latest` tag (3.x; 3.1.0 on 2026-11-16) | Docker available | pass; 2.120.0 had named stacks behind `SUPABASE_EXPERIMENTAL_STACK=1`, but stack-backed commands cannot target a named stack yet, so the reset goes through the database URL |
 | beta | npm `beta` tag | Docker available | pass |
-| nodaemon | beta | Docker client present, daemon unreachable | pass via the native runtime, which `stack start` picks when Docker doesn't answer; stack and data checks fail if the agent stops at the unreachable daemon; behaviour checks still pass |
-| absent | beta | no Docker at all | as nodaemon (auto picks the native runtime) |
+| nodaemon | beta (also `-stable-` and `-next-` variants) | Docker client present, daemon unreachable | pass via the native runtime, which `stack start` picks when Docker doesn't answer, or through the experimental fallback (`passed-with-experimental`, not a plain pass; it writes `[experimental] stack = true` since `projectRunning: false`); stack and data checks fail if the agent stops at the unreachable daemon; behaviour checks still pass |
+| absent | beta (also `-stable-` and `-next-` variants) | no Docker at all | as nodaemon (auto picks the native runtime) |
 
 The frontmatter sets `needsDocker: false` and `projectRunning: false`, so all
 five experiments pick the eval up, as the Docker-less ones require. The scorer

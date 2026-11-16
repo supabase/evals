@@ -101,7 +101,7 @@ const LOCAL_APPLY_COMMANDS = new Set([
   'stack start',
   'stack restart',
 ]);
-const REMOTE_TARGET_FLAGS = ['--linked', '--db-url'];
+const REMOTE_TARGET_FLAGS = ['--linked', '--db-url', '--remote'];
 
 function appliesMigrationsLocally(invocation: SupabaseInvocation): boolean {
   const verb = invocationVerb(invocation);

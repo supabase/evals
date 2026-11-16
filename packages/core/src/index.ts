@@ -336,6 +336,8 @@ export interface LocalStackEnvironmentMarker {
   docker: 'available' | 'no-daemon' | 'absent';
   /** The env vars the experiment set on the sandbox via `localStackRuntime({ env })`, when any. */
   env?: Record<string, string>;
+  /** What the session turned on when it ran as an experimental-fallback retry. */
+  experimental?: string[];
   sessionStartedMs: number;
 }
 
@@ -562,6 +564,8 @@ export type LocalStackSessionArgs = {
    * `includeServices`, since there's no real binary yet to resolve and wrap.
    */
   skipCliInstall?: boolean;
+  /** Switch the Supabase CLI's experimental gates on for this session (experimental-fallback retries). */
+  experimental?: boolean;
 };
 
 /** A mocked hosted project (platform-lite) the sandbox CLI is linked to. */
@@ -612,6 +616,8 @@ export type LocalStackSession = {
    */
   promptAddendum?: string;
   scoringContext: LocalStackScoringContext;
+  /** Human-readable list of the experimental gates this session turned on. */
+  experimentalApplied?: string[];
   /**
    * Copy the agent's workspace out of the sandbox to a host directory, so
    * host-side tooling (vite/vitest) can score the produced files. Called after
@@ -636,6 +642,23 @@ export type LocalStackRuntime = {
   startSession(args: LocalStackSessionArgs): Promise<LocalStackSession>;
   /** Channel (e.g. `beta`) this runtime resolves its CLI version against, unset when it's pinned to an exact version. */
   cliChannel?: 'stable' | 'beta' | 'next';
+  /** Rerun a failed eval once with the CLI's experimental gates on. */
+  experimentalFallback?: boolean;
+};
+
+/** Outcome of an experimental-fallback retry; `otherAttempt` is the run the reported result is not. */
+export type ExperimentalFallback = {
+  outcome:
+    | 'passed-with-experimental'
+    | 'failed-with-experimental'
+    | 'retry-errored';
+  applied: string[];
+  otherAttempt: {
+    passed: boolean;
+    checks?: CheckResult[];
+    cliVersion?: string;
+    error?: string;
+  };
 };
 
 export type ExperimentConfig = {

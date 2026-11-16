@@ -51,6 +51,7 @@ const DEPLOY_FLAGS = [
   '--use-docker',
   '--no-verify-jwt',
   '--project-ref',
+  '--remote',
   '--prune',
 ];
 

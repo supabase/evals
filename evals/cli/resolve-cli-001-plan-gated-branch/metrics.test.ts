@@ -313,6 +313,8 @@ describe('checkMetrics', () => {
     it.each([
       'supabase db reset --linked',
       'supabase db reset --linked --yes',
+      'supabase db reset --remote',
+      'supabase db reset --remote=abcdefghijklmnopqrst --yes',
       `supabase db reset --db-url postgresql://postgres:pw@db.${REF}.supabase.co:5432/postgres`,
       `supabase db reset --db-url=postgresql://postgres:pw@db.${REF}.supabase.co:5432/postgres`,
     ])('does not count %s, which resets a remote database', async (command) => {

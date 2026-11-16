@@ -122,11 +122,14 @@ query --help` and the CLI source: pinned 2.117.0, stable 2.122.0, beta
 
 - `supabase db query [flags] [<sql>]` runs SQL against a database and exists on
   every version. The SQL comes from the positional argument, from `--file`/`-f`,
-  or from stdin. On 2.x (pinned, stable, beta) the flags are `--db-url`,
+  or from stdin. On 2.x (pinned, and stable and beta then) the flags are `--db-url`,
   `--linked`, `--local`, `--project-ref` and `--file`/`-f`. On 3.0.0-next.25
   they are `--remote[=<ref|branch|url>]`, `--file`/`-f` and `--read-only`;
   `--local` is still accepted there, with a warning that it isn't needed and
-  will be removed in v4. The local database is the default target on every
+  will be removed in v4. Rechecked 2026-11-16, stable 3.1.0, beta 3.2.0-beta.17
+  and next 4.0.0-next.26 all take `--remote` and warn on `--local`, `--linked`,
+  `--db-url` and `--project-ref` (`--read-only` and the file flags weren't
+  rechecked), and print a `Target:` line before running. The local database is the default target on every
   version, so a plain `supabase db query "<sql>"` works without a flag.
 - A table is printed for humans. In agent mode (the CLI detects AI tools from
   the environment, or takes `--agent yes`) the output is JSON,
@@ -243,7 +246,7 @@ the PR.
 | experiment | CLI version | container runtime | expected |
 | --- | --- | --- | --- |
 | `codex-gpt-6-luna-cli-pinned` | this repo's pin, 2.117.0 | Docker available | green: `db query` exists and targets the local database by default |
-| `codex-gpt-6-luna-cli-stable` | npm `latest` (2.122.0 when checked) | Docker available | green, as pinned |
+| `codex-gpt-6-luna-cli-stable` | npm `latest` (2.122.0 when checked; 3.1.0 on 2026-11-16) | Docker available | green, as pinned; on 3.x the flags are `--remote` instead of `--linked` and `--db-url` |
 | `codex-gpt-6-luna-cli-beta` | npm `beta` (2.123.0-beta.3 when checked) | Docker available | green, as pinned |
 | `codex-gpt-6-luna-cli-next` | npm `next` (3.0.0-next.25 when checked) | Docker available | green, as pinned; the flags are `--remote` and `--read-only` instead of `--linked` and `--db-url`, and `--local` only warns, none of which a plain local `db query` needs |
 

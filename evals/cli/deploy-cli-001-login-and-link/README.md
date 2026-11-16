@@ -78,7 +78,11 @@ file.
 
 Checked against the npm dist-tags on 2026-10-20: pinned 2.117.0, stable
 2.121.0, beta 2.122.0-beta.5, next 3.0.0-next.21. Each fact holds on all four
-channels unless noted.
+channels unless noted. Rechecked 2026-11-16 on stable 3.1.0, beta 3.2.0-beta.17
+and next 4.0.0-next.26: `login` still has only `--token`, `--name` and
+`--no-browser` (no `-p/--password`), and `config push`, `functions deploy`,
+`secrets *` and `branches *` use the linked project ("pass --remote=<ref|branch>
+for another"); the rest weren't rechecked on 3.x+.
 
 - `login [--token] [--name] [--no-browser]`. The token comes from `--token`,
   then `SUPABASE_ACCESS_TOKEN`, then stdin when it isn't a TTY. With none of
@@ -95,7 +99,8 @@ channels unless noted.
   SUPABASE_ACCESS_TOKEN environment variable." (seen live on all four
   channels).
 - `link [<ref-or-branch>] [--project-ref] [--skip-pooler]`. Pinned, stable and
-  beta also accept `-p/--password`, which `next` drops. In a non-TTY shell with
+  beta also accept `-p/--password`, which `next` drops (checked on 2.x and
+  3.0.0-next.21; `link` not rechecked on 3.x+). In a non-TTY shell with
   no ref and no `SUPABASE_PROJECT_ID` it fails with `required flag(s)
   "project-ref" not set`. It never prompts for a database password. It calls
   `GET /v1/projects/{ref}` and `GET /v1/projects/{ref}/api-keys`, both fatal on

@@ -48,8 +48,8 @@ experiments run it; the harness starts no stack.
 
 Nothing tells the agent about the managed stack, the feature flag, or port
 collisions. Worktree isolation without config edits only exists on the managed
-stack, gated behind `experimental.stack` / `SUPABASE_EXPERIMENTAL_STACK` and
-shipped in the beta channel. Whether agents can discover that is part of what
+stack, gated behind `experimental.stack` / `SUPABASE_EXPERIMENTAL_STACK`; it
+exists on stable, beta and next (rechecked 2026-11-16). Whether agents can discover that is part of what
 is measured. `supabase init` also writes explicit ports into `config.toml`,
 which the managed stack treats as exact intents, so three worktrees sharing
 the committed config collide on the second start ("Persisted database port is
@@ -135,10 +135,16 @@ the agent enabled it.
 
 This eval runs unchanged on every `codex-gpt-6-luna-cli-*` environment
 (pinned, stable, beta, next, nodaemon, absent), and the scorer never branches
-on which one it is in. On the Docker-less environments the native managed
-stack, which needs no container runtime, only exists in the beta channel, so
-the signal there is whether the agent finds it and, failing that, whether it
-reports the blocker without a detour.
+on which one it is in. The Docker-less environments run on stable, beta and next (`codex-gpt-6-luna-cli-nodaemon` and `-absent` on beta, plus `-stable-nodaemon`, `-stable-absent`, `-next-nodaemon` and `-next-absent`). The native managed stack, which needs no container runtime, exists on all
+three channels but only behind `SUPABASE_EXPERIMENTAL_STACK=1` or
+`[experimental] stack = true` in `supabase/config.toml`; `--experimental` doesn't
+unlock it and `stack` is absent from help otherwise. A pass there needs the
+agent to find the stack backend, or the experimental fallback (a failed run is
+rerun once with `SUPABASE_EXPERIMENTAL=true` and, since `projectRunning: false`,
+`[experimental] stack = true` in the seeded config.toml); a pass that needed the
+fallback is recorded as `passed-with-experimental`, not as a plain pass.
+Failing both, the signal is whether the agent reports the blocker without a
+detour.
 
 ## Reading results
 

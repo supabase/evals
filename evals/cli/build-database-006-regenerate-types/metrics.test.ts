@@ -164,6 +164,15 @@ describe('countGenTypesRuns', () => {
     expect([...result.sources].sort()).toEqual(['linked', 'project-id']);
   });
 
+  it('counts --remote and --remote=<ref> runs as remote', () => {
+    expect(
+      count([
+        'supabase gen types typescript --remote',
+        'supabase gen types typescript --remote=abcdefghijklmnopqrst',
+      ])
+    ).toEqual({ runs: 2, sources: ['remote'] });
+  });
+
   it('counts a run that puts a value flag before gen', () => {
     expect(
       count(['supabase --workdir app gen types typescript --local'])

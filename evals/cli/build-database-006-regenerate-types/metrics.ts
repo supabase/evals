@@ -68,6 +68,7 @@ const GEN_TYPES_SOURCE_FLAGS = [
   ['--local', 'local'],
   ['--db-url', 'db-url'],
   ['--linked', 'linked'],
+  ['--remote', 'remote'],
   ['--project-id', 'project-id'],
 ] as const;
 

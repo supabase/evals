@@ -6,6 +6,10 @@ import { skipUnlessCli } from './lib/skip.js';
 
 export default defineExperiment({
   ...claudeCodeOpus55,
-  localStack: localStackRuntime({ cliVersion: 'stable', env: EVAL_ENV }),
+  localStack: localStackRuntime({
+    cliVersion: 'stable',
+    env: EVAL_ENV,
+    experimentalFallback: true,
+  }),
   skipEval: skipUnlessCli,
 });

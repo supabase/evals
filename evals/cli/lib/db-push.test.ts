@@ -179,6 +179,31 @@ describe('readDbPushes', () => {
     );
   });
 
+  it('reads a bare push as local when its output shows the local target line', () => {
+    expect(
+      pushesOf(
+        shellCall('supabase db push', {
+          result:
+            'Target: local stack (127.0.0.1:54322)\nFinished supabase db push.',
+        })
+      )[0]?.explicitlyLocal
+    ).toBe(true);
+    expect(
+      pushesOf(
+        shellCall('supabase db push --remote', {
+          result: `Target: project ${HOSTED_REF}\nFinished supabase db push.`,
+        })
+      )[0]?.explicitlyLocal
+    ).toBe(false);
+    expect(
+      pushesOf(
+        shellCall('supabase db push', {
+          result: 'Finished supabase db push.',
+        })
+      )[0]?.explicitlyLocal
+    ).toBe(false);
+  });
+
   it('reads a --db-url from a variable that holds the local stack URL as local', () => {
     expect(
       pushesOf(

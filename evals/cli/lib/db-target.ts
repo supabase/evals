@@ -133,13 +133,26 @@ function isLocalUrl(
   return LOADS_STATUS_ENV_RE.test(command);
 }
 
-/** Only `--local` or a loopback `--db-url`/`--remote=<url>`: a bare `db push` or `db dump` targets the linked project on CLI 2.x but the local stack on next. */
+const LOCAL_TARGET_RE =
+  /Target: local stack\b|"target"\s*:\s*\{\s*"kind"\s*:\s*"local"/;
+const REMOTE_TARGET_RE =
+  /Target: (?:project\b|custom Postgres\b)|"target"\s*:\s*\{\s*"kind"\s*:\s*"(?:linked|db-url)"/;
+
+/** Whether the call's own output has the CLI's target line naming the local stack, with no line naming a project or custom database. */
+export function reportsLocalTarget(call: ToolCallRecord | undefined): boolean {
+  const text = callText(call);
+  return LOCAL_TARGET_RE.test(text) && !REMOTE_TARGET_RE.test(text);
+}
+
+/** `--local`, a loopback `--db-url`/`--remote=<url>`, or a call whose output says it acted on the local stack; a bare `db push` or `db dump` is local on 3.x+ but targets the linked project on 2.x. */
 export function isExplicitlyLocal(
   inv: SupabaseInvocation,
   command: string,
-  options?: TargetOptions
+  options?: TargetOptions,
+  call?: ToolCallRecord
 ): boolean {
   if (booleanFlag(inv.argv, '--local')) return true;
+  if (reportsLocalTarget(call)) return true;
   const remote = remoteValue(inv.argv);
   return [
     invocationFlag(inv, '--db-url'),

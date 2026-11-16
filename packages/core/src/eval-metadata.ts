@@ -411,6 +411,21 @@ export type DocsResult = z.infer<typeof docsResultSchema>;
 // artifacts; a snapshot whose value drifts from the current enum (e.g. a
 // renamed stage or topic) fails to parse and is dropped from the export rather
 // than rendered with a stale value, and is rebuilt on the next run.
+export const experimentalFallbackSchema = z.object({
+  outcome: z.enum([
+    'passed-with-experimental',
+    'failed-with-experimental',
+    'retry-errored',
+  ]),
+  applied: z.array(z.string()),
+  otherAttempt: z.object({
+    passed: z.boolean(),
+    checks: z.array(checkResultSchema).optional(),
+    cliVersion: cliVersionSchema.optional(),
+    error: z.string().optional(),
+  }),
+});
+
 const evalResultShape = {
   experiment: z.string(),
   experimentDisplay: experimentDisplayMetadataSchema.optional(),
@@ -425,6 +440,7 @@ const evalResultShape = {
   checks: z.array(checkResultSchema).optional(),
   judgeCalls: z.array(judgeCallSchema).optional(),
   attempts: z.number().optional(),
+  experimentalFallback: experimentalFallbackSchema.optional(),
   // 1-based index of this scored run within a pair's sample set. Absent on
   // legacy rows exported before pairs ran more than once.
   run: z.number().optional(),

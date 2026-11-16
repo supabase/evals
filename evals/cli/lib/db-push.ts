@@ -18,7 +18,7 @@ export type DbPush = {
   /** The invocation's index among all supabase invocations, so it orders against other verbs. */
   order: number;
   dryRun: boolean;
-  /** Only `--local` or a loopback `--db-url`/`--remote=<url>`: a bare `db push` targets the linked project on CLI 2.x but the local stack on next. */
+  /** `--local`, a loopback `--db-url`/`--remote=<url>`, or output showing the local target line; a bare `db push` is local on 3.x+ but the linked project on 2.x. */
   explicitlyLocal: boolean;
   yes: boolean;
   failed: boolean;
@@ -64,7 +64,7 @@ export function readDbPushes(
     pushes.push({
       order,
       dryRun: booleanFlag(inv.argv, '--dry-run'),
-      explicitlyLocal: isExplicitlyLocal(inv, command, options),
+      explicitlyLocal: isExplicitlyLocal(inv, command, options, call),
       yes: booleanFlag(inv.argv, '--yes'),
       failed,
       upToDate: pushedNothing(call),
