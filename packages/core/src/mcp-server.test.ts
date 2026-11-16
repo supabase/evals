@@ -52,7 +52,7 @@ afterAll(() => rmSync(fixtureDir, { recursive: true, force: true }));
 
 describe('supabaseMcpServer().createConfig', () => {
   beforeEach(() => {
-    vi.spyOn(mcpRevision, 'buildMcpCheckout').mockResolvedValue(fixtureEntry);
+    vi.spyOn(console, 'log').mockImplementation(() => {});
   });
   afterEach(() => {
     vi.unstubAllEnvs();
@@ -65,11 +65,18 @@ describe('supabaseMcpServer().createConfig', () => {
     ).toThrow('mutually exclusive');
   });
 
-  it('rejects a local override combined with a revision', async () => {
+  it('uses the local override when a revision is also set', async () => {
     vi.stubEnv('SUPABASE_MCP_REPO_PATH', fixtureDir);
-    await expect(
-      supabaseMcpServer({ revision: 'a'.repeat(40) }).createConfig()
-    ).rejects.toThrow('Unset SUPABASE_MCP_REPO_PATH');
+    const buildRevision = vi.spyOn(mcpRevision, 'buildMcpRevision');
+    const { config, repoSources } = await supabaseMcpServer({
+      revision: 'feature/experiment',
+    }).createConfig();
+    expect(config.args?.[0]).toBe(fixtureEntry);
+    expect(buildRevision).not.toHaveBeenCalled();
+    expect(repoSources).toBeUndefined();
+    expect(console.log).toHaveBeenCalledWith(
+      `Using local MCP checkout ${fixtureDir} from SUPABASE_MCP_REPO_PATH (overrides revision feature/experiment)`
+    );
   });
 
   it('carries the source build and commit into the runtime', async () => {
@@ -85,6 +92,9 @@ describe('supabaseMcpServer().createConfig', () => {
     const session = await runtime.startSession({});
     try {
       expect(build).toHaveBeenCalledWith('a'.repeat(40));
+      expect(console.log).toHaveBeenCalledWith(
+        `Using MCP revision ${'a'.repeat(40)} (${'b'.repeat(40)}) from supabaseMcpServer({ revision })`
+      );
       expect(session.repoSources).toEqual({
         'supabase/mcp': {
           revision: 'a'.repeat(40),
@@ -110,25 +120,38 @@ describe('supabaseMcpServer().createConfig', () => {
       `@supabase/mcp-server-supabase@${MCP_SERVER_VERSION}`
     );
     expect(config.args).toContain('--api-url');
+    expect(console.log).not.toHaveBeenCalled();
   });
 
   it('launches the built server from the configured repo root', async () => {
     clearEnv();
     vi.stubEnv('SUPABASE_MCP_REPO_PATH', fixtureDir);
     const { config } = await supabaseMcpServer().createConfig({});
-    expect(mcpRevision.buildMcpCheckout).toHaveBeenCalledWith(fixtureDir);
+    expect(console.log).toHaveBeenCalledWith(
+      `Using local MCP checkout ${fixtureDir} from SUPABASE_MCP_REPO_PATH`
+    );
     expect(config.command).toBe('node');
     expect(config.args?.[0]).toBe(fixtureEntry);
   });
 
-  it('propagates checkout preparation failures', async () => {
-    vi.stubEnv('SUPABASE_MCP_REPO_PATH', fixtureDir);
-    vi.mocked(mcpRevision.buildMcpCheckout).mockRejectedValue(
-      new Error('build failed')
-    );
-    await expect(supabaseMcpServer().createConfig()).rejects.toThrow(
-      'build failed'
-    );
+  it('uses a local build created after an initial missing-build error', async () => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'mcp-unbuilt-')));
+    const packageDir = join(root, 'packages', 'mcp-server-supabase');
+    mkdirSync(packageDir, { recursive: true });
+    writeFileSync(join(packageDir, 'package.json'), '{}');
+    vi.stubEnv('SUPABASE_MCP_REPO_PATH', root);
+    try {
+      await expect(supabaseMcpServer().createConfig()).rejects.toThrow(
+        'Build or watch the MCP package before running evals'
+      );
+      mkdirSync(join(packageDir, 'dist'));
+      const entry = join(packageDir, 'dist', 'cli.js');
+      writeFileSync(entry, '');
+      const { config } = await supabaseMcpServer().createConfig();
+      expect(config.args?.[0]).toBe(entry);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it('rejects package directories and entrypoints as repo roots', async () => {

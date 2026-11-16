@@ -46,33 +46,25 @@ Add a `*.experiment.ts` file under `experiments/<suite>/` for the agent, model, 
 
 The suite folder decides which evals the experiment runs: `experiments/<suite>/` runs the evals in `evals/<suite>/`. If this experiment should be part of our published benchmark, put it in `experiments/benchmark/` and include a corresponding `*-no-skills` variant (`skills: []`) to compare results with and without skills. To run one experiment in several suites, export a shared preset from `experiments/presets.ts` and spread it in a file under each suite folder.
 
-## Developing the MCP server
+## Testing MCP changes
 
-Clone [the MCP repo](https://github.com/supabase/mcp) and add its root to the evals checkout's `.env`. Paths can be absolute or relative to the evals checkout root.
+### Run local changes
+
+Clone [the MCP repo](https://github.com/supabase/mcp) and add its root to this repo's `.env`.
 
 ```dotenv
 SUPABASE_MCP_REPO_PATH=../mcp
 ```
 
-This example uses a sibling checkout named `mcp`.
-
-Run from the evals checkout. Each invocation installs MCP dependencies with `pnpm install --frozen-lockfile` and builds the server, using the same preparation as source revision runs. Evals in the same process share one build. Keep the MCP lockfile current after dependency changes. After MCP edits, rerun the command.
+Build your MCP checkout before running evals, then rebuild after edits or keep the package’s watch build running.
 
 ```bash
 pnpm eval -- --suite benchmark --experiment codex-gpt-6-luna --eval resolve-dataapi-001-empty-results --runs 1
 ```
 
-The override works for host and container agents. Inspect `results/benchmark/codex-gpt-6-luna/resolve-dataapi-001-empty-results/run-1/result.json`, including `toolCalls` and `transcript`. To upload this result and inspect its tool responses in Braintrust, set the Braintrust variables from `.env.example`, then run.
+### Share a branch or commit
 
-```bash
-pnpm --filter @supabase-evals/framework exec node --env-file=../../.env --import tsx/esm scripts/upload-braintrust.ts --suite benchmark --experiment codex-gpt-6-luna --eval resolve-dataapi-001-empty-results --runs 1
-```
-
-The uploader prints the Braintrust links. See [Publishing and consuming results](#publishing-and-consuming-results) for queries and publication.
-
-### Running an MCP source revision
-
-Set `revision` to a branch, tag, or full commit SHA available from `supabase/mcp` in your experiment's runtime. Use a branch while iterating and a full SHA for reproducible sharing. For example, in `experiments/benchmark/codex-gpt-6-luna.experiment.ts`, keep the preset and override its runtime.
+Push the MCP changes to `supabase/mcp` and unset `SUPABASE_MCP_REPO_PATH`. Set `revision` to a branch, tag, or full commit SHA in your experiment, for example `experiments/benchmark/codex-gpt-6-luna.experiment.ts`.
 
 ```ts
 import { defineExperiment, platformLiteRuntime, supabaseMcpServer } from '@supabase-evals/core';
@@ -86,13 +78,7 @@ export default defineExperiment({
 });
 ```
 
-While iterating, use `supabaseMcpServer({ revision: 'feature/my-experiment' })`. Teammates can check out your evals branch and run the same command. Unset `SUPABASE_MCP_REPO_PATH` for source revision runs. `revision` and the npm `version` option are mutually exclusive.
-
-The runner fetches and builds each revision once per eval process, using a temporary checkout and the MCP lockfile. The checkout is mounted read-only for container agents and removed on normal process exit. The host needs Git, pnpm, and network access. Only run revisions you trust, since installing and building executes their code.
-
-Branches resolve again on the next process. Results record the requested revision and resolved `commitSha` under `repoSources["supabase/mcp"]`, also uploaded as `repo_sources["supabase/mcp"]` in Braintrust metadata.
-
-For CI verification, add distinctive canary text to an MCP tool response and push that MCP commit. Pin its SHA in the evals experiment, then dispatch [Refresh eval results](https://github.com/supabase/evals/actions/workflows/eval-refresh.yml) on the evals branch with the selected experiment and eval, `runs: 1`, and `commit_results: current-branch`. Inspect the tool response in the uploaded Braintrust trace. Include links to the MCP commit, pinned experiment configuration, workflow run, and trace in the evals PR.
+Use a branch while iterating and a full SHA for reproducible sharing. [Run the experiment in CI](#submitting-evals-for-review).
 
 ## Submitting evals for review
 

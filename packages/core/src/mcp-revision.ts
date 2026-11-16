@@ -16,26 +16,7 @@ const builds = new Map<
   Promise<{ entry: string; mountRoot: string; commitSha: string }>
 >();
 
-const checkoutBuilds = new Map<string, Promise<string>>();
-
-export function buildMcpCheckout(repoRoot: string): Promise<string> {
-  const cached = checkoutBuilds.get(repoRoot);
-  if (cached) return cached;
-  const build = (async () => {
-    console.log(`Preparing MCP checkout at ${repoRoot}`);
-    await exec('pnpm', ['install', '--frozen-lockfile'], { cwd: repoRoot });
-    await exec('pnpm', ['build'], { cwd: repoRoot });
-    const entry = join(repoRoot, 'packages/mcp-server-supabase/dist/cli.js');
-    if (!existsSync(entry))
-      throw new Error(`MCP build did not produce ${entry}`);
-    return entry;
-  })().catch((cause: unknown) => {
-    checkoutBuilds.delete(repoRoot);
-    throw new Error(`Failed to prepare MCP checkout at ${repoRoot}`, { cause });
-  });
-  checkoutBuilds.set(repoRoot, build);
-  return build;
-}
+export const MCP_SERVER_ENTRY_PATH = 'packages/mcp-server-supabase/dist/cli.js';
 
 export function buildMcpRevision(revision: string) {
   const cached = builds.get(revision);
@@ -73,7 +54,11 @@ async function buildRevision(revision: string) {
     });
     const commitSha = stdout.trim();
     console.log(`Resolved MCP revision ${revision} to ${commitSha}`);
-    const entry = await buildMcpCheckout(mountRoot);
+    await exec('pnpm', ['install', '--frozen-lockfile'], { cwd: mountRoot });
+    await exec('pnpm', ['build'], { cwd: mountRoot });
+    const entry = join(mountRoot, MCP_SERVER_ENTRY_PATH);
+    if (!existsSync(entry))
+      throw new Error(`MCP build did not produce ${entry}`);
     // Docker's node user needs access even when the host UID differs.
     chmodSync(mountRoot, 0o755);
     process.once('exit', () =>

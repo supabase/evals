@@ -2,15 +2,13 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import {
   mkdirSync,
-  mkdtempSync,
   writeFileSync,
   existsSync,
   rmSync,
   statSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
-import { buildMcpCheckout, buildMcpRevision } from './mcp-revision.js';
+import { buildMcpRevision } from './mcp-revision.js';
 
 const run = vi.hoisted(() => vi.fn());
 vi.mock('node:child_process', async (importOriginal) => ({
@@ -94,49 +92,4 @@ it('cleans up a failed build and allows retrying', async () => {
   expect(existsSync(firstRoot)).toBe(false);
   await expect(buildMcpRevision(revision)).rejects.toThrow();
   expect(run).toHaveBeenCalledTimes(6);
-});
-
-it('prepares an unbuilt local checkout once for concurrent callers', async () => {
-  const root = mkdtempSync(join(tmpdir(), 'mcp-local-build-'));
-  const entry = join(root, 'packages/mcp-server-supabase/dist/cli.js');
-  run.mockImplementation(async (_command, args) => {
-    if (args[0] === 'build') {
-      mkdirSync(join(entry, '..'), { recursive: true });
-      writeFileSync(entry, '');
-    }
-  });
-  try {
-    expect(existsSync(entry)).toBe(false);
-    expect(
-      await Promise.all([buildMcpCheckout(root), buildMcpCheckout(root)])
-    ).toEqual([entry, entry]);
-    expect(run.mock.calls).toEqual([
-      ['pnpm', ['install', '--frozen-lockfile'], { cwd: root }],
-      ['pnpm', ['build'], { cwd: root }],
-    ]);
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
-it('keeps a local checkout on failure and allows retrying', async () => {
-  const root = mkdtempSync(join(tmpdir(), 'mcp-local-retry-'));
-  run.mockRejectedValue(new Error('install failed'));
-  try {
-    await expect(buildMcpCheckout(root)).rejects.toThrow(
-      'Failed to prepare MCP checkout'
-    );
-    expect(existsSync(root)).toBe(true);
-    const entry = join(root, 'packages/mcp-server-supabase/dist/cli.js');
-    run.mockImplementation(async (_command, args) => {
-      if (args[0] === 'build') {
-        mkdirSync(join(entry, '..'), { recursive: true });
-        writeFileSync(entry, '');
-      }
-    });
-    await expect(buildMcpCheckout(root)).resolves.toBe(entry);
-    expect(run).toHaveBeenCalledTimes(3);
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
 });

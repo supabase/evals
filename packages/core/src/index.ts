@@ -55,7 +55,7 @@ import type {
 import { reasoningEffortSchema } from './eval-metadata.js';
 import type { AgentMetadata, AgentSandbox } from './agents/types.js';
 import { isRecord } from './json.js';
-import { buildMcpCheckout, buildMcpRevision } from './mcp-revision.js';
+import { buildMcpRevision, MCP_SERVER_ENTRY_PATH } from './mcp-revision.js';
 
 // Resolved lazily on first use, not at module load: `import.meta.resolve` is a
 // load-time side effect that throws under bundler SSR transforms (e.g. vitest),
@@ -1109,7 +1109,7 @@ export function supabaseMcpServer(
   options: {
     features?: string[];
     version?: string;
-    /** Branch, tag, or full commit SHA from supabase/mcp. Resolved once per process. */
+    /** Branch, tag, or full commit SHA from supabase/mcp. SUPABASE_MCP_REPO_PATH takes precedence. */
     revision?: string;
   } = {}
 ): McpServerDefinition {
@@ -1163,28 +1163,36 @@ export function supabaseMcpServer(
           ? feedbackRedirectEnv(apiUrl)
           : undefined;
 
-      if (
-        options.revision !== undefined &&
-        process.env.SUPABASE_MCP_REPO_PATH
-      ) {
-        throw new Error(
-          'Unset SUPABASE_MCP_REPO_PATH to run an MCP source revision'
-        );
-      }
+      const repoRoot = resolveLocalMcpRepo(process.env.SUPABASE_MCP_REPO_PATH);
       const sourceBuild =
-        options.revision !== undefined
+        !repoRoot && options.revision !== undefined
           ? await buildMcpRevision(options.revision)
           : undefined;
-      const repoRoot = sourceBuild ? null : resolveLocalMcpRepo();
-      const local =
-        sourceBuild ??
-        (repoRoot
-          ? {
-              entry: await buildMcpCheckout(repoRoot),
-              mountRoot: repoRoot,
-            }
-          : null);
+      const local = repoRoot
+        ? {
+            entry: join(repoRoot, MCP_SERVER_ENTRY_PATH),
+            mountRoot: repoRoot,
+          }
+        : sourceBuild;
       if (local) {
+        if (repoRoot && !existsSync(local.entry)) {
+          throw new Error(
+            `No MCP build at ${local.entry}. Build or watch the MCP package before running evals. ` +
+              `See CONTRIBUTING.md "Testing MCP changes".`
+          );
+        }
+        if (sourceBuild) {
+          console.log(
+            `Using MCP revision ${options.revision} (${sourceBuild.commitSha}) from supabaseMcpServer({ revision })`
+          );
+        } else {
+          console.log(
+            `Using local MCP checkout ${local.mountRoot} from SUPABASE_MCP_REPO_PATH` +
+              (options.revision !== undefined
+                ? ` (overrides revision ${options.revision})`
+                : '')
+          );
+        }
         // Resolve Node through PATH because host and container binary paths differ.
         return {
           config: { command: 'node', args: [local.entry, ...serverArgs], env },
@@ -1232,8 +1240,7 @@ function feedbackRedirectEnv(apiUrl: string): Record<string, string> {
  */
 let localMcpRepoCache: { key: string; value: string } | null = null;
 
-function resolveLocalMcpRepo(): string | null {
-  const localRepoPath = process.env.SUPABASE_MCP_REPO_PATH;
+function resolveLocalMcpRepo(localRepoPath: string | undefined): string | null {
   if (!localRepoPath) return null;
   if (localMcpRepoCache?.key === localRepoPath) return localMcpRepoCache.value;
 
@@ -1250,7 +1257,7 @@ function resolveLocalMcpRepo(): string | null {
     throw new Error(
       `SUPABASE_MCP_REPO_PATH expected ${probe}, which does not exist. ` +
         `Point it at the MCP repo root. ` +
-        `See CONTRIBUTING.md "Developing the MCP server".`
+        `See CONTRIBUTING.md "Testing MCP changes".`
     );
   }
   // Docker's mount and the command must use the same canonical checkout path.
@@ -1273,7 +1280,7 @@ function gitToplevel(dir: string): string | null {
 
 /** Read-only checkout mount for container agents using SUPABASE_MCP_REPO_PATH. */
 export function supabaseMcpServerMounts(): SandboxMount[] {
-  const repoRoot = resolveLocalMcpRepo();
+  const repoRoot = resolveLocalMcpRepo(process.env.SUPABASE_MCP_REPO_PATH);
   return repoRoot ? [{ hostPath: repoRoot, readonly: true }] : [];
 }
 
