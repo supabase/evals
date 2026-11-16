@@ -9,26 +9,17 @@ a guest and a customer are treated differently. A gap in the page counts as a fa
 One claim: only people with an account can write a review, including a guest who made one a moment ago. Guests can
 still browse and fill a cart.
 
-A guest reaches the database as a signed-in user. Every rule that says "signed in" lets a guest through until something
-tells the two apart. The page's way of telling them apart is the `is_anonymous` claim in the access token. When a guest
-adds an email, the user row stops being anonymous at once, but the token the client holds still says `is_anonymous:
-true` until it refreshes. A rule on the claim refuses the new customer for up to an hour. The page does not say so, and
-`a guest who just made an account can post a review` is the check that measures it.
+A guest reaches the database as a signed-in user, so every rule that says "signed in" lets a guest through until
+something tells the two apart. When a guest adds an email, the user row stops being anonymous at once. The access token
+the client already holds keeps `is_anonymous: true` until it refreshes, up to `jwt_expiry`. A rule that reads the token
+refuses the new customer for that window. `a guest who just made an account can post a review` measures whether the
+agent's rule survives it.
 
-## How much of the page this eval covers
+## Most of the page is not scored
 
-About 15% of the page by words, and one of its six task sections. The page carries at least five separate claims and
-this eval tests one.
-
-| Section | Scored | Why not |
-| --- | --- | --- |
-| What an anonymous user is, and the cautions | The `authenticated` role caution only | The Next.js caching caution needs a framework build in the sandbox. Enabling the provider is done by the seed. |
-| Sign in anonymously | No | The scorer signs in. The agent writes no client code. |
-| Convert to a permanent user | No | The upgrade check calls `updateUser` itself, so it scores the database's reaction, not the agent's conversion code. A separate eval is proposed. OAuth linking needs a provider stand-in. |
-| Access control | Yes | |
-| Resolving identity conflicts | No | A separate claim. A separate eval is proposed. |
-| Abuse prevention and rate limits | No | A separate claim. Captcha needs test keys, and rate limits would be read from the Auth container. |
-| Automatic cleanup | No | One SQL statement that a model already knows. Likely to saturate. |
+The eval scores the access rules only. The page also teaches converting a guest to a customer, resolving conflicts when a
+guest signs in to an existing account, abuse prevention and rate limits, cleaning up old guests, and signing in from the
+client. Each is a separate claim, and none is scored here. A pass says the access rules work, not that the page works.
 
 ## Do not reintroduce the vocabulary
 
@@ -44,14 +35,14 @@ The seed is the world the user already has, so it uses `authenticated` and polic
 
 `local/supabase/migrations/20240101000000_init.sql` is a plant shop. Four things in it are load-bearing.
 
-- **Reviews already have a permissive insert policy for every signed-in user.** A guest can post today. A second
-  permissive rule that checks for a customer changes nothing, because rules of that kind combine with OR. Only a rule
-  that is required in addition, or a rewrite of the existing one, passes.
-- **Carts and reading are settled and open to guests.** The two guest controls keep a blunt answer, such as revoking
-  everything from every signed-in user, from passing. They also fail an agent that grants to `anon`, thinking a guest is
-  the `anon` role.
+- **Reviews already have a permissive insert policy for every signed-in user.** A guest can post until the agent acts.
+  A second permissive rule that checks for a customer changes nothing, because rules of that kind combine with OR. Only
+  a rule that is required in addition, or a rewrite of the existing one, passes.
+- **Carts and reading are open to guests.** The two guest controls keep a blunt answer, such as revoking everything from
+  every signed-in user, from passing. They also fail an agent that grants to `anon`, treating a guest as the `anon`
+  role.
 - **`enable_anonymous_sign_ins = true` in `local/supabase/config.toml`.** The seed turns the setting on so the eval
-  measures the rules and not the switch. The page shows the switch as a dashboard link only.
+  measures the rules and not the switch.
 - **`enable_confirmations = false`.** Adding an email to a guest takes effect at once, so the upgrade check needs no
   mailbox. Turn it on and the upgrade check fails for every solution.
 
@@ -90,15 +81,13 @@ to rule out prior knowledge.
 
 ## Checks expected to saturate
 
-The session gate, both guest controls, the customer control and the no-session check. The first version of this eval had
-only these and the guest refusal, and all three baseline runs passed every check. The upgrade check is where the signal
-is expected.
+The session gate, both guest controls, the customer control, the no-session check and the guest refusal. The upgrade
+check is where the signal is expected.
 
 ## What this eval does not score
 
 - **The agent's own conversion code.** No client is seeded, so the scorer converts the guest itself.
 - **Switching anonymous sign-ins on.** The seed does it.
-- **Abuse prevention, rate limits and cleanup.** Separate claims on the same page.
-- **Review ownership and other people's carts.** The seed settles them, and the RLS guide eval owns them.
+- **Review ownership and other people's carts.** The seed settles them.
 - **How the agent applied the migration.** Any route that leaves it applied passes. Writing the change as a migration is
   its own check, `the agent wrote its change as a migration`.
