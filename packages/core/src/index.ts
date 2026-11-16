@@ -48,12 +48,14 @@ import type {
   EvalSuite,
   ExperimentDisplayMetadata,
   JudgeCall,
+  McpSource,
   ModelProvider,
   ReasoningEffortLevel,
 } from './eval-metadata.js';
 import { reasoningEffortSchema } from './eval-metadata.js';
 import type { AgentMetadata, AgentSandbox } from './agents/types.js';
 import { isRecord } from './json.js';
+import { buildMcpRevision } from './mcp-revision.js';
 
 // Resolved lazily on first use, not at module load: `import.meta.resolve` is a
 // load-time side effect that throws under bundler SSR transforms (e.g. vitest),
@@ -139,6 +141,7 @@ export type {
   EvalMetadata,
   EvalProduct,
   EvalResult,
+  McpSource,
   EvalSuite,
   EvalStage,
   ExperimentDisplayMetadata,
@@ -961,6 +964,8 @@ export type EvalSessionArgs = {
 };
 
 export type EvalSession = {
+  mcpSources?: Record<string, McpSource>;
+  mounts?: readonly SandboxMount[];
   mcpServers: Record<string, McpServerConfig>;
   /** Whether the agent can control the host Docker daemon. Defaults to true. */
   mountDockerSocket?: boolean;
@@ -990,6 +995,8 @@ export type McpServerConfig = {
 };
 
 type ResolvedMcpServer = {
+  source?: McpSource;
+  mounts?: readonly SandboxMount[];
   config: McpServerConfig;
   cleanup?: () => Promise<void>;
 };
@@ -1014,6 +1021,8 @@ export function platformLiteRuntime(options: {
     async startSession(args) {
       const backend = await bootPlatformBackend(args);
       const mcpServers: Record<string, McpServerConfig> = {};
+      const mounts: SandboxMount[] = [];
+      const mcpSources: Record<string, McpSource> = {};
       const cleanupFns: Array<() => Promise<void>> = [];
 
       try {
@@ -1026,11 +1035,15 @@ export function platformLiteRuntime(options: {
             accessToken: backend.accessToken,
           });
           mcpServers[mcpServer.name] = resolved.config;
+          mounts.push(...(resolved.mounts ?? []));
+          if (resolved.source) mcpSources[mcpServer.name] = resolved.source;
           if (resolved.cleanup) cleanupFns.push(resolved.cleanup);
         }
 
         return {
           mcpServers,
+          mounts,
+          mcpSources: Object.keys(mcpSources).length ? mcpSources : undefined,
           promptAddendum:
             options.mcpServers
               .map((mcpServer) => mcpServer.promptAddendum)
@@ -1094,8 +1107,13 @@ export function supabaseMcpServer(
   options: {
     features?: string[];
     version?: string;
+    /** Branch, tag, or full commit SHA from supabase/mcp. Resolved once per process. */
+    revision?: string;
   } = {}
 ): McpServerDefinition {
+  if (options.revision !== undefined && options.version !== undefined) {
+    throw new Error('MCP revision and version are mutually exclusive');
+  }
   const features = options.features ?? [
     'docs',
     'account',
@@ -1143,13 +1161,29 @@ export function supabaseMcpServer(
           ? feedbackRedirectEnv(apiUrl)
           : undefined;
 
-      const local = resolveLocalMcpServer();
+      if (
+        options.revision !== undefined &&
+        process.env.SUPABASE_MCP_SERVER_PATH
+      ) {
+        throw new Error(
+          'Unset SUPABASE_MCP_SERVER_PATH to run an MCP source revision'
+        );
+      }
+      const local =
+        options.revision !== undefined
+          ? await buildMcpRevision(options.revision)
+          : resolveLocalMcpServer();
       if (local) {
         // `node`, not process.execPath: CLI agents run this command INSIDE the
         // sandbox container, where the host's node binary path does not exist.
         // Both container and host resolve `node` via PATH.
         return {
           config: { command: 'node', args: [local.entry, ...serverArgs], env },
+          source:
+            options.revision !== undefined && 'commitSha' in local
+              ? { revision: options.revision, commitSha: local.commitSha }
+              : undefined,
+          mounts: [{ hostPath: local.mountRoot, readonly: true }],
         };
       }
 
@@ -1209,7 +1243,7 @@ function resolveLocalMcpServer(): LocalMcpServer | null {
     throw new Error(
       `SUPABASE_MCP_SERVER_PATH resolved to ${probe}, which does not exist — ` +
         `build the server first (pnpm install && pnpm build in the mcp checkout); ` +
-        `see README "Running against an exact MCP server revision".`
+        `see CONTRIBUTING.md "Developing the MCP server".`
     );
   }
   // One filesystem view for command AND mount: the sandbox bind-mounts the

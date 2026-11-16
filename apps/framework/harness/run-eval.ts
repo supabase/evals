@@ -38,6 +38,7 @@ import {
   rehydrateTruncatedDocsResults,
   getExperimentDisplayMetadata,
   supabaseMcpServerMounts,
+  type McpSource,
 } from '@supabase-evals/core';
 import type {
   AgentUsage,
@@ -378,6 +379,7 @@ async function runOne(
     agentRunEndedAt: number;
     scoringEndedAt: number;
     cliVersion?: string;
+    mcpSources?: Record<string, McpSource>;
   }
 > {
   const prompt = parseEvalMarkdown(
@@ -532,7 +534,7 @@ async function runOne(
           env: session.env,
           mountDockerSocket: session.mountDockerSocket,
           skills: skillSources,
-          mounts: supabaseMcpServerMounts(),
+          mounts: session.mounts,
         })
       )
     : undefined;
@@ -592,6 +594,7 @@ async function runOne(
     scoringEndedAt,
     // No sandbox in tools mode, so no marker to read; only the frontmatter pin applies.
     cliVersion: ev.metadata.cliVersion,
+    mcpSources: session.mcpSources,
   };
 }
 

@@ -24,7 +24,12 @@ import {
 } from 'node:fs';
 import { join, relative } from 'node:path';
 import { tmpdir } from 'node:os';
-import { supabaseMcpServer, supabaseMcpServerMounts } from './index.js';
+import {
+  platformLiteRuntime,
+  supabaseMcpServer,
+  supabaseMcpServerMounts,
+} from './index.js';
+import * as mcpRevision from './mcp-revision.js';
 
 // Stub (not mutate) env so a pre-existing SUPABASE_MCP_SERVER_PATH is restored
 // per test.
@@ -49,6 +54,53 @@ afterAll(() => rmSync(fixtureDir, { recursive: true, force: true }));
 
 describe('supabaseMcpServer().createConfig', () => {
   afterEach(() => vi.unstubAllEnvs());
+
+  it('rejects a revision combined with a package version', () => {
+    expect(() =>
+      supabaseMcpServer({ revision: 'a'.repeat(40), version: '1.0.0' })
+    ).toThrow('mutually exclusive');
+  });
+
+  it('rejects a local override combined with a revision', async () => {
+    vi.stubEnv('SUPABASE_MCP_SERVER_PATH', fixtureDir);
+    await expect(
+      supabaseMcpServer({ revision: 'a'.repeat(40) }).createConfig()
+    ).rejects.toThrow('Unset SUPABASE_MCP_SERVER_PATH');
+  });
+
+  it('carries the source build and commit into the runtime', async () => {
+    clearEnv();
+    const build = vi.spyOn(mcpRevision, 'buildMcpRevision').mockResolvedValue({
+      entry: fixtureEntry,
+      mountRoot: fixtureDir,
+      commitSha: 'b'.repeat(40),
+    });
+    try {
+      const runtime = platformLiteRuntime({
+        mcpServers: [supabaseMcpServer({ revision: 'a'.repeat(40) })],
+      });
+      const session = await runtime.startSession({});
+      try {
+        expect(build).toHaveBeenCalledWith('a'.repeat(40));
+        expect(session.mcpSources).toEqual({
+          'supabase-mcp': {
+            revision: 'a'.repeat(40),
+            commitSha: 'b'.repeat(40),
+          },
+        });
+        expect(session.mcpServers['supabase-mcp']?.args?.[0]).toBe(
+          fixtureEntry
+        );
+        expect(session.mounts).toEqual([
+          { hostPath: fixtureDir, readonly: true },
+        ]);
+      } finally {
+        await session.close();
+      }
+    } finally {
+      build.mockRestore();
+    }
+  });
 
   it('defaults to the published package via npx', async () => {
     clearEnv();

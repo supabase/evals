@@ -1,6 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import { evalMetadataSchema, rawEvalResultSchema } from './eval-metadata.js';
 
+it('preserves the requested MCP revision and resolved commit in results', () => {
+  const mcpSources = {
+    'supabase-mcp': {
+      revision: 'feature/experiment',
+      commitSha: 'a'.repeat(40),
+    },
+  };
+  const parsed = rawEvalResultSchema.parse({
+    experiment: 'test-experiment',
+    eval: 'test-eval',
+    interface: 'mcp',
+    mcpSources,
+  });
+  expect(parsed.mcpSources).toEqual(mcpSources);
+});
+
 describe('cliVersion schema', () => {
   const BETA_VERSION = '2.118.0-beta.60';
 
