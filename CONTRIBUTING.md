@@ -54,7 +54,7 @@ Clone [the MCP repo](https://github.com/supabase/mcp) and add its root to the ev
 SUPABASE_MCP_REPO_PATH=../mcp
 ```
 
-This example uses a sibling checkout named `mcp`. Set the path explicitly to use a local build.
+This example uses a sibling checkout named `mcp`.
 
 Run from the evals checkout. Each invocation installs MCP dependencies with `pnpm install --frozen-lockfile` and builds the server, using the same preparation as source revision runs. Evals in the same process share one build. Keep the MCP lockfile current after dependency changes. After MCP edits, rerun the command.
 

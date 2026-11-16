@@ -1185,9 +1185,7 @@ export function supabaseMcpServer(
             }
           : null);
       if (local) {
-        // `node`, not process.execPath: CLI agents run this command INSIDE the
-        // sandbox container, where the host's node binary path does not exist.
-        // Both container and host resolve `node` via PATH.
+        // Resolve Node through PATH because host and container binary paths differ.
         return {
           config: { command: 'node', args: [local.entry, ...serverArgs], env },
           repoSources:

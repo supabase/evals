@@ -127,10 +127,14 @@ it('keeps a local checkout on failure and allows retrying', async () => {
       'Failed to prepare MCP checkout'
     );
     expect(existsSync(root)).toBe(true);
-    run.mockResolvedValue({});
-    await expect(buildMcpCheckout(root)).rejects.toThrow(
-      'Failed to prepare MCP checkout'
-    );
+    const entry = join(root, 'packages/mcp-server-supabase/dist/cli.js');
+    run.mockImplementation(async (_command, args) => {
+      if (args[0] === 'build') {
+        mkdirSync(join(entry, '..'), { recursive: true });
+        writeFileSync(entry, '');
+      }
+    });
+    await expect(buildMcpCheckout(root)).resolves.toBe(entry);
     expect(run).toHaveBeenCalledTimes(3);
   } finally {
     rmSync(root, { recursive: true, force: true });

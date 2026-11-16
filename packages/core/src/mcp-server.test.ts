@@ -79,30 +79,24 @@ describe('supabaseMcpServer().createConfig', () => {
       mountRoot: fixtureDir,
       commitSha: 'b'.repeat(40),
     });
+    const runtime = platformLiteRuntime({
+      mcpServers: [supabaseMcpServer({ revision: 'a'.repeat(40) })],
+    });
+    const session = await runtime.startSession({});
     try {
-      const runtime = platformLiteRuntime({
-        mcpServers: [supabaseMcpServer({ revision: 'a'.repeat(40) })],
+      expect(build).toHaveBeenCalledWith('a'.repeat(40));
+      expect(session.repoSources).toEqual({
+        'supabase/mcp': {
+          revision: 'a'.repeat(40),
+          commitSha: 'b'.repeat(40),
+        },
       });
-      const session = await runtime.startSession({});
-      try {
-        expect(build).toHaveBeenCalledWith('a'.repeat(40));
-        expect(session.repoSources).toEqual({
-          'supabase/mcp': {
-            revision: 'a'.repeat(40),
-            commitSha: 'b'.repeat(40),
-          },
-        });
-        expect(session.mcpServers['supabase-mcp']?.args?.[0]).toBe(
-          fixtureEntry
-        );
-        expect(session.mounts).toEqual([
-          { hostPath: fixtureDir, readonly: true },
-        ]);
-      } finally {
-        await session.close();
-      }
+      expect(session.mcpServers['supabase-mcp']?.args?.[0]).toBe(fixtureEntry);
+      expect(session.mounts).toEqual([
+        { hostPath: fixtureDir, readonly: true },
+      ]);
     } finally {
-      build.mockRestore();
+      await session.close();
     }
   });
 
@@ -188,7 +182,7 @@ describe('supabaseMcpServer().createConfig', () => {
     try {
       vi.stubEnv('SUPABASE_MCP_REPO_PATH', link);
       const { config } = await supabaseMcpServer().createConfig({});
-      expect(config.args?.[0]).toBe(fixtureEntry); // the real path, not the symlink
+      expect(config.args?.[0]).toBe(fixtureEntry);
       expect(supabaseMcpServerMounts()).toEqual([
         { hostPath: realpathSync(fixtureDir), readonly: true },
       ]);
