@@ -2,11 +2,14 @@ import { randomUUID } from 'node:crypto';
 import type { CheckResult } from '@supabase-evals/core';
 import { stripIndent } from 'common-tags';
 
-// The scorer's only dependency on the stack: superuser SQL. Typed narrowly so
-// the same probes can run against an in-memory Postgres when checking them.
+// The scorer's only dependencies on the stack: superuser SQL, split in two.
+// `Query` reads, and `ctx.query` can only read, since it wraps the statement
+// in a json_agg subquery. `Run` writes, through psql. Typed narrowly so the
+// same probes can run against an in-memory Postgres when checking them.
 export type Query = (
   sql: string
 ) => Promise<{ rows: Record<string, unknown>[] }>;
+export type Run = (sql: string) => Promise<{ ok: boolean; message: string }>;
 
 // Every row the scorer writes carries this run's marker, so nothing it reads
 // can come from a seed, another run, or a literal the agent wrote.
@@ -18,7 +21,7 @@ export type Setup = { world: World } | { failure: string };
 // Built after the agent's migrations are applied. One statement, so a failure
 // leaves nothing half-made. Per team: a member who stays, a member who
 // leaves, one project, one task, a comment by each member, one invoice.
-export async function setupWorld(query: Query): Promise<Setup> {
+export async function setupWorld(run: Run): Promise<Setup> {
   const marker = `cd${randomUUID().slice(0, 8)}`;
   const team = (t: string) => stripIndent`
     t_${t} AS (
@@ -47,29 +50,29 @@ export async function setupWorld(query: Query): Promise<Setup> {
       INSERT INTO public.invoices (team_id, team_name, amount_cents)
       SELECT id, '${marker}-${t}', 4200 FROM t_${t} RETURNING id
     )`;
-  try {
-    await query(
-      `WITH ${team('a')}, ${team('b')} SELECT (SELECT count(*) FROM c_a) + (SELECT count(*) FROM c_b) AS comments`
-    );
-    return { world: { marker } };
-  } catch (error) {
-    return { failure: `could not build the two teams: ${describe(error)}` };
-  }
+  const built = await run(
+    `WITH ${team('a')}, ${team('b')} SELECT (SELECT count(*) FROM c_a) + (SELECT count(*) FROM c_b) AS comments;`
+  );
+  return built.ok
+    ? { world: { marker } }
+    : { failure: `could not build the two teams: ${built.message}` };
 }
 
 export async function checkLeaverCommentsKept(
   query: Query,
+  run: Run,
   world: World
 ): Promise<CheckResult> {
   const name = 'deleting a member who left keeps the comments they wrote';
   const { marker } = world;
-  try {
-    await query(`DELETE FROM public.members WHERE name = '${marker}-a-leaves'`);
-  } catch (error) {
+  const deleted = await run(
+    `DELETE FROM public.members WHERE name = '${marker}-a-leaves';`
+  );
+  if (!deleted.ok) {
     return {
       name,
       passed: false,
-      notes: `the member could not be deleted: ${describe(error)}`,
+      notes: `the member could not be deleted: ${deleted.message}`,
     };
   }
   const left = await count(
@@ -95,15 +98,13 @@ export async function checkLeaverCommentsKept(
 export type TeamDelete = { ok: true } | { ok: false; error: string };
 
 export async function deleteClosedTeam(
-  query: Query,
+  run: Run,
   world: World
 ): Promise<TeamDelete> {
-  try {
-    await query(`DELETE FROM public.teams WHERE name = '${world.marker}-a'`);
-    return { ok: true };
-  } catch (error) {
-    return { ok: false, error: describe(error) };
-  }
+  const deleted = await run(
+    `DELETE FROM public.teams WHERE name = '${world.marker}-a';`
+  );
+  return deleted.ok ? { ok: true } : { ok: false, error: deleted.message };
 }
 
 export function checkTeamDeleteSucceeds(result: TeamDelete): CheckResult {
@@ -218,9 +219,4 @@ export async function checkOtherTeamUntouched(
 async function count(query: Query, sql: string): Promise<number> {
   const { rows } = await query(sql.replace('count(*)', 'count(*)::int AS n'));
   return Number(rows[0]?.n ?? 0);
-}
-
-function describe(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error);
-  return message.slice(0, 300);
 }

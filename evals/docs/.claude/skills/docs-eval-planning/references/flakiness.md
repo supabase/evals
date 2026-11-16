@@ -160,6 +160,13 @@ Add to this file. A documentation eval is not finished until whatever went wrong
   `https://%`, but the scorer parsed the same url to record the refused jump, so `new URL` threw and
   the run had no score. #475
   **Fix.** Parse agent-supplied urls with `URL.canParse` first, and keep the raw string when they fail.
+- **`ctx.query` only reads.** It wraps every statement in
+  `select json_agg(t) from (...) t`, so a `DELETE`, or an `INSERT ... WITH` chain, fails with
+  `WITH clause containing a data-modifying statement must be at the top level`. Every probe check in
+  `build-docs-015-cascade-deletes` red on all three baseline runs for it. The PGlite dry run of the
+  probes had passed, because its query function did not wrap. #513
+  **Fix.** Write through psql with `ctx.exec`, as `build-docs-002`'s `execSql` does, and keep
+  `ctx.query` for reads. When testing probes off-stack, route reads through `wrapSelectAsJson`.
 - **An empty `results/` overwrites the export with `[]`** rather than refusing. #228
 - **A bot pushed refreshed results onto a measurement branch**, where the results were measured against
   a preview url rather than the published page. #218

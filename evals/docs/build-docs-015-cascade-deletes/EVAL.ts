@@ -4,6 +4,7 @@ import {
   type LocalStackEvalContext,
   type LocalStackScorer,
 } from '@supabase-evals/core';
+import { stripIndent } from 'common-tags';
 import {
   applyPendingMigrations,
   checkMigrationsWereApplied,
@@ -16,6 +17,7 @@ import {
   checkTeamDeleteSucceeds,
   deleteClosedTeam,
   type Query,
+  type Run,
   setupWorld,
 } from './probes.js';
 
@@ -35,10 +37,11 @@ const scorer: LocalStackScorer = async (ctx) => {
     // every probe below. Applying costs the agent one check, not six.
     const migrations = await applyPendingMigrations(ctx);
     const query: Query = (sql) => ctx.query(sql);
+    const run: Run = (sql) => execSql(ctx, sql);
 
     // The world is built after the agent's schema exists, with run-scoped
     // names, so nothing can be satisfied by rows the agent wrote.
-    const setup = await setupWorld(query);
+    const setup = await setupWorld(run);
 
     // Order matters. The leaver is deleted first, because the team delete
     // then has to clear a comment whose author is already gone as well as
@@ -54,9 +57,9 @@ const scorer: LocalStackScorer = async (ctx) => {
     } else {
       const { world } = setup;
       const leaver = await guard(NAMES[0], () =>
-        checkLeaverCommentsKept(query, world)
+        checkLeaverCommentsKept(query, run, world)
       );
-      const deleted = await deleteClosedTeam(query, world);
+      const deleted = await deleteClosedTeam(run, world);
       probes = [
         leaver,
         checkTeamDeleteSucceeds(deleted),
@@ -94,6 +97,31 @@ const scorer: LocalStackScorer = async (ctx) => {
 };
 
 export default scorer;
+
+// Writes go through psql because `ctx.query` wraps every statement in a
+// SELECT subquery, which rejects DELETE and data-modifying WITH. Same route
+// as build-docs-002's execSql. The Postgres error leads the message, ahead of
+// any CLI chatter, so a blocked delete reads as one.
+async function execSql(
+  ctx: LocalStackEvalContext,
+  sql: string
+): Promise<{ ok: boolean; message: string }> {
+  const encoded = Buffer.from(sql, 'utf8').toString('base64');
+  const result = await ctx.exec(
+    stripIndent`
+      DB_URL=$(supabase status -o json 2>/dev/null | node -e 'let input = ""; process.stdin.on("data", data => input += data); process.stdin.on("end", () => console.log(JSON.parse(input).DB_URL));')
+      echo ${encoded} | base64 -d | psql "$DB_URL" -v ON_ERROR_STOP=1 -q
+    `
+  );
+  if (result.ok) return { ok: true, message: '' };
+  const output = `${result.stderr ?? ''}\n${result.stdout ?? ''}`;
+  const lines = output.split('\n').map((line) => line.trim());
+  const named = lines.filter((line) => /^(ERROR|DETAIL)\b/.test(line));
+  return {
+    ok: false,
+    message: (named.length > 0 ? named.join(' ') : output.trim()).slice(0, 300),
+  };
+}
 
 // A query that throws (a table the agent renamed, say) costs one check, not
 // the whole result.
