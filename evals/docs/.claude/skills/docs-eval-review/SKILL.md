@@ -1,5 +1,5 @@
 ---
-name: eval-pr-code-review
+name: docs-eval-review
 description: Code review a docs eval PR in supabase/evals, drafts included, against flakiness.md. Asks up front how to deliver the review and how hard to look, applies the user's own review and writing preferences, and proposes flakiness.md additions. Use when asked to review a PR that adds or changes an eval under evals/docs/, its scorer, probes, seed, or refreshed results.
 ---
 
@@ -7,7 +7,7 @@ description: Code review a docs eval PR in supabase/evals, drafts included, agai
 
 The standards here are `flakiness.md` and the eval's own README.
 
-Usage: `/eval-pr-code-review [low|medium|high] <PR number or URL> [--deliver chat|file|post] [--max-findings <n|all>] [--no-flakiness]`
+Usage: `/docs-eval-review [low|medium|high] <PR number or URL> [--deliver chat|file|post] [--max-findings <n|all>] [--no-flakiness]`
 
 ## 0. Ask up front
 

@@ -7,7 +7,7 @@ counts as a failure.
 ## Skills
 
 - `docs-eval-planning`: plan a new eval. Read `references/flakiness.md` before designing any check.
-- `eval-pr-code-review`: review a PR that adds or changes an eval, against `references/flakiness.md`.
+- `docs-eval-review`: review a PR that adds or changes an eval, against `references/flakiness.md`.
 
 ## Rules
 
