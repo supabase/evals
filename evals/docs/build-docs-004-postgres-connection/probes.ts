@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { CheckResult, LocalStackEvalContext } from '@supabase-evals/core';
 
+import { execSql } from '../lib/exec-sql.js';
 import { readEnvFiles, type Workspace } from './connection.js';
 
 const PROBE_PATH = '.evals/probe.mjs';
@@ -150,13 +151,6 @@ type ProbeResult = {
   connections: number;
 };
 
-async function execSql(ctx: LocalStackEvalContext, dbUrl: string, sql: string) {
-  const encoded = Buffer.from(sql, 'utf-8').toString('base64');
-  return ctx.exec(
-    `echo ${encoded} | base64 -d | psql "${dbUrl}" -v ON_ERROR_STOP=1 -q`
-  );
-}
-
 async function readDbUrl(ctx: LocalStackEvalContext): Promise<string> {
   const status = await ctx.exec('supabase status -o json');
   const start = status.stdout.indexOf('{');
@@ -248,7 +242,6 @@ async function probe(
   const marker = randomUUID();
   const seeded = await execSql(
     ctx,
-    dbUrl,
     `insert into public.items (name, note) values ('read probe', '${readMarker}')`
   );
   if (!seeded.ok) {
@@ -257,7 +250,7 @@ async function probe(
       {
         name: 'the handler reads a row the scorer inserted',
         passed: false,
-        notes: `could not insert the read probe row — ${preview(seeded.stderr || seeded.stdout)}`,
+        notes: `could not insert the read probe row — ${preview(seeded.message)}`,
       },
       notRun('the handler writes a row that lands in items'),
     ];

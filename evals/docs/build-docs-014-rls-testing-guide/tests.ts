@@ -3,6 +3,7 @@ import {
   type LocalStackEvalContext,
 } from '@supabase-evals/core';
 import { stripIndent } from 'common-tags';
+import { execSql } from '../lib/exec-sql.js';
 
 /** Allow + deny for four operations across two roles is eight assertions. */
 const MIN_PGTAP_TESTS = 8;
@@ -171,23 +172,6 @@ export async function checkTestsExerciseAccessControl(
   });
 
   return { name, passed: verdict.passed, judgeNotes: verdict.notes };
-}
-
-async function execSql(
-  ctx: LocalStackEvalContext,
-  sql: string
-): Promise<{ ok: boolean; message: string }> {
-  const encoded = Buffer.from(sql, 'utf8').toString('base64');
-  const result = await ctx.exec(
-    stripIndent`
-      DB_URL=$(supabase status -o json | node -e 'let input = ""; process.stdin.on("data", data => input += data); process.stdin.on("end", () => console.log(JSON.parse(input).DB_URL));')
-      echo ${encoded} | base64 -d | psql "$DB_URL" -v ON_ERROR_STOP=1
-    `
-  );
-  return {
-    ok: result.ok,
-    message: result.ok ? '' : result.stderr || result.stdout,
-  };
 }
 
 export async function listTestFiles(

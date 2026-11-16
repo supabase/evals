@@ -6,6 +6,7 @@ import type {
 } from '@supabase-evals/core';
 import { stripIndent } from 'common-tags';
 import { CREDIT_BALANCE, ORDER_TOTAL } from './catalog.js';
+import { execSql } from '../lib/exec-sql.js';
 
 const PASSWORD = 'secret123';
 const LEDGER = 'store_credit_ledger';
@@ -105,7 +106,8 @@ async function seedOrders(
         SELECT b.id, 'pot', 4000, 2 FROM b
       )
       SELECT (SELECT id FROM a) || ' ' || (SELECT id FROM b);
-    `
+    `,
+    { tuplesOnly: true }
   );
   const ids = seeded.stdout
     .split(/\s+/)
@@ -325,31 +327,4 @@ function numeric(data: unknown): number | undefined {
     if (values.length === 1) return numeric(values[0]);
   }
   return undefined;
-}
-
-async function execSql(
-  ctx: LocalStackEvalContext,
-  sql: string
-): Promise<{ ok: boolean; stdout: string; message: string }> {
-  const encoded = Buffer.from(sql, 'utf8').toString('base64');
-  const result = await ctx.exec(
-    stripIndent`
-      DB_URL=$(supabase status -o json 2>/dev/null | node -e 'let input = ""; process.stdin.on("data", data => input += data); process.stdin.on("end", () => console.log(JSON.parse(input).DB_URL));')
-      echo ${encoded} | base64 -d | psql "$DB_URL" -q -A -t -v ON_ERROR_STOP=1
-    `,
-    { timeoutMs: 120_000 }
-  );
-  const lines = `${result.stderr ?? ''}\n${result.stdout ?? ''}`
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-  return {
-    ok: result.exitCode === 0,
-    stdout: result.stdout ?? '',
-    message: (
-      lines.find((line) => /^(ERROR|FATAL|DETAIL|HINT)\b/i.test(line)) ??
-      lines[0] ??
-      'no output'
-    ).slice(0, 300),
-  };
 }

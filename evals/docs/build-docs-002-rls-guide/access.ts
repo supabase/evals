@@ -5,6 +5,7 @@ import type {
   SupabaseClient,
 } from '@supabase-evals/core';
 import { stripIndent } from 'common-tags';
+import { execSql } from '../lib/exec-sql.js';
 
 const PASSWORD = 'secret123';
 const RECURSION = '42P17';
@@ -697,25 +698,6 @@ function describeFeedWrites(attempt: FeedWriteAttempt): string {
     attempt.rowUnchanged ? 'reading unchanged' : 'reading was updated',
     attempt.nothingInjected ? 'no row injected' : 'a row was injected',
   ].join('; ');
-}
-
-/** Runs non-SELECT SQL against the local stack database as the superuser. */
-export async function execSql(
-  ctx: LocalStackEvalContext,
-  sql: string
-): Promise<{ ok: boolean; message: string }> {
-  const encoded = Buffer.from(sql, 'utf8').toString('base64');
-  const result = await ctx.exec(
-    stripIndent`
-      DB_URL=$(supabase status -o json | node -e 'let input = ""; process.stdin.on("data", data => input += data); process.stdin.on("end", () => console.log(JSON.parse(input).DB_URL));')
-      echo ${encoded} | base64 -d | psql "$DB_URL" -v ON_ERROR_STOP=1
-    `
-  );
-
-  return {
-    ok: result.ok,
-    message: result.ok ? '' : result.stderr || result.stdout,
-  };
 }
 
 function titlesOf(data: unknown): string[] {
