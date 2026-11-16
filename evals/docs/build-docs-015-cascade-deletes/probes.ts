@@ -2,25 +2,19 @@ import { randomUUID } from 'node:crypto';
 import type { CheckResult } from '@supabase-evals/core';
 import { stripIndent } from 'common-tags';
 
-// The scorer's only dependencies on the stack: superuser SQL, split in two.
-// `Query` reads, and `ctx.query` can only read, since it wraps the statement
-// in a json_agg subquery. `Run` writes, through psql. Typed narrowly so the
-// same probes can run against an in-memory Postgres when checking them.
+// Query reads, Run writes. Plain functions so the probes also run on PGlite.
 export type Query = (
   sql: string
 ) => Promise<{ rows: Record<string, unknown>[] }>;
 export type Run = (sql: string) => Promise<{ ok: boolean; message: string }>;
 
-// Every row the scorer writes carries this run's marker, so nothing it reads
-// can come from a seed, another run, or a literal the agent wrote.
-// Team "a" is the one that closes; team "b" is the bystander.
+// Every name starts with a per-run marker. Team a closes, team b is left alone.
 export type World = { marker: string };
 
 export type Setup = { world: World } | { failure: string };
 
-// Built after the agent's migrations are applied. One statement, so a failure
-// leaves nothing half-made. Per team: a member who stays, a member who
-// leaves, one project, one task, a comment by each member, one invoice.
+// Per team: two members (one leaves later), a project, a task, a comment from
+// each member, and an invoice.
 export async function setupWorld(run: Run): Promise<Setup> {
   const marker = `cd${randomUUID().slice(0, 8)}`;
   const team = (t: string) => stripIndent`
@@ -182,8 +176,7 @@ export async function checkInvoicesKept(
   };
 }
 
-// Exact counts, so a delete that reached too far fails even if it only took
-// one row.
+// Exact counts, so deleting even one extra row fails.
 const BYSTANDER: [string, string, string, number][] = [
   ['teams', 'name', "= '{m}-b'", 1],
   ['members', 'name', "LIKE '{m}-b-%'", 2],

@@ -33,20 +33,15 @@ const NAMES = [
 
 const scorer: LocalStackScorer = async (ctx) => {
   try {
-    // Apply first: correct SQL in an unapplied migration would otherwise red
-    // every probe below. Applying costs the agent one check, not six.
+    // An unapplied migration should cost one check, not all of them.
     const migrations = await applyPendingMigrations(ctx);
     const query: Query = (sql) => ctx.query(sql);
     const run: Run = (sql) => execSql(ctx, sql);
 
-    // The world is built after the agent's schema exists, with run-scoped
-    // names, so nothing can be satisfied by rows the agent wrote.
     const setup = await setupWorld(run);
 
-    // Order matters. The leaver is deleted first, because the team delete
-    // then has to clear a comment whose author is already gone as well as
-    // one whose author is still there. The team delete runs once, and the
-    // three checks after it read what it left.
+    // The leaver goes first, so the team delete also has to clear a comment
+    // with no author.
     let probes: CheckResult[];
     if ('failure' in setup) {
       probes = NAMES.map((name) => ({
@@ -76,7 +71,6 @@ const scorer: LocalStackScorer = async (ctx) => {
     const checks: CheckResult[] = [
       checkMigrationsWereApplied(migrations),
       ...probes,
-      // Last: it reads the transcript, not the database.
       checkGuideWasRead(ctx),
     ];
 
@@ -98,10 +92,8 @@ const scorer: LocalStackScorer = async (ctx) => {
 
 export default scorer;
 
-// Writes go through psql because `ctx.query` wraps every statement in a
-// SELECT subquery, which rejects DELETE and data-modifying WITH. Same route
-// as build-docs-002's execSql. The Postgres error leads the message, ahead of
-// any CLI chatter, so a blocked delete reads as one.
+// ctx.query wraps SQL in a SELECT, so writes go through psql (same as
+// build-docs-002).
 async function execSql(
   ctx: LocalStackEvalContext,
   sql: string
@@ -123,8 +115,7 @@ async function execSql(
   };
 }
 
-// A query that throws (a table the agent renamed, say) costs one check, not
-// the whole result.
+// A thrown query fails its own check, not the whole result.
 async function guard(
   name: string,
   run: () => Promise<CheckResult>
