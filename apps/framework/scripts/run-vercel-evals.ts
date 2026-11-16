@@ -619,18 +619,9 @@ exit 1`,
         cmd: 'sh',
         args: [
           '-c',
-          [
-            packWorkspaceScript(
-              `results/${pair.eval_suite}/${pair.experiment}/${pair.eval_id}/run-${run}/workspace`,
-              '/tmp/eval-workspace.tgz'
-            ),
-            ...ATTEMPT_SUFFIXES.map((attempt) =>
-              packOptionalWorkspaceScript(
-                `results/${pair.eval_suite}/${pair.experiment}/${pair.eval_id}/run-${run}/workspace-${attempt}`,
-                `/tmp/eval-workspace-${attempt}.tgz`
-              )
-            ),
-          ].join('; '),
+          packRunWorkspacesScript(
+            `results/${pair.eval_suite}/${pair.experiment}/${pair.eval_id}/run-${run}`
+          ),
         ],
         cwd: repoCwd,
         timeoutMs: 3 * 60 * 1_000,
@@ -856,6 +847,19 @@ export function packWorkspaceScript(workspaceDir: string, archivePath: string) {
     `tar --exclude='*/node_modules' -czf '${archivePath}' -C '${workspaceDir}' .; ` +
     `else tar -czf '${archivePath}' -T /dev/null; fi`
   );
+}
+
+/** Packs the run's workspace and any per-attempt workspaces, failing if any `tar` fails. */
+export function packRunWorkspacesScript(runDir: string) {
+  return [
+    packWorkspaceScript(`${runDir}/workspace`, '/tmp/eval-workspace.tgz'),
+    ...ATTEMPT_SUFFIXES.map((attempt) =>
+      packOptionalWorkspaceScript(
+        `${runDir}/workspace-${attempt}`,
+        `/tmp/eval-workspace-${attempt}.tgz`
+      )
+    ),
+  ].join(' && ');
 }
 
 /** Packs a per-attempt workspace only when it exists; unlike the primary one, it has no empty-archive fallback. */

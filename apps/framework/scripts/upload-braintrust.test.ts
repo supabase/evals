@@ -447,7 +447,12 @@ describe('logTranscript', () => {
 });
 
 describe('logTranscript with a fallback attempt', () => {
-  type Logged = { name?: string; scores?: unknown; metrics?: unknown };
+  type Logged = {
+    name?: string;
+    scores?: unknown;
+    metrics?: unknown;
+    metadata?: unknown;
+  };
   function sink(out: Logged[]): SpanSink {
     const make = (args?: { name?: string }): SpanSink => {
       const entry: Logged = { name: args?.name };
@@ -457,6 +462,7 @@ describe('logTranscript with a fallback attempt', () => {
         log(event) {
           if (event.scores) entry.scores = event.scores;
           if (event.metrics) entry.metrics = event.metrics;
+          if (event.metadata) entry.metadata = event.metadata;
         },
         end() {},
       };
@@ -480,6 +486,8 @@ describe('logTranscript with a fallback attempt', () => {
     const out: Logged[] = [];
     logTranscript(sink(out), {
       ...base,
+      modelId: 'm',
+      modelProvider: 'prov',
       firstAttemptPassed: false,
       otherAttempt: {
         name: 'default attempt',
@@ -490,6 +498,13 @@ describe('logTranscript with a fallback attempt', () => {
             cacheReadInputTokens: 0,
             cacheWriteInputTokens: 0,
             outputTokens: 5,
+          },
+          {
+            model: 'helper',
+            inputTokens: 4,
+            cacheReadInputTokens: 0,
+            cacheWriteInputTokens: 0,
+            outputTokens: 2,
           },
         ],
         judgeCalls: [
@@ -516,6 +531,13 @@ describe('logTranscript with a fallback attempt', () => {
       prompt_tokens: 10,
       completion_tokens: 5,
       tokens: 15,
+    });
+    expect(out.find((span) => span.name === 'm')?.metadata).toEqual({
+      model: 'm',
+      provider: 'prov',
+    });
+    expect(out.find((span) => span.name === 'helper')?.metadata).toEqual({
+      model: 'helper',
     });
     expect(names).toContain('judge');
   });

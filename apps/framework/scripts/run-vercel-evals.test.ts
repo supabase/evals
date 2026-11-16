@@ -28,6 +28,7 @@ import {
   isTerminalSandboxCreateError,
   evalTimeouts,
   packOptionalWorkspaceScript,
+  packRunWorkspacesScript,
   packWorkspaceScript,
   parsePairs,
   requiredCliChannels,
@@ -525,6 +526,24 @@ describe('Vercel eval controller', () => {
       ]);
       expect(existsSync(present)).toBe(true);
       expect(existsSync(absent)).toBe(false);
+    } finally {
+      rmSync(temporary, { recursive: true, force: true });
+    }
+  });
+
+  it('fails the pack step when the primary workspace tar fails', () => {
+    const temporary = mkdtempSync(join(tmpdir(), 'vercel-eval-pack-fail-'));
+    try {
+      const workspace = join(temporary, 'workspace');
+      mkdirSync(workspace);
+      writeFileSync(join(workspace, 'a.txt'), '');
+      const script = packRunWorkspacesScript(temporary).replace(
+        "'/tmp/eval-workspace.tgz'",
+        `'${join(temporary, 'no-such-dir', 'out.tgz')}'`
+      );
+      expect(() =>
+        execFileSync('sh', ['-c', script], { stdio: 'ignore' })
+      ).toThrow();
     } finally {
       rmSync(temporary, { recursive: true, force: true });
     }

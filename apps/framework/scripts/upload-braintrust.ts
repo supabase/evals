@@ -767,13 +767,21 @@ export function logTranscript(
       type: 'task',
       ...(row.startTime === undefined ? {} : { startTime: row.startTime }),
     });
-    if (usage?.length) {
+    for (const entry of usage ?? []) {
       const span = attempt.startSpan({
-        name: usage.map((u) => u.model).join(', '),
+        name: entry.model,
         type: 'llm',
         ...(row.startTime === undefined ? {} : { startTime: row.startTime }),
       });
-      span.log({ metrics: tokenMetrics(usage) });
+      span.log({
+        metrics: tokenMetrics([entry]),
+        metadata: {
+          model: entry.model,
+          ...(entry.model === row.modelId && row.modelProvider
+            ? { provider: row.modelProvider }
+            : {}),
+        },
+      });
       span.end(
         row.startTime === undefined ? undefined : { endTime: row.startTime }
       );
