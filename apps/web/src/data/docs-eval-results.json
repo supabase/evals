@@ -13170,5 +13170,399 @@
     "promptSourcePath": "evals/docs/build-docs-012-cli-getting-started/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-6-luna-no-skills/build-docs-012-cli-getting-started/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-015-cascade-deletes",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "the agent applied the migrations it wrote",
+        "passed": true,
+        "notes": "nothing pending"
+      },
+      {
+        "name": "the agent wrote its change as a migration",
+        "passed": true,
+        "notes": "new: 20261116000000"
+      },
+      {
+        "name": "deleting a member who left keeps the comments they wrote",
+        "passed": true,
+        "notes": "member gone, comment kept"
+      },
+      {
+        "name": "deleting a team succeeds",
+        "passed": true,
+        "notes": "deleted"
+      },
+      {
+        "name": "the closed team's members, projects, tasks and comments are gone",
+        "passed": true,
+        "notes": "none left"
+      },
+      {
+        "name": "the closed team's invoices are kept",
+        "passed": true,
+        "notes": "kept"
+      },
+      {
+        "name": "the other team's rows are all still there",
+        "passed": true,
+        "notes": "all there"
+      },
+      {
+        "name": "the agent read the cascade deletes guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, search_docs"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/postgres/cascade-deletes.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/cascade-deletes.md"
+            }
+          ]
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"cascade deletes foreign key ON DELETE CASCADE SET NULL Postgres\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/cascade-deletes",
+              "title": "Cascade Deletes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/data-deletion",
+              "title": "Deleting data and dropping objects safely"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/managing-user-data",
+              "title": "User Management"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/triggers",
+              "title": "Postgres Triggers"
+            }
+          ],
+          "resultChars": 27098
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 177696,
+        "cacheReadInputTokens": 140440,
+        "cacheWriteInputTokens": 34666,
+        "outputTokens": 4586
+      }
+    ],
+    "stepCount": 10,
+    "toolCallCount": 11,
+    "agentRunDurationMs": 66026,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 258968,
+      "duration": 214597,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1576864765,
+        "egress": 6599811
+      }
+    },
+    "prompt": "Customers can close their team from the settings page, but closing a team\nfails with a database error and nothing gets removed. When a team closes,\neverything that belongs to it should go with it: its people, its projects,\ntheir tasks, and the discussion on those tasks.\n\nTwo things have to survive. Finance keeps every invoice, closed team or not.\nAnd people leave teams all the time; when someone leaves, the comments they\nwrote stay on the task.\n\nMake the change in the repo's migrations and apply it to the local database.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/postgres/cascade-deletes.md",
+    "promptSourcePath": "evals/docs/build-docs-015-cascade-deletes/PROMPT.md",
+    "run": 1,
+    "sourcePath": "docs/codex-gpt-6-luna-no-skills/build-docs-015-cascade-deletes/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-015-cascade-deletes",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "the agent applied the migrations it wrote",
+        "passed": true,
+        "notes": "nothing pending"
+      },
+      {
+        "name": "the agent wrote its change as a migration",
+        "passed": true,
+        "notes": "new: 20261116000000, 20261116000001"
+      },
+      {
+        "name": "deleting a member who left keeps the comments they wrote",
+        "passed": true,
+        "notes": "member gone, comment kept"
+      },
+      {
+        "name": "deleting a team succeeds",
+        "passed": true,
+        "notes": "deleted"
+      },
+      {
+        "name": "the closed team's members, projects, tasks and comments are gone",
+        "passed": true,
+        "notes": "none left"
+      },
+      {
+        "name": "the closed team's invoices are kept",
+        "passed": true,
+        "notes": "kept"
+      },
+      {
+        "name": "the other team's rows are all still there",
+        "passed": true,
+        "notes": "all there"
+      },
+      {
+        "name": "the agent read the cascade deletes guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, search_docs"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/postgres/cascade-deletes.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/cascade-deletes.md"
+            }
+          ]
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"cascade deletes postgres foreign key on delete cascade\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/cascade-deletes",
+              "title": "Cascade Deletes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/data-deletion",
+              "title": "Deleting data and dropping objects safely"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/managing-user-data",
+              "title": "User Management"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/resources",
+              "title": "Resources"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/joins-and-nesting",
+              "title": "Querying Joins and Nested tables"
+            }
+          ],
+          "resultChars": 52476
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 278430,
+        "cacheReadInputTokens": 232840,
+        "cacheWriteInputTokens": 43002,
+        "outputTokens": 11639
+      }
+    ],
+    "stepCount": 13,
+    "toolCallCount": 18,
+    "agentRunDurationMs": 131987,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 262935,
+      "duration": 279124,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1578361196,
+        "egress": 8502986
+      }
+    },
+    "prompt": "Customers can close their team from the settings page, but closing a team\nfails with a database error and nothing gets removed. When a team closes,\neverything that belongs to it should go with it: its people, its projects,\ntheir tasks, and the discussion on those tasks.\n\nTwo things have to survive. Finance keeps every invoice, closed team or not.\nAnd people leave teams all the time; when someone leaves, the comments they\nwrote stay on the task.\n\nMake the change in the repo's migrations and apply it to the local database.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/postgres/cascade-deletes.md",
+    "promptSourcePath": "evals/docs/build-docs-015-cascade-deletes/PROMPT.md",
+    "run": 2,
+    "sourcePath": "docs/codex-gpt-6-luna-no-skills/build-docs-015-cascade-deletes/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-015-cascade-deletes",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "the agent applied the migrations it wrote",
+        "passed": true,
+        "notes": "nothing pending"
+      },
+      {
+        "name": "the agent wrote its change as a migration",
+        "passed": true,
+        "notes": "new: 20261116000000"
+      },
+      {
+        "name": "deleting a member who left keeps the comments they wrote",
+        "passed": true,
+        "notes": "member gone, comment kept"
+      },
+      {
+        "name": "deleting a team succeeds",
+        "passed": true,
+        "notes": "deleted"
+      },
+      {
+        "name": "the closed team's members, projects, tasks and comments are gone",
+        "passed": true,
+        "notes": "none left"
+      },
+      {
+        "name": "the closed team's invoices are kept",
+        "passed": true,
+        "notes": "kept"
+      },
+      {
+        "name": "the other team's rows are all still there",
+        "passed": true,
+        "notes": "all there"
+      },
+      {
+        "name": "the agent read the cascade deletes guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, search_docs"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/postgres/cascade-deletes.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/cascade-deletes.md"
+            }
+          ]
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"cascade deletes foreign key ON DELETE CASCADE SET NULL\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/cascade-deletes",
+              "title": "Cascade Deletes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/data-deletion",
+              "title": "Deleting data and dropping objects safely"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/managing-user-data",
+              "title": "User Management"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advisors?queryGroups=lint&lint=0021_fkey_to_auth_unique",
+              "title": "Database Advisor: Lint 0021_fkey_to_auth_unique"
+            }
+          ],
+          "resultChars": 23711
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 220557,
+        "cacheReadInputTokens": 180671,
+        "cacheWriteInputTokens": 37263,
+        "outputTokens": 5033
+      }
+    ],
+    "stepCount": 11,
+    "toolCallCount": 14,
+    "agentRunDurationMs": 70742,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 411884,
+      "duration": 285280,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1572989600,
+        "egress": 4541048
+      }
+    },
+    "prompt": "Customers can close their team from the settings page, but closing a team\nfails with a database error and nothing gets removed. When a team closes,\neverything that belongs to it should go with it: its people, its projects,\ntheir tasks, and the discussion on those tasks.\n\nTwo things have to survive. Finance keeps every invoice, closed team or not.\nAnd people leave teams all the time; when someone leaves, the comments they\nwrote stay on the task.\n\nMake the change in the repo's migrations and apply it to the local database.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/postgres/cascade-deletes.md",
+    "promptSourcePath": "evals/docs/build-docs-015-cascade-deletes/PROMPT.md",
+    "run": 3,
+    "sourcePath": "docs/codex-gpt-6-luna-no-skills/build-docs-015-cascade-deletes/run-3/result.json"
   }
 ]
