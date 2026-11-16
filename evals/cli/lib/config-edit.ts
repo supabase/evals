@@ -71,13 +71,23 @@ async function readText(
   }
 }
 
+const ENV_FILE_NAMES = [
+  '.env.development.local',
+  '.env.local',
+  '.env.development',
+  '.env',
+];
+const ENV_FILE_PATHS = ['supabase/', ''].flatMap((dir) =>
+  ENV_FILE_NAMES.map((name) => `${dir}${name}`)
+);
+
 async function readEnv(ctx: ExecContext): Promise<Record<string, string>> {
   const env: Record<string, string> = {};
-  for (const path of ['supabase/.env', 'supabase/.env.local']) {
+  for (const path of ENV_FILE_PATHS) {
     const file = await readText(ctx, path);
     if (!file.ok) continue;
     for (const [name, value] of Object.entries(parseEnvFile(file.text))) {
-      env[name] = value;
+      if (!(name in env)) env[name] = value;
     }
   }
   return env;

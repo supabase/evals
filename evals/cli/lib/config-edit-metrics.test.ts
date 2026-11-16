@@ -35,6 +35,29 @@ describe('countConfigEditInvocations', () => {
   });
 });
 
+describe('chained validates in one tool call', () => {
+  it('counts every run but classifies the call once', () => {
+    expect(
+      count([
+        {
+          command:
+            'supabase config validate; python3 fix.py; supabase config validate',
+          output: '{"valid":false,"errors":[]}\n{"valid":true}',
+        },
+      ])
+    ).toMatchObject({ validateRuns: 2, validateInvalid: 1 });
+  });
+
+  it('counts separate invalid tool calls separately', () => {
+    expect(
+      count([
+        { command: 'supabase config validate', output: '{"valid":false}' },
+        { command: 'supabase config validate', output: '{"valid":false}' },
+      ])
+    ).toMatchObject({ validateRuns: 2, validateInvalid: 2 });
+  });
+});
+
 describe('validate runs classified by their report', () => {
   it.each([
     'supabase config validate 2>&1 | tail -20',
@@ -108,5 +131,13 @@ describe('parseEnvFile', () => {
     expect(
       parseEnvFile('# c\nA=1\nexport B="two"\nC=\n D = \'x\' \nnot a line\n')
     ).toEqual({ A: '1', B: 'two', C: '', D: 'x' });
+  });
+
+  it('strips trailing comments like the CLI dotenv parser', () => {
+    expect(
+      parseEnvFile(
+        'A=x # note\nB="y # kept" # note\nC=a#b\nD=\'z\' # n\nE=  # only\n'
+      )
+    ).toEqual({ A: 'x', B: 'y # kept', C: 'a#b', D: 'z', E: '' });
   });
 });

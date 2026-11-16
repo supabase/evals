@@ -58,7 +58,7 @@ config, with the parse error in the notes.
 | `email confirmation is required before sign-in` | `auth.email.enable_confirmations` must be `true`; the template also has `auth.sms.enable_confirmations`, and setting only that one fails |
 | `the staging callback is an allowed redirect` | `auth.additional_redirect_urls` must contain the exact callback URL |
 | `uploads allow files up to 100MB` | `storage.file_size_limit` must be 104857600 or 100000000 bytes after the CLI's own size parsing (1024-based, case-insensitive, optional `b`/`ib`): `100M`, `100mb`, `100MiB`, `102400KiB`, `"104857600"` and the number `104857600` pass; `50MiB`, `1GB`, `"100"` fail |
-| `GitHub sign-in is enabled` | `auth.external.github.enabled` is a boolean; `client_id` is the literal id or an `env(NAME)` that resolves, and `secret` is an `env(NAME)` that resolves, both to the seeded values (so swapped refs, a placeholder written over the env file, or a literal secret fail; a renamed variable holding the right value passes). Variables are read from `supabase/.env` and `supabase/.env.local`, the files the CLI loads; a root `.env` is not read |
+| `GitHub sign-in is enabled` | `auth.external.github.enabled` is a boolean; `client_id` is the literal id or an `env(NAME)` that resolves, and `secret` is an `env(NAME)` that resolves, both to the seeded values (so swapped refs, a placeholder written over the env file, or a literal secret fail; a renamed variable holding the right value passes). Variables are read like the CLI does by default: the `SUPABASE_ENV` files `.env.development.local`, `.env.local`, `.env.development`, `.env`, in `supabase/` then the project root, and the first file to set a name wins |
 | `the GitHub secret is not committed` | the secret's value appears in no file git would commit: the scan covers every file except `node_modules`, `.git` and `supabase/.temp`, then drops hits `git check-ignore` ignores, so `supabase/.env.example` or `.env.staging` fail while an ignored `.env.local` passes. The seeded `supabase/.env` is the positive control: a scan that finds the secret nowhere is treated as not having run |
 | `nothing else in the config changed` | deep-compares the parsed config with the parsed seed outside the four target paths; the seed redirect `https://127.0.0.1:3000` must survive; every `auth.external.github` key other than `enabled`, `client_id` and `secret` must be absent or equal the seed `apple` block's default, which catches `redirect_uri` or `url` overrides; invented keys elsewhere, such as `auth.redirect_urls`, fail the deep compare. Comments and formatting are not compared |
 | `the config stays in its original file and format` | the seeded file still exists and no other `supabase/config.*` (JSON, the other format, `.bak`) does |
@@ -67,9 +67,10 @@ config, with the parse error in the notes.
 
 `metrics` always passes and records: `format`, `validateConvention`,
 `validateRuns`, `validateInvalid` (validate reported the config invalid:
-`"valid":false`, `✗ N error(s) in`, `has N problem`) and `validateUnavailable`
+`"valid":false`, `✗ N error(s) in`, `has N problem`; counted at most once per tool
+call, as chained validates share one output) and `validateUnavailable`
 (the CLI has no `config validate` and printed an unknown-subcommand error or the
-`config` help), `otherConfigRuns` and `otherConfigFailures` (other `supabase`
+`config` help; also at most once per tool call), `otherConfigRuns` and `otherConfigFailures` (other `supabase`
 commands that load config, such as `start` or `db lint`, whose tool call
 errored), `ranValidate`, `commentsKept` (the share of the seed's comment lines,
 `#` in TOML and `//` or `/* */` in JSONC, that survive in the final file) and

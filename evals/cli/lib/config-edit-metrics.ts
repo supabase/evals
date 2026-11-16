@@ -34,7 +34,7 @@ const INVALID_REPORT_RE =
   /"valid"\s*:\s*false|✗\s*\d+\s+errors?\b|\bhas \d+ problems?/i;
 const UNAVAILABLE_RE = /UnknownSubcommand|unknown command|"_tag"\s*:\s*"Help"/i;
 
-/** Validate runs are classified by their own report, since agents often chain validate with edits whose failure marks the whole tool call failed; other config-loading commands count a failed tool call. */
+/** Validate runs are classified by their own report (once per tool call, as its output cannot be split per invocation), since agents often chain validate with edits whose failure marks the whole tool call failed; other config-loading commands count a failed tool call. */
 export function countConfigEditInvocations(
   entries: readonly ConfigEditEntry[],
   invocations: readonly SupabaseInvocation[]
@@ -46,6 +46,7 @@ export function countConfigEditInvocations(
     otherConfigRuns: 0,
     otherConfigFailures: 0,
   };
+  const classified = new Set<number>();
   for (const invocation of invocations) {
     const verb = invocationVerb(invocation);
     if (verb === undefined || NO_CONFIG_VERBS.has(verb)) continue;
@@ -55,6 +56,8 @@ export function countConfigEditInvocations(
     if (isValidate) {
       const output = entry?.output ?? '';
       counts.validateRuns++;
+      if (classified.has(invocation.commandIndex)) continue;
+      classified.add(invocation.commandIndex);
       if (INVALID_REPORT_RE.test(output)) counts.validateInvalid++;
       else if (UNAVAILABLE_RE.test(output)) counts.validateUnavailable++;
     } else {

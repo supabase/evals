@@ -100,7 +100,14 @@ export function parseConfig(format: ConfigFormat, text: string): ParsedConfig {
   }
 }
 
-/** Parses `KEY=value` lines, ignoring comments, an `export` prefix and surrounding quotes. */
+function parseEnvValue(raw: string): string {
+  const value = raw.trim();
+  const quoted = value.match(/^(["'])(.*?)\1/);
+  if (quoted) return quoted[2];
+  return value.replace(/(^|\s+)#.*$/, '').trim();
+}
+
+/** Parses `KEY=value` lines like the CLI's dotenv: quotes are unwrapped and a trailing ` #` comment is dropped. */
 export function parseEnvFile(text: string): Record<string, string> {
   const env: Record<string, string> = {};
   for (const line of text.split('\n')) {
@@ -108,7 +115,7 @@ export function parseEnvFile(text: string): Record<string, string> {
       /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=(.*)$/
     );
     if (!match) continue;
-    env[match[1]] = match[2].trim().replace(/^(["'])(.*)\1$/, '$2');
+    env[match[1]] = parseEnvValue(match[2]);
   }
   return env;
 }

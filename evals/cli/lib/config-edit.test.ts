@@ -141,6 +141,7 @@ type FakeOptions = {
   envFile?: string | CommandResult;
   localEnv?: string | CommandResult;
   rootEnv?: string | CommandResult;
+  envFiles?: Record<string, string>;
   grep?: CommandResult;
   committed?: string[];
   find?: CommandResult;
@@ -175,6 +176,10 @@ function fakeCtx(options: FakeOptions = {}) {
   const exec = vi.fn(async (command: string): Promise<CommandResult> => {
     if (command === `cat '${path}'`) {
       return asResult(options.config ?? configFor(format));
+    }
+    const extra = command.match(/^cat '(.*)'$/)?.[1];
+    if (extra !== undefined && options.envFiles?.[extra] !== undefined) {
+      return ok(options.envFiles[extra]);
     }
     if (command === "cat 'supabase/.env'") {
       return asResult(options.envFile ?? ENV_FILE);
@@ -373,14 +378,41 @@ describe.each(['toml', 'jsonc'] as const)('scoreConfigEdit (%s)', (format) => {
     );
   });
 
-  it('fails when the credentials exist only in a root .env', async () => {
+  it('accepts credentials defined only in a root .env.local', async () => {
     const { result } = await score({
       envFile: MISSING('supabase/.env'),
-      rootEnv: ENV_FILE,
+      envFiles: { '.env.local': ENV_FILE },
+      grep: ok('./.env.local\n'),
+    });
+
+    expect(failedNames(result)).toEqual([]);
+  });
+
+  it('prefers supabase/.env.local over supabase/.env for the same name', async () => {
+    const { result } = await score({
+      envFile: `GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}\nGITHUB_CLIENT_SECRET=your-github-client-secret\n`,
+      envFiles: { 'supabase/.env.local': ENV_FILE },
+    });
+
+    expect(failedNames(result)).toEqual([]);
+  });
+
+  it('prefers supabase/.env over a root .env for the same name', async () => {
+    const { result } = await score({
+      envFile: `GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}\nGITHUB_CLIENT_SECRET=your-github-client-secret\n`,
+      envFiles: { '.env': ENV_FILE },
       grep: ok('./.env\n'),
     });
 
     expect(failedNames(result)).toEqual([CHECK_NAMES.github]);
+  });
+
+  it('ignores a trailing comment on a credential assignment', async () => {
+    const { result } = await score({
+      envFile: `GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}\nGITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET} # github oauth\n`,
+    });
+
+    expect(failedNames(result)).toEqual([]);
   });
 
   it('accepts credentials moved to an ignored supabase/.env.local', async () => {
