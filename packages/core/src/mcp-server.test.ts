@@ -1,7 +1,9 @@
 import {
   afterAll,
   afterEach,
+  assert,
   beforeAll,
+  beforeEach,
   describe,
   expect,
   it,
@@ -31,29 +33,31 @@ import {
 } from './index.js';
 import * as mcpRevision from './mcp-revision.js';
 
-// Stub (not mutate) env so a pre-existing SUPABASE_MCP_SERVER_PATH is restored
-// per test.
 function clearEnv() {
-  vi.stubEnv('SUPABASE_MCP_SERVER_PATH', undefined);
+  vi.stubEnv('SUPABASE_MCP_REPO_PATH', undefined);
 }
 
-// A real on-disk build layout: the override path is existence-checked, so the
-// fixtures must actually exist for the happy paths (and not for the error one).
 let fixtureDir: string;
 let fixtureEntry: string;
 beforeAll(() => {
-  // realpath'd: the resolver realpaths the override (command must match the
-  // container mount view), so unresolved tmpdir paths (macOS /var symlink)
-  // would fail every exact-path assertion below.
+  // Use canonical paths to match Docker's bind-mount view on macOS.
   fixtureDir = realpathSync(mkdtempSync(join(tmpdir(), 'mcp-override-')));
-  fixtureEntry = join(fixtureDir, 'dist', 'cli.js');
-  mkdirSync(join(fixtureDir, 'dist'), { recursive: true });
+  const dist = join(fixtureDir, 'packages', 'mcp-server-supabase', 'dist');
+  fixtureEntry = join(dist, 'cli.js');
+  mkdirSync(dist, { recursive: true });
   writeFileSync(fixtureEntry, '');
+  writeFileSync(join(dist, '..', 'package.json'), '{}');
 });
 afterAll(() => rmSync(fixtureDir, { recursive: true, force: true }));
 
 describe('supabaseMcpServer().createConfig', () => {
-  afterEach(() => vi.unstubAllEnvs());
+  beforeEach(() => {
+    vi.spyOn(mcpRevision, 'buildMcpCheckout').mockResolvedValue(fixtureEntry);
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
 
   it('rejects a revision combined with a package version', () => {
     expect(() =>
@@ -62,10 +66,10 @@ describe('supabaseMcpServer().createConfig', () => {
   });
 
   it('rejects a local override combined with a revision', async () => {
-    vi.stubEnv('SUPABASE_MCP_SERVER_PATH', fixtureDir);
+    vi.stubEnv('SUPABASE_MCP_REPO_PATH', fixtureDir);
     await expect(
       supabaseMcpServer({ revision: 'a'.repeat(40) }).createConfig()
-    ).rejects.toThrow('Unset SUPABASE_MCP_SERVER_PATH');
+    ).rejects.toThrow('Unset SUPABASE_MCP_REPO_PATH');
   });
 
   it('carries the source build and commit into the runtime', async () => {
@@ -108,33 +112,51 @@ describe('supabaseMcpServer().createConfig', () => {
       apiUrl: 'http://api.test',
     });
     expect(config.command).toBe('npx');
-    expect(config.args[0]).toBe(
+    expect(config.args?.[0]).toBe(
       `@supabase/mcp-server-supabase@${MCP_SERVER_VERSION}`
     );
     expect(config.args).toContain('--api-url');
   });
 
-  it('launches a local build dir with node when SUPABASE_MCP_SERVER_PATH is set', async () => {
+  it('launches the built server from the configured repo root', async () => {
     clearEnv();
-    vi.stubEnv('SUPABASE_MCP_SERVER_PATH', fixtureDir);
+    vi.stubEnv('SUPABASE_MCP_REPO_PATH', fixtureDir);
     const { config } = await supabaseMcpServer().createConfig({});
+    expect(mcpRevision.buildMcpCheckout).toHaveBeenCalledWith(fixtureDir);
     expect(config.command).toBe('node');
-    expect(config.args[0]).toBe(fixtureEntry);
+    expect(config.args?.[0]).toBe(fixtureEntry);
   });
 
-  it('uses a direct .js override path as-is', async () => {
+  it('propagates checkout preparation failures', async () => {
+    vi.stubEnv('SUPABASE_MCP_REPO_PATH', fixtureDir);
+    vi.mocked(mcpRevision.buildMcpCheckout).mockRejectedValue(
+      new Error('build failed')
+    );
+    await expect(supabaseMcpServer().createConfig()).rejects.toThrow(
+      'build failed'
+    );
+  });
+
+  it('rejects package directories and entrypoints as repo roots', async () => {
     clearEnv();
-    vi.stubEnv('SUPABASE_MCP_SERVER_PATH', fixtureEntry);
-    const { config } = await supabaseMcpServer().createConfig({});
-    expect(config.args[0]).toBe(fixtureEntry);
+    for (const path of [
+      join(fixtureDir, 'packages', 'mcp-server-supabase'),
+      fixtureEntry,
+    ]) {
+      vi.stubEnv('SUPABASE_MCP_REPO_PATH', path);
+      await expect(supabaseMcpServer().createConfig({})).rejects.toThrow(
+        'Point it at the MCP repo root'
+      );
+    }
   });
 
   it('preserves --api-url on the local override path', async () => {
     clearEnv();
-    vi.stubEnv('SUPABASE_MCP_SERVER_PATH', fixtureDir);
+    vi.stubEnv('SUPABASE_MCP_REPO_PATH', fixtureDir);
     const { config } = await supabaseMcpServer().createConfig({
       apiUrl: 'http://api.test',
     });
+    assert(config.args);
     const i = config.args.indexOf('--api-url');
     expect(i).toBeGreaterThan(-1);
     expect(config.args[i + 1]).toBe('http://api.test');
@@ -142,9 +164,9 @@ describe('supabaseMcpServer().createConfig', () => {
 
   it('fails fast with an actionable error when the override path does not exist', async () => {
     clearEnv();
-    vi.stubEnv('SUPABASE_MCP_SERVER_PATH', join(fixtureDir, 'not-built'));
+    vi.stubEnv('SUPABASE_MCP_REPO_PATH', join(fixtureDir, 'not-built'));
     await expect(supabaseMcpServer().createConfig({})).rejects.toThrow(
-      /does not exist.*build the server first/s
+      /does not exist.*Point it at the MCP repo root/s
     );
   });
   it('resolves a relative override path against the evals checkout root', async () => {
@@ -153,9 +175,9 @@ describe('supabaseMcpServer().createConfig', () => {
       cwd: process.cwd(),
       encoding: 'utf8',
     }).trim();
-    vi.stubEnv('SUPABASE_MCP_SERVER_PATH', relative(repoRoot, fixtureEntry));
+    vi.stubEnv('SUPABASE_MCP_REPO_PATH', relative(repoRoot, fixtureDir));
     const { config } = await supabaseMcpServer().createConfig({});
-    expect(config.args[0]).toBe(fixtureEntry);
+    expect(config.args?.[0]).toBe(fixtureEntry);
   });
 
   it('realpaths a symlinked override so the command matches the container mount', async () => {
@@ -164,9 +186,9 @@ describe('supabaseMcpServer().createConfig', () => {
     const link = join(linkDir, 'pkg');
     symlinkSync(fixtureDir, link);
     try {
-      vi.stubEnv('SUPABASE_MCP_SERVER_PATH', link);
+      vi.stubEnv('SUPABASE_MCP_REPO_PATH', link);
       const { config } = await supabaseMcpServer().createConfig({});
-      expect(config.args[0]).toBe(fixtureEntry); // the real path, not the symlink
+      expect(config.args?.[0]).toBe(fixtureEntry); // the real path, not the symlink
       expect(supabaseMcpServerMounts()).toEqual([
         { hostPath: realpathSync(fixtureDir), readonly: true },
       ]);
@@ -242,6 +264,7 @@ describe('supabaseMcpServer feedback redirect', () => {
       features: ['docs', 'feedback'],
     }).createConfig({ apiUrl });
 
+    assert(config.args);
     const i = config.args.indexOf('--features');
     expect(config.args[i + 1]).toBe('docs');
     expect(config.env).toBeUndefined();
@@ -262,30 +285,11 @@ describe('supabaseMcpServerMounts', () => {
     clearEnv();
     expect(supabaseMcpServerMounts()).toEqual([]);
   });
-  it("mounts the override checkout root read-only (a CLI agent's MCP command runs in-container)", () => {
+  it('mounts the configured repo root read-only', () => {
     clearEnv();
-    // A git checkout wrapping the package dir: the mount must cover the whole
-    // checkout (the unbundled build needs its node_modules), not just dist/.
-    const checkout = realpathSync(mkdtempSync(join(tmpdir(), 'mcp-mount-')));
-    try {
-      execFileSync('git', ['init', '-q'], { cwd: checkout });
-      const pkgDir = join(checkout, 'packages', 'server');
-      mkdirSync(join(pkgDir, 'dist'), { recursive: true });
-      writeFileSync(join(pkgDir, 'dist', 'cli.js'), '');
-      vi.stubEnv('SUPABASE_MCP_SERVER_PATH', pkgDir);
-      expect(supabaseMcpServerMounts()).toEqual([
-        { hostPath: checkout, readonly: true },
-      ]);
-    } finally {
-      rmSync(checkout, { recursive: true, force: true });
-    }
-  });
-
-  it('falls back to the package dir when the override is not inside a git checkout', () => {
-    clearEnv();
-    vi.stubEnv('SUPABASE_MCP_SERVER_PATH', fixtureDir);
+    vi.stubEnv('SUPABASE_MCP_REPO_PATH', fixtureDir);
     expect(supabaseMcpServerMounts()).toEqual([
-      { hostPath: realpathSync(fixtureDir), readonly: true },
+      { hostPath: fixtureDir, readonly: true },
     ]);
   });
 });

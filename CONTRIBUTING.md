@@ -48,13 +48,15 @@ The suite folder decides which evals the experiment runs: `experiments/<suite>/`
 
 ## Developing the MCP server
 
-In a local [MCP checkout](https://github.com/supabase/mcp), run `pnpm install && pnpm build`. Add its package path to the evals checkout's `.env`. Paths can be absolute or relative to the evals checkout root.
+Clone [the MCP repo](https://github.com/supabase/mcp) and add its root to the evals checkout's `.env`. Paths can be absolute or relative to the evals checkout root.
 
 ```dotenv
-SUPABASE_MCP_SERVER_PATH=../supabase-mcp/packages/mcp-server-supabase
+SUPABASE_MCP_REPO_PATH=../mcp
 ```
 
-Rebuild with `pnpm build` after MCP edits, then run from the evals checkout.
+This example uses a sibling checkout named `mcp`. Set the path explicitly to use a local build.
+
+Run from the evals checkout. Each invocation installs MCP dependencies with `pnpm install --frozen-lockfile` and builds the server, using the same preparation as source revision runs. Evals in the same process share one build. Keep the MCP lockfile current after dependency changes. After MCP edits, rerun the command.
 
 ```bash
 pnpm eval -- --suite benchmark --experiment codex-gpt-6-luna --eval resolve-dataapi-001-empty-results --runs 1
@@ -84,7 +86,7 @@ export default defineExperiment({
 });
 ```
 
-While iterating, use `supabaseMcpServer({ revision: 'feature/my-experiment' })`. Teammates can check out your evals branch and run the same command. Unset `SUPABASE_MCP_SERVER_PATH` for source revision runs. `revision` and the npm `version` option are mutually exclusive.
+While iterating, use `supabaseMcpServer({ revision: 'feature/my-experiment' })`. Teammates can check out your evals branch and run the same command. Unset `SUPABASE_MCP_REPO_PATH` for source revision runs. `revision` and the npm `version` option are mutually exclusive.
 
 The runner fetches and builds each revision once per eval process, using a temporary checkout and the MCP lockfile. The checkout is mounted read-only for container agents and removed on normal process exit. The host needs Git, pnpm, and network access. Only run revisions you trust, since installing and building executes their code.
 
