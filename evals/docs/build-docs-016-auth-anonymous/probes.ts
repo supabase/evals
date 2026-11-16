@@ -11,6 +11,8 @@ export const CHECK = {
   guestCart: 'a guest can add a plant to their cart',
   memberReview: 'a customer with an account can post a review',
   guestReview: 'a guest cannot post a review',
+  noSession: 'a visitor with no session cannot post a review',
+  upgraded: 'a guest who just made an account can post a review',
 } as const;
 
 const PASSWORD = 'secret123';
@@ -197,6 +199,91 @@ export async function checkGuestCannotReview(
     name: CHECK.guestReview,
     passed: true,
     notes: 'refused with an access error and no row was written',
+  };
+}
+
+export async function checkNoSessionCannotReview(
+  ctx: LocalStackEvalContext,
+  world: World
+): Promise<CheckResult> {
+  const client = await ctx.getClient();
+  const { error } = await client.from('reviews').insert({
+    user_id: world.memberId,
+    plant_id: world.plantId,
+    body: `${world.marker}-nosession`,
+  });
+  const count = await countRows(
+    ctx,
+    `SELECT count(*)::int AS count FROM reviews WHERE body = '${world.marker}-nosession';`
+  );
+  if (count > 0) {
+    return {
+      name: CHECK.noSession,
+      passed: false,
+      notes: 'a visitor with no session got a review into the table',
+    };
+  }
+  if (error?.code !== RLS_REFUSAL) {
+    return {
+      name: CHECK.noSession,
+      passed: false,
+      notes:
+        `no row was written, but the refusal was not an access refusal: ${error?.code ?? 'no error'} ${error?.message ?? ''}`.trim(),
+    };
+  }
+  return {
+    name: CHECK.noSession,
+    passed: true,
+    notes: 'refused with an access error and no row was written',
+  };
+}
+
+export async function checkUpgradedGuestReviews(
+  ctx: LocalStackEvalContext,
+  world: World
+): Promise<CheckResult> {
+  const started = await startGuest(ctx);
+  if ('failure' in started) {
+    return { name: CHECK.upgraded, passed: false, notes: started.failure };
+  }
+  const { client, id } = started.guest;
+
+  const { error: linkError } = await client.auth.updateUser({
+    email: `${world.marker}-upgraded@example.test`,
+  });
+  if (linkError) {
+    return {
+      name: CHECK.upgraded,
+      passed: false,
+      notes: `the guest could not add an email: ${linkError.message}`,
+    };
+  }
+  const { rows } = await ctx.query(
+    `SELECT is_anonymous FROM auth.users WHERE id = '${id}';`
+  );
+  if (rows[0]?.is_anonymous !== false) {
+    return {
+      name: CHECK.upgraded,
+      passed: false,
+      notes: 'adding an email did not turn the guest into a customer',
+    };
+  }
+
+  const { error } = await client.from('reviews').insert({
+    plant_id: world.plantId,
+    body: `${world.marker}-upgraded`,
+  });
+  const count = await countRows(
+    ctx,
+    `SELECT count(*)::int AS count FROM reviews WHERE body = '${world.marker}-upgraded' AND user_id = '${id}';`
+  );
+  return {
+    name: CHECK.upgraded,
+    passed: count === 1,
+    notes:
+      count === 1
+        ? 'the new customer posted a review right after making an account'
+        : `the new customer was refused${error ? `: ${error.code} ${error.message}` : ''}`,
   };
 }
 

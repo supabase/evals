@@ -16,7 +16,9 @@ import {
   checkGuestCart,
   checkGuestReads,
   checkMemberReview,
+  checkNoSessionCannotReview,
   checkSessionStarts,
+  checkUpgradedGuestReviews,
   type Run,
   setupWorld,
   startGuest,
@@ -51,6 +53,12 @@ const scorer: LocalStackScorer = async (ctx) => {
       ),
       await gated(world, blocked, CHECK.guestReview, (w) =>
         checkGuestCannotReview(ctx, w)
+      ),
+      await gated(world, blocked, CHECK.noSession, (w) =>
+        checkNoSessionCannotReview(ctx, w)
+      ),
+      await gated(world, blocked, CHECK.upgraded, (w) =>
+        checkUpgradedGuestReviews(ctx, w)
       ),
       checkGuideWasRead(ctx),
     ];
