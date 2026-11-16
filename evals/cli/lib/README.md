@@ -12,6 +12,12 @@ What stays in each eval's `EVAL.ts`: check composition, every `ctx.judge()`
 call, its scenario-specific rubric text, and `export default`. Scenario-only
 helpers with a single consumer stay colocated with that eval.
 
+Exception: sibling cells of one comparison share one scorer. The four
+`build-cli-005`..`008` config-edit evals differ only in their seeded repo, so
+`config-edit.ts` holds the whole scorer (checks, judges, rubric) and each
+`EVAL.ts` is a thin `scoreConfigEdit(ctx, { format, validateConvention, localDir })`
+call. Identical check names keep the cells comparable.
+
 Project stack targets (`{ kind: 'project', dir }` without a stack name) also
 discover named managed stacks started from that directory via
 `supabase stack list`, before falling back to the legacy backend.
