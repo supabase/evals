@@ -13170,5 +13170,382 @@
     "promptSourcePath": "evals/docs/build-docs-012-cli-getting-started/PROMPT.md",
     "run": 3,
     "sourcePath": "codex-gpt-6-luna-no-skills/build-docs-012-cli-getting-started/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-015-cascade-deletes",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "the agent applied the migrations it wrote",
+        "passed": true,
+        "notes": "nothing pending"
+      },
+      {
+        "name": "deleting a member who left keeps the comments they wrote",
+        "passed": false,
+        "notes": "not run: could not build the two teams: query failed: ERROR:  WITH clause containing a data-modifying statement must be at the top level\nLINE 1: select coalesce(json_agg(t), '[]'::json) from (WITH t_a AS (\n                                                            ^\n"
+      },
+      {
+        "name": "deleting a team succeeds",
+        "passed": false,
+        "notes": "not run: could not build the two teams: query failed: ERROR:  WITH clause containing a data-modifying statement must be at the top level\nLINE 1: select coalesce(json_agg(t), '[]'::json) from (WITH t_a AS (\n                                                            ^\n"
+      },
+      {
+        "name": "the closed team's members, projects, tasks and comments are gone",
+        "passed": false,
+        "notes": "not run: could not build the two teams: query failed: ERROR:  WITH clause containing a data-modifying statement must be at the top level\nLINE 1: select coalesce(json_agg(t), '[]'::json) from (WITH t_a AS (\n                                                            ^\n"
+      },
+      {
+        "name": "the closed team's invoices are kept",
+        "passed": false,
+        "notes": "not run: could not build the two teams: query failed: ERROR:  WITH clause containing a data-modifying statement must be at the top level\nLINE 1: select coalesce(json_agg(t), '[]'::json) from (WITH t_a AS (\n                                                            ^\n"
+      },
+      {
+        "name": "the other team's rows are all still there",
+        "passed": false,
+        "notes": "not run: could not build the two teams: query failed: ERROR:  WITH clause containing a data-modifying statement must be at the top level\nLINE 1: select coalesce(json_agg(t), '[]'::json) from (WITH t_a AS (\n                                                            ^\n"
+      },
+      {
+        "name": "the agent read the cascade deletes guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, search_docs"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/postgres/cascade-deletes.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/cascade-deletes.md"
+            }
+          ]
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Postgres cascade deletes foreign key ON DELETE CASCADE SET NULL\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/cascade-deletes",
+              "title": "Cascade Deletes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/data-deletion",
+              "title": "Deleting data and dropping objects safely"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/managing-user-data",
+              "title": "User Management"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/triggers",
+              "title": "Postgres Triggers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/joins-and-nesting",
+              "title": "Querying Joins and Nested tables"
+            }
+          ],
+          "resultChars": 50469
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 147395,
+        "cacheReadInputTokens": 110124,
+        "cacheWriteInputTokens": 34663,
+        "outputTokens": 3551
+      }
+    ],
+    "stepCount": 8,
+    "toolCallCount": 13,
+    "agentRunDurationMs": 51021,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 260597,
+      "duration": 231123,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1577296886,
+        "egress": 7431098
+      }
+    },
+    "prompt": "Customers can close their team from the settings page, but closing a team\nfails with a database error and nothing gets removed. When a team closes,\neverything that belongs to it should go with it: its people, its projects,\ntheir tasks, and the discussion on those tasks.\n\nTwo things have to survive. Finance keeps every invoice, closed team or not.\nAnd people leave teams all the time; when someone leaves, the comments they\nwrote stay on the task.\n\nMake the change in the repo's migrations and apply it to the local database.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/postgres/cascade-deletes.md",
+    "promptSourcePath": "evals/docs/build-docs-015-cascade-deletes/PROMPT.md",
+    "run": 1,
+    "sourcePath": "docs/codex-gpt-6-luna-no-skills/build-docs-015-cascade-deletes/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-015-cascade-deletes",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "the agent applied the migrations it wrote",
+        "passed": true,
+        "notes": "nothing pending"
+      },
+      {
+        "name": "deleting a member who left keeps the comments they wrote",
+        "passed": false,
+        "notes": "not run: could not build the two teams: query failed: ERROR:  WITH clause containing a data-modifying statement must be at the top level\nLINE 1: select coalesce(json_agg(t), '[]'::json) from (WITH t_a AS (\n                                                            ^\n"
+      },
+      {
+        "name": "deleting a team succeeds",
+        "passed": false,
+        "notes": "not run: could not build the two teams: query failed: ERROR:  WITH clause containing a data-modifying statement must be at the top level\nLINE 1: select coalesce(json_agg(t), '[]'::json) from (WITH t_a AS (\n                                                            ^\n"
+      },
+      {
+        "name": "the closed team's members, projects, tasks and comments are gone",
+        "passed": false,
+        "notes": "not run: could not build the two teams: query failed: ERROR:  WITH clause containing a data-modifying statement must be at the top level\nLINE 1: select coalesce(json_agg(t), '[]'::json) from (WITH t_a AS (\n                                                            ^\n"
+      },
+      {
+        "name": "the closed team's invoices are kept",
+        "passed": false,
+        "notes": "not run: could not build the two teams: query failed: ERROR:  WITH clause containing a data-modifying statement must be at the top level\nLINE 1: select coalesce(json_agg(t), '[]'::json) from (WITH t_a AS (\n                                                            ^\n"
+      },
+      {
+        "name": "the other team's rows are all still there",
+        "passed": false,
+        "notes": "not run: could not build the two teams: query failed: ERROR:  WITH clause containing a data-modifying statement must be at the top level\nLINE 1: select coalesce(json_agg(t), '[]'::json) from (WITH t_a AS (\n                                                            ^\n"
+      },
+      {
+        "name": "the agent read the cascade deletes guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, web_search, shell_fetch"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/postgres/cascade-deletes.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/cascade-deletes.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/database/postgres/cascade-deletes cascade deletes Supabase",
+          "pages": []
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/postgres/cascade-deletes",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/cascade-deletes"
+            }
+          ]
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL 'https://supabase.com/docs/guides/database/postgres/cascade-deletes.md' | head -80\"",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/cascade-deletes.md"
+            }
+          ],
+          "resultChars": 4627
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 183631,
+        "cacheReadInputTokens": 136390,
+        "cacheWriteInputTokens": 33374,
+        "outputTokens": 4049
+      }
+    ],
+    "stepCount": 10,
+    "toolCallCount": 12,
+    "agentRunDurationMs": 60305,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 257186,
+      "duration": 268224,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1578563763,
+        "egress": 8181254
+      }
+    },
+    "prompt": "Customers can close their team from the settings page, but closing a team\nfails with a database error and nothing gets removed. When a team closes,\neverything that belongs to it should go with it: its people, its projects,\ntheir tasks, and the discussion on those tasks.\n\nTwo things have to survive. Finance keeps every invoice, closed team or not.\nAnd people leave teams all the time; when someone leaves, the comments they\nwrote stay on the task.\n\nMake the change in the repo's migrations and apply it to the local database.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/postgres/cascade-deletes.md",
+    "promptSourcePath": "evals/docs/build-docs-015-cascade-deletes/PROMPT.md",
+    "run": 2,
+    "sourcePath": "docs/codex-gpt-6-luna-no-skills/build-docs-015-cascade-deletes/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-015-cascade-deletes",
+    "stage": "build",
+    "product": [
+      "database"
+    ],
+    "topic": [
+      "sql"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "the agent applied the migrations it wrote",
+        "passed": true,
+        "notes": "nothing pending"
+      },
+      {
+        "name": "deleting a member who left keeps the comments they wrote",
+        "passed": false,
+        "notes": "not run: could not build the two teams: query failed: ERROR:  WITH clause containing a data-modifying statement must be at the top level\nLINE 1: select coalesce(json_agg(t), '[]'::json) from (WITH t_a AS (\n                                                            ^\n"
+      },
+      {
+        "name": "deleting a team succeeds",
+        "passed": false,
+        "notes": "not run: could not build the two teams: query failed: ERROR:  WITH clause containing a data-modifying statement must be at the top level\nLINE 1: select coalesce(json_agg(t), '[]'::json) from (WITH t_a AS (\n                                                            ^\n"
+      },
+      {
+        "name": "the closed team's members, projects, tasks and comments are gone",
+        "passed": false,
+        "notes": "not run: could not build the two teams: query failed: ERROR:  WITH clause containing a data-modifying statement must be at the top level\nLINE 1: select coalesce(json_agg(t), '[]'::json) from (WITH t_a AS (\n                                                            ^\n"
+      },
+      {
+        "name": "the closed team's invoices are kept",
+        "passed": false,
+        "notes": "not run: could not build the two teams: query failed: ERROR:  WITH clause containing a data-modifying statement must be at the top level\nLINE 1: select coalesce(json_agg(t), '[]'::json) from (WITH t_a AS (\n                                                            ^\n"
+      },
+      {
+        "name": "the other team's rows are all still there",
+        "passed": false,
+        "notes": "not run: could not build the two teams: query failed: ERROR:  WITH clause containing a data-modifying statement must be at the top level\nLINE 1: select coalesce(json_agg(t), '[]'::json) from (WITH t_a AS (\n                                                            ^\n"
+      },
+      {
+        "name": "the agent read the cascade deletes guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, search_docs"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/postgres/cascade-deletes.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/cascade-deletes.md"
+            }
+          ]
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"cascade deletes foreign key on delete set null cascade\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/cascade-deletes",
+              "title": "Cascade Deletes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/data-deletion",
+              "title": "Deleting data and dropping objects safely"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/managing-user-data",
+              "title": "User Management"
+            }
+          ],
+          "resultChars": 22147
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 205108,
+        "cacheReadInputTokens": 167360,
+        "cacheWriteInputTokens": 35229,
+        "outputTokens": 3963
+      }
+    ],
+    "stepCount": 11,
+    "toolCallCount": 12,
+    "agentRunDurationMs": 67866,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 249474,
+      "duration": 210655,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1576375626,
+        "egress": 6842276
+      }
+    },
+    "prompt": "Customers can close their team from the settings page, but closing a team\nfails with a database error and nothing gets removed. When a team closes,\neverything that belongs to it should go with it: its people, its projects,\ntheir tasks, and the discussion on those tasks.\n\nTwo things have to survive. Finance keeps every invoice, closed team or not.\nAnd people leave teams all the time; when someone leaves, the comments they\nwrote stay on the task.\n\nMake the change in the repo's migrations and apply it to the local database.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/database/postgres/cascade-deletes.md",
+    "promptSourcePath": "evals/docs/build-docs-015-cascade-deletes/PROMPT.md",
+    "run": 3,
+    "sourcePath": "docs/codex-gpt-6-luna-no-skills/build-docs-015-cascade-deletes/run-3/result.json"
   }
 ]
