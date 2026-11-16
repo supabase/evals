@@ -90,7 +90,7 @@ While iterating, use `supabaseMcpServer({ revision: 'feature/my-experiment' })`.
 
 The runner fetches and builds each revision once per eval process, using a temporary checkout and the MCP lockfile. The checkout is mounted read-only for container agents and removed on normal process exit. The host needs Git, pnpm, and network access. Only run revisions you trust, since installing and building executes their code.
 
-Branches resolve again on the next process. Results record the requested revision and resolved `commitSha` under `mcpSources`, also uploaded as `mcp_sources` in Braintrust metadata.
+Branches resolve again on the next process. Results record the requested revision and resolved `commitSha` under `repoSources["supabase/mcp"]`, also uploaded as `repo_sources["supabase/mcp"]` in Braintrust metadata.
 
 For CI verification, add distinctive canary text to an MCP tool response and push that MCP commit. Pin its SHA in the evals experiment, then dispatch [Refresh eval results](https://github.com/supabase/evals/actions/workflows/eval-refresh.yml) on the evals branch with the selected experiment and eval, `runs: 1`, and `commit_results: current-branch`. Inspect the tool response in the uploaded Braintrust trace. Include links to the MCP commit, pinned experiment configuration, workflow run, and trace in the evals PR.
 

@@ -86,8 +86,8 @@ describe('supabaseMcpServer().createConfig', () => {
       const session = await runtime.startSession({});
       try {
         expect(build).toHaveBeenCalledWith('a'.repeat(40));
-        expect(session.mcpSources).toEqual({
-          'supabase-mcp': {
+        expect(session.repoSources).toEqual({
+          'supabase/mcp': {
             revision: 'a'.repeat(40),
             commitSha: 'b'.repeat(40),
           },

@@ -38,7 +38,7 @@ import {
   rehydrateTruncatedDocsResults,
   getExperimentDisplayMetadata,
   supabaseMcpServerMounts,
-  type McpSource,
+  type RepoSource,
 } from '@supabase-evals/core';
 import type {
   AgentUsage,
@@ -379,7 +379,7 @@ async function runOne(
     agentRunEndedAt: number;
     scoringEndedAt: number;
     cliVersion?: string;
-    mcpSources?: Record<string, McpSource>;
+    repoSources?: Record<string, RepoSource>;
   }
 > {
   const prompt = parseEvalMarkdown(
@@ -594,7 +594,7 @@ async function runOne(
     scoringEndedAt,
     // No sandbox in tools mode, so no marker to read; only the frontmatter pin applies.
     cliVersion: ev.metadata.cliVersion,
-    mcpSources: session.mcpSources,
+    repoSources: session.repoSources,
   };
 }
 

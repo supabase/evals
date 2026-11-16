@@ -405,11 +405,11 @@ export const docsResultSchema = z.object({
 });
 export type DocsResult = z.infer<typeof docsResultSchema>;
 
-const mcpSourceSchema = z.object({
+const repoSourceSchema = z.object({
   revision: z.string(),
   commitSha: z.string().regex(/^[a-f0-9]{40}$/),
 });
-export type McpSource = z.infer<typeof mcpSourceSchema>;
+export type RepoSource = z.infer<typeof repoSourceSchema>;
 
 // Every dimension that has an authoring enum is enforced against that same
 // enum here — the enum is the single source of truth for both authoring
@@ -418,7 +418,7 @@ export type McpSource = z.infer<typeof mcpSourceSchema>;
 // renamed stage or topic) fails to parse and is dropped from the export rather
 // than rendered with a stale value, and is rebuilt on the next run.
 const evalResultShape = {
-  mcpSources: z.record(z.string(), mcpSourceSchema).optional(),
+  repoSources: z.record(z.string(), repoSourceSchema).optional(),
   experiment: z.string(),
   experimentDisplay: experimentDisplayMetadataSchema.optional(),
   eval: z.string(),

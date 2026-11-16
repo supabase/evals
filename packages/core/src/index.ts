@@ -48,7 +48,7 @@ import type {
   EvalSuite,
   ExperimentDisplayMetadata,
   JudgeCall,
-  McpSource,
+  RepoSource,
   ModelProvider,
   ReasoningEffortLevel,
 } from './eval-metadata.js';
@@ -141,7 +141,7 @@ export type {
   EvalMetadata,
   EvalProduct,
   EvalResult,
-  McpSource,
+  RepoSource,
   EvalSuite,
   EvalStage,
   ExperimentDisplayMetadata,
@@ -964,7 +964,7 @@ export type EvalSessionArgs = {
 };
 
 export type EvalSession = {
-  mcpSources?: Record<string, McpSource>;
+  repoSources?: Record<string, RepoSource>;
   mounts?: readonly SandboxMount[];
   mcpServers: Record<string, McpServerConfig>;
   /** Whether the agent can control the host Docker daemon. Defaults to true. */
@@ -995,7 +995,7 @@ export type McpServerConfig = {
 };
 
 type ResolvedMcpServer = {
-  source?: McpSource;
+  repoSources?: Record<string, RepoSource>;
   mounts?: readonly SandboxMount[];
   config: McpServerConfig;
   cleanup?: () => Promise<void>;
@@ -1022,7 +1022,7 @@ export function platformLiteRuntime(options: {
       const backend = await bootPlatformBackend(args);
       const mcpServers: Record<string, McpServerConfig> = {};
       const mounts: SandboxMount[] = [];
-      const mcpSources: Record<string, McpSource> = {};
+      const repoSources: Record<string, RepoSource> = {};
       const cleanupFns: Array<() => Promise<void>> = [];
 
       try {
@@ -1036,14 +1036,16 @@ export function platformLiteRuntime(options: {
           });
           mcpServers[mcpServer.name] = resolved.config;
           mounts.push(...(resolved.mounts ?? []));
-          if (resolved.source) mcpSources[mcpServer.name] = resolved.source;
+          Object.assign(repoSources, resolved.repoSources);
           if (resolved.cleanup) cleanupFns.push(resolved.cleanup);
         }
 
         return {
           mcpServers,
           mounts,
-          mcpSources: Object.keys(mcpSources).length ? mcpSources : undefined,
+          repoSources: Object.keys(repoSources).length
+            ? repoSources
+            : undefined,
           promptAddendum:
             options.mcpServers
               .map((mcpServer) => mcpServer.promptAddendum)
@@ -1188,9 +1190,14 @@ export function supabaseMcpServer(
         // Both container and host resolve `node` via PATH.
         return {
           config: { command: 'node', args: [local.entry, ...serverArgs], env },
-          source:
+          repoSources:
             sourceBuild && options.revision !== undefined
-              ? { revision: options.revision, commitSha: sourceBuild.commitSha }
+              ? {
+                  'supabase/mcp': {
+                    revision: options.revision,
+                    commitSha: sourceBuild.commitSha,
+                  },
+                }
               : undefined,
           mounts: [{ hostPath: local.mountRoot, readonly: true }],
         };
