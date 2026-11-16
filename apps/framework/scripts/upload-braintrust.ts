@@ -11,6 +11,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import {
+  experimentalFallbackSchema,
   judgeCallSchema,
   modelUsageSchema,
   type AgentUsage,
@@ -88,8 +89,16 @@ interface PendingRow {
   prompt: string;
   agentReport: string;
   passed: boolean;
+  /** `passed` without crediting a retry that only passed with experimental gates on. */
+  firstAttemptPassed: boolean;
   checks: unknown;
   judgeCalls: JudgeCall[];
+  /** Model spend of the attempt the row does not report, logged so trace sums include it. */
+  otherAttempt?: {
+    name: 'default attempt' | 'experimental attempt';
+    usage?: AgentUsage;
+    judgeCalls: JudgeCall[];
+  };
   modelId?: string;
   modelProvider?: string;
   transcript: TranscriptPart[];
@@ -181,6 +190,21 @@ export function runViewUrl(experimentUrl: string, runId: string) {
     ],
   });
   return `${base}?search=${encodeURIComponent(search)}`;
+}
+
+function otherAttemptOf(
+  fallback: z.infer<typeof experimentalFallbackSchema> | undefined
+): PendingRow['otherAttempt'] {
+  const { usage, judgeCalls } = fallback?.otherAttempt ?? {};
+  if (!fallback || (!usage?.length && !judgeCalls?.length)) return undefined;
+  return {
+    name:
+      fallback.outcome === 'passed-with-experimental'
+        ? 'default attempt'
+        : 'experimental attempt',
+    usage,
+    judgeCalls: judgeCalls ?? [],
+  };
 }
 
 /**
@@ -373,6 +397,10 @@ async function collectRows(
       agentReport:
         typeof result.agentReport === 'string' ? result.agentReport : '',
       passed: result.passed === true,
+      firstAttemptPassed:
+        result.passed === true &&
+        result.experimentalFallback?.outcome !== 'passed-with-experimental',
+      otherAttempt: otherAttemptOf(result.experimentalFallback),
       checks: result.checks,
       judgeCalls: judgeCallsSchema.parse(result.judgeCalls),
       modelId: display?.modelId,
@@ -522,6 +550,8 @@ export function logTranscript(
     | 'checks'
     | 'judgeCalls'
     | 'passed'
+    | 'firstAttemptPassed'
+    | 'otherAttempt'
     | 'modelId'
     | 'modelProvider'
     | 'transcript'
@@ -725,10 +755,46 @@ export function logTranscript(
   });
   scorer.log({
     output: row.checks,
-    scores: { passed: row.passed ? 1 : 0 },
+    scores: rowScores(row),
   });
-  for (const call of row.judgeCalls) {
-    const span = scorer.startSpan({
+  logJudgeCalls(scorer, row.judgeCalls);
+  scorer.end({ endTime: latest(scoreStart, row.scoringEndTime) });
+
+  if (row.otherAttempt) {
+    const { name, usage, judgeCalls } = row.otherAttempt;
+    const attempt = parent.startSpan({
+      name,
+      type: 'task',
+      ...(row.startTime === undefined ? {} : { startTime: row.startTime }),
+    });
+    if (usage?.length) {
+      const span = attempt.startSpan({
+        name: usage.map((u) => u.model).join(', '),
+        type: 'llm',
+        ...(row.startTime === undefined ? {} : { startTime: row.startTime }),
+      });
+      span.log({ metrics: tokenMetrics(usage) });
+      span.end(
+        row.startTime === undefined ? undefined : { endTime: row.startTime }
+      );
+    }
+    logJudgeCalls(attempt, judgeCalls);
+    attempt.end(
+      row.startTime === undefined ? undefined : { endTime: row.startTime }
+    );
+  }
+}
+
+function rowScores(row: Pick<PendingRow, 'passed' | 'firstAttemptPassed'>) {
+  return {
+    passed: row.passed ? 1 : 0,
+    first_attempt_passed: row.firstAttemptPassed ? 1 : 0,
+  };
+}
+
+function logJudgeCalls(parent: SpanSink, calls: JudgeCall[]) {
+  for (const call of calls) {
+    const span = parent.startSpan({
       name: call.model,
       type: 'llm',
       spanAttributes: { purpose: 'scorer' },
@@ -745,7 +811,6 @@ export function logTranscript(
     });
     span.end({ endTime: (call.startedAt + call.durationMs) / 1000 });
   }
-  scorer.end({ endTime: latest(scoreStart, row.scoringEndTime) });
 }
 
 function sec(ms: number | undefined) {
@@ -825,7 +890,7 @@ async function main() {
       root.log({
         input: row.prompt,
         output: row.agentReport,
-        scores: { passed: row.passed ? 1 : 0 },
+        scores: rowScores(row),
         metadata: {
           ...row.metadata,
           ...(row.sessionArchivePath

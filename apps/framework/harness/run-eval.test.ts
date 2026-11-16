@@ -1,8 +1,12 @@
 import { execFileSync } from 'node:child_process';
-import { describe, expect, it } from 'vitest';
+import { mkdirSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   assertLocalMatchesInterface,
   combineExperimentalAttempts,
+  runLocalStackWithFallback,
+  type LocalStackAttemptContext,
 } from './run-eval.js';
 
 describe('assertLocalMatchesInterface', () => {
@@ -111,6 +115,27 @@ describe('combineExperimentalAttempts', () => {
     checks: [{ name: 'default', passed: false }],
     cliVersion: '3.1.0',
     marker: 'first',
+    usage: [
+      {
+        model: 'm',
+        inputTokens: 10,
+        cacheReadInputTokens: 0,
+        cacheWriteInputTokens: 0,
+        outputTokens: 5,
+      },
+    ],
+    judgeCalls: [
+      {
+        provider: 'p',
+        system: 's',
+        prompt: 'q',
+        output: { passed: false, notes: 'n' },
+        model: 'judge',
+        usage: { inputTokens: 3 },
+        startedAt: 0,
+        durationMs: 1,
+      },
+    ],
   };
   const applied = ['SUPABASE_EXPERIMENTAL=true (same as --experimental)'];
 
@@ -120,6 +145,8 @@ describe('combineExperimentalAttempts', () => {
       checks: [{ name: 'default', passed: true }],
       cliVersion: '3.1.0',
       marker: 'retry',
+      usage: first.usage,
+      judgeCalls: first.judgeCalls,
     };
     expect(combineExperimentalAttempts(first, retry, applied)).toEqual({
       ...retry,
@@ -130,6 +157,8 @@ describe('combineExperimentalAttempts', () => {
           passed: false,
           checks: first.checks,
           cliVersion: '3.1.0',
+          usage: first.usage,
+          judgeCalls: first.judgeCalls,
         },
       },
     });
@@ -141,6 +170,8 @@ describe('combineExperimentalAttempts', () => {
       checks: [{ name: 'experimental', passed: false }],
       cliVersion: '3.1.0',
       marker: 'retry',
+      usage: first.usage,
+      judgeCalls: first.judgeCalls,
     };
     expect(combineExperimentalAttempts(first, retry, applied)).toEqual({
       ...first,
@@ -151,8 +182,99 @@ describe('combineExperimentalAttempts', () => {
           passed: false,
           checks: retry.checks,
           cliVersion: '3.1.0',
+          usage: retry.usage,
+          judgeCalls: retry.judgeCalls,
         },
       },
     });
+  });
+});
+
+describe('runLocalStackWithFallback', () => {
+  const expName = 'zz-fallback-test';
+  const resultsDir = join(
+    import.meta.dirname,
+    '..',
+    '..',
+    '..',
+    'results',
+    expName
+  );
+  afterEach(() => rmSync(resultsDir, { recursive: true, force: true }));
+
+  function setup(fallback: boolean) {
+    const startArgs: Array<{ experimental?: boolean }> = [];
+    const scores = [false, true];
+    const exp = {
+      agent: {
+        id: 'fake-agent',
+        run: vi.fn(async () => ({
+          toolCalls: [],
+          transcript: [],
+          agentReport: '',
+          stoppedReason: 'done',
+          durationMs: 1,
+          startedAt: 0,
+        })),
+      },
+      localStack: {
+        id: 'fake',
+        experimentalFallback: fallback,
+        startSession: vi.fn(async (args: { experimental?: boolean }) => {
+          startArgs.push(args);
+          return {
+            sandbox: { readFile: async () => '' },
+            tools: {},
+            mcpServers: [],
+            promptAddendum: '',
+            scoringContext: { environmentMarker: async () => undefined },
+            experimentalApplied: args.experimental
+              ? ['SUPABASE_EXPERIMENTAL=true']
+              : [],
+            exportWorkspace: async (dir: string) => {
+              mkdirSync(dir, { recursive: true });
+            },
+            close: async () => {},
+          };
+        }),
+      },
+    };
+    const ctx = {
+      expName,
+      exp,
+      ev: {
+        id: 'fake-eval',
+        metadata: { services: [], projectRunning: true, product: [] },
+        localDir: undefined,
+        dir: '/nonexistent',
+      },
+      runIndex: 1,
+      prompt: 'do it',
+      scorer: async () => ({ passed: scores.shift() ?? true, checks: [] }),
+      skillSources: [],
+      availableSkills: [],
+    } as unknown as LocalStackAttemptContext;
+    return { ctx, startArgs };
+  }
+
+  it('retries with experimental on and promotes a passing retry', async () => {
+    const { ctx, startArgs } = setup(true);
+    const result = await runLocalStackWithFallback(ctx);
+    expect(startArgs).toHaveLength(2);
+    expect(startArgs[0]?.experimental).toBeFalsy();
+    expect(startArgs[1]?.experimental).toBe(true);
+    expect(result.passed).toBe(true);
+    expect(result.experimentalFallback).toMatchObject({
+      outcome: 'passed-with-experimental',
+      applied: ['SUPABASE_EXPERIMENTAL=true'],
+    });
+  });
+
+  it('does not retry when the runtime has not opted in', async () => {
+    const { ctx, startArgs } = setup(false);
+    const result = await runLocalStackWithFallback(ctx);
+    expect(startArgs).toHaveLength(1);
+    expect(result.passed).toBe(false);
+    expect(result.experimentalFallback).toBeUndefined();
   });
 });

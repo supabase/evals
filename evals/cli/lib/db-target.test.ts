@@ -308,6 +308,36 @@ describe('isExplicitlyLocal with the call output', () => {
       )
     ).toBe(false);
   });
+
+  it("does not let a later command's local target line mark a chained --remote call local", () => {
+    const command =
+      'supabase db query --remote "select 1" > out.json 2>&1 && supabase db query "select 1"';
+    const [remoteInv] = findSupabaseInvocations([command]);
+    const record = call({ result: LOCAL_TARGET_TEXT });
+    expect(isExplicitlyLocal(remoteInv!, command, undefined, record)).toBe(
+      false
+    );
+  });
+
+  it('does not infer from the output when the call chains several invocations', () => {
+    const command = 'supabase db push && supabase db push';
+    expect(withCall(command, call({ result: LOCAL_TARGET_TEXT }))).toBe(false);
+  });
+
+  it.each([
+    ['--linked', '--linked'],
+    ['--remote', '--remote'],
+    ['--remote=<url>', `--remote="${DIRECT_URL}"`],
+    ['--project-ref', `--project-ref ${HOSTED_REF}`],
+    ['a non-loopback --db-url', `--db-url "${POOLER_URL}"`],
+  ])('lets %s win over a local target line', (_, flags) => {
+    expect(
+      withCall(
+        `supabase db query ${flags} "select 1"`,
+        call({ result: LOCAL_TARGET_TEXT })
+      )
+    ).toBe(false);
+  });
 });
 
 describe('isExplicitlyLocal', () => {

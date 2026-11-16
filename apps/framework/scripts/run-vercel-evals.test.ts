@@ -4,6 +4,7 @@ import { resolveCliVersion, type CliChannel } from '@supabase-evals/sandbox';
 import { execFileSync } from 'node:child_process';
 import {
   copyFileSync,
+  existsSync,
   mkdtempSync,
   mkdirSync,
   readFileSync,
@@ -25,6 +26,8 @@ import {
   FORWARDED_ENV_NAMES,
   isRetryableSandboxCreateError,
   isTerminalSandboxCreateError,
+  evalTimeouts,
+  packOptionalWorkspaceScript,
   packWorkspaceScript,
   parsePairs,
   requiredCliChannels,
@@ -505,6 +508,85 @@ describe('Vercel eval controller', () => {
     );
   });
 
+  it('packs a per-attempt workspace only when it exists', () => {
+    const temporary = mkdtempSync(join(tmpdir(), 'vercel-eval-pack-'));
+    try {
+      const workspace = join(temporary, 'workspace-default');
+      mkdirSync(workspace);
+      writeFileSync(join(workspace, 'a.txt'), '');
+      const present = join(temporary, 'present.tgz');
+      const absent = join(temporary, 'absent.tgz');
+      execFileSync('sh', [
+        '-c',
+        [
+          packOptionalWorkspaceScript(workspace, present),
+          packOptionalWorkspaceScript(join(temporary, 'missing'), absent),
+        ].join('; '),
+      ]);
+      expect(existsSync(present)).toBe(true);
+      expect(existsSync(absent)).toBe(false);
+    } finally {
+      rmSync(temporary, { recursive: true, force: true });
+    }
+  });
+
+  it('mirrors the suffixed attempt artifacts that exist and skips the missing ones', async () => {
+    const output = mkdtempSync(join(tmpdir(), 'vercel-eval-attempts-'));
+    const present = new Set([
+      '/tmp/eval-workspace-default.tgz',
+      'results/cli/experiment-1/eval-1/run-1/session-archive-experimental.tar.gz',
+    ]);
+    try {
+      await downloadResults(
+        {
+          downloadFile: async (source, destination) => {
+            if (
+              !/result\.json|eval-workspace\.tgz|session-archive\.tar/.test(
+                source.path
+              ) &&
+              !present.has(source.path)
+            ) {
+              return null;
+            }
+            mkdirSync(dirname(destination.path), { recursive: true });
+            writeFileSync(destination.path, '{}');
+            return destination.path;
+          },
+        },
+        { eval_id: 'eval-1', experiment: 'experiment-1', eval_suite: 'cli' },
+        1,
+        output
+      );
+      const runDirectory = join(
+        output,
+        'raw-results-cli__experiment-1__eval-1',
+        'eval-1',
+        'run-1'
+      );
+      expect(readdirSync(runDirectory).sort()).toEqual([
+        'result.json.partial',
+        'session-archive-experimental.tar.gz',
+        'session-archive.tar.gz',
+        'workspace-default.tgz',
+        'workspace.tgz',
+      ]);
+    } finally {
+      rmSync(output, { recursive: true, force: true });
+    }
+  });
+
+  it('budgets a second attempt for the cli suite only', () => {
+    const minute = 60_000;
+    expect(evalTimeouts('benchmark', 720)).toEqual({
+      commandMs: 720_000 + 25 * minute,
+      sandboxMs: 720_000 + 35 * minute,
+    });
+    expect(evalTimeouts('cli', 720)).toEqual({
+      commandMs: 2 * 720_000 + 35 * minute,
+      sandboxMs: 2 * 720_000 + 45 * minute,
+    });
+  });
+
   it('downloads result metadata separately from agent workspace files', async () => {
     const temporary = mkdtempSync(join(tmpdir(), 'vercel-eval-test-'));
     const sandboxFiles = join(temporary, 'sandbox');
@@ -541,6 +623,7 @@ describe('Vercel eval controller', () => {
       const pendingResult = await downloadResults(
         {
           downloadFile: async (source, destination) => {
+            if (/-(default|experimental)\./.test(source.path)) return null;
             const fixture = source.path.endsWith('result.json')
               ? resultSource
               : workspaceArchive;

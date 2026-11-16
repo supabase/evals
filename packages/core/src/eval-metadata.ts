@@ -423,6 +423,8 @@ export const experimentalFallbackSchema = z.object({
     checks: z.array(checkResultSchema).optional(),
     cliVersion: cliVersionSchema.optional(),
     error: z.string().optional(),
+    usage: agentUsageSchema.optional(),
+    judgeCalls: z.array(judgeCallSchema).optional(),
   }),
 });
 

@@ -198,6 +198,7 @@ describe('logTranscript', () => {
       checks: [],
       judgeCalls: [],
       passed: true,
+      firstAttemptPassed: true,
       modelId: 'm',
       startTime: 100,
       endTime: 150,
@@ -311,6 +312,7 @@ describe('logTranscript', () => {
       checks: [],
       judgeCalls: [],
       passed: true,
+      firstAttemptPassed: true,
       modelId: 'm',
       startTime: 100,
       endTime: 120,
@@ -352,6 +354,7 @@ describe('logTranscript', () => {
       checks: [],
       judgeCalls: [],
       passed: true,
+      firstAttemptPassed: true,
       modelId: 'm',
       startTime: 100,
       toolLabels: [],
@@ -393,6 +396,7 @@ describe('logTranscript', () => {
       checks: [],
       judgeCalls: [],
       passed: false,
+      firstAttemptPassed: false,
       startTime: 100,
       endTime: 120,
       agentEndTime: 110,
@@ -425,6 +429,7 @@ describe('logTranscript', () => {
       checks: [],
       judgeCalls: [],
       passed: true,
+      firstAttemptPassed: true,
       startTime: 100,
       endTime: 170,
       toolLabels: [],
@@ -438,6 +443,81 @@ describe('logTranscript', () => {
       ['task', 100, 104],
       ['passed', 170, 170],
     ]);
+  });
+});
+
+describe('logTranscript with a fallback attempt', () => {
+  type Logged = { name?: string; scores?: unknown; metrics?: unknown };
+  function sink(out: Logged[]): SpanSink {
+    const make = (args?: { name?: string }): SpanSink => {
+      const entry: Logged = { name: args?.name };
+      out.push(entry);
+      return {
+        startSpan: make,
+        log(event) {
+          if (event.scores) entry.scores = event.scores;
+          if (event.metrics) entry.metrics = event.metrics;
+        },
+        end() {},
+      };
+    };
+    return make();
+  }
+
+  const base = {
+    prompt: '',
+    agentReport: '',
+    checks: [],
+    judgeCalls: [],
+    passed: true,
+    startTime: 100,
+    endTime: 170,
+    toolLabels: [],
+    transcript: [],
+  };
+
+  it('scores first_attempt_passed beside passed and logs the other attempt spend', () => {
+    const out: Logged[] = [];
+    logTranscript(sink(out), {
+      ...base,
+      firstAttemptPassed: false,
+      otherAttempt: {
+        name: 'default attempt',
+        usage: [
+          {
+            model: 'm',
+            inputTokens: 10,
+            cacheReadInputTokens: 0,
+            cacheWriteInputTokens: 0,
+            outputTokens: 5,
+          },
+        ],
+        judgeCalls: [
+          {
+            model: 'judge',
+            provider: 'p',
+            system: 's',
+            prompt: 'q',
+            output: { passed: true, notes: 'o' },
+            usage: { inputTokens: 3, outputTokens: 1 },
+            startedAt: 100_000,
+            durationMs: 1000,
+          },
+        ],
+      },
+    });
+    expect(out.find((span) => span.name === 'passed')?.scores).toEqual({
+      passed: 1,
+      first_attempt_passed: 0,
+    });
+    const names = out.map((span) => span.name);
+    expect(names).toContain('default attempt');
+    expect(out.find((span) => span.name === 'm')?.metrics).toEqual({
+      prompt_tokens: 10,
+      completion_tokens: 5,
+      tokens: 15,
+    });
+    expect(names).toContain('judge');
   });
 });
 
@@ -459,6 +539,7 @@ describe('tool span cwd', () => {
       checks: [],
       judgeCalls: [],
       passed: true,
+      firstAttemptPassed: true,
       modelId: 'm',
       startTime: 100,
       endTime: 120,
@@ -510,6 +591,7 @@ describe('judge spans', () => {
       agentReport: '',
       checks: [],
       passed: true,
+      firstAttemptPassed: true,
       startTime: 100,
       endTime: 150,
       agentEndTime: 110,

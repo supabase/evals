@@ -658,6 +658,8 @@ export type ExperimentalFallback = {
     checks?: CheckResult[];
     cliVersion?: string;
     error?: string;
+    usage?: AgentUsage;
+    judgeCalls?: JudgeCall[];
   };
 };
 

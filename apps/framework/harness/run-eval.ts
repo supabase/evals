@@ -351,7 +351,12 @@ function promoteExperimentalArtifacts(
 
 /** Picks the reported attempt: the retry when it passed, else the default run, annotated with the fallback outcome. */
 export function combineExperimentalAttempts<
-  T extends { checks?: CheckResult[]; cliVersion?: string },
+  T extends {
+    checks?: CheckResult[];
+    cliVersion?: string;
+    usage?: AgentUsage;
+    judgeCalls?: JudgeCall[];
+  },
 >(
   first: T,
   retry: T & { passed: boolean },
@@ -367,6 +372,8 @@ export function combineExperimentalAttempts<
           passed: false,
           checks: first.checks,
           cliVersion: first.cliVersion,
+          usage: first.usage,
+          judgeCalls: first.judgeCalls,
         },
       },
     };
@@ -380,6 +387,8 @@ export function combineExperimentalAttempts<
         passed: false,
         checks: retry.checks,
         cliVersion: retry.cliVersion,
+        usage: retry.usage,
+        judgeCalls: retry.judgeCalls,
       },
     },
   };
@@ -448,7 +457,7 @@ type EvalRunResult = ScoreResult & {
   cliVersion?: string;
 };
 
-interface LocalStackAttemptContext {
+export interface LocalStackAttemptContext {
   expName: string;
   exp: ExperimentConfig;
   ev: EvalManifest;
@@ -514,6 +523,7 @@ async function runLocalStackAttempt(
       skills: skillSources,
       mounts: supabaseMcpServerMounts(),
       skipCliInstall: ev.metadata.skipCliInstall,
+      experimental,
     })
   );
 
@@ -591,6 +601,44 @@ async function runLocalStackAttempt(
   return { result, applied: session.experimentalApplied ?? [] };
 }
 
+/** Runs the default attempt, then one experimental retry when it fails and the runtime opts in. */
+export async function runLocalStackWithFallback(
+  ctx: LocalStackAttemptContext
+): Promise<EvalRunResult & { experimentalFallback?: ExperimentalFallback }> {
+  const { expName, exp, ev, runIndex } = ctx;
+  const { result: first } = await runLocalStackAttempt(ctx, {
+    experimental: false,
+  });
+  if (first.passed || exp.localStack?.experimentalFallback !== true) {
+    return first;
+  }
+  console.log(
+    `↻ RETRY ${expName} x ${ev.id} run ${runIndex} with experimental gates on`
+  );
+  let attempt: Awaited<ReturnType<typeof runLocalStackAttempt>>;
+  try {
+    attempt = await runLocalStackAttempt(ctx, { experimental: true });
+  } catch (e) {
+    return {
+      ...first,
+      experimentalFallback: {
+        outcome: 'retry-errored',
+        applied: [],
+        otherAttempt: {
+          passed: false,
+          error: e instanceof Error ? e.message : String(e),
+        },
+      },
+    };
+  }
+  const { result: retry, applied } = attempt;
+  const combined = combineExperimentalAttempts(first, retry, applied);
+  if (retry.passed) {
+    promoteExperimentalArtifacts(expName, ev.id, runIndex);
+  }
+  return combined;
+}
+
 async function runOne(
   expName: string,
   exp: ExperimentConfig,
@@ -625,7 +673,7 @@ async function runOne(
           `Add \`localStack: localStackRuntime()\` (from "@supabase-evals/sandbox") to experiments/<team>/${expName}.experiment.ts.`
       );
     }
-    const attemptContext: LocalStackAttemptContext = {
+    return runLocalStackWithFallback({
       expName,
       exp,
       ev,
@@ -634,40 +682,7 @@ async function runOne(
       scorer: scorer as LocalStackScorer,
       skillSources,
       availableSkills,
-    };
-    const { result: first } = await runLocalStackAttempt(attemptContext, {
-      experimental: false,
     });
-    if (first.passed || exp.localStack.experimentalFallback !== true) {
-      return first;
-    }
-    console.log(
-      `↻ RETRY ${expName} x ${ev.id} run ${runIndex} with experimental gates on`
-    );
-    let attempt: Awaited<ReturnType<typeof runLocalStackAttempt>>;
-    try {
-      attempt = await runLocalStackAttempt(attemptContext, {
-        experimental: true,
-      });
-    } catch (e) {
-      return {
-        ...first,
-        experimentalFallback: {
-          outcome: 'retry-errored',
-          applied: [],
-          otherAttempt: {
-            passed: false,
-            error: e instanceof Error ? e.message : String(e),
-          },
-        },
-      };
-    }
-    const { result: retry, applied } = attempt;
-    const combined = combineExperimentalAttempts(first, retry, applied);
-    if (retry.passed) {
-      promoteExperimentalArtifacts(expName, ev.id, runIndex);
-    }
-    return combined;
   }
 
   await using session = disposable(
