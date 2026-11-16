@@ -13564,5 +13564,421 @@
     "promptSourcePath": "evals/docs/build-docs-015-cascade-deletes/PROMPT.md",
     "run": 3,
     "sourcePath": "docs/codex-gpt-6-luna-no-skills/build-docs-015-cascade-deletes/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-016-auth-anonymous",
+    "stage": "build",
+    "product": [
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "rls",
+      "security"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "the agent applied the migrations it wrote",
+        "passed": true,
+        "notes": "nothing pending"
+      },
+      {
+        "name": "the agent wrote its change as a migration",
+        "passed": true,
+        "notes": "new: 20261116000000"
+      },
+      {
+        "name": "a visitor can start a session without an account",
+        "passed": true,
+        "notes": "signed in as a guest"
+      },
+      {
+        "name": "a guest can read the reviews",
+        "passed": true,
+        "notes": "read the review the scorer added"
+      },
+      {
+        "name": "a guest can add a plant to their cart",
+        "passed": true,
+        "notes": "the cart row is there under the guest"
+      },
+      {
+        "name": "a customer with an account can post a review",
+        "passed": true,
+        "notes": "the review is there under the customer"
+      },
+      {
+        "name": "a guest cannot post a review",
+        "passed": true,
+        "notes": "refused with an access error and no row was written"
+      },
+      {
+        "name": "the agent read the anonymous sign-ins guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, search_docs"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/auth/auth-anonymous.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-anonymous.md"
+            }
+          ]
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"anonymous sign-ins is_anonymous restrictive RLS policy local config enable_anonymous_sign_ins\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/observability/advisors?queryGroups=lint&lint=0012_auth_allow_anonymous_sign_ins",
+              "title": "Database Advisor: Lint 0012_auth_allow_anonymous_sign_ins"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-anonymous",
+              "title": "Anonymous Sign-Ins"
+            },
+            {
+              "url": "https://supabase.com/docs/reference/javascript/auth-signinanonymously"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/users",
+              "title": "Users"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            }
+          ],
+          "resultChars": 55969
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 174988,
+        "cacheReadInputTokens": 132438,
+        "cacheWriteInputTokens": 38318,
+        "outputTokens": 7340
+      }
+    ],
+    "stepCount": 9,
+    "toolCallCount": 18,
+    "agentRunDurationMs": 102437,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 271360,
+      "duration": 262700,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1633043535,
+        "egress": 8515383
+      }
+    },
+    "prompt": "I run a plant shop and I want people to be able to try it without signing up.\nA visitor should be able to look around, read the reviews and fill a cart.\nWriting a review is for people who made an account. Set that up in the local\nproject, and make sure it is applied to the local database.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/auth/auth-anonymous.md",
+    "promptSourcePath": "evals/docs/build-docs-016-auth-anonymous/PROMPT.md",
+    "run": 1,
+    "sourcePath": "docs/codex-gpt-6-luna-no-skills/build-docs-016-auth-anonymous/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-016-auth-anonymous",
+    "stage": "build",
+    "product": [
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "rls",
+      "security"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "the agent applied the migrations it wrote",
+        "passed": true,
+        "notes": "nothing pending"
+      },
+      {
+        "name": "the agent wrote its change as a migration",
+        "passed": true,
+        "notes": "new: 20261116000000"
+      },
+      {
+        "name": "a visitor can start a session without an account",
+        "passed": true,
+        "notes": "signed in as a guest"
+      },
+      {
+        "name": "a guest can read the reviews",
+        "passed": true,
+        "notes": "read the review the scorer added"
+      },
+      {
+        "name": "a guest can add a plant to their cart",
+        "passed": true,
+        "notes": "the cart row is there under the guest"
+      },
+      {
+        "name": "a customer with an account can post a review",
+        "passed": true,
+        "notes": "the review is there under the customer"
+      },
+      {
+        "name": "a guest cannot post a review",
+        "passed": true,
+        "notes": "refused with an access error and no row was written"
+      },
+      {
+        "name": "the agent read the anonymous sign-ins guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, search_docs, search_docs"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/auth/auth-anonymous.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-anonymous.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/auth/auth-anonymous anonymous users RLS is_anonymous authenticated role",
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"anonymous sign-in is_anonymous RLS policy authenticated role\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-anonymous",
+              "title": "Anonymous Sign-Ins"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advisors?queryGroups=lint&lint=0012_auth_allow_anonymous_sign_ins",
+              "title": "Database Advisor: Lint 0012_auth_allow_anonymous_sign_ins"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/jwt-fields",
+              "title": "JWT Claims Reference"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/custom-oidc",
+              "title": "Custom OIDC provider"
+            }
+          ],
+          "resultChars": 61967
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Anonymous Sign-Ins Access control restrictive RLS is_anonymous auth.jwt\", limit: 1) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-anonymous",
+              "title": "Anonymous Sign-Ins"
+            }
+          ],
+          "resultChars": 14678
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 206063,
+        "cacheReadInputTokens": 159398,
+        "cacheWriteInputTokens": 38027,
+        "outputTokens": 3792
+      }
+    ],
+    "stepCount": 10,
+    "toolCallCount": 17,
+    "agentRunDurationMs": 70470,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 264330,
+      "duration": 227833,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1632979729,
+        "egress": 8638798
+      }
+    },
+    "prompt": "I run a plant shop and I want people to be able to try it without signing up.\nA visitor should be able to look around, read the reviews and fill a cart.\nWriting a review is for people who made an account. Set that up in the local\nproject, and make sure it is applied to the local database.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/auth/auth-anonymous.md",
+    "promptSourcePath": "evals/docs/build-docs-016-auth-anonymous/PROMPT.md",
+    "run": 2,
+    "sourcePath": "docs/codex-gpt-6-luna-no-skills/build-docs-016-auth-anonymous/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-016-auth-anonymous",
+    "stage": "build",
+    "product": [
+      "auth",
+      "database"
+    ],
+    "topic": [
+      "rls",
+      "security"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "the agent applied the migrations it wrote",
+        "passed": true,
+        "notes": "nothing pending"
+      },
+      {
+        "name": "the agent wrote its change as a migration",
+        "passed": true,
+        "notes": "new: 20261116000000"
+      },
+      {
+        "name": "a visitor can start a session without an account",
+        "passed": true,
+        "notes": "signed in as a guest"
+      },
+      {
+        "name": "a guest can read the reviews",
+        "passed": true,
+        "notes": "read the review the scorer added"
+      },
+      {
+        "name": "a guest can add a plant to their cart",
+        "passed": true,
+        "notes": "the cart row is there under the guest"
+      },
+      {
+        "name": "a customer with an account can post a review",
+        "passed": true,
+        "notes": "the review is there under the customer"
+      },
+      {
+        "name": "a guest cannot post a review",
+        "passed": true,
+        "notes": "refused with an access error and no row was written"
+      },
+      {
+        "name": "the agent read the anonymous sign-ins guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, web_search"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/auth/auth-anonymous.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-anonymous.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/auth/auth-anonymous.md Supabase anonymous sign-ins enable local config",
+          "pages": []
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/auth/auth-anonymous",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-anonymous"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/auth/auth-anonymous \"is_anonymous\"",
+          "pages": []
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 217691,
+        "cacheReadInputTokens": 154570,
+        "cacheWriteInputTokens": 33974,
+        "outputTokens": 5764
+      }
+    ],
+    "stepCount": 11,
+    "toolCallCount": 13,
+    "agentRunDurationMs": 113520,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 429347,
+      "duration": 318263,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 2041778163,
+        "egress": 5217397
+      }
+    },
+    "prompt": "I run a plant shop and I want people to be able to try it without signing up.\nA visitor should be able to look around, read the reviews and fill a cart.\nWriting a review is for people who made an account. Set that up in the local\nproject, and make sure it is applied to the local database.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/auth/auth-anonymous.md",
+    "promptSourcePath": "evals/docs/build-docs-016-auth-anonymous/PROMPT.md",
+    "run": 3,
+    "sourcePath": "docs/codex-gpt-6-luna-no-skills/build-docs-016-auth-anonymous/run-3/result.json"
   }
 ]
