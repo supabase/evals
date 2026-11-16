@@ -58,6 +58,11 @@ on:
         type: string
         required: false
         default: ""
+      docs_preview_host:
+        description: "Scratch: docs preview host to swap into docs eval prompts (blank for live)"
+        type: string
+        required: false
+        default: ""
   workflow_call:
     inputs:
       experiments: *experiments
@@ -323,6 +328,7 @@ jobs:
       SUPABASE_CLI_STABLE_VERSION: ${{ needs.prepare.outputs.cli_stable_version }}
       SUPABASE_CLI_BETA_VERSION: ${{ needs.prepare.outputs.cli_beta_version }}
       SUPABASE_CLI_NEXT_VERSION: ${{ needs.prepare.outputs.cli_next_version }}
+      DOCS_PREVIEW_HOST: ${{ inputs.docs_preview_host }}
     steps:
       - name: Checkout
         uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
