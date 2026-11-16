@@ -35271,7 +35271,7 @@
       {
         "name": "diagnosed RLS and added owner-scoped policies",
         "passed": true,
-        "judgeNotes": "Diagnosed enabled RLS with no policies and created authenticated-only SELECT and INSERT policies scoped to auth.uid() = user_id, using USING and WITH CHECK respectively. RLS remained enabled."
+        "judgeNotes": "Diagnosed enabled RLS with no policies as deny-all, then created authenticated-only owner-scoped SELECT and INSERT policies using auth.uid(), leaving RLS enabled. The later empty-table observation does not replace the RLS diagnosis."
       }
     ],
     "skills": {
@@ -35288,7 +35288,13 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"monitoring and debugging empty rows Data API RLS grants exposed table\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"Expose table Data API grants authenticated RLS policies\", limit: 5) { nodes { title href content } }",
+          "hasContent": true,
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase monitoring and debugging Data API empty result RLS\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -35296,88 +35302,49 @@
               "title": "Securing your API"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
-              "title": "Row Level Security"
+              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres",
+              "title": "Connect to your database"
             },
             {
               "url": "https://supabase.com/docs/guides/database/secure-data",
               "title": "Securing your data"
             },
             {
-              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
-              "title": "Advanced pgTAP Testing"
+              "url": "https://supabase.com/docs/guides/local-development/testing/overview",
+              "title": "Testing Overview"
             },
             {
-              "url": "https://supabase.com/docs/guides/storage/production/scaling",
-              "title": "Storage Optimizations"
+              "url": "https://supabase.com/docs/guides/database/testing",
+              "title": "Testing Your Database"
             }
           ],
-          "resultChars": 80967
+          "resultChars": 59099
         },
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"Data API expose tables grants authenticated role row level security policies insert select\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"Monitoring and Debugging empty results RLS Supabase\", limit: 3) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/api/securing-your-api",
-              "title": "Securing your API"
+              "url": "https://supabase.com/docs/guides/database/testing",
+              "title": "Testing Your Database"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
-              "title": "Row Level Security"
+              "url": "https://supabase.com/docs/guides/local-development/testing/overview",
+              "title": "Testing Overview"
             },
             {
-              "url": "https://supabase.com/docs/guides/observability/advisors?queryGroups=lint&lint=0027_pg_graphql_authenticated_table_exposed",
-              "title": "Database Advisor: Lint 0027_pg_graphql_authenticated_table_exposed"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/secure-data",
-              "title": "Securing your data"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/roles",
-              "title": "Postgres Roles"
+              "url": "https://supabase.com/docs/guides/observability",
+              "title": "Observability"
             }
           ],
-          "resultChars": 67585
+          "resultChars": 14751
         },
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"Monitoring and Debugging Supabase RLS Data API empty results\", limit: 5) { nodes { title href content } }",
-          "hasContent": true,
-          "pages": []
-        },
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"Monitoring and Debugging\", limit: 3) { nodes { title href content } }",
-          "hasContent": true,
-          "pages": []
-        },
-        {
-          "source": "web_search",
-          "query": "site:supabase.com/changelog.md Supabase changelog breaking change Data API grants",
-          "pages": []
-        },
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"row level security auth.uid select insert policy authenticated\", limit: 5) { nodes { title href content } }",
-          "hasContent": true,
-          "pages": []
-        },
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"Monitoring and Debugging database RLS empty select results\", limit: 5) { nodes { title href content } } }",
+          "query": "query { searchDocs(query: \"row level security auth.uid policy select insert with check\", limit: 2) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/storage/production/scaling",
-              "title": "Storage Optimizations"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security-performance",
-              "title": "Row Level Security performance"
-            },
             {
               "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
               "title": "Row Level Security"
@@ -35387,7 +35354,7 @@
               "title": "Advanced pgTAP Testing"
             }
           ],
-          "resultChars": 61147
+          "resultChars": 51704
         },
         {
           "source": "web_search",
@@ -35398,34 +35365,345 @@
               "url": "https://supabase.com/changelog.md"
             }
           ]
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -100'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ],
+          "resultChars": 4978
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Monitoring and Debugging Supabase Data API error empty result row level security\", limit: 2) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/secure-data",
+              "title": "Securing your data"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability",
+              "title": "Observability"
+            }
+          ],
+          "resultChars": 4693
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 377541,
-        "cacheReadInputTokens": 328299,
-        "cacheWriteInputTokens": 40188,
-        "outputTokens": 5636
+        "inputTokens": 226839,
+        "cacheReadInputTokens": 177942,
+        "cacheWriteInputTokens": 48646,
+        "outputTokens": 5980
       }
     ],
-    "stepCount": 13,
-    "toolCallCount": 25,
-    "agentRunDurationMs": 99410,
+    "stepCount": 9,
+    "toolCallCount": 24,
+    "agentRunDurationMs": 73747,
     "sandboxUsage": {
-      "activeCpuDurationMs": 240494,
-      "duration": 257933,
+      "activeCpuDurationMs": 129343,
+      "duration": 175473,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 807919006,
-        "egress": 4813701
+        "ingress": 773678029,
+        "egress": 4734426
       }
     },
     "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
     "promptSourcePath": "evals/benchmark/resolve-dataapi-001-empty-results/PROMPT.md",
     "run": 1,
     "sourcePath": "benchmark/codex-gpt-6-luna/resolve-dataapi-001-empty-results/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-dataapi-001-empty-results",
+    "stage": "resolve",
+    "product": [
+      "data-api",
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user A reads own bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user B cannot read user A bookmarks",
+        "passed": true
+      },
+      {
+        "name": "anon reads no bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user A can save a new bookmark",
+        "passed": true
+      },
+      {
+        "name": "user B cannot insert a bookmark as user A",
+        "passed": true
+      },
+      {
+        "name": "diagnosed RLS and added owner-scoped policies",
+        "passed": true,
+        "judgeNotes": "Diagnosed RLS enabled without policies and created authenticated-only SELECT USING and INSERT WITH CHECK policies enforcing user_id = auth.uid(), while keeping RLS enabled."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Monitoring and Debugging Data API table exposed grants RLS empty result\", limit: 5) { nodes { ... on Guide { title href content } } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security",
+              "title": "Token Security and Row Level Security"
+            }
+          ],
+          "resultChars": 35792
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/changelog.md Supabase breaking change Data API grants default privileges",
+          "pages": []
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/monitoring-and-debugging \"Monitoring and Debugging\" Supabase",
+          "pages": []
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/monitoring-and-debugging Supabase monitoring debugging",
+          "pages": []
+        },
+        {
+          "source": "web_search",
+          "query": "Supabase \"Monitoring and Debugging\" docs logs PostgREST RLS",
+          "pages": []
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/monitoring-and-debugging",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/monitoring-and-debugging"
+            }
+          ]
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 234912,
+        "cacheReadInputTokens": 174285,
+        "cacheWriteInputTokens": 39962,
+        "outputTokens": 6038
+      }
+    ],
+    "stepCount": 10,
+    "toolCallCount": 21,
+    "agentRunDurationMs": 93329,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 131848,
+      "duration": 191767,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 774764580,
+        "egress": 5171980
+      }
+    },
+    "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
+    "promptSourcePath": "evals/benchmark/resolve-dataapi-001-empty-results/PROMPT.md",
+    "run": 2,
+    "sourcePath": "benchmark/codex-gpt-6-luna/resolve-dataapi-001-empty-results/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "resolve-dataapi-001-empty-results",
+    "stage": "resolve",
+    "product": [
+      "data-api",
+      "database",
+      "auth"
+    ],
+    "topic": [
+      "rls",
+      "sdk"
+    ],
+    "suite": "benchmark",
+    "interface": "mcp",
+    "passed": true,
+    "checks": [
+      {
+        "name": "RLS still enabled on bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user A reads own bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user B cannot read user A bookmarks",
+        "passed": true
+      },
+      {
+        "name": "anon reads no bookmarks",
+        "passed": true
+      },
+      {
+        "name": "user A can save a new bookmark",
+        "passed": true
+      },
+      {
+        "name": "user B cannot insert a bookmark as user A",
+        "passed": true
+      },
+      {
+        "name": "diagnosed RLS and added owner-scoped policies",
+        "passed": true,
+        "judgeNotes": "Correctly diagnosed enabled RLS with no policies as deny-all. Created authenticated-only SELECT USING and INSERT WITH CHECK policies matching user_id to auth.uid(), while leaving RLS enabled."
+      }
+    ],
+    "skills": {
+      "available": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ],
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Monitoring and Debugging Data API empty results RLS troubleshoot\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/realtime/reports",
+              "title": "Realtime Reports"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/overview",
+              "title": "Testing Overview"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/platform/sso/multiple-providers",
+              "title": "Multiple SSO Providers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/social-sign-in/auth-facebook",
+              "title": "Sign in with Facebook"
+            }
+          ],
+          "resultChars": 133312
+        },
+        {
+          "source": "search_docs",
+          "query": "query { searchDocs(query: \"Supabase monitoring debugging troubleshoot Data API RLS empty select rows\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/secure-data",
+              "title": "Securing your data"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres",
+              "title": "Connect to your database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            }
+          ],
+          "resultChars": 45588
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/monitoring-and-debugging Supabase monitoring debugging Data API RLS",
+          "pages": []
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 218237,
+        "cacheReadInputTokens": 173381,
+        "cacheWriteInputTokens": 40434,
+        "outputTokens": 4073
+      }
+    ],
+    "stepCount": 10,
+    "toolCallCount": 20,
+    "agentRunDurationMs": 63874,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 203048,
+      "duration": 218263,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 774702435,
+        "egress": 5058550
+      }
+    },
+    "prompt": "Our app lets signed-in users save bookmarks and view them on their dashboard. Bookmarks are stored in the `bookmarks` table and are private — a user must only ever see their own. \nUsers also need to be able to save new bookmarks from the app.\n\nI can see the rows when I query the table directly, but the dashboard shows an empty list for every user.\n\nFind out why the Data API returns nothing and fix it.",
+    "promptSourcePath": "evals/benchmark/resolve-dataapi-001-empty-results/PROMPT.md",
+    "run": 3,
+    "sourcePath": "benchmark/codex-gpt-6-luna/resolve-dataapi-001-empty-results/run-3/result.json"
   },
   {
     "experiment": "codex-gpt-6-luna",
