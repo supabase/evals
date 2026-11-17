@@ -13594,12 +13594,12 @@
       {
         "name": "sign-in links can return to the live site, previews and local dev",
         "passed": true,
-        "notes": "all 5 kept"
+        "notes": "all 6 kept"
       },
       {
         "name": "sign-in links refuse destinations the team doesn't own",
         "passed": true,
-        "notes": "all 3 refused"
+        "notes": "all 4 refused"
       },
       {
         "name": "a link with no destination, or a refused one, lands on the live site",
@@ -13609,7 +13609,7 @@
       {
         "name": "the agent read the redirect URLs guide the prompt referenced",
         "passed": true,
-        "notes": "web_search, shell_fetch"
+        "notes": "web_search, search_docs"
       }
     ],
     "skills": {
@@ -13630,80 +13630,88 @@
         },
         {
           "source": "web_search",
-          "query": "site:supabase.com/docs/guides/auth/redirect-urls Supabase redirect URLs wildcard preview localhost site_url email redirectTo",
+          "query": "site:supabase.com/docs/guides/auth/redirect-urls redirect URLs wildcard Vercel preview exact templates Site URL auth redirectTo",
           "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"config.toml auth.email.template magic_link recovery content_path RedirectTo redirect URLs Site URL Vercel preview\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/customizing-email-templates",
+              "title": "Customizing email templates"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-email-passwordless",
+              "title": "Passwordless email sign-in"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit",
+              "title": "Build a User Management App with SvelteKit"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/redirect-urls",
+              "title": "Redirect URLs"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs",
+              "title": "Build a User Management App with Next.js"
+            }
+          ],
+          "resultChars": 115331
         },
         {
           "source": "web_search",
-          "query": "Supabase redirect URLs wildcard syntax official docs auth",
+          "query": "Supabase redirect URLs guide official wildcard format Vercel preview URLs",
           "pages": []
         },
         {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc \"curl -fsSL 'https://supabase.com/docs/guides/auth/redirect-urls.md' | sed -n '1,180p'\"",
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Supabase config.toml auth site_url additional_redirect_urls auth.email.template.magic_link recovery content_path\", limit: 3) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/auth/redirect-urls.md"
-            }
-          ],
-          "resultChars": 9760
-        },
-        {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc \"curl -fsSL 'https://supabase.com/docs/guides/local-development/cli/config' | rg -n -C 4 'template\\\\.magic_link|template\\\\.recovery|content_path|RedirectTo|auth.email.template' | head -140 && printf '\\\\n--- email template guide ---\\\\n' && curl -fsSL 'https://supabase.com/docs/guides/auth/auth-email-templates' | rg -n -C 5 'RedirectTo|SiteURL|Recovery|Magic Link|magic_link|recovery' | head -160\"",
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli/config"
+              "url": "https://supabase.com/docs/guides/local-development/customizing-email-templates",
+              "title": "Customizing email templates"
             },
             {
-              "url": "https://supabase.com/docs/guides/auth/auth-email-templates"
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-oauth",
+              "title": "Configure Social Sign-in (OAuth) Providers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/passkeys",
+              "title": "Passkey authentication"
             }
           ],
-          "resultChars": 796633
+          "resultChars": 45057
         },
         {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc \"command -v node || true; curl -fsSL 'https://supabase.com/docs/guides/local-development/cli/config' | rg -o 'auth\\\\.email\\\\.template[\"'^<]{0,140}|auth'\"\\\\.email\\\\.templates[\"'^<]{0,140}|content_path[''^<]{0,140}|magic_link[''^<]{0,140}'\"' | head -50\"",
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development/cli/config"
-            }
-          ],
-          "resultChars": 2411
-        },
-        {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc \"curl -fsSL 'https://supabase.com/docs/guides/auth/auth-email-templates' | rg -o '.{0,180}RedirectTo.{0,280}|.{0,160}ConfirmationURL.{0,240}' | head -30\"",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/auth/auth-email-templates"
-            }
-          ],
-          "resultChars": 12307
+          "source": "web_search",
+          "query": "Supabase Redirect URLs guide official redirectTo allow list Site URL local development",
+          "pages": []
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 505621,
-        "cacheReadInputTokens": 440787,
-        "cacheWriteInputTokens": 49837,
-        "outputTokens": 11255
+        "inputTokens": 352956,
+        "cacheReadInputTokens": 284608,
+        "cacheWriteInputTokens": 43949,
+        "outputTokens": 9746
       }
     ],
-    "stepCount": 21,
-    "toolCallCount": 24,
-    "agentRunDurationMs": 169568,
+    "stepCount": 14,
+    "toolCallCount": 17,
+    "agentRunDurationMs": 119922,
     "sandboxUsage": {
-      "activeCpuDurationMs": 261666,
-      "duration": 343660,
+      "activeCpuDurationMs": 253345,
+      "duration": 291973,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 1632184396,
-        "egress": 12252700
+        "ingress": 1627219140,
+        "egress": 8716700
       }
     },
     "prompt": "Sign-in and password reset emails for the studio app are a mess. Some of them\nopen localhost, and previews don't work at all. Everywhere we run the app is in\nDEPLOYMENTS.md.\n\nMake the local project behave the way production should: people who sign in\nfrom the live site, a preview or local dev should end up back where they\nstarted. Nobody should be able to use our sign-in emails to send people\nsomewhere we don't own.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/auth/redirect-urls.md",
@@ -13740,12 +13748,12 @@
       {
         "name": "sign-in links can return to the live site, previews and local dev",
         "passed": true,
-        "notes": "all 5 kept"
+        "notes": "all 6 kept"
       },
       {
         "name": "sign-in links refuse destinations the team doesn't own",
         "passed": true,
-        "notes": "all 3 refused"
+        "notes": "all 4 refused"
       },
       {
         "name": "a link with no destination, or a refused one, lands on the live site",
@@ -13755,7 +13763,7 @@
       {
         "name": "the agent read the redirect URLs guide the prompt referenced",
         "passed": true,
-        "notes": "web_search, search_docs"
+        "notes": "web_search, web_search"
       }
     ],
     "skills": {
@@ -13776,58 +13784,45 @@
         },
         {
           "source": "web_search",
-          "query": "site:supabase.com/docs/guides/auth/redirect-urls Supabase redirect URLs wildcard localhost Vercel preview",
+          "query": "site:supabase.com/docs/guides/auth/redirect-urls redirect URL wildcards preview URLs Supabase Auth",
           "pages": []
         },
         {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"Auth redirect URLs wildcard patterns Site URL redirect allow list localhost Vercel preview deployments\", limit: 5) { nodes { title href content } } }",
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/auth/redirect-urls",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/auth/redirect-urls",
-              "title": "Redirect URLs"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-s3",
-              "title": "Configure S3 Storage"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/auth-email-passwordless",
-              "title": "Passwordless email sign-in"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-oauth",
-              "title": "Configure Social Sign-in (OAuth) Providers"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite",
-              "title": "Building an MCP Server with mcp-lite"
+              "url": "https://supabase.com/docs/guides/auth/redirect-urls"
             }
-          ],
-          "resultChars": 62786
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs auth email templates RedirectTo magic_link recovery template config.toml",
+          "pages": []
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 140155,
-        "cacheReadInputTokens": 94992,
-        "cacheWriteInputTokens": 34312,
-        "outputTokens": 4105
+        "inputTokens": 216155,
+        "cacheReadInputTokens": 154336,
+        "cacheWriteInputTokens": 37539,
+        "outputTokens": 7006
       }
     ],
-    "stepCount": 8,
-    "toolCallCount": 12,
-    "agentRunDurationMs": 65934,
+    "stepCount": 10,
+    "toolCallCount": 19,
+    "agentRunDurationMs": 91370,
     "sandboxUsage": {
-      "activeCpuDurationMs": 453391,
-      "duration": 326738,
+      "activeCpuDurationMs": 403689,
+      "duration": 321783,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 1621824233,
-        "egress": 4019109
+        "ingress": 1622798032,
+        "egress": 4577821
       }
     },
     "prompt": "Sign-in and password reset emails for the studio app are a mess. Some of them\nopen localhost, and previews don't work at all. Everywhere we run the app is in\nDEPLOYMENTS.md.\n\nMake the local project behave the way production should: people who sign in\nfrom the live site, a preview or local dev should end up back where they\nstarted. Nobody should be able to use our sign-in emails to send people\nsomewhere we don't own.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/auth/redirect-urls.md",
@@ -13864,12 +13859,12 @@
       {
         "name": "sign-in links can return to the live site, previews and local dev",
         "passed": true,
-        "notes": "all 5 kept"
+        "notes": "all 6 kept"
       },
       {
         "name": "sign-in links refuse destinations the team doesn't own",
         "passed": true,
-        "notes": "all 3 refused"
+        "notes": "all 4 refused"
       },
       {
         "name": "a link with no destination, or a refused one, lands on the live site",
@@ -13879,7 +13874,7 @@
       {
         "name": "the agent read the redirect URLs guide the prompt referenced",
         "passed": true,
-        "notes": "web_search"
+        "notes": "web_search, search_docs"
       }
     ],
     "skills": {
@@ -13900,40 +13895,63 @@
         },
         {
           "source": "web_search",
-          "query": "site:supabase.com/docs/guides/auth/redirect-urls redirect URLs wildcard glob site_url",
+          "query": "site:supabase.com/docs/guides/auth/redirect-urls Supabase redirect URLs auth email redirectTo",
           "pages": []
         },
         {
           "source": "web_search",
-          "query": "site:supabase.com/docs/guides/auth/redirect-urls \"Redirect URLs\"",
+          "query": "Supabase redirect URLs guide site:supabase.com/docs/guides/auth/redirect-urls",
           "pages": []
         },
         {
-          "source": "web_search",
-          "query": "Supabase redirect URLs guide site_url additional_redirect_urls `*-team.vercel.app`",
-          "pages": []
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"redirect URLs wildcard * subdomain localhost auth site_url additional_redirect_urls\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/redirect-urls",
+              "title": "Redirect URLs"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-oauth",
+              "title": "Configure Social Sign-in (OAuth) Providers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-email-passwordless",
+              "title": "Passwordless email sign-in"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/getting-started",
+              "title": "Getting Started with OAuth 2.1 Server"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-s3",
+              "title": "Configure S3 Storage"
+            }
+          ],
+          "resultChars": 84995
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 131213,
-        "cacheReadInputTokens": 76135,
-        "cacheWriteInputTokens": 31350,
-        "outputTokens": 5653
+        "inputTokens": 194142,
+        "cacheReadInputTokens": 139859,
+        "cacheWriteInputTokens": 35107,
+        "outputTokens": 5288
       }
     ],
-    "stepCount": 7,
-    "toolCallCount": 12,
-    "agentRunDurationMs": 83043,
+    "stepCount": 10,
+    "toolCallCount": 13,
+    "agentRunDurationMs": 73345,
     "sandboxUsage": {
-      "activeCpuDurationMs": 411856,
-      "duration": 322331,
+      "activeCpuDurationMs": 267302,
+      "duration": 253553,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 1621653120,
-        "egress": 4026838
+        "ingress": 1625264606,
+        "egress": 6962230
       }
     },
     "prompt": "Sign-in and password reset emails for the studio app are a mess. Some of them\nopen localhost, and previews don't work at all. Everywhere we run the app is in\nDEPLOYMENTS.md.\n\nMake the local project behave the way production should: people who sign in\nfrom the live site, a preview or local dev should end up back where they\nstarted. Nobody should be able to use our sign-in emails to send people\nsomewhere we don't own.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/auth/redirect-urls.md",
