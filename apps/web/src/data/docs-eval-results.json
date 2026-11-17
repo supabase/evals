@@ -13564,5 +13564,381 @@
     "promptSourcePath": "evals/docs/build-docs-015-cascade-deletes/PROMPT.md",
     "run": 3,
     "sourcePath": "docs/codex-gpt-6-luna-no-skills/build-docs-015-cascade-deletes/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-018-redirect-urls",
+    "stage": "build",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "the local stack starts with the project settings",
+        "passed": true,
+        "notes": "supabase start exited 0"
+      },
+      {
+        "name": "sign-in links can return to the live site, previews and local dev",
+        "passed": true,
+        "notes": "all 5 kept"
+      },
+      {
+        "name": "sign-in links refuse destinations the team doesn't own",
+        "passed": true,
+        "notes": "all 3 refused"
+      },
+      {
+        "name": "a link with no destination, or a refused one, lands on the live site",
+        "passed": true,
+        "notes": "falls back to https://book.harbourstudio.nz"
+      },
+      {
+        "name": "the agent read the redirect URLs guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, shell_fetch"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/auth/redirect-urls.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/redirect-urls.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/auth/redirect-urls Supabase redirect URLs wildcard preview localhost site_url email redirectTo",
+          "pages": []
+        },
+        {
+          "source": "web_search",
+          "query": "Supabase redirect URLs wildcard syntax official docs auth",
+          "pages": []
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL 'https://supabase.com/docs/guides/auth/redirect-urls.md' | sed -n '1,180p'\"",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/redirect-urls.md"
+            }
+          ],
+          "resultChars": 9760
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL 'https://supabase.com/docs/guides/local-development/cli/config' | rg -n -C 4 'template\\\\.magic_link|template\\\\.recovery|content_path|RedirectTo|auth.email.template' | head -140 && printf '\\\\n--- email template guide ---\\\\n' && curl -fsSL 'https://supabase.com/docs/guides/auth/auth-email-templates' | rg -n -C 5 'RedirectTo|SiteURL|Recovery|Magic Link|magic_link|recovery' | head -160\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/config"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-email-templates"
+            }
+          ],
+          "resultChars": 796633
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"command -v node || true; curl -fsSL 'https://supabase.com/docs/guides/local-development/cli/config' | rg -o 'auth\\\\.email\\\\.template[\"'^<]{0,140}|auth'\"\\\\.email\\\\.templates[\"'^<]{0,140}|content_path[''^<]{0,140}|magic_link[''^<]{0,140}'\"' | head -50\"",
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/cli/config"
+            }
+          ],
+          "resultChars": 2411
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc \"curl -fsSL 'https://supabase.com/docs/guides/auth/auth-email-templates' | rg -o '.{0,180}RedirectTo.{0,280}|.{0,160}ConfirmationURL.{0,240}' | head -30\"",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-email-templates"
+            }
+          ],
+          "resultChars": 12307
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 505621,
+        "cacheReadInputTokens": 440787,
+        "cacheWriteInputTokens": 49837,
+        "outputTokens": 11255
+      }
+    ],
+    "stepCount": 21,
+    "toolCallCount": 24,
+    "agentRunDurationMs": 169568,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 261666,
+      "duration": 343660,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1632184396,
+        "egress": 12252700
+      }
+    },
+    "prompt": "Sign-in and password reset emails for the studio app are a mess. Some of them\nopen localhost, and previews don't work at all. Everywhere we run the app is in\nDEPLOYMENTS.md.\n\nMake the local project behave the way production should: people who sign in\nfrom the live site, a preview or local dev should end up back where they\nstarted. Nobody should be able to use our sign-in emails to send people\nsomewhere we don't own.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/auth/redirect-urls.md",
+    "promptSourcePath": "evals/docs/build-docs-018-redirect-urls/PROMPT.md",
+    "run": 1,
+    "sourcePath": "docs/codex-gpt-6-luna-no-skills/build-docs-018-redirect-urls/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-018-redirect-urls",
+    "stage": "build",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "the local stack starts with the project settings",
+        "passed": true,
+        "notes": "supabase start exited 0"
+      },
+      {
+        "name": "sign-in links can return to the live site, previews and local dev",
+        "passed": true,
+        "notes": "all 5 kept"
+      },
+      {
+        "name": "sign-in links refuse destinations the team doesn't own",
+        "passed": true,
+        "notes": "all 3 refused"
+      },
+      {
+        "name": "a link with no destination, or a refused one, lands on the live site",
+        "passed": true,
+        "notes": "falls back to https://book.harbourstudio.nz"
+      },
+      {
+        "name": "the agent read the redirect URLs guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, search_docs"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/auth/redirect-urls.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/redirect-urls.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/auth/redirect-urls Supabase redirect URLs wildcard localhost Vercel preview",
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Auth redirect URLs wildcard patterns Site URL redirect allow list localhost Vercel preview deployments\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/redirect-urls",
+              "title": "Redirect URLs"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-s3",
+              "title": "Configure S3 Storage"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-email-passwordless",
+              "title": "Passwordless email sign-in"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/self-hosted-oauth",
+              "title": "Configure Social Sign-in (OAuth) Providers"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/functions/examples/mcp-server-mcp-lite",
+              "title": "Building an MCP Server with mcp-lite"
+            }
+          ],
+          "resultChars": 62786
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 140155,
+        "cacheReadInputTokens": 94992,
+        "cacheWriteInputTokens": 34312,
+        "outputTokens": 4105
+      }
+    ],
+    "stepCount": 8,
+    "toolCallCount": 12,
+    "agentRunDurationMs": 65934,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 453391,
+      "duration": 326738,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1621824233,
+        "egress": 4019109
+      }
+    },
+    "prompt": "Sign-in and password reset emails for the studio app are a mess. Some of them\nopen localhost, and previews don't work at all. Everywhere we run the app is in\nDEPLOYMENTS.md.\n\nMake the local project behave the way production should: people who sign in\nfrom the live site, a preview or local dev should end up back where they\nstarted. Nobody should be able to use our sign-in emails to send people\nsomewhere we don't own.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/auth/redirect-urls.md",
+    "promptSourcePath": "evals/docs/build-docs-018-redirect-urls/PROMPT.md",
+    "run": 2,
+    "sourcePath": "docs/codex-gpt-6-luna-no-skills/build-docs-018-redirect-urls/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-018-redirect-urls",
+    "stage": "build",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "the local stack starts with the project settings",
+        "passed": true,
+        "notes": "supabase start exited 0"
+      },
+      {
+        "name": "sign-in links can return to the live site, previews and local dev",
+        "passed": true,
+        "notes": "all 5 kept"
+      },
+      {
+        "name": "sign-in links refuse destinations the team doesn't own",
+        "passed": true,
+        "notes": "all 3 refused"
+      },
+      {
+        "name": "a link with no destination, or a refused one, lands on the live site",
+        "passed": true,
+        "notes": "falls back to https://book.harbourstudio.nz"
+      },
+      {
+        "name": "the agent read the redirect URLs guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/auth/redirect-urls.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/redirect-urls.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/auth/redirect-urls redirect URLs wildcard glob site_url",
+          "pages": []
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/auth/redirect-urls \"Redirect URLs\"",
+          "pages": []
+        },
+        {
+          "source": "web_search",
+          "query": "Supabase redirect URLs guide site_url additional_redirect_urls `*-team.vercel.app`",
+          "pages": []
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 131213,
+        "cacheReadInputTokens": 76135,
+        "cacheWriteInputTokens": 31350,
+        "outputTokens": 5653
+      }
+    ],
+    "stepCount": 7,
+    "toolCallCount": 12,
+    "agentRunDurationMs": 83043,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 411856,
+      "duration": 322331,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1621653120,
+        "egress": 4026838
+      }
+    },
+    "prompt": "Sign-in and password reset emails for the studio app are a mess. Some of them\nopen localhost, and previews don't work at all. Everywhere we run the app is in\nDEPLOYMENTS.md.\n\nMake the local project behave the way production should: people who sign in\nfrom the live site, a preview or local dev should end up back where they\nstarted. Nobody should be able to use our sign-in emails to send people\nsomewhere we don't own.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/auth/redirect-urls.md",
+    "promptSourcePath": "evals/docs/build-docs-018-redirect-urls/PROMPT.md",
+    "run": 3,
+    "sourcePath": "docs/codex-gpt-6-luna-no-skills/build-docs-018-redirect-urls/run-3/result.json"
   }
 ]
