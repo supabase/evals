@@ -46,6 +46,39 @@ Add a `*.experiment.ts` file under `experiments/<suite>/` for the agent, model, 
 
 The suite folder decides which evals the experiment runs: `experiments/<suite>/` runs the evals in `evals/<suite>/`. If this experiment should be part of our published benchmark, put it in `experiments/benchmark/` and include a corresponding `*-no-skills` variant (`skills: []`) to compare results with and without skills. To run one experiment in several suites, export a shared preset from `experiments/presets.ts` and spread it in a file under each suite folder.
 
+## Testing MCP changes
+
+### Run local changes
+
+Clone [the MCP repo](https://github.com/supabase/mcp) and add its root to this repo's `.env`.
+
+```dotenv
+SUPABASE_MCP_REPO_PATH=../mcp
+```
+
+Build your MCP checkout before running evals, then rebuild after edits or keep the package’s watch build running.
+
+```bash
+pnpm eval -- --suite benchmark --experiment codex-gpt-6-luna --eval resolve-dataapi-001-empty-results --runs 1
+```
+
+### Share a branch or commit
+
+Push the MCP changes to `supabase/mcp`. Select a full commit SHA (recommended), branch, or tag in the experiment:
+
+```ts
+// MCP-interface evals
+supabaseMcpServer({ revision: '<full MCP commit SHA>' })
+
+// CLI-interface evals (search_docs only)
+localStackRuntime({ mcpRevision: '<full MCP commit SHA>' })
+```
+
+To configure this broadly across experiments and interfaces, set `mcpRevision` in [`experiments/presets.ts`](experiments/presets.ts).
+
+> [!NOTE]
+> `SUPABASE_MCP_REPO_PATH` overrides `revision` on the machine running the eval.
+
 ## Submitting evals for review
 
 Before submitting an eval for review, try running it locally to sanity check that it can complete without errors. It's okay if agents fail the eval, we just don't want them to be scored unfairly for framework limitations.

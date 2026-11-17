@@ -15,10 +15,11 @@ type ExperimentPreset = Pick<
 >;
 
 const skills = ['supabase', 'supabase-postgres-best-practices'];
+const mcpRevision: string | undefined = undefined;
 
 function defaultRuntime() {
   return platformLiteRuntime({
-    mcpServers: [supabaseMcpServer()],
+    mcpServers: [supabaseMcpServer({ revision: mcpRevision })],
   });
 }
 
@@ -28,7 +29,7 @@ export const claudeCodeOpus55 = {
     reasoningEffort: 'medium',
   }),
   runtime: defaultRuntime(),
-  localStack: localStackRuntime(),
+  localStack: localStackRuntime({ mcpRevision }),
   skills,
 } satisfies ExperimentPreset;
 
@@ -38,7 +39,7 @@ export const claudeCodeSonnet55 = {
     reasoningEffort: 'medium',
   }),
   runtime: defaultRuntime(),
-  localStack: localStackRuntime(),
+  localStack: localStackRuntime({ mcpRevision }),
   skills,
 } satisfies ExperimentPreset;
 
@@ -48,7 +49,7 @@ export const codexGpt6Luna = {
     reasoningEffort: 'medium',
   }),
   runtime: defaultRuntime(),
-  localStack: localStackRuntime(),
+  localStack: localStackRuntime({ mcpRevision }),
   skills,
 } satisfies ExperimentPreset;
 
@@ -65,7 +66,7 @@ export const codexGpt61Sol = {
     reasoningEffort: 'medium',
   }),
   runtime: defaultRuntime(),
-  localStack: localStackRuntime(),
+  localStack: localStackRuntime({ mcpRevision }),
   skills,
 } satisfies ExperimentPreset;
 
@@ -75,7 +76,7 @@ export const grok47 = {
     reasoningEffort: 'high',
   }),
   runtime: defaultRuntime(),
-  localStack: localStackRuntime(),
+  localStack: localStackRuntime({ mcpRevision }),
   skills,
 } satisfies ExperimentPreset;
 
@@ -84,6 +85,6 @@ export const opencodeKimiK3 = {
     model: 'moonshotai/kimi-k3',
   }),
   runtime: defaultRuntime(),
-  localStack: localStackRuntime(),
+  localStack: localStackRuntime({ mcpRevision }),
   skills,
 } satisfies ExperimentPreset;
