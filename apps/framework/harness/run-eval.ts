@@ -463,7 +463,7 @@ async function runOne(
       userPrompt: prompt,
       tools: session.tools,
       sandbox: session.sandbox,
-      mcpServers: session.mcpServers,
+      mcpServers: process.env.DOCS_PREVIEW_HOST ? {} : session.mcpServers,
       timeoutSec: TIMEOUT_SEC,
       sessionArchivePath: sessionArchivePath(expName, ev.id, runIndex),
     });
@@ -557,7 +557,7 @@ async function runOne(
     systemPrompt,
     userPrompt: prompt,
     tools: agentRunsInSandbox ? undefined : buildLoadSkillTool(toolsSkills),
-    mcpServers: session.mcpServers,
+    mcpServers: process.env.DOCS_PREVIEW_HOST ? {} : session.mcpServers,
     sandbox: cliSandbox?.sandbox,
     timeoutSec: TIMEOUT_SEC,
     sessionArchivePath: sessionArchivePath(expName, ev.id, runIndex),
