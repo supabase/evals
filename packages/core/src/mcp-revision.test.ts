@@ -93,3 +93,25 @@ it('cleans up a failed build and allows retrying', async () => {
   await expect(buildMcpRevision(revision)).rejects.toThrow();
   expect(run).toHaveBeenCalledTimes(6);
 });
+
+it.each([
+  ['git', 'fetch', '', "fatal: couldn't find remote ref missing-branch"],
+  ['pnpm', 'install', 'ERR_PNPM_OUTDATED_LOCKFILE', ''],
+  ['pnpm', 'build', 'src/index.ts(1,1): error TS2304', ''],
+])(
+  'includes %s %s diagnostics in the message',
+  async (command, step, stdout, stderr) => {
+    const cause = Object.assign(
+      new Error(`Command failed: ${command} ${step}\n${stderr}`),
+      { stdout, stderr }
+    );
+    run.mockImplementation(async (cmd, args) => {
+      if (cmd === command && args[0] === step) throw cause;
+      if (args[0] === 'rev-parse') return { stdout: 'a'.repeat(40) };
+    });
+    await expect(buildMcpRevision('missing-branch')).rejects.toMatchObject({
+      message: expect.stringContaining(stdout || stderr),
+      cause,
+    });
+  }
+);

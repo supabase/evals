@@ -67,6 +67,16 @@ async function buildRevision(revision: string) {
     return { entry, mountRoot, commitSha };
   } catch (cause) {
     rmSync(mountRoot, { recursive: true, force: true });
-    throw new Error(`Failed to build MCP revision ${revision}`, { cause });
+    const message = cause instanceof Error ? cause.message : String(cause);
+    const stdout =
+      cause instanceof Error &&
+      'stdout' in cause &&
+      typeof cause.stdout === 'string'
+        ? cause.stdout.trim()
+        : '';
+    throw new Error(
+      `Failed to build MCP revision ${revision}: ${message}${stdout ? `\n${stdout}` : ''}`,
+      { cause }
+    );
   }
 }
