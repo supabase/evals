@@ -509,10 +509,10 @@ describe('Vercel eval controller', () => {
     );
   });
 
-  it('packs a per-attempt workspace only when it exists', () => {
+  it('packs the fallback workspace only when it exists', () => {
     const temporary = mkdtempSync(join(tmpdir(), 'vercel-eval-pack-'));
     try {
-      const workspace = join(temporary, 'workspace-default');
+      const workspace = join(temporary, 'workspace-fallback');
       mkdirSync(workspace);
       writeFileSync(join(workspace, 'a.txt'), '');
       const present = join(temporary, 'present.tgz');
@@ -549,11 +549,11 @@ describe('Vercel eval controller', () => {
     }
   });
 
-  it('mirrors the suffixed attempt artifacts that exist and skips the missing ones', async () => {
+  it('mirrors the fallback artifacts that exist and skips the missing ones', async () => {
     const output = mkdtempSync(join(tmpdir(), 'vercel-eval-attempts-'));
     const present = new Set([
-      '/tmp/eval-workspace-default.tgz',
-      'results/cli/experiment-1/eval-1/run-1/session-archive-experimental.tar.gz',
+      '/tmp/eval-workspace-fallback.tgz',
+      'results/cli/experiment-1/eval-1/run-1/session-archive-fallback.tar.gz',
     ]);
     try {
       await downloadResults(
@@ -584,9 +584,9 @@ describe('Vercel eval controller', () => {
       );
       expect(readdirSync(runDirectory).sort()).toEqual([
         'result.json.partial',
-        'session-archive-experimental.tar.gz',
+        'session-archive-fallback.tar.gz',
         'session-archive.tar.gz',
-        'workspace-default.tgz',
+        'workspace-fallback.tgz',
         'workspace.tgz',
       ]);
     } finally {
@@ -642,7 +642,7 @@ describe('Vercel eval controller', () => {
       const pendingResult = await downloadResults(
         {
           downloadFile: async (source, destination) => {
-            if (/-(default|experimental)\./.test(source.path)) return null;
+            if (/-fallback\./.test(source.path)) return null;
             const fixture = source.path.endsWith('result.json')
               ? resultSource
               : workspaceArchive;

@@ -178,10 +178,7 @@ The expected column is what each experiment should do when the agent behaves.
 The Docker-less environments run on stable, beta and next (`codex-gpt-6-luna-cli-nodaemon` and `-absent` on beta, plus `-stable-nodaemon`, `-stable-absent`, `-next-nodaemon` and `-next-absent`). The native managed
 stack exists on stable, beta and next (rechecked 2026-11-16) but only behind
 `SUPABASE_EXPERIMENTAL_STACK=1` or `[experimental] stack = true`; a pass there
-needs the agent to find it, or the experimental fallback (a failed run is rerun
-once with `SUPABASE_EXPERIMENTAL=true` and, since `projectRunning: false`,
-`[experimental] stack = true` in the seeded config.toml), and a pass that needed
-the fallback is recorded as `passed-with-experimental`, not as a plain pass. On
+needs the agent to find it, or the experimental fallback (a failed run is rerun once with `SUPABASE_EXPERIMENTAL=true` and `SUPABASE_EXPERIMENTAL_STACK=1`), and a fallback pass is recorded as `fallback_passed`, not as `passed`, which stays the first attempt. On
 the Docker arms the agent has to move one
 project off the default ports in `config.toml` (unless the CLI allocates
 them), since two stacks on the defaults collide.

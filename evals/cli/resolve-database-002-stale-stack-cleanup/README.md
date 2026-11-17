@@ -285,7 +285,7 @@ runner is never replayed.
 | pinned | this repo's pinned version | Docker available | hard: no `stack` subcommand, so passing needs three legacy stacks on distinct ports, then `supabase stop` for legacy-import |
 | stable | npm `latest` tag | Docker available | as pinned, unless the agent finds the experimental managed `stack` commands, which exist on 3.x stable |
 | beta | npm `beta` tag | Docker available | as pinned, unless the agent finds the experimental managed `stack` commands |
-| nodaemon | beta | Docker client present, daemon unreachable | fails the outcome and fleet checks unless the agent runs the stacks natively through the managed `stack` commands, or the experimental fallback passes (it writes `[experimental] stack = true` since `projectRunning: false`; recorded as `passed-with-experimental`, not a plain pass); the truthful-report verdict depends on the agent. The same rows run on stable and next as `-stable-` and `-next-` variants |
+| nodaemon | beta | Docker client present, daemon unreachable | fails the outcome and fleet checks unless the agent runs the stacks natively through the managed `stack` commands, or the experimental fallback passes (it sets `SUPABASE_EXPERIMENTAL_STACK=1`; recorded as `fallback_passed`, not as `passed`); the truthful-report verdict depends on the agent. The same rows run on stable and next as `-stable-` and `-next-` variants |
 | absent | beta | no Docker at all | as nodaemon |
 
 The managed fleet commands (`stack list`, `stack start --stack`,

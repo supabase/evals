@@ -11,7 +11,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import {
-  experimentalFallbackSchema,
+  fallbackResultSchema,
   judgeCallSchema,
   modelUsageSchema,
   type AgentUsage,
@@ -89,13 +89,11 @@ interface PendingRow {
   prompt: string;
   agentReport: string;
   passed: boolean;
-  /** `passed` without crediting a retry that only passed with experimental gates on. */
-  firstAttemptPassed: boolean;
   checks: unknown;
   judgeCalls: JudgeCall[];
-  /** Model spend of the attempt the row does not report, logged so trace sums include it. */
-  otherAttempt?: {
-    name: 'default attempt' | 'experimental attempt';
+  /** The fallback attempt, whose model spend is logged so trace sums include it. */
+  fallback?: {
+    passed: boolean;
     usage?: AgentUsage;
     judgeCalls: JudgeCall[];
   };
@@ -192,18 +190,14 @@ export function runViewUrl(experimentUrl: string, runId: string) {
   return `${base}?search=${encodeURIComponent(search)}`;
 }
 
-function otherAttemptOf(
-  fallback: z.infer<typeof experimentalFallbackSchema> | undefined
-): PendingRow['otherAttempt'] {
-  const { usage, judgeCalls } = fallback?.otherAttempt ?? {};
-  if (!fallback || (!usage?.length && !judgeCalls?.length)) return undefined;
+function fallbackOf(
+  fallback: z.infer<typeof fallbackResultSchema> | undefined
+): PendingRow['fallback'] {
+  if (!fallback) return undefined;
   return {
-    name:
-      fallback.outcome === 'passed-with-experimental'
-        ? 'default attempt'
-        : 'experimental attempt',
-    usage,
-    judgeCalls: judgeCalls ?? [],
+    passed: fallback.passed,
+    usage: fallback.usage,
+    judgeCalls: fallback.judgeCalls ?? [],
   };
 }
 
@@ -397,10 +391,7 @@ async function collectRows(
       agentReport:
         typeof result.agentReport === 'string' ? result.agentReport : '',
       passed: result.passed === true,
-      firstAttemptPassed:
-        result.passed === true &&
-        result.experimentalFallback?.outcome !== 'passed-with-experimental',
-      otherAttempt: otherAttemptOf(result.experimentalFallback),
+      fallback: fallbackOf(result.fallback),
       checks: result.checks,
       judgeCalls: judgeCallsSchema.parse(result.judgeCalls),
       modelId: display?.modelId,
@@ -428,10 +419,12 @@ async function collectRows(
         source_path: sourcePath,
         cli_version: result.cliVersion ?? promptData?.cliVersion,
         repo_sources: result.repoSources,
-        ...(result.experimentalFallback
+        ...(result.fallback
           ? {
-              experimental_fallback: result.experimentalFallback.outcome,
-              experimental_applied: result.experimentalFallback.applied,
+              fallback_outcome: result.fallback.outcome,
+              ...(result.fallback.runtime
+                ? { fallback_runtime: result.fallback.runtime }
+                : {}),
             }
           : {}),
       },
@@ -551,8 +544,7 @@ export function logTranscript(
     | 'checks'
     | 'judgeCalls'
     | 'passed'
-    | 'firstAttemptPassed'
-    | 'otherAttempt'
+    | 'fallback'
     | 'modelId'
     | 'modelProvider'
     | 'transcript'
@@ -761,10 +753,10 @@ export function logTranscript(
   logJudgeCalls(scorer, row.judgeCalls);
   scorer.end({ endTime: latest(scoreStart, row.scoringEndTime) });
 
-  if (row.otherAttempt) {
-    const { name, usage, judgeCalls } = row.otherAttempt;
+  const { usage, judgeCalls } = row.fallback ?? {};
+  if (row.fallback && (usage?.length || judgeCalls?.length)) {
     const attempt = parent.startSpan({
-      name,
+      name: 'fallback attempt',
       type: 'task',
       ...(row.startTime === undefined ? {} : { startTime: row.startTime }),
     });
@@ -787,17 +779,17 @@ export function logTranscript(
         row.startTime === undefined ? undefined : { endTime: row.startTime }
       );
     }
-    logJudgeCalls(attempt, judgeCalls);
+    logJudgeCalls(attempt, row.fallback.judgeCalls);
     attempt.end(
       row.startTime === undefined ? undefined : { endTime: row.startTime }
     );
   }
 }
 
-function rowScores(row: Pick<PendingRow, 'passed' | 'firstAttemptPassed'>) {
+function rowScores(row: Pick<PendingRow, 'passed' | 'fallback'>) {
   return {
     passed: row.passed ? 1 : 0,
-    first_attempt_passed: row.firstAttemptPassed ? 1 : 0,
+    ...(row.fallback ? { fallback_passed: row.fallback.passed ? 1 : 0 } : {}),
   };
 }
 

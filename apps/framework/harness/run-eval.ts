@@ -6,7 +6,6 @@ import {
   readdirSync,
   readFileSync,
   realpathSync,
-  renameSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -42,7 +41,6 @@ import {
 } from '@supabase-evals/core';
 import type {
   AgentUsage,
-  CheckResult,
   ExperimentConfig,
   EvalInterface,
   EvalManifest,
@@ -54,7 +52,7 @@ import type {
   ScoreResult,
   SkillResult,
   DocsResult,
-  ExperimentalFallback,
+  FallbackResult,
   ToolCallRecord,
   TranscriptPart,
 } from './types.js';
@@ -327,72 +325,7 @@ function workspacePath(
   return join(runDir(modelName, evalId, run), `workspace${suffix}`);
 }
 
-const EXPERIMENTAL_SUFFIX = '-experimental';
-
-const DEFAULT_ATTEMPT_SUFFIX = '-default';
-
-/** Swaps the retry's artifacts onto the default paths the uploader reads, keeping the failed default run's under a `-default` suffix. */
-function promoteExperimentalArtifacts(
-  modelName: string,
-  evalId: string,
-  run: number
-) {
-  const paths = [sessionArchivePath, workspacePath];
-  for (const path of paths) {
-    const retry = path(modelName, evalId, run, EXPERIMENTAL_SUFFIX);
-    if (!existsSync(retry)) continue;
-    const primary = path(modelName, evalId, run);
-    const keptDefault = path(modelName, evalId, run, DEFAULT_ATTEMPT_SUFFIX);
-    rmSync(keptDefault, { recursive: true, force: true });
-    if (existsSync(primary)) renameSync(primary, keptDefault);
-    renameSync(retry, primary);
-  }
-}
-
-/** Picks the reported attempt: the retry when it passed, else the default run, annotated with the fallback outcome. */
-export function combineExperimentalAttempts<
-  T extends {
-    checks?: CheckResult[];
-    cliVersion?: string;
-    usage?: AgentUsage;
-    judgeCalls?: JudgeCall[];
-  },
->(
-  first: T,
-  retry: T & { passed: boolean },
-  applied: string[]
-): T & { experimentalFallback: ExperimentalFallback } {
-  if (retry.passed) {
-    return {
-      ...retry,
-      experimentalFallback: {
-        outcome: 'passed-with-experimental',
-        applied,
-        otherAttempt: {
-          passed: false,
-          checks: first.checks,
-          cliVersion: first.cliVersion,
-          usage: first.usage,
-          judgeCalls: first.judgeCalls,
-        },
-      },
-    };
-  }
-  return {
-    ...first,
-    experimentalFallback: {
-      outcome: 'failed-with-experimental',
-      applied,
-      otherAttempt: {
-        passed: false,
-        checks: retry.checks,
-        cliVersion: retry.cliVersion,
-        usage: retry.usage,
-        judgeCalls: retry.judgeCalls,
-      },
-    },
-  };
-}
+const FALLBACK_SUFFIX = '-fallback';
 
 function copyWithheldTests(ev: EvalManifest, workspace: string) {
   const testsDir = join(ev.dir, 'tests');
@@ -480,9 +413,8 @@ async function runLocalStackAttempt(
     skillSources,
     availableSkills,
   }: LocalStackAttemptContext,
-  { experimental }: { experimental: boolean }
-): Promise<{ result: EvalRunResult; applied: string[] }> {
-  const suffix = experimental ? EXPERIMENTAL_SUFFIX : '';
+  suffix = ''
+): Promise<EvalRunResult> {
   if (!exp.localStack) {
     throw new Error(
       `eval ${ev.id} has interface: cli but experiment "${expName}" does not configure a local stack runtime. ` +
@@ -523,7 +455,6 @@ async function runLocalStackAttempt(
         : undefined,
       skills: skillSources,
       skipCliInstall: ev.metadata.skipCliInstall,
-      experimental,
     })
   );
 
@@ -599,45 +530,47 @@ async function runLocalStackAttempt(
     cliVersion: marker?.cliVersion ?? ev.metadata.cliVersion,
     repoSources: session.repoSources,
   };
-  return { result, applied: session.experimentalApplied ?? [] };
+  return result;
 }
 
-/** Runs the default attempt, then one experimental retry when it fails and the runtime opts in. */
+/** Runs the first attempt, then one fallback attempt when it fails and the experiment configures one; the first attempt's result is always the reported one. */
 export async function runLocalStackWithFallback(
   ctx: LocalStackAttemptContext
-): Promise<EvalRunResult & { experimentalFallback?: ExperimentalFallback }> {
+): Promise<EvalRunResult & { fallback?: FallbackResult }> {
   const { expName, exp, ev, runIndex } = ctx;
-  const { result: first } = await runLocalStackAttempt(ctx, {
-    experimental: false,
-  });
-  if (first.passed || exp.localStack?.experimentalFallback !== true) {
-    return first;
-  }
-  console.log(
-    `↻ RETRY ${expName} x ${ev.id} run ${runIndex} with experimental gates on`
-  );
-  let attempt: Awaited<ReturnType<typeof runLocalStackAttempt>>;
+  const first = await runLocalStackAttempt(ctx);
+  const fallbackRuntime = exp.fallbackConfig?.localStack;
+  if (first.passed || !fallbackRuntime) return first;
+
+  console.log(`↻ FALLBACK ${expName} x ${ev.id} run ${runIndex}`);
   try {
-    attempt = await runLocalStackAttempt(ctx, { experimental: true });
+    const retry = await runLocalStackAttempt(
+      { ...ctx, exp: { ...exp, localStack: fallbackRuntime } },
+      FALLBACK_SUFFIX
+    );
+    return {
+      ...first,
+      fallback: {
+        outcome: retry.passed ? 'passed' : 'failed',
+        runtime: fallbackRuntime.id,
+        passed: retry.passed,
+        checks: retry.checks,
+        cliVersion: retry.cliVersion,
+        usage: retry.usage,
+        judgeCalls: retry.judgeCalls,
+      },
+    };
   } catch (e) {
     return {
       ...first,
-      experimentalFallback: {
-        outcome: 'retry-errored',
-        applied: [],
-        otherAttempt: {
-          passed: false,
-          error: e instanceof Error ? e.message : String(e),
-        },
+      fallback: {
+        outcome: 'errored',
+        runtime: fallbackRuntime.id,
+        passed: false,
+        error: e instanceof Error ? e.message : String(e),
       },
     };
   }
-  const { result: retry, applied } = attempt;
-  const combined = combineExperimentalAttempts(first, retry, applied);
-  if (retry.passed) {
-    promoteExperimentalArtifacts(expName, ev.id, runIndex);
-  }
-  return combined;
 }
 
 async function runOne(
@@ -645,7 +578,7 @@ async function runOne(
   exp: ExperimentConfig,
   ev: EvalManifest,
   runIndex: number
-): Promise<EvalRunResult & { experimentalFallback?: ExperimentalFallback }> {
+): Promise<EvalRunResult & { fallback?: FallbackResult }> {
   const prompt = parseEvalMarkdown(
     readFileSync(ev.promptPath, 'utf8'),
     ev.promptPath
@@ -780,17 +713,11 @@ function formatRunSummary(res: ScoreResult): string {
   return `checks ${passed}/${res.checks.length}`;
 }
 
-function formatExperimentalNote(fallback?: ExperimentalFallback): string {
-  if (fallback?.outcome === 'passed-with-experimental') {
-    return ` (passed only with experimental: ${fallback.applied.join('; ')})`;
+function formatFallbackNote(fallback?: FallbackResult): string {
+  if (fallback?.outcome === 'errored') {
+    return ` (fallback errored: ${fallback.error})`;
   }
-  if (fallback?.outcome === 'failed-with-experimental') {
-    return ' (experimental retry also failed)';
-  }
-  if (fallback?.outcome === 'retry-errored') {
-    return ` (experimental retry errored: ${fallback.otherAttempt.error})`;
-  }
-  return '';
+  return fallback ? ` (fallback ${fallback.outcome})` : '';
 }
 
 async function runConcurrent<T>(
@@ -976,7 +903,7 @@ async function main() {
         );
         const elapsed = Math.round((Date.now() - start) / 1000);
         console.log(
-          `${res.passed ? '✅ PASS' : '❌ FAIL'} ${label} (${formatRunSummary(res)}, ${elapsed}s)${formatExperimentalNote(res.experimentalFallback)}\n   → ${relative(ROOT, out)}`
+          `${res.passed ? '✅ PASS' : '❌ FAIL'} ${label} (${formatRunSummary(res)}, ${elapsed}s)${formatFallbackNote(res.fallback)}\n   → ${relative(ROOT, out)}`
         );
       } catch (e) {
         errored.push(new Error(label, { cause: e }));

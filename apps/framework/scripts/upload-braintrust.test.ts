@@ -198,7 +198,6 @@ describe('logTranscript', () => {
       checks: [],
       judgeCalls: [],
       passed: true,
-      firstAttemptPassed: true,
       modelId: 'm',
       startTime: 100,
       endTime: 150,
@@ -312,7 +311,6 @@ describe('logTranscript', () => {
       checks: [],
       judgeCalls: [],
       passed: true,
-      firstAttemptPassed: true,
       modelId: 'm',
       startTime: 100,
       endTime: 120,
@@ -354,7 +352,6 @@ describe('logTranscript', () => {
       checks: [],
       judgeCalls: [],
       passed: true,
-      firstAttemptPassed: true,
       modelId: 'm',
       startTime: 100,
       toolLabels: [],
@@ -396,7 +393,6 @@ describe('logTranscript', () => {
       checks: [],
       judgeCalls: [],
       passed: false,
-      firstAttemptPassed: false,
       startTime: 100,
       endTime: 120,
       agentEndTime: 110,
@@ -429,7 +425,6 @@ describe('logTranscript', () => {
       checks: [],
       judgeCalls: [],
       passed: true,
-      firstAttemptPassed: true,
       startTime: 100,
       endTime: 170,
       toolLabels: [],
@@ -482,15 +477,15 @@ describe('logTranscript with a fallback attempt', () => {
     transcript: [],
   };
 
-  it('scores first_attempt_passed beside passed and logs the other attempt spend', () => {
+  it('scores fallback_passed beside passed and logs the fallback attempt spend', () => {
     const out: Logged[] = [];
     logTranscript(sink(out), {
       ...base,
       modelId: 'm',
       modelProvider: 'prov',
-      firstAttemptPassed: false,
-      otherAttempt: {
-        name: 'default attempt',
+      passed: false,
+      fallback: {
+        passed: true,
         usage: [
           {
             model: 'm',
@@ -522,11 +517,11 @@ describe('logTranscript with a fallback attempt', () => {
       },
     });
     expect(out.find((span) => span.name === 'passed')?.scores).toEqual({
-      passed: 1,
-      first_attempt_passed: 0,
+      passed: 0,
+      fallback_passed: 1,
     });
     const names = out.map((span) => span.name);
-    expect(names).toContain('default attempt');
+    expect(names).toContain('fallback attempt');
     expect(out.find((span) => span.name === 'm')?.metrics).toEqual({
       prompt_tokens: 10,
       completion_tokens: 5,
@@ -561,7 +556,6 @@ describe('tool span cwd', () => {
       checks: [],
       judgeCalls: [],
       passed: true,
-      firstAttemptPassed: true,
       modelId: 'm',
       startTime: 100,
       endTime: 120,
@@ -613,7 +607,6 @@ describe('judge spans', () => {
       agentReport: '',
       checks: [],
       passed: true,
-      firstAttemptPassed: true,
       startTime: 100,
       endTime: 150,
       agentEndTime: 110,

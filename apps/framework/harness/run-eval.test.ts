@@ -4,7 +4,6 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   assertLocalMatchesInterface,
-  combineExperimentalAttempts,
   runLocalStackWithFallback,
   type LocalStackAttemptContext,
 } from './run-eval.js';
@@ -109,87 +108,6 @@ describe('experiment selection', () => {
   }, 15000);
 });
 
-describe('combineExperimentalAttempts', () => {
-  const first = {
-    passed: false,
-    checks: [{ name: 'default', passed: false }],
-    cliVersion: '3.1.0',
-    marker: 'first',
-    usage: [
-      {
-        model: 'm',
-        inputTokens: 10,
-        cacheReadInputTokens: 0,
-        cacheWriteInputTokens: 0,
-        outputTokens: 5,
-      },
-    ],
-    judgeCalls: [
-      {
-        provider: 'p',
-        system: 's',
-        prompt: 'q',
-        output: { passed: false, notes: 'n' },
-        model: 'judge',
-        usage: { inputTokens: 3 },
-        startedAt: 0,
-        durationMs: 1,
-      },
-    ],
-  };
-  const applied = ['SUPABASE_EXPERIMENTAL=true (same as --experimental)'];
-
-  it('reports the retry as the result when it passes', () => {
-    const retry = {
-      passed: true,
-      checks: [{ name: 'default', passed: true }],
-      cliVersion: '3.1.0',
-      marker: 'retry',
-      usage: first.usage,
-      judgeCalls: first.judgeCalls,
-    };
-    expect(combineExperimentalAttempts(first, retry, applied)).toEqual({
-      ...retry,
-      experimentalFallback: {
-        outcome: 'passed-with-experimental',
-        applied,
-        otherAttempt: {
-          passed: false,
-          checks: first.checks,
-          cliVersion: '3.1.0',
-          usage: first.usage,
-          judgeCalls: first.judgeCalls,
-        },
-      },
-    });
-  });
-
-  it('keeps the default failure when the retry also fails', () => {
-    const retry = {
-      passed: false,
-      checks: [{ name: 'experimental', passed: false }],
-      cliVersion: '3.1.0',
-      marker: 'retry',
-      usage: first.usage,
-      judgeCalls: first.judgeCalls,
-    };
-    expect(combineExperimentalAttempts(first, retry, applied)).toEqual({
-      ...first,
-      experimentalFallback: {
-        outcome: 'failed-with-experimental',
-        applied,
-        otherAttempt: {
-          passed: false,
-          checks: retry.checks,
-          cliVersion: '3.1.0',
-          usage: retry.usage,
-          judgeCalls: retry.judgeCalls,
-        },
-      },
-    });
-  });
-});
-
 describe('runLocalStackWithFallback', () => {
   const expName = 'zz-fallback-test';
   const resultsDir = join(
@@ -202,43 +120,59 @@ describe('runLocalStackWithFallback', () => {
   );
   afterEach(() => rmSync(resultsDir, { recursive: true, force: true }));
 
-  function setup(fallback: boolean) {
-    const startArgs: Array<{ experimental?: boolean }> = [];
-    const scores = [false, true];
+  function fakeRuntime(id: string, startedIds: string[]) {
+    return {
+      id,
+      startSession: vi.fn(async () => {
+        startedIds.push(id);
+        return {
+          sandbox: { readFile: async () => '' },
+          tools: {},
+          mcpServers: [],
+          promptAddendum: '',
+          scoringContext: { environmentMarker: async () => undefined },
+          exportWorkspace: async (dir: string) => {
+            mkdirSync(dir, { recursive: true });
+          },
+          close: async () => {},
+        };
+      }),
+    };
+  }
+
+  function setup({
+    fallback,
+    scores,
+    fallbackThrows = false,
+  }: {
+    fallback: boolean;
+    scores: boolean[];
+    fallbackThrows?: boolean;
+  }) {
+    const startedIds: string[] = [];
+    const fallbackRuntime = fakeRuntime('fallback-runtime', startedIds);
+    if (fallbackThrows) {
+      fallbackRuntime.startSession.mockRejectedValue(new Error('boom'));
+    }
     const exp = {
       agent: {
         id: 'fake-agent',
-        run: vi.fn(async () => ({
-          toolCalls: [],
-          transcript: [],
-          agentReport: '',
-          stoppedReason: 'done',
-          durationMs: 1,
-          startedAt: 0,
-        })),
-      },
-      localStack: {
-        id: 'fake',
-        experimentalFallback: fallback,
-        startSession: vi.fn(async (args: { experimental?: boolean }) => {
-          startArgs.push(args);
+        run: vi.fn(async (args: { sessionArchivePath: string }) => {
+          archivePaths.push(args.sessionArchivePath);
           return {
-            sandbox: { readFile: async () => '' },
-            tools: {},
-            mcpServers: [],
-            promptAddendum: '',
-            scoringContext: { environmentMarker: async () => undefined },
-            experimentalApplied: args.experimental
-              ? ['SUPABASE_EXPERIMENTAL=true']
-              : [],
-            exportWorkspace: async (dir: string) => {
-              mkdirSync(dir, { recursive: true });
-            },
-            close: async () => {},
+            toolCalls: [],
+            transcript: [],
+            agentReport: '',
+            stoppedReason: 'done',
+            durationMs: 1,
+            startedAt: 0,
           };
         }),
       },
+      localStack: fakeRuntime('primary-runtime', startedIds),
+      ...(fallback ? { fallbackConfig: { localStack: fallbackRuntime } } : {}),
     };
+    const archivePaths: string[] = [];
     const ctx = {
       expName,
       exp,
@@ -254,27 +188,59 @@ describe('runLocalStackWithFallback', () => {
       skillSources: [],
       availableSkills: [],
     } as unknown as LocalStackAttemptContext;
-    return { ctx, startArgs };
+    return { ctx, startedIds, archivePaths };
   }
 
-  it('retries with experimental on and promotes a passing retry', async () => {
-    const { ctx, startArgs } = setup(true);
+  it('reruns a failed first attempt on the fallback runtime and keeps the first result', async () => {
+    const { ctx, startedIds, archivePaths } = setup({
+      fallback: true,
+      scores: [false, true],
+    });
     const result = await runLocalStackWithFallback(ctx);
-    expect(startArgs).toHaveLength(2);
-    expect(startArgs[0]?.experimental).toBeFalsy();
-    expect(startArgs[1]?.experimental).toBe(true);
-    expect(result.passed).toBe(true);
-    expect(result.experimentalFallback).toMatchObject({
-      outcome: 'passed-with-experimental',
-      applied: ['SUPABASE_EXPERIMENTAL=true'],
+    expect(startedIds).toEqual(['primary-runtime', 'fallback-runtime']);
+    expect(result.passed).toBe(false);
+    expect(result.fallback).toMatchObject({
+      outcome: 'passed',
+      runtime: 'fallback-runtime',
+      passed: true,
+    });
+    expect(archivePaths[0]).toMatch(/session-archive\.tar\.gz$/);
+    expect(archivePaths[1]).toMatch(/session-archive-fallback\.tar\.gz$/);
+  });
+
+  it('records a failing fallback', async () => {
+    const { ctx } = setup({ fallback: true, scores: [false, false] });
+    const result = await runLocalStackWithFallback(ctx);
+    expect(result.passed).toBe(false);
+    expect(result.fallback?.outcome).toBe('failed');
+  });
+
+  it('records an errored fallback and keeps the first result', async () => {
+    const { ctx } = setup({
+      fallback: true,
+      scores: [false],
+      fallbackThrows: true,
+    });
+    const result = await runLocalStackWithFallback(ctx);
+    expect(result.passed).toBe(false);
+    expect(result.fallback).toMatchObject({
+      outcome: 'errored',
+      passed: false,
+      error: 'boom',
     });
   });
 
-  it('does not retry when the runtime has not opted in', async () => {
-    const { ctx, startArgs } = setup(false);
+  it('does not run the fallback when the first attempt passes', async () => {
+    const { ctx, startedIds } = setup({ fallback: true, scores: [true] });
     const result = await runLocalStackWithFallback(ctx);
-    expect(startArgs).toHaveLength(1);
-    expect(result.passed).toBe(false);
-    expect(result.experimentalFallback).toBeUndefined();
+    expect(startedIds).toEqual(['primary-runtime']);
+    expect(result.fallback).toBeUndefined();
+  });
+
+  it('does not run a fallback when none is configured', async () => {
+    const { ctx, startedIds } = setup({ fallback: false, scores: [false] });
+    const result = await runLocalStackWithFallback(ctx);
+    expect(startedIds).toEqual(['primary-runtime']);
+    expect(result.fallback).toBeUndefined();
   });
 });

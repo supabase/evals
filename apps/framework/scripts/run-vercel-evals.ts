@@ -89,7 +89,7 @@ const SANDBOX_TIMEOUT_BUFFER_MS = 10 * 60 * 1_000;
 /** A CLI eval that fails reruns once, which repeats the stack restart and scoring. */
 const RETRY_BUFFER_MS = 10 * 60 * 1_000;
 
-/** Only the CLI suite reruns a failed eval with experimental gates on, so it budgets a second attempt. */
+/** Only the CLI suite experiments configure a fallback attempt, so it budgets a second attempt. */
 export function evalTimeouts(evalSuite: string, timeoutSec: number) {
   const attempts = evalSuite === 'cli' ? 2 : 1;
   const commandMs =
@@ -99,7 +99,7 @@ export function evalTimeouts(evalSuite: string, timeoutSec: number) {
   return { commandMs, sandboxMs: commandMs + SANDBOX_TIMEOUT_BUFFER_MS };
 }
 
-const ATTEMPT_SUFFIXES = ['default', 'experimental'] as const;
+const ATTEMPT_SUFFIXES = ['fallback'] as const;
 
 const evalPairSchema = z.object({
   eval_id: z.string(),
@@ -921,7 +921,7 @@ export async function downloadResults(
       { path: join(destination, 'session-archive.tar.gz') },
       { mkdirRecursive: true }
     );
-    // Only present when an experimental-fallback retry ran.
+    // Only present when a fallback attempt ran.
     for (const attempt of ATTEMPT_SUFFIXES) {
       const attemptWorkspace = join(destination, `workspace-${attempt}.tgz`);
       const attemptDownloaded = await sandbox.downloadFile(

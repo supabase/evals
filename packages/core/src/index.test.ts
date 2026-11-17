@@ -1,6 +1,11 @@
 import { MockLanguageModelV3 } from 'ai/test';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { aiSdkAgent } from './index.js';
+import {
+  aiSdkAgent,
+  defineExperiment,
+  type ExperimentConfig,
+  type LocalStackRuntime,
+} from './index.js';
 
 describe('aiSdkAgent usage', () => {
   afterEach(() => vi.unstubAllEnvs());
@@ -80,5 +85,37 @@ describe('aiSdkAgent usage', () => {
         outputTokens: 20,
       },
     ]);
+  });
+});
+
+describe('defineExperiment fallbackConfig', () => {
+  const localStack: LocalStackRuntime = {
+    id: 'fake',
+    startSession: async () => {
+      throw new Error('unused');
+    },
+  };
+  const base = {
+    agent: { id: 'a' },
+    runtime: {},
+    skills: [],
+  } as unknown as ExperimentConfig;
+
+  it('accepts a fallback with only localStack', () => {
+    const config = { ...base, localStack, fallbackConfig: { localStack } };
+    expect(defineExperiment(config)).toBe(config);
+  });
+
+  it('rejects other keys on fallbackConfig', () => {
+    const fallbackConfig = { localStack, skills: [] } as never;
+    expect(() =>
+      defineExperiment({ ...base, localStack, fallbackConfig })
+    ).toThrow('fallbackConfig only supports localStack; found: skills');
+  });
+
+  it('rejects a fallback without a primary localStack', () => {
+    expect(() =>
+      defineExperiment({ ...base, fallbackConfig: { localStack } })
+    ).toThrow('fallbackConfig requires localStack');
   });
 });

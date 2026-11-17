@@ -245,7 +245,7 @@ why agents relocate the home.
 | pinned | this repo's pinned version (2.117.0, no `stack` command) | Docker available | stack and data checks fail (no `stack` command); targeting and behaviour checks pass when the agent reports the blocker truthfully |
 | stable | npm `latest` tag (3.x; 3.1.0 on 2026-11-16) | Docker available | pass; 2.120.0 had named stacks behind `SUPABASE_EXPERIMENTAL_STACK=1`, but stack-backed commands cannot target a named stack yet, so the reset goes through the database URL |
 | beta | npm `beta` tag | Docker available | pass |
-| nodaemon | beta (also `-stable-` and `-next-` variants) | Docker client present, daemon unreachable | pass via the native runtime, which `stack start` picks when Docker doesn't answer, or through the experimental fallback (`passed-with-experimental`, not a plain pass; it writes `[experimental] stack = true` since `projectRunning: false`); stack and data checks fail if the agent stops at the unreachable daemon; behaviour checks still pass |
+| nodaemon | beta (also `-stable-` and `-next-` variants) | Docker client present, daemon unreachable | pass via the native runtime, which `stack start` picks when Docker doesn't answer, or through the experimental fallback (`fallback_passed`, not `passed`; it sets `SUPABASE_EXPERIMENTAL_STACK=1`); stack and data checks fail if the agent stops at the unreachable daemon; behaviour checks still pass |
 | absent | beta (also `-stable-` and `-next-` variants) | no Docker at all | as nodaemon (auto picks the native runtime) |
 
 The frontmatter sets `needsDocker: false` and `projectRunning: false`, so all

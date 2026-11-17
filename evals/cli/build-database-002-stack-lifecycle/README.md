@@ -89,10 +89,9 @@ beta and next (rechecked 2026-11-16) but only behind
 `SUPABASE_EXPERIMENTAL_STACK=1` or `[experimental] stack = true`. A 0/N on their
 outcome checks is expected when the agent doesn't find it, not a regression:
 the signal is detours and truthfulness. They pass when the agent finds the stack
-backend, or through the experimental fallback (a failed run is rerun once with
-`SUPABASE_EXPERIMENTAL=true` and, since `projectRunning: false`,
-`[experimental] stack = true` in the seeded config.toml); a pass that needed the
-fallback is recorded as `passed-with-experimental`, not as a plain pass.
+backend, or through the experimental fallback (a failed run is rerun once with `SUPABASE_EXPERIMENTAL=true` and
+`SUPABASE_EXPERIMENTAL_STACK=1`); a pass there is recorded as `fallback_passed`,
+not as `passed`, which stays the first attempt.
 
 `skip.ts` gates who runs what: `skipUnlessCli` restricts every experiment
 above to `interface: cli` evals, and `skipUnlessDockerless` additionally

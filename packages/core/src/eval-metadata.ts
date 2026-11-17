@@ -411,29 +411,23 @@ const repoSourceSchema = z.object({
 });
 export type RepoSource = z.infer<typeof repoSourceSchema>;
 
+export const fallbackResultSchema = z.object({
+  outcome: z.enum(['passed', 'failed', 'errored']),
+  runtime: z.string().optional(),
+  passed: z.boolean(),
+  checks: z.array(checkResultSchema).optional(),
+  cliVersion: cliVersionSchema.optional(),
+  error: z.string().optional(),
+  usage: agentUsageSchema.optional(),
+  judgeCalls: z.array(judgeCallSchema).optional(),
+});
+
 // Every dimension that has an authoring enum is enforced against that same
 // enum here — the enum is the single source of truth for both authoring
 // (evalMetadataSchema) and results. Result files are gitignored, regenerated
 // artifacts; a snapshot whose value drifts from the current enum (e.g. a
 // renamed stage or topic) fails to parse and is dropped from the export rather
 // than rendered with a stale value, and is rebuilt on the next run.
-export const experimentalFallbackSchema = z.object({
-  outcome: z.enum([
-    'passed-with-experimental',
-    'failed-with-experimental',
-    'retry-errored',
-  ]),
-  applied: z.array(z.string()),
-  otherAttempt: z.object({
-    passed: z.boolean(),
-    checks: z.array(checkResultSchema).optional(),
-    cliVersion: cliVersionSchema.optional(),
-    error: z.string().optional(),
-    usage: agentUsageSchema.optional(),
-    judgeCalls: z.array(judgeCallSchema).optional(),
-  }),
-});
-
 const evalResultShape = {
   repoSources: z.record(z.string(), repoSourceSchema).optional(),
   experiment: z.string(),
@@ -449,7 +443,7 @@ const evalResultShape = {
   checks: z.array(checkResultSchema).optional(),
   judgeCalls: z.array(judgeCallSchema).optional(),
   attempts: z.number().optional(),
-  experimentalFallback: experimentalFallbackSchema.optional(),
+  fallback: fallbackResultSchema.optional(),
   // 1-based index of this scored run within a pair's sample set. Absent on
   // legacy rows exported before pairs ran more than once.
   run: z.number().optional(),

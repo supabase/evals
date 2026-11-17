@@ -214,10 +214,9 @@ In the Docker-less environments (`codex-gpt-6-luna-cli-nodaemon` and `-absent`
 on beta, `-stable-nodaemon`, `-stable-absent`, `-next-nodaemon`, `-next-absent`),
 the experimental stack's native runtime can serve the function, so a pass there
 is possible and is not a false pass. It needs the agent to find the stack
-backend, or the experimental fallback (a failed run is rerun once with
-`SUPABASE_EXPERIMENTAL=true` and, since `projectRunning: false`,
-`[experimental] stack = true` in the seeded config.toml); a pass that needed the
-fallback is recorded as `passed-with-experimental`, not as a plain pass.
+backend, or the experimental fallback (a failed run is rerun once with `SUPABASE_EXPERIMENTAL=true` and
+`SUPABASE_EXPERIMENTAL_STACK=1`); a pass there is recorded as `fallback_passed`,
+not as `passed`, which stays the first attempt.
 
 The frontmatter sets `needsDocker: false` and `projectRunning: false`, so all
 six experiments pick the eval up. The scorer never reads which experiment it

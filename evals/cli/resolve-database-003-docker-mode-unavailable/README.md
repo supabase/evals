@@ -30,10 +30,9 @@ them, and the global `--experimental` flag doesn't unlock it. It exists on
 stable, beta and next (rechecked 2026-11-16). Until it ships on by default,
 `stack is running` and the recovery and runtime-record checks fail by design on
 the Docker-less environments unless the agent discovers it, or the experimental
-fallback does (a failed run is rerun once with `SUPABASE_EXPERIMENTAL=true` and,
-since `projectRunning: false`, `[experimental] stack = true` in the seeded
-config.toml); a pass that needed the fallback is recorded as
-`passed-with-experimental`, not as a plain pass. `recovered via a non-docker
+fallback does (a failed run is rerun once with `SUPABASE_EXPERIMENTAL=true` and
+`SUPABASE_EXPERIMENTAL_STACK=1`); a pass there is recorded as `fallback_passed`,
+not as `passed`, which stays the first attempt. `recovered via a non-docker
 runtime` passes automatically when the stack runs on Docker.
 
 ## The checks

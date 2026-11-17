@@ -178,9 +178,7 @@ example a throwaway Postgres container with the migrations applied by `psql`)
 earns the migration credit and the regenerated check, but only where a Postgres
 server is available. nodaemon and absent have none, so they stay red by design
 unless the agent finds the stack backend, which exists on stable, beta and next
-behind `SUPABASE_EXPERIMENTAL_STACK=1` or `[experimental] stack = true`, or the
-experimental fallback writes that config (a pass that needed it is recorded as
-`passed-with-experimental`, not as a plain pass)
+behind `SUPABASE_EXPERIMENTAL_STACK=1` or `[experimental] stack = true`, or the experimental fallback turns it on (a fallback pass is recorded as `fallback_passed`, not as `passed`)
 ([CLI-2534](https://linear.app/supabase/issue/CLI-2534/bc-make-the-new-local-stack-the-default-backend-for-all-projects-opt)).
 
 The frontmatter sets `needsDocker: false` and `projectRunning: false`, so all

@@ -139,10 +139,9 @@ on which one it is in. The Docker-less environments run on stable, beta and next
 three channels but only behind `SUPABASE_EXPERIMENTAL_STACK=1` or
 `[experimental] stack = true` in `supabase/config.toml`; `--experimental` doesn't
 unlock it and `stack` is absent from help otherwise. A pass there needs the
-agent to find the stack backend, or the experimental fallback (a failed run is
-rerun once with `SUPABASE_EXPERIMENTAL=true` and, since `projectRunning: false`,
-`[experimental] stack = true` in the seeded config.toml); a pass that needed the
-fallback is recorded as `passed-with-experimental`, not as a plain pass.
+agent to find the stack backend, or the experimental fallback (a failed run is rerun once with `SUPABASE_EXPERIMENTAL=true` and
+`SUPABASE_EXPERIMENTAL_STACK=1`); a pass there is recorded as `fallback_passed`,
+not as `passed`, which stays the first attempt.
 Failing both, the signal is whether the agent reports the blocker without a
 detour.
 

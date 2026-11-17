@@ -1,5 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { join, posix } from 'node:path';
+import { posix } from 'node:path';
 import { jsonSchema, tool, type ToolSet } from 'ai';
 import { createClient } from '@supabase/supabase-js';
 import {
@@ -20,7 +19,6 @@ import {
   PROXY_CA_ENV_NAMES,
 } from './docker-sandbox.js';
 import { createAgentEnvironment } from './agent-environment.js';
-import { enableExperimentalStack } from './experimental-stack.js';
 import {
   computeExcludedServices,
   ensureEdgeRuntime,
@@ -98,8 +96,6 @@ export interface LocalStackRuntimeOptions {
    * them. Names the harness manages itself (e.g. `PATH`) are rejected.
    */
   env?: Readonly<Record<string, string>>;
-  /** Rerun a failed local-stack eval once in a fresh session with the CLI's experimental gates on. */
-  experimentalFallback?: boolean;
 }
 
 /**
@@ -166,7 +162,6 @@ export function localStackRuntime(
       options.cliVersion !== undefined && isCliChannel(options.cliVersion)
         ? options.cliVersion
         : undefined,
-    experimentalFallback: options.experimentalFallback === true,
     async startSession({
       agent,
       cliVersion,
@@ -177,7 +172,6 @@ export function localStackRuntime(
       skills,
       mounts,
       skipCliInstall,
-      experimental,
     }) {
       // Stamped before setup so it's comparable with the scorer's PID-1 fallback.
       const sessionStartedMs = Date.now();
@@ -194,15 +188,6 @@ export function localStackRuntime(
         (await resolveCliVersionOption(options.cliVersion)) ??
         SUPABASE_CLI_VERSION;
 
-      const experimentalPlan =
-        experimental === true
-          ? planExperimental(localDir, projectRunning)
-          : undefined;
-      const sandboxEnv = experimentalPlan
-        ? { ...options.env, ...experimentalPlan.env }
-        : options.env;
-      const experimentalApplied = experimentalPlan?.applied;
-
       if (docker === 'available') {
         const mcp = await resolveMcpServers(options, hosted);
         const env = await createAgentEnvironment({
@@ -210,7 +195,7 @@ export function localStackRuntime(
           localDir,
           skills,
           mounts: [...(mounts ?? []), ...(mcp.mounts ?? [])],
-          env: sandboxEnv,
+          env: options.env,
           localStack: {
             includeServices,
             projectRunning,
@@ -226,12 +211,6 @@ export function localStackRuntime(
           },
         });
         const sandbox = env.sandbox;
-        if (experimentalPlan?.configFile) {
-          await sandbox.writeFiles({
-            [experimentalPlan.configFile.path]:
-              experimentalPlan.configFile.content,
-          });
-        }
 
         const session = {
           tools: buildLocalStackTools(sandbox, docker),
@@ -245,7 +224,6 @@ export function localStackRuntime(
             .filter(Boolean)
             .join('\n\n'),
           scoringContext: buildLocalStackScoringContext(sandbox, hosted),
-          experimentalApplied,
           ensureReady: () => ensureEdgeRuntime(sandbox, includeServices),
           exportWorkspace: (hostDir: string) =>
             sandbox.copyToHost(sandbox.workdir, hostDir),
@@ -265,8 +243,7 @@ export function localStackRuntime(
               version,
               sessionStartedMs,
               channel,
-              options.env,
-              experimentalApplied
+              options.env
             )
           );
         } catch (err) {
@@ -299,7 +276,7 @@ export function localStackRuntime(
         network: 'host',
         mounts: [...(mounts ?? []), ...(mcp.mounts ?? [])],
         mountDockerSocket: false,
-        env: sandboxEnv,
+        env: options.env,
       });
 
       try {
@@ -357,12 +334,6 @@ export function localStackRuntime(
         if (localDir) {
           await sandbox.copyToContainer(localDir, sandbox.workdir);
         }
-        if (experimentalPlan?.configFile) {
-          await sandbox.writeFiles({
-            [experimentalPlan.configFile.path]:
-              experimentalPlan.configFile.content,
-          });
-        }
         const installedSkills = await installSkills(sandbox, skills ?? []);
 
         // No bind mount means the socket must not exist at all — stronger
@@ -386,8 +357,7 @@ export function localStackRuntime(
               version,
               sessionStartedMs,
               channel,
-              options.env,
-              experimentalApplied
+              options.env
             )
           ),
           '0444'
@@ -407,7 +377,6 @@ export function localStackRuntime(
             .filter(Boolean)
             .join('\n\n'),
           scoringContext: buildLocalStackScoringContext(sandbox),
-          experimentalApplied,
           exportWorkspace: (hostDir: string) =>
             sandbox.copyToHost(sandbox.workdir, hostDir),
           // Nothing to restore without Docker; the `available` path above
@@ -422,56 +391,6 @@ export function localStackRuntime(
       }
     },
   };
-}
-
-const CONFIG_CANDIDATES = [
-  { path: 'supabase/config.toml', format: 'toml' },
-  { path: 'supabase/config.jsonc', format: 'jsonc' },
-  { path: 'supabase/config.json', format: 'jsonc' },
-] as const;
-
-interface ExperimentalPlan {
-  env: Record<string, string>;
-  applied: string[];
-  configFile?: { path: string; content: string };
-}
-
-/**
- * `--experimental` does not enable the managed stack, and with it on a stack the
- * harness already started, `supabase status -o json` fails; so it is only
- * enabled when the agent starts the stack itself (`projectRunning: false`).
- */
-function planExperimental(
-  localDir: string | undefined,
-  projectRunning: boolean | undefined
-): ExperimentalPlan {
-  const plan: ExperimentalPlan = {
-    env: { SUPABASE_EXPERIMENTAL: 'true' },
-    applied: ['SUPABASE_EXPERIMENTAL=true (same as --experimental)'],
-  };
-  if (projectRunning !== false) return plan;
-
-  const config = localDir
-    ? CONFIG_CANDIDATES.find(({ path }) => existsSync(join(localDir, path)))
-    : undefined;
-  if (!localDir || !config) {
-    plan.env.SUPABASE_EXPERIMENTAL_STACK = '1';
-    plan.applied.push('SUPABASE_EXPERIMENTAL_STACK=1');
-    return plan;
-  }
-  plan.configFile = {
-    path: config.path,
-    content: enableExperimentalStack(
-      readFileSync(join(localDir, config.path), 'utf8'),
-      config.format
-    ),
-  };
-  plan.applied.push(
-    config.format === 'toml'
-      ? `${config.path} [experimental] stack = true`
-      : `${config.path} experimental.stack = true`
-  );
-  return plan;
 }
 
 function assertValidEnv(env: LocalStackRuntimeOptions['env']): void {
@@ -509,8 +428,7 @@ export function buildLocalStackMarker(
   cliVersion: string,
   sessionStartedMs: number,
   channel?: CliChannel,
-  env?: Readonly<Record<string, string>>,
-  experimental?: string[]
+  env?: Readonly<Record<string, string>>
 ): LocalStackEnvironmentMarker {
   return {
     runtime: 'local-stack',
@@ -520,7 +438,6 @@ export function buildLocalStackMarker(
     ...(env !== undefined && Object.keys(env).length > 0
       ? { env: { ...env } }
       : {}),
-    ...(experimental !== undefined ? { experimental } : {}),
     sessionStartedMs,
   };
 }
