@@ -44,7 +44,7 @@ const NOISE = [
 ];
 
 /** The ERROR/DETAIL/HINT lines if there are any, else the first line. */
-export function psqlError(output: string): string {
+function psqlError(output: string): string {
   const lines = output
     .split('\n')
     .map((line) => line.trim())
