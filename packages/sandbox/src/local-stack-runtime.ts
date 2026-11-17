@@ -73,6 +73,8 @@ export interface LocalStackRuntimeOptions {
    * (`search_docs`), since the other groups need a platform to talk to.
    */
   mcpFeatures?: string[];
+  /** MCP branch, tag, or full commit SHA. SUPABASE_MCP_REPO_PATH takes precedence. */
+  mcpRevision?: string;
   /**
    * Explicit MCP server map, keyed by name. When set it overrides the default
    * Supabase MCP wiring entirely. These run host-side and do not connect to the
@@ -187,11 +189,12 @@ export function localStackRuntime(
         SUPABASE_CLI_VERSION;
 
       if (docker === 'available') {
+        const mcp = await resolveMcpServers(options, hosted);
         const env = await createAgentEnvironment({
           cliVersion: version,
           localDir,
           skills,
-          mounts,
+          mounts: [...(mounts ?? []), ...(mcp.mounts ?? [])],
           env: options.env,
           localStack: {
             includeServices,
@@ -209,12 +212,11 @@ export function localStackRuntime(
         });
         const sandbox = env.sandbox;
 
-        const mcpServers = await resolveMcpServers(options, hosted);
-
         const session = {
           tools: buildLocalStackTools(sandbox, docker),
           sandbox: toAgentSandbox(sandbox),
-          mcpServers,
+          mcpServers: mcp.mcpServers,
+          repoSources: mcp.repoSources,
           promptAddendum: [
             buildToolSurfaceAddendum(agent, { skipCliInstall, docker }),
             buildSkillsPrompt(agent, env.skills),
@@ -267,11 +269,12 @@ export function localStackRuntime(
         );
       }
 
+      const mcp = await resolveMcpServers(options, undefined);
       const image = await ensureSupabaseSandboxImage();
       const sandbox = await DockerSandbox.create({
         image,
         network: 'host',
-        mounts,
+        mounts: [...(mounts ?? []), ...(mcp.mounts ?? [])],
         mountDockerSocket: false,
         env: options.env,
       });
@@ -360,17 +363,13 @@ export function localStackRuntime(
           '0444'
         );
 
-        const dockerlessMcpServers = await resolveMcpServers(
-          options,
-          undefined
-        );
-
         return {
           tools: buildLocalStackTools(sandbox, docker),
           sandbox: toAgentSandbox(sandbox),
           // Same wiring as the `available` path; `hosted` is always
           // undefined here (guarded above), so this falls back to `docs`.
-          mcpServers: dockerlessMcpServers,
+          mcpServers: mcp.mcpServers,
+          repoSources: mcp.repoSources,
           promptAddendum: [
             buildToolSurfaceAddendum(agent, { skipCliInstall, docker }),
             buildSkillsPrompt(agent, installedSkills),
@@ -594,8 +593,8 @@ export function buildToolSurfaceAddendum(
 export async function resolveMcpServers(
   options: LocalStackRuntimeOptions,
   hosted?: HostedLink
-): Promise<Record<string, McpServerConfig>> {
-  if (options.mcpServers) return options.mcpServers;
+) {
+  if (options.mcpServers) return { mcpServers: options.mcpServers };
 
   const features = options.mcpFeatures ?? DEFAULT_MCP_FEATURES;
   // Anything beyond `docs` talks to a project, so it needs a platform to point
@@ -603,7 +602,10 @@ export async function resolveMcpServers(
   // loopback port it's published on. `docs` alone runs standalone, with no
   // context (supabaseMcpServer omits --api-url and supplies a throwaway token).
   const platformDependent = features.some((feature) => feature !== 'docs');
-  const { config } = await supabaseMcpServer({ features }).createConfig(
+  const { config, mounts, repoSources } = await supabaseMcpServer({
+    features,
+    revision: options.mcpRevision,
+  }).createConfig(
     platformDependent && hosted
       ? {
           apiUrl: `http://127.0.0.1:${hosted.port}`,
@@ -611,7 +613,7 @@ export async function resolveMcpServers(
         }
       : undefined
   );
-  return { supabase: config };
+  return { mcpServers: { supabase: config }, mounts, repoSources };
 }
 
 /**

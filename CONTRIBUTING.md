@@ -64,13 +64,17 @@ pnpm eval -- --suite benchmark --experiment codex-gpt-6-luna --eval resolve-data
 
 ### Share a branch or commit
 
-Push the MCP changes to `supabase/mcp`. Set `revision` to a full commit SHA (recommended), branch, or tag on `supabaseMcpServer()`.
+Push the MCP changes to `supabase/mcp`. Select a full commit SHA (recommended), branch, or tag in the experiment:
 
 ```ts
+// MCP-interface evals
 supabaseMcpServer({ revision: '<full MCP commit SHA>' })
+
+// CLI-interface evals (search_docs only)
+localStackRuntime({ mcpRevision: '<full MCP commit SHA>' })
 ```
 
-Configure it in an individual experiment’s `runtime`, or broadly in `defaultRuntime()` in [`experiments/presets.ts`](experiments/presets.ts).
+To configure this broadly across experiments and interfaces, set `mcpRevision` in [`experiments/presets.ts`](experiments/presets.ts).
 
 > [!NOTE]
 > `SUPABASE_MCP_REPO_PATH` overrides `revision` on the machine running the eval.

@@ -37,7 +37,6 @@ import {
   evalSuiteSchema,
   rehydrateTruncatedDocsResults,
   getExperimentDisplayMetadata,
-  supabaseMcpServerMounts,
   type RepoSource,
 } from '@supabase-evals/core';
 import type {
@@ -444,7 +443,6 @@ async function runOne(
             }
           : undefined,
         skills: skillSources,
-        mounts: supabaseMcpServerMounts(),
         skipCliInstall: ev.metadata.skipCliInstall,
       })
     );
@@ -519,6 +517,7 @@ async function runOne(
       agentRunEndedAt,
       scoringEndedAt,
       cliVersion: marker?.cliVersion ?? ev.metadata.cliVersion,
+      repoSources: session.repoSources,
     };
   }
 

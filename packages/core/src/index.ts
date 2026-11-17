@@ -596,6 +596,7 @@ export type HostedLink = {
  * scoring handle into the same environment.
  */
 export type LocalStackSession = {
+  repoSources?: Record<string, RepoSource>;
   tools: ToolSet;
   /**
    * Direct handle to the underlying sandbox, for CLI agents that run their own
