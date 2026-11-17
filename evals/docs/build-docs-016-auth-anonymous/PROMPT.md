@@ -33,4 +33,4 @@ Read the guide below before you start and rely on it for how to set this up,
 rather than on what you already know.
 
 REFERENCE
-https://docs-git-docs-anonymous-claim-refresh-supabase.vercel.app/docs/guides/auth/auth-anonymous.md
+https://supabase.com/docs/guides/auth/auth-anonymous.md
