@@ -16,20 +16,24 @@ export const CHECK = {
     'a link with no destination, or a refused one, lands on the live site',
 } as const;
 
-// DEPLOYMENTS.md. The callback paths are two segments deep on purpose.
+// DEPLOYMENTS.md. The callback paths are two segments deep on purpose. The
+// last preview isn't in the seed, so listing the example previews exactly
+// doesn't pass: the next branch has to work too.
 const OWNED = [
   `${LIVE}/auth/callback`,
   `${LIVE}/auth/reset-password`,
   'https://studio-git-new-timetable-harbour-studio.vercel.app/auth/callback',
   'https://studio-3fj2k9-harbour-studio.vercel.app/auth/reset-password',
   'http://localhost:3000/auth/callback',
+  'https://studio-git-fix-login-harbour-studio.vercel.app/auth/callback',
 ];
 
-// Someone else's site, a lookalike that starts with the live host, and
-// another Vercel team's preview.
+// Someone else's site, lookalikes that start with the live host and with
+// local dev, and another Vercel team's preview.
 const OTHERS = [
   'https://evil.example.com/auth/callback',
   'https://book.harbourstudio.nz.evil.example.com/auth/callback',
+  'http://localhost.evil.example.com/auth/callback',
   'https://studio-3fj2k9-other-team.vercel.app/auth/callback',
 ];
 

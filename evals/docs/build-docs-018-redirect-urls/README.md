@@ -17,8 +17,8 @@ additional_redirect_urls, wildcard, glob, `*`, `**`, config.toml.
 ## What "refused" means
 
 Auth doesn't reject a link to an unlisted destination. It quietly swaps in the Site URL. So the scorer
-asks Auth for a sign-in link to each destination and reads back the one it kept. The page never
-mentions this fallback, and it's why so many reports say the email "looks unchanged".
+asks Auth for a sign-in link to each destination and reads back the one it kept. An agent that
+expects an error won't see one, and that's why so many reports say the email "looks unchanged".
 
 Two things are always allowed whatever the list says: the Site URL's own scheme, host and port, and
 loopback IPs. That's why no test destination uses `127.0.0.1`, and why a broken live-site pattern only
@@ -36,14 +36,16 @@ shows up if the Site URL isn't the live site.
 - "sign-in links refuse destinations the team doesn't own" passes for an empty list.
   "sign-in links can return to the live site, previews and local dev" is what makes it mean something,
   and the reverse is true for a `**` catch-all.
-- The outsiders are someone else's site, a lookalike that starts with the live host
-  (`book.harbourstudio.nz.evil.example.com`), and another Vercel team's preview.
+- The outsiders are someone else's site, lookalikes that start with the live host
+  (`book.harbourstudio.nz.evil.example.com`) and with local dev (`localhost.evil.example.com`), and
+  another Vercel team's preview.
+- One owned preview, `studio-git-fix-login`, isn't in `DEPLOYMENTS.md`. Listing the two example previews
+  exactly fails, because the next branch's preview has to work too.
 
 ## The scorer restarts the stack
 
 Auth reads its settings when its container is created, so the scorer runs `supabase stop` then
 `supabase start` inside the sandbox. The harness wrapper adds the eval's service excludes to `start`.
-This was the first docs scorer to restart the stack.
 
 ## The guide has to actually be read
 
@@ -55,6 +57,8 @@ page's content. Read `docs.calls` before the score.
 - **Client code passing `redirectTo`.** There's no app in the seed. The claim is about what Auth accepts.
 - **Email templates (`{{ .RedirectTo }}`).** A separate section of the page.
 - **Mobile deep links and OAuth providers.** The prompt asks for neither.
-- **Another Vercel account naming a project `x-harbour-studio`.** The page's own pattern accepts it, so
-  it belongs in a docs ticket rather than a check.
+- **Another Vercel account naming a project `x-harbour-studio`.** A team-scoped preview pattern accepts
+  it, and that's the pattern the eval expects, so it isn't a check.
+- **Password reset links on their own.** The scorer asks for magic links only. Auth gives reset links
+  their destination through the same check, so the verdict holds for both.
 - **The hosted dashboard setting.** The prompt asks for the local project.
