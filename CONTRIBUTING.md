@@ -64,21 +64,16 @@ pnpm eval -- --suite benchmark --experiment codex-gpt-6-luna --eval resolve-data
 
 ### Share a branch or commit
 
-Push the MCP changes to `supabase/mcp` and unset `SUPABASE_MCP_REPO_PATH`. Set `revision` to a branch, tag, or full commit SHA in your experiment, for example `experiments/benchmark/codex-gpt-6-luna.experiment.ts`.
+Push the MCP changes to `supabase/mcp`. Set `revision` to a full commit SHA (recommended), branch, or tag on `supabaseMcpServer()`.
 
 ```ts
-import { defineExperiment, platformLiteRuntime, supabaseMcpServer } from '@supabase-evals/core';
-import { codexGpt6Luna } from '../presets.js';
-
-export default defineExperiment({
-  ...codexGpt6Luna,
-  runtime: platformLiteRuntime({
-    mcpServers: [supabaseMcpServer({ revision: '<full MCP commit SHA>' })],
-  }),
-});
+supabaseMcpServer({ revision: '<full MCP commit SHA>' })
 ```
 
-Use a branch while iterating and a full SHA for reproducible sharing. [Run the experiment in CI](#submitting-evals-for-review).
+Configure it in an individual experiment’s `runtime`, or broadly in `defaultRuntime()` in [`experiments/presets.ts`](experiments/presets.ts).
+
+> [!NOTE]
+> `SUPABASE_MCP_REPO_PATH` overrides `revision` on the machine running the eval.
 
 ## Submitting evals for review
 
