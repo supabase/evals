@@ -48,12 +48,14 @@ import type {
   EvalSuite,
   ExperimentDisplayMetadata,
   JudgeCall,
+  RepoSource,
   ModelProvider,
   ReasoningEffortLevel,
 } from './eval-metadata.js';
 import { reasoningEffortSchema } from './eval-metadata.js';
 import type { AgentMetadata, AgentSandbox } from './agents/types.js';
 import { isRecord } from './json.js';
+import { buildMcpRevision, MCP_SERVER_ENTRY_PATH } from './mcp-revision.js';
 
 // Resolved lazily on first use, not at module load: `import.meta.resolve` is a
 // load-time side effect that throws under bundler SSR transforms (e.g. vitest),
@@ -139,6 +141,7 @@ export type {
   EvalMetadata,
   EvalProduct,
   EvalResult,
+  RepoSource,
   EvalSuite,
   EvalStage,
   ExperimentDisplayMetadata,
@@ -597,6 +600,7 @@ export type HostedLink = {
  * scoring handle into the same environment.
  */
 export type LocalStackSession = {
+  repoSources?: Record<string, RepoSource>;
   tools: ToolSet;
   /**
    * Direct handle to the underlying sandbox, for CLI agents that run their own
@@ -986,6 +990,8 @@ export type EvalSessionArgs = {
 };
 
 export type EvalSession = {
+  repoSources?: Record<string, RepoSource>;
+  mounts?: readonly SandboxMount[];
   mcpServers: Record<string, McpServerConfig>;
   /** Whether the agent can control the host Docker daemon. Defaults to true. */
   mountDockerSocket?: boolean;
@@ -1015,6 +1021,8 @@ export type McpServerConfig = {
 };
 
 type ResolvedMcpServer = {
+  repoSources?: Record<string, RepoSource>;
+  mounts?: readonly SandboxMount[];
   config: McpServerConfig;
   cleanup?: () => Promise<void>;
 };
@@ -1039,6 +1047,8 @@ export function platformLiteRuntime(options: {
     async startSession(args) {
       const backend = await bootPlatformBackend(args);
       const mcpServers: Record<string, McpServerConfig> = {};
+      const mounts: SandboxMount[] = [];
+      const repoSources: Record<string, RepoSource> = {};
       const cleanupFns: Array<() => Promise<void>> = [];
 
       try {
@@ -1051,11 +1061,17 @@ export function platformLiteRuntime(options: {
             accessToken: backend.accessToken,
           });
           mcpServers[mcpServer.name] = resolved.config;
+          mounts.push(...(resolved.mounts ?? []));
+          Object.assign(repoSources, resolved.repoSources);
           if (resolved.cleanup) cleanupFns.push(resolved.cleanup);
         }
 
         return {
           mcpServers,
+          mounts,
+          repoSources: Object.keys(repoSources).length
+            ? repoSources
+            : undefined,
           promptAddendum:
             options.mcpServers
               .map((mcpServer) => mcpServer.promptAddendum)
@@ -1119,8 +1135,13 @@ export function supabaseMcpServer(
   options: {
     features?: string[];
     version?: string;
+    /** Branch, tag, or full commit SHA from supabase/mcp. SUPABASE_MCP_REPO_PATH takes precedence. */
+    revision?: string;
   } = {}
 ): McpServerDefinition {
+  if (options.revision !== undefined && options.version !== undefined) {
+    throw new Error('MCP revision and version are mutually exclusive');
+  }
   const features = options.features ?? [
     'docs',
     'account',
@@ -1168,13 +1189,49 @@ export function supabaseMcpServer(
           ? feedbackRedirectEnv(apiUrl)
           : undefined;
 
-      const local = resolveLocalMcpServer();
+      const repoRoot = resolveLocalMcpRepo(process.env.SUPABASE_MCP_REPO_PATH);
+      const sourceBuild =
+        !repoRoot && options.revision !== undefined
+          ? await buildMcpRevision(options.revision)
+          : undefined;
+      const local = repoRoot
+        ? {
+            entry: join(repoRoot, MCP_SERVER_ENTRY_PATH),
+            mountRoot: repoRoot,
+          }
+        : sourceBuild;
       if (local) {
-        // `node`, not process.execPath: CLI agents run this command INSIDE the
-        // sandbox container, where the host's node binary path does not exist.
-        // Both container and host resolve `node` via PATH.
+        if (repoRoot && !existsSync(local.entry)) {
+          throw new Error(
+            `No MCP build at ${local.entry}. Build or watch the MCP package before running evals. ` +
+              `See CONTRIBUTING.md "Testing MCP changes".`
+          );
+        }
+        if (sourceBuild) {
+          console.log(
+            `Using MCP revision ${options.revision} (${sourceBuild.commitSha}) from supabaseMcpServer({ revision })`
+          );
+        } else {
+          console.log(
+            `Using local MCP checkout ${local.mountRoot} from SUPABASE_MCP_REPO_PATH` +
+              (options.revision !== undefined
+                ? ` (overrides revision ${options.revision})`
+                : '')
+          );
+        }
+        // Resolve Node through PATH because host and container binary paths differ.
         return {
           config: { command: 'node', args: [local.entry, ...serverArgs], env },
+          repoSources:
+            sourceBuild && options.revision !== undefined
+              ? {
+                  'supabase/mcp': {
+                    revision: options.revision,
+                    commitSha: sourceBuild.commitSha,
+                  },
+                }
+              : undefined,
+          mounts: [{ hostPath: local.mountRoot, readonly: true }],
         };
       }
 
@@ -1204,57 +1261,35 @@ function feedbackRedirectEnv(apiUrl: string): Record<string, string> {
 }
 
 /**
- * SUPABASE_MCP_SERVER_PATH swaps the published npx package for a local build
- * (a repo/package dir or a direct .js/.mjs/.cjs entrypoint), so a workspace
- * can test an unpublished server change without publishing to npm. Relative
- * paths resolve against the evals checkout root (not the process CWD), so
- * `submodules/mcp/packages/mcp-server-supabase` works from any directory.
- *
- * Memoized per env value: createConfig and the sandbox mounts both resolve,
- * and each resolution spawns git (anchor + mount root) — cache so repeat
- * calls within a run cost nothing. Keyed on the raw env string because tests
- * (and in principle callers) change it between calls; the not-found error
- * path is deliberately uncached so a fixed build is picked up on retry.
+ * SUPABASE_MCP_REPO_PATH selects a local checkout. Relative paths resolve
+ * against the evals root.
  */
-type LocalMcpServer = { entry: string; baseDir: string; mountRoot: string };
-let localMcpServerCache: { key: string; value: LocalMcpServer } | null = null;
+let localMcpRepoCache: { key: string; value: string } | null = null;
 
-function resolveLocalMcpServer(): LocalMcpServer | null {
-  const localServerPath = process.env.SUPABASE_MCP_SERVER_PATH;
-  if (!localServerPath) return null;
-  if (localMcpServerCache?.key === localServerPath)
-    return localMcpServerCache.value;
+function resolveLocalMcpRepo(localRepoPath: string | undefined): string | null {
+  if (!localRepoPath) return null;
+  if (localMcpRepoCache?.key === localRepoPath) return localMcpRepoCache.value;
 
   const anchor =
     gitToplevel(dirname(fileURLToPath(import.meta.url))) ?? process.cwd();
-  const isEntryFile = /\.[cm]?js$/.test(localServerPath);
-  const base = resolve(anchor, localServerPath);
-  const probe = isEntryFile ? base : join(base, 'dist', 'cli.js');
+  const repoRoot = resolve(anchor, localRepoPath);
+  const probe = join(
+    repoRoot,
+    'packages',
+    'mcp-server-supabase',
+    'package.json'
+  );
   if (!existsSync(probe)) {
     throw new Error(
-      `SUPABASE_MCP_SERVER_PATH resolved to ${probe}, which does not exist — ` +
-        `build the server first (pnpm install && pnpm build in the mcp checkout); ` +
-        `see README "Running against an exact MCP server revision".`
+      `SUPABASE_MCP_REPO_PATH expected ${probe}, which does not exist. ` +
+        `Point it at the MCP repo root. ` +
+        `See CONTRIBUTING.md "Testing MCP changes".`
     );
   }
-  // One filesystem view for command AND mount: the sandbox bind-mounts the
-  // realpath (Docker resolves sources against the daemon's view), so the
-  // command must reference the same view — an override under a symlinked dir
-  // (macOS /tmp -> /private/tmp) would otherwise exec a path that does not
-  // exist in-container. Canonicalize the BASE once and derive the entry from
-  // it (never realpath the entry separately: a symlinked dist/ target could
-  // resolve outside the mounted baseDir).
-  const realBase = realpathSync(base);
-  const baseDir = isEntryFile ? dirname(realBase) : realBase;
-  const value: LocalMcpServer = {
-    entry: isEntryFile ? realBase : join(realBase, 'dist', 'cli.js'),
-    baseDir,
-    // The whole git toplevel (not just dist/) because the build is unbundled:
-    // it requires its node_modules at runtime.
-    mountRoot: gitToplevel(baseDir) ?? baseDir,
-  };
-  localMcpServerCache = { key: localServerPath, value };
-  return value;
+  // Docker's mount and the command must use the same canonical checkout path.
+  const mountRoot = realpathSync(repoRoot);
+  localMcpRepoCache = { key: localRepoPath, value: mountRoot };
+  return mountRoot;
 }
 
 function gitToplevel(dir: string): string | null {
@@ -1269,17 +1304,10 @@ function gitToplevel(dir: string): string | null {
   }
 }
 
-/**
- * Sandbox mounts required to launch the SUPABASE_MCP_SERVER_PATH build inside
- * a containerized agent sandbox. A CLI agent's MCP command runs INSIDE the
- * container, where the host build is invisible — so the build's checkout is
- * bind-mounted read-only at its identical (real) path, letting the same
- * config work on both sides, with host rebuilds visible immediately (no
- * re-copy). Empty when unset.
- */
+/** Read-only checkout mount for container agents using SUPABASE_MCP_REPO_PATH. */
 export function supabaseMcpServerMounts(): SandboxMount[] {
-  const local = resolveLocalMcpServer();
-  return local ? [{ hostPath: local.mountRoot, readonly: true }] : [];
+  const repoRoot = resolveLocalMcpRepo(process.env.SUPABASE_MCP_REPO_PATH);
+  return repoRoot ? [{ hostPath: repoRoot, readonly: true }] : [];
 }
 
 export function executorMcpServer(): McpServerDefinition {

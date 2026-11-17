@@ -427,6 +427,7 @@ async function collectRows(
         topic: promptData?.topic ?? result.topic ?? [],
         source_path: sourcePath,
         cli_version: result.cliVersion ?? promptData?.cliVersion,
+        repo_sources: result.repoSources,
         ...(result.experimentalFallback
           ? {
               experimental_fallback: result.experimentalFallback.outcome,

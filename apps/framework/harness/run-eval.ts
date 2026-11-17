@@ -38,7 +38,7 @@ import {
   evalSuiteSchema,
   rehydrateTruncatedDocsResults,
   getExperimentDisplayMetadata,
-  supabaseMcpServerMounts,
+  type RepoSource,
 } from '@supabase-evals/core';
 import type {
   AgentUsage,
@@ -455,6 +455,7 @@ type EvalRunResult = ScoreResult & {
   agentRunEndedAt: number;
   scoringEndedAt: number;
   cliVersion?: string;
+  repoSources?: Record<string, RepoSource>;
 };
 
 export interface LocalStackAttemptContext {
@@ -521,7 +522,6 @@ async function runLocalStackAttempt(
           }
         : undefined,
       skills: skillSources,
-      mounts: supabaseMcpServerMounts(),
       skipCliInstall: ev.metadata.skipCliInstall,
       experimental,
     })
@@ -597,6 +597,7 @@ async function runLocalStackAttempt(
     agentRunEndedAt,
     scoringEndedAt,
     cliVersion: marker?.cliVersion ?? ev.metadata.cliVersion,
+    repoSources: session.repoSources,
   };
   return { result, applied: session.experimentalApplied ?? [] };
 }
@@ -697,7 +698,7 @@ async function runOne(
           env: session.env,
           mountDockerSocket: session.mountDockerSocket,
           skills: skillSources,
-          mounts: supabaseMcpServerMounts(),
+          mounts: session.mounts,
         })
       )
     : undefined;
@@ -757,6 +758,7 @@ async function runOne(
     scoringEndedAt,
     // No sandbox in tools mode, so no marker to read; only the frontmatter pin applies.
     cliVersion: ev.metadata.cliVersion,
+    repoSources: session.repoSources,
   };
 }
 

@@ -77,4 +77,5 @@ for the run that resolves it the other way.
   the product skills.
 - `motivation:` as a folded `>-` block. The motivation is the same every time: evidence that an agent
   can read this page and perform the task correctly, with the practices the page should be teaching.
-  Say which page, what an agent gets wrong without it, and cite the evidence from Phase 1.
+  Keep it to a few sentences: which page, and what an agent gets wrong without it. This repo is public,
+  so leave internal ticket ids and Slack threads out of it; the full evidence goes in the PR description.

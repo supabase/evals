@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import * as core from '@supabase-evals/core';
 import {
   buildDockerDaemonShimScript,
   buildLocalStackMarker,
@@ -161,6 +162,7 @@ describe('buildDockerDaemonShimScript', () => {
 });
 
 describe('resolveMcpServers', () => {
+  afterEach(() => vi.restoreAllMocks());
   // The Docker-less session path resolves its MCP map through this same
   // helper rather than hardcoding a docs-only server, so an experiment's
   // explicit wiring survives in a sandbox with no Docker. `hosted` is always
@@ -171,18 +173,41 @@ describe('resolveMcpServers', () => {
     };
     await expect(
       resolveMcpServers({ mcpServers: explicit }, undefined)
-    ).resolves.toBe(explicit);
+    ).resolves.toEqual({ mcpServers: explicit });
   });
 
   it('honours an explicit empty map, disabling MCP entirely', async () => {
     await expect(
       resolveMcpServers({ mcpServers: {} }, undefined)
-    ).resolves.toEqual({});
+    ).resolves.toEqual({ mcpServers: {} });
   });
 
   it('falls back to a single docs-only supabase server', async () => {
     const servers = await resolveMcpServers({}, undefined);
-    expect(Object.keys(servers)).toEqual(['supabase']);
+    expect(Object.keys(servers.mcpServers)).toEqual(['supabase']);
+  });
+
+  it('passes the revision and retains its mount and resolved SHA', async () => {
+    const config = { command: 'node', args: ['/mcp/dist/cli.js'] };
+    const mounts = [{ hostPath: '/mcp', readonly: true }];
+    const repoSources = {
+      'supabase/mcp': { revision: 'feature/docs', commitSha: 'a'.repeat(40) },
+    };
+    const server = vi.spyOn(core, 'supabaseMcpServer').mockReturnValue({
+      name: 'supabase',
+      createConfig: async () => ({ config, mounts, repoSources }),
+    });
+    await expect(
+      resolveMcpServers({ mcpRevision: 'feature/docs' })
+    ).resolves.toEqual({
+      mcpServers: { supabase: config },
+      mounts,
+      repoSources,
+    });
+    expect(server).toHaveBeenCalledWith({
+      features: ['docs'],
+      revision: 'feature/docs',
+    });
   });
 });
 
