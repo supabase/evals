@@ -165,7 +165,7 @@ Add to this file. A documentation eval is not finished until whatever went wrong
   `WITH clause containing a data-modifying statement must be at the top level`. Every probe check in
   `build-docs-015-cascade-deletes` red on all three baseline runs for it. The PGlite dry run of the
   probes had passed, because its query function did not wrap. #513
-  **Fix.** Write through psql with `ctx.exec`, as `build-docs-002`'s `execSql` does, and keep
+  **Fix.** Write through `execSql` in `evals/docs/lib/exec-sql.ts`, which never throws, and keep
   `ctx.query` for reads. When testing probes off-stack, route reads through `wrapSelectAsJson`.
 - **An empty `results/` overwrites the export with `[]`** rather than refusing. #228
 - **A bot pushed refreshed results onto a measurement branch**, where the results were measured against

@@ -110,7 +110,8 @@ answers rather than assuming:
 - **Can the scorer run whatever has to run?** A framework the eval seeds is installed and built inside
   the sandbox with `ctx.exec`, not on the host: the host-side build helpers relink the workspace's
   `node_modules` to the framework's, which does not carry an eval's own dependencies. Check whether any
-  existing eval runs the same toolchain, and treat a first as a risk to state in the plan.
+  existing eval runs the same toolchain, and treat a first as a risk to state in the plan. For database
+  writes, use `execSql` from `evals/docs/lib/exec-sql.ts`; `ctx.query` only reads.
 - **What is the time budget?** The agent's timeout does not bound the scorer, so a long install and
   build costs wall-clock rather than the agent's budget. Per-command limits are yours to set.
 

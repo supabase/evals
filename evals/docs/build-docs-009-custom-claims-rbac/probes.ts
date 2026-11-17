@@ -5,6 +5,7 @@ import type {
   SupabaseClient,
 } from '@supabase-evals/core';
 import { stripIndent } from 'common-tags';
+import { execSql } from '../lib/exec-sql.js';
 
 const PASSWORD = 'secret123';
 const ROLE = 'moderator';
@@ -250,7 +251,7 @@ async function seedPosts(
         ('${authors.stranger}', '${authors.marker}-target')
       RETURNING id;
     `,
-    { quiet: true }
+    { tuplesOnly: true }
   );
   const ids = insert.stdout
     .split('\n')
@@ -313,36 +314,4 @@ function findRole(
     }
   }
   return undefined;
-}
-
-async function execSql(
-  ctx: LocalStackEvalContext,
-  sql: string,
-  options: { quiet?: boolean } = {}
-): Promise<{ ok: boolean; stdout: string; message: string }> {
-  const encoded = Buffer.from(sql, 'utf8').toString('base64');
-  const flags = options.quiet ? '-q -A -t' : '-q';
-  const result = await ctx.exec(
-    stripIndent`
-      DB_URL=$(supabase status -o json 2>/dev/null | node -e 'let input = ""; process.stdin.on("data", data => input += data); process.stdin.on("end", () => console.log(JSON.parse(input).DB_URL));')
-      echo ${encoded} | base64 -d | psql "$DB_URL" ${flags} -v ON_ERROR_STOP=1
-    `,
-    { timeoutMs: 120_000 }
-  );
-  return {
-    ok: result.exitCode === 0,
-    stdout: result.stdout ?? '',
-    message: firstError(result),
-  };
-}
-
-function firstError(result: { stdout?: string; stderr?: string }): string {
-  const lines = `${result.stderr ?? ''}\n${result.stdout ?? ''}`
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-  const named = lines.find((line) =>
-    /^(ERROR|FATAL|DETAIL|HINT)\b/i.test(line)
-  );
-  return (named ?? lines[0] ?? 'no output').slice(0, 300);
 }

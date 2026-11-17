@@ -4,7 +4,7 @@ import {
   type LocalStackEvalContext,
   type LocalStackScorer,
 } from '@supabase-evals/core';
-import { stripIndent } from 'common-tags';
+import { execSql } from '../lib/exec-sql.js';
 import {
   applyPendingMigrations,
   checkChangeWasAMigration,
@@ -88,41 +88,6 @@ const scorer: LocalStackScorer = async (ctx) => {
 };
 
 export default scorer;
-
-// ctx.query wraps SQL in a SELECT, so writes go through psql (same as
-// build-docs-002). Errors come back as { ok: false }, never thrown.
-async function execSql(
-  ctx: LocalStackEvalContext,
-  sql: string
-): Promise<{ ok: boolean; message: string }> {
-  try {
-    return await psql(ctx, sql);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return { ok: false, message: message.slice(0, 300) };
-  }
-}
-
-async function psql(
-  ctx: LocalStackEvalContext,
-  sql: string
-): Promise<{ ok: boolean; message: string }> {
-  const encoded = Buffer.from(sql, 'utf8').toString('base64');
-  const result = await ctx.exec(
-    stripIndent`
-      DB_URL=$(supabase status -o json 2>/dev/null | node -e 'let input = ""; process.stdin.on("data", data => input += data); process.stdin.on("end", () => console.log(JSON.parse(input).DB_URL));')
-      echo ${encoded} | base64 -d | psql "$DB_URL" -v ON_ERROR_STOP=1 -q
-    `
-  );
-  if (result.ok) return { ok: true, message: '' };
-  const output = `${result.stderr ?? ''}\n${result.stdout ?? ''}`;
-  const lines = output.split('\n').map((line) => line.trim());
-  const named = lines.filter((line) => /^(ERROR|DETAIL)\b/.test(line));
-  return {
-    ok: false,
-    message: (named.length > 0 ? named.join(' ') : output.trim()).slice(0, 300),
-  };
-}
 
 async function guard(
   name: string,
