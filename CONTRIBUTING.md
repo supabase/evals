@@ -92,6 +92,12 @@ Use this checklist after the author has followed [Submitting evals for review](#
 
 Tag #team-ai on Slack only for framework, runtime, experiment, result schema, or contract changes; scenario wording and scorer tuning should stay with the owning team.
 
+## Spark evals
+
+Local runs need `SPARK_API_URL` and WARP access. For CI, configure `SPARK_API_URL`, `CLOUDFLARE_WARP_CLIENT_ID`, and `CLOUDFLARE_WARP_CLIENT_SECRET` as repository secrets.
+
+The [Spark eval schedule](.github/workflows/spark-eval-schedule.yml) runs the suite daily and uploads results to Braintrust.
+
 ## Docs evals
 
 The docs team owns `evals/docs/` and its results. Docs evals run without skills on a single experiment (`codex-gpt-6-luna-no-skills`, under `experiments/docs/`).

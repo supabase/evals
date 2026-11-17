@@ -13,6 +13,7 @@ export interface BareSandboxHandle {
 
 export interface BareSandboxOptions {
   env?: Record<string, string>;
+  mountDockerSocket?: boolean;
   /** Supabase CLI version baked into the sandbox image. */
   cliVersion?: string;
   /** Skills to install into the sandbox. */
@@ -40,6 +41,7 @@ export async function createBareSandbox(
 ): Promise<BareSandboxHandle> {
   const env = await createAgentEnvironment({
     env: options.env,
+    mountDockerSocket: options.mountDockerSocket,
     cliVersion: options.cliVersion,
     skills: options.skills,
     mounts: options.mounts,

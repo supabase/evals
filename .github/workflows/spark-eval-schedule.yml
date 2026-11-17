@@ -1,0 +1,19 @@
+name: Spark eval schedule
+
+on:
+  schedule:
+    - cron: '45 6 * * *'
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+jobs:
+  run:
+    uses: ./.github/workflows/eval-refresh.yml
+    secrets: inherit
+    with:
+      suite: spark
+      merge: false
+      commit_results: none

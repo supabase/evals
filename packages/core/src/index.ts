@@ -962,6 +962,8 @@ export type EvalSessionArgs = {
 
 export type EvalSession = {
   mcpServers: Record<string, McpServerConfig>;
+  /** Whether the agent can control the host Docker daemon. Defaults to true. */
+  mountDockerSocket?: boolean;
   /** Connection settings available to every process in the agent sandbox. */
   env?: Record<string, string>;
   /**

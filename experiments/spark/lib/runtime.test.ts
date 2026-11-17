@@ -1,4 +1,4 @@
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, stat, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -43,10 +43,27 @@ it('creates fresh projects, seeds before execution and reads scoring state', asy
   });
   vi.stubGlobal('fetch', fetchMock);
   try {
-    const runtime = sparkRuntime('https://control.example');
+    const redactionPath = join(dir, 'redactions.json');
+    const runtime = sparkRuntime(
+      'https://control.example',
+      'http://proxy.example',
+      redactionPath
+    );
     const session = await runtime.startSession({ projectSeedSql: fixture });
+    expect(session.mountDockerSocket).toBe(false);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(await readFile(redactionPath, 'utf8'))).toEqual([
+      'project1',
+      'https://project1.example',
+      'project1.example',
+      'secret',
+      'publishable',
+    ]);
+    expect((await stat(redactionPath)).mode & 0o777).toBe(0o600);
     expect(session.env?.SPARK_PROJECT_URL).toBe('https://project1.example');
+    expect(session.env?.HTTPS_PROXY).toBe('http://proxy.example');
+    expect(session.env?.NO_PROXY).toContain('.openai.com');
+    expect(session.env?.NODE_USE_ENV_PROXY).toBe('1');
     expect(session.mcpServers).toEqual({});
     expect(await session.scoringContext.query('select 1')).toEqual({
       rows: [{ value: 1 }],
