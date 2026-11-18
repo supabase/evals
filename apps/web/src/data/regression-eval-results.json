@@ -3311,7 +3311,7 @@
       {
         "name": "diagnosed secure default grants without weakening RLS",
         "passed": true,
-        "judgeNotes": "Identified missing authenticated table grants, added SELECT and INSERT only, and preserved existing owner-scoped RLS. Distinguished table privileges from row policies and verified cross-user inserts remain blocked."
+        "judgeNotes": "Correctly identifies missing authenticated table grants despite existing owner-scoped RLS, grants only SELECT and INSERT to authenticated, and preserves RLS. Verifies owner isolation and no anon access."
       }
     ],
     "skills": {
@@ -3328,108 +3328,148 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"row level security policies authenticated role GRANT table select insert auth.uid()\", limit: 5) { nodes { title href content } }",
-          "hasContent": true,
-          "pages": []
-        },
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"monitoring debugging empty result RLS PostgREST policies permissions\", limit: 5) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"Row Level Security authenticated policy auth.uid insert select Postgres monitoring debugging\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security",
-              "title": "Token Security and Row Level Security"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/resources/glossary",
-              "title": "Glossary"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/declarative-database-schemas",
-              "title": "Declarative database schemas"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/third-party/custom-oidc",
-              "title": "Custom OIDC provider"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security-performance",
-              "title": "Row Level Security performance"
-            }
-          ],
-          "resultChars": 47502
-        },
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"Postgres grant privileges exposed table Data API authenticated select insert\", limit: 5) { nodes { title href content } }",
-          "hasContent": true,
-          "pages": []
-        },
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"Monitoring and debugging Supabase database logs RLS\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/local-development/testing/overview",
-              "title": "Testing Overview"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/realtime/reports",
-              "title": "Realtime Reports"
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
             },
             {
               "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
               "title": "Row Level Security"
             },
             {
+              "url": "https://supabase.com/docs/guides/getting-started/the-supabase-way-to-build",
+              "title": "The Supabase way to build"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/extensions/pgaudit",
+              "title": "PGAudit: Postgres Auditing"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/getting_started",
+              "title": "Getting Started with Realtime"
+            }
+          ],
+          "resultChars": 85914
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Postgres row level security auth.uid policy SELECT INSERT WITH CHECK\", limit: 5) { nodes { title href content } }",
+          "hasContent": true,
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Monitoring and Debugging Supabase RLS policies database logs\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/storage/schema/helper-functions",
+              "title": "Storage Helper Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/reports",
+              "title": "Realtime Reports"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security",
+              "title": "Token Security and Row Level Security"
+            },
+            {
               "url": "https://supabase.com/docs/guides/observability/reports",
               "title": "Reports"
             },
             {
-              "url": "https://supabase.com/docs/guides/storage/schema/helper-functions",
-              "title": "Storage Helper Functions"
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
+              "title": "Clerk"
             }
           ],
-          "resultChars": 129490
+          "resultChars": 112087
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"row level security policies auth.uid authenticated insert with check select\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
+              "title": "Advanced pgTAP Testing"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            }
+          ],
+          "resultChars": 73863
         },
         {
           "source": "web_search",
-          "query": "site:supabase.com/changelog Supabase changelog breaking change",
-          "pages": []
+          "query": "https://supabase.com/changelog.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/changelog.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/database/postgres/row-level-security.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/monitoring-and-debugging.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/monitoring-and-debugging.md"
+            }
+          ]
         },
         {
           "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -sS https://supabase.com/changelog.md | head -c 3500'",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -c 3000'",
+          "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 3522
+          "resultChars": 3025
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 190401,
-        "cacheReadInputTokens": 144036,
-        "cacheWriteInputTokens": 42054,
-        "outputTokens": 4103
+        "inputTokens": 429643,
+        "cacheReadInputTokens": 365560,
+        "cacheWriteInputTokens": 51997,
+        "outputTokens": 6709
       }
     ],
-    "stepCount": 8,
-    "toolCallCount": 15,
-    "agentRunDurationMs": 61348,
+    "stepCount": 14,
+    "toolCallCount": 31,
+    "agentRunDurationMs": 115769,
     "sandboxUsage": {
-      "activeCpuDurationMs": 254301,
-      "duration": 219814,
+      "activeCpuDurationMs": 253074,
+      "duration": 271934,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 1633099871,
-        "egress": 7895198
+        "ingress": 1635223431,
+        "egress": 9787657
       }
     },
     "prompt": "Our app lets signed-in users keep a private journal. Entries are stored in the `journal_entries` table. A user should only ever see their own, and they need to be able to create new entries from the app.\n\nI can see the rows when I query the table directly, but the journal page shows an empty list for every signed-in user. New entries don't show up after saving either. Please figure out why and fix it. The local Supabase project in `supabase/` is already running, so apply your fix to it.",
@@ -3503,7 +3543,7 @@
       {
         "name": "diagnosed secure default grants without weakening RLS",
         "passed": true,
-        "judgeNotes": "Correctly identified missing authenticated table grants, added SELECT and INSERT for authenticated only, and preserved existing owner-scoped RLS. Verified own-row access and rejection of cross-user inserts."
+        "judgeNotes": "Identified missing authenticated table grants despite existing owner-scoped RLS, applied SELECT and INSERT grants only to authenticated, and preserved RLS. Verified owner access, cross-user isolation, and denied anonymous access."
       }
     ],
     "skills": {
@@ -3511,7 +3551,10 @@
         "supabase",
         "supabase-postgres-best-practices"
       ],
-      "loaded": []
+      "loaded": [
+        "supabase",
+        "supabase-postgres-best-practices"
+      ]
     },
     "docs": {
       "calls": [
@@ -3524,68 +3567,109 @@
               "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 11952
+          "resultChars": 49
         },
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"row level security policies auth.uid() select insert policy\", limit: 5) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"monitoring and debugging RLS policies local Supabase project\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security",
+              "title": "Token Security and Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/third-party/clerk",
+              "title": "Clerk"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/schema/helper-functions",
+              "title": "Storage Helper Functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/testing",
+              "title": "Testing Your Database"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability",
+              "title": "Observability"
+            }
+          ],
+          "resultChars": 28147
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Row Level Security auth.uid policy SELECT INSERT authenticated grant table Data API\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
               "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
               "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
             },
             {
               "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
               "title": "Advanced pgTAP Testing"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/postgres/column-level-security",
-              "title": "Column Level Security"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/api/securing-your-api",
-              "title": "Securing your API"
-            },
-            {
               "url": "https://supabase.com/docs/guides/ai/rag-with-permissions",
               "title": "RAG with Permissions"
             }
           ],
-          "resultChars": 92660
+          "resultChars": 100048
         },
         {
-          "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/docs/guides/monitoring-and-debugging.md | head -c 14000'",
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Monitoring and Debugging diagnose RLS empty results PostgREST logs\", limit: 4) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/monitoring-and-debugging.md"
+              "url": "https://supabase.com/docs/guides/database/extensions/pgaudit",
+              "title": "PGAudit: Postgres Auditing"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/reports",
+              "title": "Reports"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/postgres-log-config",
+              "title": "Postgres log configurations"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/postgres-changes",
+              "title": "Postgres Changes"
             }
           ],
-          "resultChars": 4026
+          "resultChars": 139155
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 212359,
-        "cacheReadInputTokens": 170804,
-        "cacheWriteInputTokens": 41528,
-        "outputTokens": 4444
+        "inputTokens": 434101,
+        "cacheReadInputTokens": 384315,
+        "cacheWriteInputTokens": 49741,
+        "outputTokens": 6573
       }
     ],
-    "stepCount": 9,
-    "toolCallCount": 14,
-    "agentRunDurationMs": 62942,
+    "stepCount": 15,
+    "toolCallCount": 21,
+    "agentRunDurationMs": 111789,
     "sandboxUsage": {
-      "activeCpuDurationMs": 341735,
-      "duration": 256999,
+      "activeCpuDurationMs": 492519,
+      "duration": 372716,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 1628713615,
-        "egress": 4855484
+        "ingress": 1630648934,
+        "egress": 6238590
       }
     },
     "prompt": "Our app lets signed-in users keep a private journal. Entries are stored in the `journal_entries` table. A user should only ever see their own, and they need to be able to create new entries from the app.\n\nI can see the rows when I query the table directly, but the journal page shows an empty list for every signed-in user. New entries don't show up after saving either. Please figure out why and fix it. The local Supabase project in `supabase/` is already running, so apply your fix to it.",
@@ -3659,7 +3743,7 @@
       {
         "name": "diagnosed secure default grants without weakening RLS",
         "passed": true,
-        "judgeNotes": "Identifies missing authenticated table grants, adds SELECT and INSERT only to authenticated, and preserves enabled owner-scoped RLS. Clearly distinguishes table access privileges from row-level restrictions."
+        "judgeNotes": "Correctly identifies missing authenticated table grants, adds only SELECT and INSERT for authenticated, and preserves enabled RLS and existing owner-scoped policies. Clearly distinguishes Data API privileges from row-level authorization."
       }
     ],
     "skills": {
@@ -3675,117 +3759,96 @@
     "docs": {
       "calls": [
         {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"monitoring and debugging empty results RLS PostgREST\", limit: 5) { nodes { title href content } }",
-          "hasContent": true,
-          "pages": []
-        },
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"row level security auth.uid() policy SELECT INSERT table authenticated\", limit: 5) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
-              "title": "Row Level Security"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/api/securing-your-api",
-              "title": "Securing your API"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/database/postgres/column-level-security",
-              "title": "Column Level Security"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/auth/auth-mfa",
-              "title": "Multi-Factor Authentication"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
-              "title": "Advanced pgTAP Testing"
-            }
-          ],
-          "resultChars": 97077
-        },
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"grant privileges table authenticated Data API public schema\", limit: 3) { nodes { title href content } }",
-          "hasContent": true,
-          "pages": []
-        },
-        {
-          "source": "search_docs",
-          "query": "{ searchDocs(query: \"Monitoring and Debugging PostgREST RLS database logs\", limit: 3) { nodes { title href content } } }",
-          "hasContent": true,
-          "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/realtime/postgres-changes",
-              "title": "Postgres Changes"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/observability/reports",
-              "title": "Reports"
-            },
-            {
-              "url": "https://supabase.com/docs/guides/realtime/authorization",
-              "title": "Realtime Authorization"
-            }
-          ],
-          "resultChars": 99064
-        },
-        {
           "source": "shell_fetch",
-          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -80'",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/changelog.md | head -100'",
           "hasContent": true,
           "pages": [
             {
               "url": "https://supabase.com/changelog.md"
             }
           ],
-          "resultChars": 4070
+          "resultChars": 4904
         },
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"monitoring debugging\", limit: 3) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"Monitoring and Debugging empty results RLS Data API permissions grant authenticated\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
-              "url": "https://supabase.com/docs/guides/observability/reports",
-              "title": "Reports"
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/postgres/data-deletion",
-              "title": "Deleting data and dropping objects safely"
+              "url": "https://supabase.com/docs/guides/auth/third-party/custom-oidc",
+              "title": "Custom OIDC provider"
             },
             {
-              "url": "https://supabase.com/docs/guides/platform/performance",
-              "title": "Performance Tuning"
+              "url": "https://supabase.com/docs/guides/storage/debugging/error-codes",
+              "title": "Error Codes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/oauth-server/token-security",
+              "title": "Token Security and Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/storage/buckets/fundamentals",
+              "title": "Storage Buckets"
             }
           ],
-          "resultChars": 46940
+          "resultChars": 57933
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Supabase Monitoring and Debugging guide troubleshoot empty results Data API RLS errors\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/connecting-to-postgres",
+              "title": "Connect to your database"
+            }
+          ],
+          "resultChars": 69185
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/docs/guides/monitoring-and-debugging.md | head -50'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/monitoring-and-debugging.md"
+            }
+          ],
+          "resultChars": 4026
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 297019,
-        "cacheReadInputTokens": 248741,
-        "cacheWriteInputTokens": 48245,
-        "outputTokens": 6358
+        "inputTokens": 307004,
+        "cacheReadInputTokens": 261199,
+        "cacheWriteInputTokens": 45769,
+        "outputTokens": 6602
       }
     ],
-    "stepCount": 11,
-    "toolCallCount": 20,
-    "agentRunDurationMs": 86276,
+    "stepCount": 12,
+    "toolCallCount": 18,
+    "agentRunDurationMs": 98902,
     "sandboxUsage": {
-      "activeCpuDurationMs": 254975,
-      "duration": 242140,
+      "activeCpuDurationMs": 363231,
+      "duration": 297244,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 1634978870,
-        "egress": 8598458
+        "ingress": 1630542907,
+        "egress": 5562567
       }
     },
     "prompt": "Our app lets signed-in users keep a private journal. Entries are stored in the `journal_entries` table. A user should only ever see their own, and they need to be able to create new entries from the app.\n\nI can see the rows when I query the table directly, but the journal page shows an empty list for every signed-in user. New entries don't show up after saving either. Please figure out why and fix it. The local Supabase project in `supabase/` is already running, so apply your fix to it.",
@@ -8314,7 +8377,7 @@
       {
         "name": "diagnosed secure default grants without weakening RLS",
         "passed": true,
-        "judgeNotes": "Identifies missing authenticated table grants, adds only SELECT and INSERT for authenticated, and preserves existing owner-scoped RLS. Clearly distinguishes API privileges from row-level access and verifies cross-user isolation."
+        "judgeNotes": "Identified missing authenticated table privileges, added SELECT and INSERT grants only to authenticated, and preserved existing owner-scoped RLS policies without disabling RLS or granting anon/public access."
       }
     ],
     "skills": {
@@ -8325,7 +8388,7 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"grant privileges tables authenticated row level security select insert\", limit: 5) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"Row Level Security policies auth.uid insert select\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
             {
@@ -8333,45 +8396,45 @@
               "title": "Row Level Security"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/postgres/column-level-security",
-              "title": "Column Level Security"
-            },
-            {
               "url": "https://supabase.com/docs/guides/api/securing-your-api",
               "title": "Securing your API"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/postgres/roles",
-              "title": "Postgres Roles"
+              "url": "https://supabase.com/docs/guides/database/postgres/column-level-security",
+              "title": "Column Level Security"
             },
             {
               "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
               "title": "Advanced pgTAP Testing"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
             }
           ],
-          "resultChars": 86572
+          "resultChars": 93255
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 181856,
-        "cacheReadInputTokens": 147209,
-        "cacheWriteInputTokens": 34617,
-        "outputTokens": 3291
+        "inputTokens": 374506,
+        "cacheReadInputTokens": 332790,
+        "cacheWriteInputTokens": 41665,
+        "outputTokens": 8544
       }
     ],
-    "stepCount": 10,
-    "toolCallCount": 11,
-    "agentRunDurationMs": 59091,
+    "stepCount": 17,
+    "toolCallCount": 20,
+    "agentRunDurationMs": 118194,
     "sandboxUsage": {
-      "activeCpuDurationMs": 338459,
-      "duration": 250326,
+      "activeCpuDurationMs": 281374,
+      "duration": 283755,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 1628949778,
-        "egress": 4556804
+        "ingress": 1634542100,
+        "egress": 8529257
       }
     },
     "prompt": "Our app lets signed-in users keep a private journal. Entries are stored in the `journal_entries` table. A user should only ever see their own, and they need to be able to create new entries from the app.\n\nI can see the rows when I query the table directly, but the journal page shows an empty list for every signed-in user. New entries don't show up after saving either. Please figure out why and fix it. The local Supabase project in `supabase/` is already running, so apply your fix to it.",
@@ -8445,7 +8508,7 @@
       {
         "name": "diagnosed secure default grants without weakening RLS",
         "passed": true,
-        "judgeNotes": "Correctly identifies missing authenticated table grants despite existing RLS, adds SELECT and INSERT only for authenticated, and preserves owner-scoped RLS and anonymous restrictions."
+        "judgeNotes": "Identifies missing authenticated table privileges, adds SELECT and INSERT grants only to authenticated, and preserves the existing owner-scoped RLS policies."
       }
     ],
     "skills": {
@@ -8456,13 +8519,9 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"grant select insert authenticated row level security table API privileges\", limit: 5) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"Row Level Security policies auth.uid insert select table policy\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
-            {
-              "url": "https://supabase.com/docs/guides/api/securing-your-api",
-              "title": "Securing your API"
-            },
             {
               "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
               "title": "Row Level Security"
@@ -8472,37 +8531,41 @@
               "title": "Column Level Security"
             },
             {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
               "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
               "title": "Advanced pgTAP Testing"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/postgres/roles",
-              "title": "Postgres Roles"
+              "url": "https://supabase.com/docs/guides/getting-started/features",
+              "title": "Features"
             }
           ],
-          "resultChars": 86572
+          "resultChars": 93255
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 203525,
-        "cacheReadInputTokens": 169160,
-        "cacheWriteInputTokens": 34329,
-        "outputTokens": 3399
+        "inputTokens": 155078,
+        "cacheReadInputTokens": 122374,
+        "cacheWriteInputTokens": 32677,
+        "outputTokens": 2750
       }
     ],
-    "stepCount": 12,
-    "toolCallCount": 11,
-    "agentRunDurationMs": 62659,
+    "stepCount": 9,
+    "toolCallCount": 10,
+    "agentRunDurationMs": 49528,
     "sandboxUsage": {
-      "activeCpuDurationMs": 255411,
-      "duration": 218590,
+      "activeCpuDurationMs": 238098,
+      "duration": 201799,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 1632792905,
-        "egress": 6805536
+        "ingress": 1633259300,
+        "egress": 6867951
       }
     },
     "prompt": "Our app lets signed-in users keep a private journal. Entries are stored in the `journal_entries` table. A user should only ever see their own, and they need to be able to create new entries from the app.\n\nI can see the rows when I query the table directly, but the journal page shows an empty list for every signed-in user. New entries don't show up after saving either. Please figure out why and fix it. The local Supabase project in `supabase/` is already running, so apply your fix to it.",
@@ -8576,7 +8639,7 @@
       {
         "name": "diagnosed secure default grants without weakening RLS",
         "passed": true,
-        "judgeNotes": "Correctly identifies missing authenticated table grants, grants only SELECT and INSERT to authenticated, and preserves existing owner-scoped RLS. Clearly distinguishes table access privileges from row-level restrictions."
+        "judgeNotes": "Identifies missing authenticated table grants separately from existing owner-scoped RLS, grants only SELECT and INSERT to authenticated, revokes anon privileges, and leaves RLS enabled and unchanged."
       }
     ],
     "skills": {
@@ -8587,9 +8650,13 @@
       "calls": [
         {
           "source": "search_docs",
-          "query": "{ searchDocs(query: \"table privileges grants authenticated role Data API RLS select insert\", limit: 5) { nodes { title href content } } }",
+          "query": "{ searchDocs(query: \"Row Level Security policies auth.uid insert select table migration\", limit: 5) { nodes { title href content } } }",
           "hasContent": true,
           "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/column-level-security",
+              "title": "Column Level Security"
+            },
             {
               "url": "https://supabase.com/docs/guides/api/securing-your-api",
               "title": "Securing your API"
@@ -8599,41 +8666,77 @@
               "title": "Row Level Security"
             },
             {
-              "url": "https://supabase.com/docs/guides/database/postgres/column-level-security",
-              "title": "Column Level Security"
+              "url": "https://supabase.com/docs/guides/auth/auth-mfa",
+              "title": "Multi-Factor Authentication"
             },
             {
-              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
-              "title": "Advanced pgTAP Testing"
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-ionic-react",
+              "title": "Build a User Management App with Ionic React"
+            }
+          ],
+          "resultChars": 102870
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"secure default privileges Data API grant authenticated table privileges auto_expose_new_tables\", limit: 8) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/using-custom-schemas",
+              "title": "Using Custom Schemas"
             },
             {
               "url": "https://supabase.com/docs/guides/database/secure-data",
               "title": "Securing your data"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/roles",
+              "title": "Postgres Roles"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/postgres-changes",
+              "title": "Postgres Changes"
+            },
+            {
+              "url": "https://supabase.com/kb/troubleshooting/cant-change-the-default-privileges-of-supabase_admin-in-the-public-schema-448af9",
+              "title": "Can't change the default privileges of supabase_admin in the public schema"
+            },
+            {
+              "url": "https://supabase.com/kb/troubleshooting/database-api-42501-errors",
+              "title": "Database API 42501 errors"
+            },
+            {
+              "url": "https://supabase.com/kb/troubleshooting/why-is-my-select-returning-an-empty-data-array-and-i-have-data-in-the-table-xvOPgx",
+              "title": "Why is my select returning an empty data array and I have data in the table?"
             }
           ],
-          "resultChars": 83318
+          "resultChars": 87041
         }
       ]
     },
     "usage": [
       {
         "model": "gpt-6-luna",
-        "inputTokens": 135816,
-        "cacheReadInputTokens": 102625,
-        "cacheWriteInputTokens": 33167,
-        "outputTokens": 3015
+        "inputTokens": 179658,
+        "cacheReadInputTokens": 142229,
+        "cacheWriteInputTokens": 37402,
+        "outputTokens": 3537
       }
     ],
-    "stepCount": 8,
-    "toolCallCount": 12,
-    "agentRunDurationMs": 50501,
+    "stepCount": 9,
+    "toolCallCount": 11,
+    "agentRunDurationMs": 59581,
     "sandboxUsage": {
-      "activeCpuDurationMs": 341583,
-      "duration": 244606,
+      "activeCpuDurationMs": 368516,
+      "duration": 265832,
       "memory": 8192,
       "networkTransfer": {
-        "ingress": 1628111049,
-        "egress": 4224296
+        "ingress": 1629284745,
+        "egress": 4683981
       }
     },
     "prompt": "Our app lets signed-in users keep a private journal. Entries are stored in the `journal_entries` table. A user should only ever see their own, and they need to be able to create new entries from the app.\n\nI can see the rows when I query the table directly, but the journal page shows an empty list for every signed-in user. New entries don't show up after saving either. Please figure out why and fix it. The local Supabase project in `supabase/` is already running, so apply your fix to it.",
