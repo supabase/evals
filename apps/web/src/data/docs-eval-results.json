@@ -14275,5 +14275,568 @@
     "promptSourcePath": "evals/docs/build-docs-018-redirect-urls/PROMPT.md",
     "run": 3,
     "sourcePath": "docs/codex-gpt-6-luna-no-skills/build-docs-018-redirect-urls/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-021-email-templates",
+    "stage": "build",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "the local stack starts with the project settings",
+        "passed": true,
+        "notes": "supabase start exited 0"
+      },
+      {
+        "name": "signing up sends an email to the new user",
+        "passed": true,
+        "notes": "\"Welcome to Harbour Studio, confirm your email\""
+      },
+      {
+        "name": "the sign-up email has the subject the team wrote",
+        "passed": true,
+        "notes": "subject was \"Welcome to Harbour Studio, confirm your email\""
+      },
+      {
+        "name": "the sign-up email carries the heading, message and button the team wrote",
+        "passed": true,
+        "notes": "all three present"
+      },
+      {
+        "name": "the sign-up email says hi to the person by their nickname",
+        "passed": true,
+        "notes": "greets the nickname given at sign-up"
+      },
+      {
+        "name": "the button in the sign-up email confirms the person",
+        "passed": true,
+        "notes": "followed the verify link, the user is confirmed"
+      },
+      {
+        "name": "other emails are still the standard ones",
+        "passed": true,
+        "notes": "the password reset and magic link emails are the standard ones"
+      },
+      {
+        "name": "the agent read the email templates guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, search_docs, search_docs, search_docs, search_docs"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/auth/auth-email-templates.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-email-templates.md"
+            }
+          ]
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Auth email templates confirmation URL ConfirmationURL RedirectTo auth email templates\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs",
+              "title": "Build a User Management App with Next.js"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/customizing-email-templates",
+              "title": "Customizing email templates"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit",
+              "title": "Build a User Management App with SvelteKit"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-email-templates",
+              "title": "Email Templates"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/redirect-urls",
+              "title": "Redirect URLs"
+            }
+          ],
+          "resultChars": 120581
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"auth-email-templates confirmation email template {{ .ConfirmationURL }} auth.email.template.confirmation\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs",
+              "title": "Build a User Management App with Next.js"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit",
+              "title": "Build a User Management App with SvelteKit"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/customizing-email-templates",
+              "title": "Customizing email templates"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-email-templates",
+              "title": "Email Templates"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/redirect-urls",
+              "title": "Redirect URLs"
+            }
+          ],
+          "resultChars": 120581
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/auth/auth-email-templates.md \"ConfirmationURL\" \"Subject\"",
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Email Templates guide custom confirmation email ConfirmationURL Data nickname\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/customizing-email-templates",
+              "title": "Customizing email templates"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs",
+              "title": "Build a User Management App with Next.js"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit",
+              "title": "Build a User Management App with SvelteKit"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-email-templates",
+              "title": "Email Templates"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/redirect-urls",
+              "title": "Redirect URLs"
+            }
+          ],
+          "resultChars": 120581
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"email template user metadata .Data raw_user_meta_data nickname Supabase auth email templates\", limit: 3) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-email-templates",
+              "title": "Email Templates"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/custom-email-templates",
+              "title": "Custom Email Templates"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/customizing-email-templates",
+              "title": "Customizing email templates"
+            }
+          ],
+          "resultChars": 36142
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 273687,
+        "cacheReadInputTokens": 220591,
+        "cacheWriteInputTokens": 45987,
+        "outputTokens": 5661
+      }
+    ],
+    "stepCount": 12,
+    "toolCallCount": 16,
+    "agentRunDurationMs": 90362,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 256507,
+      "duration": 266401,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1638971815,
+        "egress": 9861756
+      }
+    },
+    "prompt": "New people who sign up for Harbour Studio get nothing like what we want to\nsay to them. The wording for the sign-up email is in EMAIL_COPY.md, and\nsrc/sign-up.ts is how the app signs people up.\n\nMake the local project send that email when someone signs up, and say hi to\nthem by the nickname they typed in. Their email has to actually get them\nconfirmed when they use the button. Leave every other email we send as it is.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/auth/auth-email-templates.md",
+    "promptSourcePath": "evals/docs/build-docs-021-email-templates/PROMPT.md",
+    "run": 1,
+    "sourcePath": "docs/codex-gpt-6-luna-no-skills/build-docs-021-email-templates/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-021-email-templates",
+    "stage": "build",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "the local stack starts with the project settings",
+        "passed": true,
+        "notes": "supabase start exited 0"
+      },
+      {
+        "name": "signing up sends an email to the new user",
+        "passed": true,
+        "notes": "\"Welcome to Harbour Studio, confirm your email\""
+      },
+      {
+        "name": "the sign-up email has the subject the team wrote",
+        "passed": true,
+        "notes": "subject was \"Welcome to Harbour Studio, confirm your email\""
+      },
+      {
+        "name": "the sign-up email carries the heading, message and button the team wrote",
+        "passed": true,
+        "notes": "all three present"
+      },
+      {
+        "name": "the sign-up email says hi to the person by their nickname",
+        "passed": true,
+        "notes": "greets the nickname given at sign-up"
+      },
+      {
+        "name": "the button in the sign-up email confirms the person",
+        "passed": true,
+        "notes": "followed the verify link, the user is confirmed"
+      },
+      {
+        "name": "other emails are still the standard ones",
+        "passed": true,
+        "notes": "the password reset and magic link emails are the standard ones"
+      },
+      {
+        "name": "the agent read the email templates guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, web_search, web_search, search_docs, search_docs"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/auth/auth-email-templates.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-email-templates.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/auth/auth-email-templates auth-email-templates.md confirmation template content_file config.toml",
+          "pages": []
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/auth/auth-email-templates",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-email-templates"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/auth/auth-email-templates",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-email-templates"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/auth/auth-email-templates \"content_path\"",
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"auth email templates local config content_path confirmation ConfirmationURL Data nickname\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/customizing-email-templates",
+              "title": "Customizing email templates"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs",
+              "title": "Build a User Management App with Next.js"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit",
+              "title": "Build a User Management App with SvelteKit"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-email-templates",
+              "title": "Email Templates"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/custom-email-templates",
+              "title": "Custom Email Templates"
+            }
+          ],
+          "resultChars": 118692
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"email template user metadata .Data nickname auth email templates\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/customizing-email-templates",
+              "title": "Customizing email templates"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-email-templates",
+              "title": "Email Templates"
+            }
+          ],
+          "resultChars": 28660
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 268740,
+        "cacheReadInputTokens": 201223,
+        "cacheWriteInputTokens": 38865,
+        "outputTokens": 5294
+      }
+    ],
+    "stepCount": 13,
+    "toolCallCount": 17,
+    "agentRunDurationMs": 85931,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 263721,
+      "duration": 266187,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1639054683,
+        "egress": 9309120
+      }
+    },
+    "prompt": "New people who sign up for Harbour Studio get nothing like what we want to\nsay to them. The wording for the sign-up email is in EMAIL_COPY.md, and\nsrc/sign-up.ts is how the app signs people up.\n\nMake the local project send that email when someone signs up, and say hi to\nthem by the nickname they typed in. Their email has to actually get them\nconfirmed when they use the button. Leave every other email we send as it is.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/auth/auth-email-templates.md",
+    "promptSourcePath": "evals/docs/build-docs-021-email-templates/PROMPT.md",
+    "run": 2,
+    "sourcePath": "docs/codex-gpt-6-luna-no-skills/build-docs-021-email-templates/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-021-email-templates",
+    "stage": "build",
+    "product": [
+      "auth"
+    ],
+    "topic": [
+      "security"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": true,
+    "checks": [
+      {
+        "name": "the local stack starts with the project settings",
+        "passed": true,
+        "notes": "supabase start exited 0"
+      },
+      {
+        "name": "signing up sends an email to the new user",
+        "passed": true,
+        "notes": "\"Welcome to Harbour Studio, confirm your email\""
+      },
+      {
+        "name": "the sign-up email has the subject the team wrote",
+        "passed": true,
+        "notes": "subject was \"Welcome to Harbour Studio, confirm your email\""
+      },
+      {
+        "name": "the sign-up email carries the heading, message and button the team wrote",
+        "passed": true,
+        "notes": "all three present"
+      },
+      {
+        "name": "the sign-up email says hi to the person by their nickname",
+        "passed": true,
+        "notes": "greets the nickname given at sign-up"
+      },
+      {
+        "name": "the button in the sign-up email confirms the person",
+        "passed": true,
+        "notes": "followed the verify link, the user is confirmed"
+      },
+      {
+        "name": "other emails are still the standard ones",
+        "passed": true,
+        "notes": "the password reset and magic link emails are the standard ones"
+      },
+      {
+        "name": "the agent read the email templates guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, web_search, search_docs"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/auth/auth-email-templates.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-email-templates.md"
+            }
+          ]
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"customizing email templates config.toml confirmation path template subject auth.email.template.confirmation\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/local-development/customizing-email-templates",
+              "title": "Customizing email templates"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit",
+              "title": "Build a User Management App with SvelteKit"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs",
+              "title": "Build a User Management App with Next.js"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/self-hosting/custom-email-templates",
+              "title": "Custom Email Templates"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/redirect-urls",
+              "title": "Redirect URLs"
+            }
+          ],
+          "resultChars": 110912
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/auth/auth-email-templates.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-email-templates.md"
+            }
+          ]
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"auth email template user metadata .Data nickname confirmation URL token hash button\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs",
+              "title": "Build a User Management App with Next.js"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/getting-started/tutorials/with-sveltekit",
+              "title": "Build a User Management App with SvelteKit"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/customizing-email-templates",
+              "title": "Customizing email templates"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-email-templates",
+              "title": "Email Templates"
+            }
+          ],
+          "resultChars": 111210
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 254421,
+        "cacheReadInputTokens": 205826,
+        "cacheWriteInputTokens": 39529,
+        "outputTokens": 4925
+      }
+    ],
+    "stepCount": 12,
+    "toolCallCount": 17,
+    "agentRunDurationMs": 79615,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 254567,
+      "duration": 257901,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1637347426,
+        "egress": 8681400
+      }
+    },
+    "prompt": "New people who sign up for Harbour Studio get nothing like what we want to\nsay to them. The wording for the sign-up email is in EMAIL_COPY.md, and\nsrc/sign-up.ts is how the app signs people up.\n\nMake the local project send that email when someone signs up, and say hi to\nthem by the nickname they typed in. Their email has to actually get them\nconfirmed when they use the button. Leave every other email we send as it is.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/auth/auth-email-templates.md",
+    "promptSourcePath": "evals/docs/build-docs-021-email-templates/PROMPT.md",
+    "run": 3,
+    "sourcePath": "docs/codex-gpt-6-luna-no-skills/build-docs-021-email-templates/run-3/result.json"
   }
 ]
