@@ -91,9 +91,11 @@ const scorer: ToolScorer = async (ctx) => {
         written.stderr.trim() || written.stdout.trim()
       );
     }
-    // Client-side code: only the publishable key is handed to the app.
+    // Client-side code: only the publishable key is handed to the app. The
+    // sandbox env also holds the secret key (the agent needs it for
+    // migrations), so unset it for this process.
     const run = await sandbox.exec(
-      `cd ${APP_DIR} && node ${DRIVER} "${email}" "${password}" "${displayName}" "${wrongPassword}"`,
+      `cd ${APP_DIR} && env -u SPARK_SECRET_KEY node ${DRIVER} "${email}" "${password}" "${displayName}" "${wrongPassword}"`,
       {
         timeoutMs: 60_000,
         env: {
