@@ -7,6 +7,7 @@ import {
 import {
   checkButton,
   checkCopy,
+  checkHeadsUp,
   checkNickname,
   checkOthers,
   checkSent,
@@ -30,6 +31,7 @@ const scorer: LocalStackScorer = async (ctx) => {
       checkCopy(probe),
       checkNickname(probe),
       checkButton(probe),
+      checkHeadsUp(probe),
       checkOthers(probe),
       checkGuideWasRead(ctx),
     ];

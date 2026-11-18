@@ -15,6 +15,7 @@ export type Probe = Step & {
   confirmed: boolean | null;
   recovery: Mail | null;
   magicLink: Mail | null;
+  passwordChange: Mail | null;
 };
 
 export const CHECK = {
@@ -24,10 +25,14 @@ export const CHECK = {
   copy: 'the sign-up email carries the heading, message and button the team wrote',
   nickname: 'the sign-up email says hi to the person by their nickname',
   button: 'the button in the sign-up email confirms the person',
+  heads: 'changing a password sends the heads-up email the team wrote',
   others: 'other emails are still the standard ones',
 } as const;
 
 export const SUBJECT = 'Welcome to Harbour Studio, confirm your email';
+const HEADS_SUBJECT = 'Your Harbour Studio password was changed';
+const HEADS_MESSAGE =
+  'If this was not you, reply to this email and we will lock your account';
 const HEADING = 'You are almost in';
 const MESSAGE = 'one tap and you can book your first class';
 const BUTTON = 'Confirm and book';
@@ -57,6 +62,7 @@ const admin = process.env.P_ADMIN;
 const mailpit = process.env.P_MAILPIT;
 const email = process.env.P_EMAIL;
 const other = process.env.P_OTHER;
+const third = process.env.P_THIRD;
 const nickname = process.env.P_NICKNAME;
 const button = process.env.P_BUTTON;
 const json = (key) => ({ apikey: key, Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' });
@@ -78,7 +84,7 @@ async function next(address) {
   }
   return null;
 }
-const out = { signUpStatus: 0, signedUp: null, link: null, recovery: null, magicLink: null };
+const out = { signUpStatus: 0, signedUp: null, link: null, recovery: null, magicLink: null, passwordChange: null };
 const signUp = await fetch(api + '/auth/v1/signup', {
   method: 'POST',
   headers: json(anon),
@@ -128,6 +134,26 @@ if (created.ok) {
   await fetch(api + '/auth/v1/otp', { method: 'POST', headers: json(anon), body: JSON.stringify({ email: other, create_user: false }) });
   out.magicLink = await next(other);
 }
+const made = await fetch(api + '/auth/v1/admin/users', {
+  method: 'POST',
+  headers: json(admin),
+  body: JSON.stringify({ email: third, password: 'Harbour-old-9', email_confirm: true }),
+});
+if (made.ok) {
+  const session = await fetch(api + '/auth/v1/token?grant_type=password', {
+    method: 'POST',
+    headers: json(anon),
+    body: JSON.stringify({ email: third, password: 'Harbour-old-9' }),
+  }).then((r) => r.json()).catch(() => ({}));
+  if (session.access_token) {
+    await fetch(api + '/auth/v1/user', {
+      method: 'PUT',
+      headers: { apikey: anon, Authorization: 'Bearer ' + session.access_token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: 'Harbour-new-9' }),
+    });
+    out.passwordChange = await next(third);
+  }
+}
 console.log(JSON.stringify(out));
 `;
 
@@ -144,6 +170,7 @@ export async function probeEmails(ctx: Query, started: Step): Promise<Probe> {
     confirmed: null,
     recovery: null,
     magicLink: null,
+    passwordChange: null,
   };
   if (!started.ok) return { ...empty, message: started.message };
   try {
@@ -155,6 +182,7 @@ export async function probeEmails(ctx: Query, started: Step): Promise<Probe> {
       `P_MAILPIT='${stack.mailpit}'`,
       `P_EMAIL='${empty.email}'`,
       `P_OTHER='reset-${run}@example.test'`,
+      `P_THIRD='change-${run}@example.test'`,
       `P_NICKNAME='${empty.nickname}'`,
       `P_BUTTON='${BUTTON}'`,
     ].join(' ');
@@ -264,6 +292,30 @@ export function checkButton(probe: Probe): CheckResult {
       ? `followed the ${link?.kind}, the user is confirmed`
       : link?.error ||
         `followed the ${link?.kind} (status ${link?.status}), the user is ${probe.confirmed === null ? 'missing' : 'not confirmed'}`,
+  };
+}
+
+export function checkHeadsUp(probe: Probe): CheckResult {
+  if (!probe.ok) return blocked(CHECK.heads, probe);
+  const mail = probe.passwordChange;
+  if (!mail) {
+    return {
+      name: CHECK.heads,
+      passed: false,
+      notes: 'no email reached the inbox within 20s of the password change',
+    };
+  }
+  const missing = [
+    mail.subject === HEADS_SUBJECT ? '' : `subject "${mail.subject}"`,
+    plain(mail.html).includes(HEADS_MESSAGE) ? '' : 'the message',
+  ].filter(Boolean);
+  return {
+    name: CHECK.heads,
+    passed: missing.length === 0,
+    notes:
+      missing.length === 0
+        ? `"${mail.subject}"`
+        : `arrived, but the wording is off: ${missing.join(', ')}`,
   };
 }
 

@@ -14,7 +14,8 @@ motivation: >-
   reaches the person signing up, or that the button in it no longer works.
   This checks that an agent reading the Email Templates guide makes the
   sign-up email the team wrote arrive, in the person's name, with a button
-  that confirms them. The prompt omits the page's vocabulary on purpose, so
+  that confirms them, and that a password change sends the heads-up the team
+  wrote. The prompt omits the page's vocabulary on purpose, so
   read README.md before editing it.
 ---
 
@@ -24,7 +25,11 @@ src/sign-up.ts is how the app signs people up.
 
 Make the local project send that email when someone signs up, and say hi to
 them by the nickname they typed in. Their email has to actually get them
-confirmed when they use the button. Leave every other email we send as it is.
+confirmed when they use the button.
+
+People should also get a short heads-up email whenever their password changes,
+with the wording for it in the same file. Leave every other email we send as it
+is.
 
 Read the guide below before you start and rely on it for how to set this up,
 rather than on what you already know.
