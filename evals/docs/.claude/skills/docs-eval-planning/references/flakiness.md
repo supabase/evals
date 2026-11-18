@@ -307,9 +307,9 @@ Add to this file. A documentation eval is not finished until whatever went wrong
 - **Removing the cue from the seed did not stop agents enabling the setting the page never mentions.** Three
   runs set `enable_confirmations = true` with the seed's `config.toml` showing a visible `false`. After the line
   was deleted and a second email needing two unmentioned settings was added (`password_changed` with `enabled`),
-  three more runs still scored every check. Their own searches name `enable_confirmations` and
-  `auth.email.notification.password_changed` before any page they read mentions either, so the keys came from
-  the model. The checks fail the right fixtures and still measure the model, not the guides. #528
+  three more runs still scored every check. All three searched the docs for `enable_confirmations` by name. The
+  page lacks that key, so it came from the model or from a search result, and the transcripts can't say which.
+  The checks fail the right fixtures, but a pass does not show the guide carried the run. #528
   **Fix.** None at the seed level. Ask for an unread arm before claiming the page carried the run.
 - **Most baseline agents did not run the stack.** In the first baseline none started Supabase, signed up, or
   opened Mailpit. In the second, one signed up and read Mailpit and two only started the stack. The scorer's
