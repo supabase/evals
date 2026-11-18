@@ -59,6 +59,18 @@ Add to this file. A documentation eval is not finished until whatever went wrong
   **Fix.** Add a permissive `using (true)` policy, rerun the suite, require a failure, and drop the
   policy. Run the suite just before so the failure can only come from the opened read.
 
+- **A check that reads one of many sibling outputs claims all of them.** `other emails are still the standard
+  ones` read only the password reset email, so a project that pointed the magic link, invite, email change and
+  reauthentication templates at the new copy scored green. The README repeated the claim. #528
+  **Fix.** Probe each sibling the claim names, or name the check after the one it reads and list the rest as
+  unscored.
+- **A "not customized" check pinned to a platform default reports a CLI upgrade as a docs change.** The standard
+  subjects (`Reset your password`, `Your sign-in link`) are what the pinned CLI sends. #528
+  **Fix.** Say in the README that the strings are pinned, so a red after an upgrade is read as one.
+- **A rule in the seed's own copy file has no check.** `EMAIL_COPY.md` said the email has no code, and a template
+  adding `{{ .Token }}` passed. Text in `<head><title>` also satisfied a heading check. #528
+  **Fix.** Read only the body, and assert the negative rules the seed states.
+
 ## False red: the check fails correct work
 
 - **A structural read of where code sits.** Requiring the client constructor at module scope red a
@@ -116,6 +128,10 @@ Add to this file. A documentation eval is not finished until whatever went wrong
 - **Extension-owned objects land in scope.** pgTAP creates views in `public` when installed there. #168
   **Fix.** Anti-join `pg_depend` on `deptype = 'e'`.
 
+- **A parser that handles quoted attributes only reds a working link.** Mailpit returns an unquoted `href` with
+  `=` written as `&#61;`, so the link parsed as having no token. #528
+  **Fix.** Accept unquoted values and decode numeric entities before reading the url.
+
 ## Nondeterminism
 
 - **Judge variance was misdiagnosed twice.** A rubric's complaint changed run to run. The first
@@ -141,6 +157,11 @@ Add to this file. A documentation eval is not finished until whatever went wrong
   from.
 - **Fixed marker literals leak between runs.** #168
   **Fix.** Scope markers to the run.
+
+- **A second email to the same user within `max_frequency` is dropped without an error.** The scorer sent a
+  password reset and then a magic link one request apart, and the second never reached Mailpit even though the
+  request returned 200. #528
+  **Fix.** Wait longer than `max_frequency` between emails to one address, or use a different address for each.
 
 ## Crashes and contamination
 
@@ -221,6 +242,10 @@ Add to this file. A documentation eval is not finished until whatever went wrong
   broken branch. #259
   **Fix.** Scope Biome to the paths you touched, or add those three to `biome.json`.
 
+- **A killed `supabase start` leaves a half-removed stack.** The next start failed with
+  `No such container: supabase_kong_<project-id>` and every check red as not run. #528
+  **Fix.** Remove the project's containers before rescoring.
+
 ## Metadata
 
 - **An optional dimension is a silent hole.** `interface:` was optional, so six scenarios never
@@ -278,6 +303,15 @@ Add to this file. A documentation eval is not finished until whatever went wrong
   **Fix.** Silence the status call's stderr, hoist `ERROR`, `FATAL`, `DETAIL` and `HINT` to the front of
   the message, and check which services the eval actually starts before reading `Stopped services` as a
   fault.
+
+- **Every baseline agent enabled the setting the page never mentions, without the page.** All three runs set
+  `enable_confirmations = true`, because the seed's `config.toml` shows `enable_confirmations = false` next to
+  where the template goes and the prompt asks for an email on sign-up. The check built to catch a page-only
+  reader passed 3 of 3, so it measures the seed's cue and not the guides. #528
+  **Fix.** None yet. Name it in the README and ask for an unread arm before saying the guide carried the run.
+- **No baseline agent ran the stack.** None started Supabase, signed up, or opened Mailpit, and two said so in
+  their reports. The scorer's end-to-end checks passed anyway, so the eval scores what an agent writes and not
+  whether it verified it. #528
 
 ## Process
 
