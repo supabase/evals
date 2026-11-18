@@ -25,11 +25,6 @@ import {
   runProbe,
 } from './probes.js';
 import { checkReplayClearsFindings, REPLAY_CHECK } from './replay.js';
-import {
-  checkReportMentionsUnusedIndexes,
-  REPORT_CHECK,
-  readUnusedIndexes,
-} from './report.js';
 
 const GUIDE_PATH = 'guides/observability/advisors';
 
@@ -39,7 +34,6 @@ const scorer: LocalStackScorer = async (ctx) => {
     const query: Query = (sql) => ctx.query(sql);
     const run: Run = (sql) => execSql(ctx, sql, { tuplesOnly: true });
 
-    const unused = await readUnusedIndexes(query);
     const tables = await guard(TABLES_CHECK, () =>
       checkSeededTablesAreTables(query)
     );
@@ -50,13 +44,6 @@ const scorer: LocalStackScorer = async (ctx) => {
     const replay = await guard(REPLAY_CHECK, () =>
       checkReplayClearsFindings(run, ctx.hostWorkspace)
     );
-    const report = await guard(REPORT_CHECK, () =>
-      checkReportMentionsUnusedIndexes(
-        (args) => ctx.judge(args),
-        ctx.agentReport,
-        unused
-      )
-    );
 
     const checks: CheckResult[] = [
       checkMigrationsWereApplied(migrations),
@@ -65,7 +52,6 @@ const scorer: LocalStackScorer = async (ctx) => {
       findings,
       checkRelationshipsRefuseOrphans(probe),
       checkTwoAppointmentsBooked(probe),
-      report,
       checkGuideWasRead(ctx),
     ];
 

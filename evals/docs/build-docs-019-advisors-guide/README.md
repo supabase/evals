@@ -69,11 +69,10 @@ for an extension the stack already has.
 
 1. Apply pending migrations, so the catalog reads the agent's final schema. This writes to the database, so scoring
    the same stack twice turns an unapplied migration from red to green on the second pass. Score once per stack.
-2. Read the unused-index findings for the report check, before the probe's inserts can give an index a scan.
-3. Check that the seeded tables are ordinary tables in `public`, then read the foreign key findings. Both are reads.
-4. Run the probe. It builds a clinic, a room and a practitioner with a run-scoped marker, attempts four inserts, and
+2. Check that the seeded tables are ordinary tables in `public`, then read the foreign key findings. Both are reads.
+3. Run the probe. It builds a clinic, a room and a practitioner with a run-scoped marker, attempts four inserts, and
    rolls everything back.
-5. Replay the migrations, also rolled back. It runs last because it drops `public` inside its transaction.
+4. Replay the migrations, also rolled back. It runs last because it drops `public` inside its transaction.
 
 ## Do not drop the positive controls
 
@@ -95,22 +94,6 @@ migration, with no reset, pass the replay and `the agent applied the migrations 
 already recorded, and fail `no relationship is flagged as missing a covering index`. The change is in the repo and
 not in the database.
 
-## The report check is a judge, scoped to one claim
-
-The prompt asks the agent to say what the checks show once it is done. An agent that runs `supabase db advisors` at
-the default level gets "No issues found" before and after the fix, while the unused-index findings remain at INFO
-level. Passing that output on to the user is the failure supabase/agent-skills#639 describes.
-
-`the report mentions the unused-index findings that remain` gives a judge the agent's final message and the ground
-truth: the unused-index findings the scorer reads from `pg_stat_user_indexes` with the `unused_index` lint
-predicate, limited to `public`. The judge passes a report that says, in any words, that indexes are flagged as unused.
-It fails one that calls the checks clean or leaves the remaining findings out. When none remain, it passes unless
-the report invents some. It does not grade the fix, other lints, tone, or length, and a close call passes. No final
-message fails the check.
-
-A query the agent ran itself can give a new index a scan, which clears its `unused_index` finding. The ground truth
-reads the state after the agent's work, so the judge grades the report against what is actually left.
-
 ## The guide has to actually be read
 
 `the agent read the advisors guide the prompt referenced` requires a docs call that reached the page with content.
@@ -120,11 +103,14 @@ Read `docs.calls` before reading a score. An empty one means the run measured th
 
 - **Whether the agent ran the advisors, and at which level.** The checks read the end state. The finding check
   mirrors the `unindexed_foreign_keys` lint predicate in SQL, so it reports what the advisors would show.
-- **`unused_index` findings in the schema.** One on each new index is expected, and no check fails on them. They are
-  the report check's ground truth. Dropping or keeping `appointments_room_calendar` is allowed.
+- **`unused_index` findings.** One on each new index is expected. Dropping or keeping `appointments_room_calendar`
+  is allowed.
 - **The total finding count.** It does not drop on a correct fix.
-- **Running queries to give a new index a scan.** It clears the `unused_index` finding without changing the schema.
-  The report check reads the findings after it, so a report that says none remain is then accurate.
+- **Running queries to give a new index a scan.** It hides the `unused_index` finding without changing the schema.
+  Nothing scores that lint, so it neither helps nor hurts.
+- **What the agent tells the user.** The prompt asks what the checks show afterwards. A report that promises a
+  lower count is the failure the evidence describes, but grading it needs a judge, and a judge on a secondary check
+  can fail the whole eval. The relationships and the index are scored instead.
 - **The `rls_disabled_in_public` errors.** The prompt asks about performance findings. Enabling row level security
   is accepted, and so is forcing it, because the probe connects as `postgres`, which row level security does not
   restrict on the local stack. Leaving it off is accepted too.
