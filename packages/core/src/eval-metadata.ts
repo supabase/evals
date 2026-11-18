@@ -405,6 +405,12 @@ export const docsResultSchema = z.object({
 });
 export type DocsResult = z.infer<typeof docsResultSchema>;
 
+const repoSourceSchema = z.object({
+  revision: z.string(),
+  commitSha: z.string().regex(/^[a-f0-9]{40}$/),
+});
+export type RepoSource = z.infer<typeof repoSourceSchema>;
+
 // Every dimension that has an authoring enum is enforced against that same
 // enum here — the enum is the single source of truth for both authoring
 // (evalMetadataSchema) and results. Result files are gitignored, regenerated
@@ -412,6 +418,7 @@ export type DocsResult = z.infer<typeof docsResultSchema>;
 // renamed stage or topic) fails to parse and is dropped from the export rather
 // than rendered with a stale value, and is rebuilt on the next run.
 const evalResultShape = {
+  repoSources: z.record(z.string(), repoSourceSchema).optional(),
   experiment: z.string(),
   experimentDisplay: experimentDisplayMetadataSchema.optional(),
   eval: z.string(),

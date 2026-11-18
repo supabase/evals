@@ -3,6 +3,7 @@ import type { CheckResult, LocalStackEvalContext } from '@supabase-evals/core';
 import { stripIndent } from 'common-tags';
 
 import type { StackState } from './stack.js';
+import { execSql } from '../lib/exec-sql.js';
 
 const PASSWORD = 'secret123';
 const FUNCTION = 'order-history';
@@ -240,31 +241,4 @@ async function send(
 function preview(body: string): string {
   const flat = body.replace(/\s+/g, ' ').trim();
   return flat.length > 200 ? `${flat.slice(0, 200)}…` : flat || '(empty)';
-}
-
-async function execSql(
-  ctx: LocalStackEvalContext,
-  sql: string
-): Promise<{ ok: boolean; stdout: string; message: string }> {
-  const encoded = Buffer.from(sql, 'utf8').toString('base64');
-  const result = await ctx.exec(
-    stripIndent`
-      DB_URL=$(supabase status -o json 2>/dev/null | node -e 'let input = ""; process.stdin.on("data", data => input += data); process.stdin.on("end", () => console.log(JSON.parse(input).DB_URL));')
-      echo ${encoded} | base64 -d | psql "$DB_URL" -q -v ON_ERROR_STOP=1
-    `,
-    { timeoutMs: 120_000 }
-  );
-  const lines = `${result.stderr ?? ''}\n${result.stdout ?? ''}`
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-  return {
-    ok: result.exitCode === 0,
-    stdout: result.stdout ?? '',
-    message: (
-      lines.find((line) => /^(ERROR|FATAL|DETAIL|HINT)\b/i.test(line)) ??
-      lines[0] ??
-      'no output'
-    ).slice(0, 300),
-  };
 }
