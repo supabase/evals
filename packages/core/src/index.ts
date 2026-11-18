@@ -315,6 +315,11 @@ export interface ToolEvalContext extends ToolScoringContext {
   agentReport?: string;
   /** Ask an LLM judge whether `input` meets `rubric`. Each call shows up in the run's trace. */
   judge: (args: JudgeInput) => Promise<JudgeResult>;
+  /**
+   * The sandbox the agent worked in, when it ran in one (a CLI agent). Lets a
+   * scorer run the files the agent produced; absent for in-process agents.
+   */
+  sandbox?: AgentSandbox;
 }
 
 /**
