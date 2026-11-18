@@ -1,5 +1,13 @@
-import type { ToolEvalContext, ToolScorer } from '@supabase-evals/core';
-import { vi } from 'vitest';
+import { execFile } from 'node:child_process';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import type {
+  AgentSandbox,
+  ToolEvalContext,
+  ToolScorer,
+} from '@supabase-evals/core';
+import { onTestFinished, vi } from 'vitest';
 import { sparkRuntime } from './runtime.js';
 
 export const SPARK_TEST_KEYS = {
@@ -76,3 +84,49 @@ export const bashCalls = (commands: string[]) =>
 /** Names of the checks that failed. */
 export const failedChecks = (result: Awaited<ReturnType<ToolScorer>>) =>
   (result.checks ?? []).filter((check) => !check.passed).map((c) => c.name);
+
+/**
+ * A sandbox over a real temp workspace holding `files` (paths relative to the
+ * workspace), run with the real shell and node. `npm install` is a no-op and
+ * `@supabase/supabase-js` resolves to a stub package, so no network is needed.
+ * Call it inside a test: the workspace is removed when that test finishes.
+ */
+export function stubSandbox(files: Record<string, string>): AgentSandbox {
+  const workspace = mkdtempSync(join(tmpdir(), 'spark-stub-'));
+  onTestFinished(() => rmSync(workspace, { recursive: true, force: true }));
+  const sdk = 'app/node_modules/@supabase/supabase-js';
+  for (const [path, content] of Object.entries({
+    'app/package.json': '{"type":"module"}',
+    [`${sdk}/package.json`]:
+      '{"name":"@supabase/supabase-js","main":"index.js"}',
+    [`${sdk}/index.js`]: 'exports.createClient = () => ({});',
+    ...files,
+  })) {
+    mkdirSync(dirname(join(workspace, path)), { recursive: true });
+    writeFileSync(join(workspace, path), content);
+  }
+  return {
+    workspace,
+    exec: (command, options) =>
+      new Promise((resolve) =>
+        execFile(
+          'bash',
+          ['-c', command.replace('npm install', 'true')],
+          {
+            cwd: workspace,
+            env: { ...process.env, ...options?.env },
+            timeout: options?.timeoutMs,
+          },
+          (error, stdout, stderr) =>
+            resolve({
+              ok: !error,
+              exitCode: error ? Number(error.code ?? 1) : 0,
+              stdout,
+              stderr,
+            })
+        )
+      ),
+    readFile: async () => '',
+    copyToHost: async () => {},
+  };
+}

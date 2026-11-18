@@ -21,7 +21,12 @@ export type SparkProjectStatus = {
   secretKey: string;
 };
 
-/** Scoring context plus the project's URL and keys, for scorers that act as an end user or look for leaked keys. */
+/**
+ * Scoring context plus the project's URL and keys, for scorers that act as an
+ * end user or look for leaked keys. `client` uses the secret key (service_role,
+ * bypasses RLS); `getClient()` returns a fresh publishable-key client with no
+ * session (anon role), matching the local stack.
+ */
 export type SparkScoringContext = ToolScoringContext & {
   project: SparkProjectStatus;
 };
@@ -100,10 +105,11 @@ export function sparkRuntime(
           );
       }
 
+      const authOptions = {
+        auth: { persistSession: false, autoRefreshToken: false },
+      };
       const getClient = () =>
-        createClient(project.url, secret, {
-          auth: { persistSession: false, autoRefreshToken: false },
-        });
+        createClient(project.url, publishable, authOptions);
       return {
         // WARP credentials live on the VM.
         mountDockerSocket: false,
@@ -129,7 +135,7 @@ export function sparkRuntime(
           ref: project.ref,
           // Required by ToolScoringContext, but Spark's Management API is incomplete.
           mgmt: createManagementApiClient(apiUrl, secret),
-          client: getClient(),
+          client: createClient(project.url, secret, authOptions),
           getClient,
           async query(sql) {
             const response = await fetch(
