@@ -304,14 +304,17 @@ Add to this file. A documentation eval is not finished until whatever went wrong
   the message, and check which services the eval actually starts before reading `Stopped services` as a
   fault.
 
-- **Every baseline agent enabled the setting the page never mentions, without the page.** All three runs set
-  `enable_confirmations = true`, because the seed's `config.toml` shows `enable_confirmations = false` next to
-  where the template goes and the prompt asks for an email on sign-up. The check built to catch a page-only
-  reader passed 3 of 3, so it measures the seed's cue and not the guides. #528
-  **Fix.** None yet. Name it in the README and ask for an unread arm before saying the guide carried the run.
-- **No baseline agent ran the stack.** None started Supabase, signed up, or opened Mailpit, and two said so in
-  their reports. The scorer's end-to-end checks passed anyway, so the eval scores what an agent writes and not
-  whether it verified it. #528
+- **Removing the cue from the seed did not stop agents enabling the setting the page never mentions.** Three
+  runs set `enable_confirmations = true` with the seed's `config.toml` showing a visible `false`. After the line
+  was deleted and a second email needing two unmentioned settings was added (`password_changed` with `enabled`),
+  three more runs still scored every check. Their own searches name `enable_confirmations` and
+  `auth.email.notification.password_changed` before any page they read mentions either, so the keys came from
+  the model. The checks fail the right fixtures and still measure the model, not the guides. #528
+  **Fix.** None at the seed level. Ask for an unread arm before claiming the page carried the run.
+- **Most baseline agents did not run the stack.** In the first baseline none started Supabase, signed up, or
+  opened Mailpit. In the second, one signed up and read Mailpit and two only started the stack. The scorer's
+  end-to-end checks passed either way, so the eval scores what an agent leaves and not whether it verified it.
+  #528
 
 ## Process
 
