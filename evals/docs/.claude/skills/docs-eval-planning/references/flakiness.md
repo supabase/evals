@@ -315,6 +315,14 @@ Add to this file. A documentation eval is not finished until whatever went wrong
   opened Mailpit. In the second, one signed up and read Mailpit and two only started the stack. The scorer's
   end-to-end checks passed either way, so the eval scores what an agent leaves and not whether it verified it.
   #528
+- **An "unread" arm still reaches the page.** The prompt's reference line and its "rely on it" sentence were
+  removed for three runs. Every agent still searched the docs through the MCP search tool, and the Email
+  Templates page and the local customizing guide came back in every run. Two runs scored every check. One
+  never turned confirmations on and failed the five sign-up email checks, which is the one thing the page
+  and the customizing guide leave out. The other two searched `enable_confirmations` by name and found it in
+  the testing guide. Taking the pointer away does not remove the page. #528
+  **Fix.** To measure the page's contribution, an arm has to block the docs search tool, which the harness
+  does not offer.
 
 ## Process
 
