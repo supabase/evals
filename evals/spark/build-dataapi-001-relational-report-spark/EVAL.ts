@@ -1,197 +1,209 @@
-import type { CheckResult, ToolScorer } from '@supabase-evals/core';
-import { z } from 'zod';
+import type {
+  CheckResult,
+  ToolEvalContext,
+  ToolScorer,
+} from '@supabase-evals/core';
+import type { SparkScoringContext } from '../../../experiments/spark/lib/runtime.js';
+import { checkNoRawSql } from '../../../experiments/spark/lib/scoring.js';
 
-// Spark port of the benchmark build-dataapi-001 scenario. The agent produces
-// the report itself, reading through the Data API, and replies with the JSON array. Expected numbers are
-// computed at scoring time from the project's own rows (read over the Data
-// API), so the seed stays the single source of truth. The original's
-// backend-only access control (RLS) is not scored: Spark has no RLS yet.
+// Spark port of the benchmark build-dataapi-001 scenario: the prompt asks the
+// agent to finish a backend reporting script (`app/report.mjs`) over a seeded
+// relational schema (customers → orders → order_items → products) and never
+// names supabase-js — the "uses @supabase/supabase-js" check is GATING, and
+// shelling out to psql / a raw Postgres driver instead fails. Expected numbers
+// are computed from the project's own rows at scoring time, so the seed stays
+// the single source of truth.
 
-const tablesSchema = {
-  customers: z.array(z.object({ id: z.number(), name: z.string() })),
-  products: z.array(
-    z.object({ id: z.number(), name: z.string(), price_cents: z.number() })
-  ),
-  orders: z.array(z.object({ id: z.number(), customer_id: z.number() })),
-  order_items: z.array(
-    z.object({
-      order_id: z.number(),
-      product_id: z.number(),
-      quantity: z.number(),
-    })
-  ),
-};
+const APP_DIR = 'app';
+const REPORT = 'report.mjs';
 
-// Row counts in the seed, to detect an agent that changed the data.
-const SEED_COUNTS = { customers: 4, products: 4, orders: 5, order_items: 8 };
-
-// The report the seed produces. Expected rows are derived from live data, so
-// this catches an agent that edited rows without changing their count.
-const SEED_REPORT = [
-  {
-    customer: 'Ada Lovelace',
-    orderCount: 2,
-    totalCents: 41900,
-    topProduct: 'Keyboard',
-  },
-  {
-    customer: 'Grace Hopper',
-    orderCount: 2,
-    totalCents: 15600,
-    topProduct: 'Cable',
-  },
-  {
-    customer: 'Linus Pauling',
-    orderCount: 1,
-    totalCents: 66500,
-    topProduct: 'Monitor',
-  },
-];
-
-type ReportRow = {
+interface ReportRow {
   customer: unknown;
   orderCount: unknown;
   totalCents: unknown;
   topProduct: unknown;
-};
+}
 
-const normalize = (rows: ReportRow[]) =>
-  rows.map((row) => ({
-    customer: row.customer,
-    orderCount: row.orderCount,
-    totalCents: row.totalCents,
-    topProduct: row.topProduct,
-  }));
+const EXPECTED_SQL = `
+with per_product as (
+  select c.name as customer, p.name as product,
+         sum(oi.quantity)::int as units
+    from public.customers c
+    join public.orders o on o.customer_id = c.id
+    join public.order_items oi on oi.order_id = o.id
+    join public.products p on p.id = oi.product_id
+   group by c.name, p.name
+), totals as (
+  select c.name as customer,
+         count(distinct o.id)::int as order_count,
+         sum(oi.quantity * p.price_cents)::int as total_cents
+    from public.customers c
+    join public.orders o on o.customer_id = c.id
+    join public.order_items oi on oi.order_id = o.id
+    join public.products p on p.id = oi.product_id
+   group by c.name
+)
+select t.customer,
+       t.order_count,
+       t.total_cents,
+       (select pp.product
+          from per_product pp
+         where pp.customer = t.customer
+         order by pp.units desc, pp.product asc
+         limit 1) as top_product
+  from totals t
+ order by t.customer asc
+`;
 
 const scorer: ToolScorer = async (ctx) => {
   const checks: CheckResult[] = [];
-  const read = async <T extends keyof typeof tablesSchema>(table: T) => {
-    const { data, error } = await ctx.client.from(table).select('*');
-    if (error) throw new Error(`${table}: ${error.message}`);
-    return tablesSchema[table].parse(data) as z.infer<(typeof tablesSchema)[T]>;
-  };
-
-  let expected: ReturnType<typeof normalize> | undefined;
   try {
-    const [customers, products, orders, items] = await Promise.all([
-      read('customers'),
-      read('products'),
-      read('orders'),
-      read('order_items'),
-    ]);
-    expected = expectedReport(customers, products, orders, items);
-    checks.push({
-      name: 'Seed data left unchanged',
-      passed:
-        JSON.stringify(expected) === JSON.stringify(SEED_REPORT) &&
-        customers.length === SEED_COUNTS.customers &&
-        products.length === SEED_COUNTS.products &&
-        orders.length === SEED_COUNTS.orders &&
-        items.length === SEED_COUNTS.order_items,
-      notes: `customers ${customers.length}, products ${products.length}, orders ${orders.length}, order_items ${items.length}`,
+    const { sandbox } = ctx;
+    if (!sandbox)
+      return fail(
+        'agent sandbox available',
+        'the scorer runs the report in the agent sandbox, but this run had none'
+      );
+    const { project } = ctx as unknown as SparkScoringContext;
+
+    // Be generous about a missing install step; the eval is about the report,
+    // not npm. A no-op when the agent already installed dependencies.
+    const install = await sandbox.exec(
+      `cd ${APP_DIR} && npm install --no-audit --no-fund --silent`,
+      { timeoutMs: 180_000 }
+    );
+    if (!install.ok) {
+      return fail(
+        'installed app dependencies',
+        install.stderr.trim() || install.stdout.trim()
+      );
+    }
+
+    const run = await sandbox.exec(`cd ${APP_DIR} && node ${REPORT}`, {
+      timeoutMs: 60_000,
+      env: {
+        SPARK_PROJECT_URL: project.projectUrl,
+        SPARK_SECRET_KEY: project.secretKey,
+      },
     });
+    const actual = parseReport(run.stdout);
+    checks.push({
+      name: 'report runs and prints JSON',
+      passed: run.ok && actual !== undefined,
+      notes:
+        actual !== undefined
+          ? `exit ${run.exitCode}`
+          : `no JSON array in output — ${preview(run.stderr || run.stdout)}`,
+    });
+
+    // Ground truth straight from the seeded database.
+    const { rows } = await ctx.query(EXPECTED_SQL);
+    const expected = rows.map((row) => ({
+      customer: row.customer,
+      orderCount: row.order_count,
+      totalCents: row.total_cents,
+      topProduct: row.top_product,
+    }));
+    const normalized = (actual ?? []).map((row) => ({
+      customer: row.customer,
+      orderCount: row.orderCount,
+      totalCents: row.totalCents,
+      topProduct: row.topProduct,
+    }));
+    checks.push({
+      name: 'report numbers match the database (per customer, sorted)',
+      passed: JSON.stringify(normalized) === JSON.stringify(expected),
+      notes: `expected ${JSON.stringify(expected)}, got ${JSON.stringify(normalized)}`,
+    });
+
+    // The tables are backend-only: the right fix is the secret key in the
+    // worker, not opening them up to client keys.
+    // Spark reports the denied read as an error rather than empty data.
+    const probe = await ctx.getClient().from('customers').select('id');
+    checks.push({
+      name: 'tables stay locked down (publishable key reads nothing)',
+      passed: !!probe.error || (probe.data ?? []).length === 0,
+      notes: probe.error
+        ? `publishable read errored: ${probe.error.message}`
+        : `publishable read returned ${(probe.data ?? []).length} rows`,
+    });
+
+    // GATING: the report must be built on supabase-js, even though the prompt
+    // never names it…
+    checks.push(await sdkUsageCheck(sandbox));
+
+    // …and must actually query through the Data API, not shell out to psql, a
+    // raw Postgres driver or Spark's SQL endpoint.
+    checks.push(await checkNoRawSql(sandbox, APP_DIR));
+
+    return { passed: checks.every((c) => c.passed), checks };
   } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
     checks.push({
-      name: 'Seed data left unchanged',
+      name: 'scorer completed without errors',
       passed: false,
-      notes: error instanceof Error ? error.message : String(error),
+      notes: msg,
     });
+    return { passed: false, checks };
   }
-
-  const actual = parseReport(ctx.agentReport ?? '');
-  checks.push({
-    name: 'Reply contains the report as a JSON array',
-    passed: actual !== undefined,
-    notes: actual
-      ? undefined
-      : (ctx.agentReport ?? '').replace(/\s+/g, ' ').slice(0, 160),
-  });
-  checks.push({
-    name: 'Report numbers match the database (per customer, sorted)',
-    passed:
-      !!expected &&
-      !!actual &&
-      JSON.stringify(normalize(actual)) === JSON.stringify(expected),
-    notes: `expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual && normalize(actual))}`,
-  });
-  checks.push({
-    name: 'Customers without orders are left out',
-    passed:
-      !!expected &&
-      !!actual &&
-      actual.length === expected.length &&
-      !actual.some((row) => row.customer === 'Alan Turing'),
-  });
-
-  const commands = ctx.transcript
-    .filter((part) => part.type === 'tool_call')
-    .map((part) => JSON.stringify(part.input));
-  checks.push({
-    name: 'Report is built from the Data API, not the SQL endpoint',
-    passed:
-      commands.some((command) => command.includes('/rest/v1/')) &&
-      !commands.some((command) => command.includes('/database/query')),
-    notes: `${commands.filter((c) => c.includes('/rest/v1/')).length} Data API call(s), ${commands.filter((c) => c.includes('/database/query')).length} SQL endpoint call(s)`,
-  });
-
-  return { passed: checks.every((check) => check.passed), checks };
 };
 
 export default scorer;
 
-function expectedReport(
-  customers: z.infer<(typeof tablesSchema)['customers']>,
-  products: z.infer<(typeof tablesSchema)['products']>,
-  orders: z.infer<(typeof tablesSchema)['orders']>,
-  items: z.infer<(typeof tablesSchema)['order_items']>
-) {
-  const productById = new Map(products.map((p) => [p.id, p]));
-  const orderCustomer = new Map(orders.map((o) => [o.id, o.customer_id]));
-  const report = customers.flatMap((customer) => {
-    const customerOrders = orders.filter((o) => o.customer_id === customer.id);
-    if (customerOrders.length === 0) return [];
-    const units = new Map<string, number>();
-    let totalCents = 0;
-    for (const item of items) {
-      if (orderCustomer.get(item.order_id) !== customer.id) continue;
-      const product = productById.get(item.product_id);
-      if (!product) continue;
-      totalCents += item.quantity * product.price_cents;
-      units.set(product.name, (units.get(product.name) ?? 0) + item.quantity);
-    }
-    const [topProduct] = [...units].sort(
-      ([nameA, unitsA], [nameB, unitsB]) =>
-        unitsB - unitsA || (nameA < nameB ? -1 : nameA > nameB ? 1 : 0)
-    )[0] ?? [null];
-    return [
-      {
-        customer: customer.name,
-        orderCount: customerOrders.length,
-        totalCents,
-        topProduct,
-      },
-    ];
-  });
-  return normalize(
-    report.sort((a, b) => (a.customer < b.customer ? -1 : 1)) as ReportRow[]
-  );
+function parseReport(stdout: string): ReportRow[] | undefined {
+  const start = stdout.indexOf('[');
+  const end = stdout.lastIndexOf(']');
+  if (start === -1 || end <= start) return undefined;
+  try {
+    const parsed = JSON.parse(stdout.slice(start, end + 1));
+    return Array.isArray(parsed) ? (parsed as ReportRow[]) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
-/** The report array from the agent's reply: a fenced block first, else the outermost brackets. */
-function parseReport(reply: string): ReportRow[] | undefined {
-  const candidates = [
-    ...[...reply.matchAll(/```(?:json)?\s*([\s\S]*?)```/g)].map((m) => m[1]),
-    reply.slice(reply.indexOf('['), reply.lastIndexOf(']') + 1),
+/**
+ * GATING: some app code file must genuinely import @supabase/supabase-js —
+ * the specifier must be closed by a matching quote (so `-not-real` doesn't
+ * match) and sit on a `from`/`require(`/`import(` line that isn't commented
+ * out. Multi-line named imports still match: the closing `} from '…'` line
+ * always carries `from` alongside the specifier.
+ */
+async function sdkUsageCheck(
+  sandbox: NonNullable<ToolEvalContext['sandbox']>
+): Promise<CheckResult> {
+  const NAME = 'implementation uses @supabase/supabase-js';
+  const scan = await sandbox.exec(
+    `grep -rnE --exclude-dir=node_modules --include='*.mjs' --include='*.js' --include='*.cjs' --include='*.ts' ` +
+      `"(from|require\\(|import\\()\\s*['\\"](npm:)?@supabase/supabase-js['\\"]" ${APP_DIR} ` +
+      `| grep -vE ':[0-9]+:\\s*(//|\\*)' || true`
+  );
+  const files = [
+    ...new Set(
+      scan.stdout
+        .trim()
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => line.slice(0, line.indexOf(':')))
+    ),
   ];
-  for (const candidate of candidates) {
-    try {
-      const parsed: unknown = JSON.parse(candidate);
-      if (
-        Array.isArray(parsed) &&
-        parsed.every((row) => typeof row === 'object' && row !== null)
-      )
-        return parsed as ReportRow[];
-    } catch {}
-  }
-  return undefined;
+  return {
+    name: NAME,
+    passed: files.length > 0,
+    notes:
+      files.length > 0
+        ? `imports found in: ${files.join(', ')}`
+        : 'no @supabase/supabase-js import found — this eval requires the SDK',
+  };
+}
+
+function preview(body: string): string {
+  return body.replace(/\s+/g, ' ').slice(0, 160);
+}
+
+function fail(
+  name: string,
+  notes: string
+): { passed: false; checks: CheckResult[] } {
+  return { passed: false, checks: [{ name, passed: false, notes }] };
 }
