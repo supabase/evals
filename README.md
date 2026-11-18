@@ -116,10 +116,10 @@ Allowed metadata values are defined in `packages/core/src/eval-metadata.ts`.
 
 There are two runtimes, chosen automatically per eval:
 
-- **Tools evals** run the agent against the experiment's MCP/tool surface (no `local/` directory, no `interface: cli`), then score the resulting project state or report.
-- **Local-stack evals** run the agent inside a Docker sandbox — a `bash` tool plus file tools with the real Supabase CLI installed — so it can run `supabase init/start/db/test` against a real local stack. An eval uses this runtime when it ships a `local/` workspace **or** declares `interface: cli` (the latter covers bootstrap scenarios that start from an empty workspace).
+- **Tools evals** run the agent against the experiment's MCP/tool surface (no `interface: cli`), then score the resulting project state or report. A `local/` directory is allowed with `interface: rest`: a CLI agent then works in a sandbox seeded with it, without a local stack.
+- **Local-stack evals** run the agent inside a Docker sandbox — a `bash` tool plus file tools with the real Supabase CLI installed — so it can run `supabase init/start/db/test` against a real local stack. An eval uses this runtime when it declares `interface: cli`, whether or not it ships a `local/` workspace (this covers bootstrap scenarios that start from an empty workspace).
 
-`interface` (`mcp` | `cli` | `rest`) is otherwise a benchmark dimension (a cross-team KPI label), not the runtime switch — the `local/` directory and `interface: cli` are what decide whether a sandbox boots.
+`interface` (`mcp` | `cli` | `rest`) is otherwise a benchmark dimension (a cross-team KPI label), not the runtime switch — `interface: cli` is what decides whether the local stack boots.
 
 ### Local-stack evals
 

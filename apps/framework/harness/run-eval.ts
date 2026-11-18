@@ -112,30 +112,26 @@ async function loadExperiments() {
 }
 
 /**
- * Resolve the run mode. The sandbox (local-stack) is needed when the agent
- * uses the Supabase CLI (`interface: cli`) — including bootstrap scenarios that
- * start from an empty workspace — or when the eval ships a `local/` workspace
- * of starting files. Everything else runs against the in-memory tools runtime.
+ * Resolve the run mode. The local stack is needed when the agent uses the
+ * Supabase CLI (`interface: cli`) — including bootstrap scenarios that start
+ * from an empty workspace. Everything else runs against the tools runtime; a
+ * `local/` workspace (`interface: rest`) then seeds the agent's sandbox.
  *
  * `interface` is otherwise a benchmark dimension (KPI), not a runtime switch.
  */
-function resolveEvalMode(
-  interfaceKind: EvalInterface,
-  hasLocal: boolean
-): EvalMode {
-  if (interfaceKind === 'cli' || hasLocal) return 'local-stack';
-  return 'tools';
+function resolveEvalMode(interfaceKind: EvalInterface): EvalMode {
+  return interfaceKind === 'cli' ? 'local-stack' : 'tools';
 }
 
-/** Throws if a scenario ships a `local/` workspace but isn't declared `interface: cli`. */
+/** Throws if a scenario ships a `local/` workspace but isn't declared `interface: cli` or `rest`. */
 export function assertLocalMatchesInterface(
   promptPath: string,
   interfaceKind: EvalInterface,
   hasLocal: boolean
 ): void {
-  if (hasLocal && interfaceKind !== 'cli') {
+  if (hasLocal && interfaceKind !== 'cli' && interfaceKind !== 'rest') {
     throw new Error(
-      `${promptPath}: ships a local/ workspace but declares interface: ${interfaceKind}, expected cli`
+      `${promptPath}: ships a local/ workspace but declares interface: ${interfaceKind}, expected cli or rest`
     );
   }
 }
@@ -163,7 +159,7 @@ function discoverEvals(): EvalManifest[] {
       ).metadata;
       const hasLocal = existsSync(localDir) && statSync(localDir).isDirectory();
       assertLocalMatchesInterface(relPath, metadata.interface, hasLocal);
-      const mode = resolveEvalMode(metadata.interface, hasLocal);
+      const mode = resolveEvalMode(metadata.interface);
       out.push({
         id,
         mode,
@@ -532,6 +528,7 @@ async function runOne(
         await createBareSandbox({
           env: session.env,
           mountDockerSocket: session.mountDockerSocket,
+          localDir: ev.localDir,
           skills: skillSources,
           mounts: session.mounts,
         })
@@ -565,6 +562,7 @@ async function runOne(
     transcript: run.transcript,
     agentReport: run.agentReport,
     judge: judges.judge,
+    sandbox: cliSandbox?.sandbox,
   });
   const scoringEndedAt = Date.now();
 
