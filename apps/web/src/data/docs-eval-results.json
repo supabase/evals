@@ -13867,5 +13867,532 @@
     "promptSourcePath": "evals/docs/build-docs-017-seeding-your-database/PROMPT.md",
     "run": 3,
     "sourcePath": "docs/codex-gpt-6-luna-no-skills/build-docs-017-seeding-your-database/run-3/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-018-securing-your-api",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "security",
+      "rls"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "the agent applied the migrations it wrote",
+        "passed": true,
+        "notes": "nothing pending"
+      },
+      {
+        "name": "the database has ticket_replies, ticket_notes and close_stale_tickets",
+        "passed": true,
+        "notes": "all three exist in public"
+      },
+      {
+        "name": "a signed-out visitor can run no function in the API's schemas except search_help_articles",
+        "passed": true,
+        "notes": "none. schemas from config.toml: public"
+      },
+      {
+        "name": "replies are readable by the ticket's customer and by nobody else",
+        "passed": false,
+        "notes": "the customer could not read the reply on their own ticket: PGRST303 JWT issued at future"
+      },
+      {
+        "name": "no client can read the internal notes, including a customer on their own ticket",
+        "passed": true,
+        "notes": "nobody read a note the scorer had put there"
+      },
+      {
+        "name": "no client can write an internal note, and a signed-out visitor cannot write a reply",
+        "passed": true,
+        "notes": "no row landed and every refusal was 42501"
+      },
+      {
+        "name": "a signed-out visitor can search the help articles",
+        "passed": true,
+        "notes": "the run-scoped article came back"
+      },
+      {
+        "name": "neither a customer nor a signed-out visitor can run close_stale_tickets",
+        "passed": true,
+        "notes": "every call was refused (42501, 42501, 42501) and no stale ticket was closed"
+      },
+      {
+        "name": "the server key can write and read replies and notes",
+        "passed": false,
+        "notes": "ERROR:  permission denied for table ticket_replies HINT:  Grant the required privileges to the current role with: GRANT SELECT ON public.ticket_replies TO service_role;"
+      },
+      {
+        "name": "the server key can run close_stale_tickets",
+        "passed": true,
+        "notes": "closed 4"
+      },
+      {
+        "name": "the agent read the Securing your API guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, web_search, search_docs, shell_fetch"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/api/securing-your-api.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/api/securing-your-api securing your API Supabase RLS grants default privileges",
+          "pages": []
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/api/securing-your-api",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api"
+            }
+          ]
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"securing your API database grants row level security default privileges exposed schemas\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/using-custom-schemas",
+              "title": "Using Custom Schemas"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/secure-data",
+              "title": "Securing your data"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
+              "title": "Advanced pgTAP Testing"
+            }
+          ],
+          "resultChars": 81073
+        },
+        {
+          "source": "shell_fetch",
+          "query": "/bin/bash -lc 'curl -fsSL https://supabase.com/docs/guides/api/securing-your-api.md | head -c 12000'",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api.md"
+            }
+          ],
+          "resultChars": 12031
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 365033,
+        "cacheReadInputTokens": 294464,
+        "cacheWriteInputTokens": 47772,
+        "outputTokens": 12998
+      }
+    ],
+    "stepCount": 15,
+    "toolCallCount": 21,
+    "agentRunDurationMs": 203383,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 288940,
+      "duration": 363294,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1634704145,
+        "egress": 9098427
+      }
+    },
+    "prompt": "Our support desk is live and customers file tickets from the app. The team's\nconsole (server side, see console/queries.ts) needs two new things: a place for\nstaff to keep notes on a ticket that customers must never see, and a place to\npost replies that the customer can read on their own ticket.\n\nAlso, a nightly job on our server should close any ticket that has sat idle for\n30 days. Make that one call, close_stale_tickets, that returns how many it\nclosed.\n\nThis goes to real customers this week, so it needs to be right. Make sure it all\nworks locally.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/api/securing-your-api.md",
+    "promptSourcePath": "evals/docs/build-docs-018-securing-your-api/PROMPT.md",
+    "run": 1,
+    "sourcePath": "docs/codex-gpt-6-luna-no-skills/build-docs-018-securing-your-api/run-1/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-018-securing-your-api",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "security",
+      "rls"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "the agent applied the migrations it wrote",
+        "passed": true,
+        "notes": "nothing pending"
+      },
+      {
+        "name": "the database has ticket_replies, ticket_notes and close_stale_tickets",
+        "passed": true,
+        "notes": "all three exist in public"
+      },
+      {
+        "name": "a signed-out visitor can run no function in the API's schemas except search_help_articles",
+        "passed": true,
+        "notes": "none. schemas from config.toml: public"
+      },
+      {
+        "name": "replies are readable by the ticket's customer and by nobody else",
+        "passed": false,
+        "notes": "the customer could not read the reply on their own ticket: PGRST303 JWT issued at future"
+      },
+      {
+        "name": "no client can read the internal notes, including a customer on their own ticket",
+        "passed": true,
+        "notes": "nobody read a note the scorer had put there"
+      },
+      {
+        "name": "no client can write an internal note, and a signed-out visitor cannot write a reply",
+        "passed": true,
+        "notes": "no row landed and every refusal was 42501"
+      },
+      {
+        "name": "a signed-out visitor can search the help articles",
+        "passed": true,
+        "notes": "the run-scoped article came back"
+      },
+      {
+        "name": "neither a customer nor a signed-out visitor can run close_stale_tickets",
+        "passed": true,
+        "notes": "every call was refused (42501, 42501, 42501) and no stale ticket was closed"
+      },
+      {
+        "name": "the server key can write and read replies and notes",
+        "passed": true,
+        "notes": "wrote and read one reply and one note as the service role"
+      },
+      {
+        "name": "the server key can run close_stale_tickets",
+        "passed": true,
+        "notes": "closed 4"
+      },
+      {
+        "name": "the agent read the Securing your API guide the prompt referenced",
+        "passed": true,
+        "notes": "search_docs, search_docs, web_search"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"securing your API expose schemas grants row level security service role functions SECURITY DEFINER\", limit: 8) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advisors?queryGroups=lint&lint=0029_authenticated_security_definer_function_executable",
+              "title": "Database Advisor: Lint 0029_authenticated_security_definer_function_executable"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advisors?queryGroups=lint&lint=0028_anon_security_definer_function_executable",
+              "title": "Database Advisor: Lint 0028_anon_security_definer_function_executable"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
+              "title": "Advanced pgTAP Testing"
+            },
+            {
+              "url": "https://supabase.com/kb/troubleshooting/storage-error-403-forbidden-new-row-violates-row-level-security-policy-on-upload-a94384",
+              "title": "Storage error: 403 Forbidden: 'new row violates row-level security policy' on upload"
+            },
+            {
+              "url": "https://supabase.com/kb/troubleshooting/pg_dump-fails-with-query-would-be-affected-by-row-level-security-policy-1d5783",
+              "title": "pg_dump fails with 'query would be affected by row-level security policy'"
+            },
+            {
+              "url": "https://supabase.com/kb/troubleshooting/do-i-need-to-expose-security-definer-functions-in-row-level-security-policies-iI0uOw"
+            }
+          ],
+          "resultChars": 90152
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"Securing your API private schema exposed schemas public schema API security default privileges revoke grants functions\", limit: 6) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advisors?queryGroups=lint&lint=0017_foreign_table_in_api",
+              "title": "Database Advisor: Lint 0017_foreign_table_in_api"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/functions",
+              "title": "Database functions"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/api/using-custom-schemas",
+              "title": "Using Custom Schemas"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/auth/auth-hooks",
+              "title": "Auth Hooks"
+            },
+            {
+              "url": "https://supabase.com/kb/troubleshooting/cant-change-the-default-privileges-of-supabase_admin-in-the-public-schema-448af9",
+              "title": "Can't change the default privileges of supabase_admin in the public schema"
+            }
+          ],
+          "resultChars": 68456
+        },
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/api/securing-your-api.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api.md"
+            }
+          ]
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 473498,
+        "cacheReadInputTokens": 415386,
+        "cacheWriteInputTokens": 51699,
+        "outputTokens": 14795
+      }
+    ],
+    "stepCount": 16,
+    "toolCallCount": 19,
+    "agentRunDurationMs": 218064,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 297498,
+      "duration": 382229,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1636902844,
+        "egress": 11663333
+      }
+    },
+    "prompt": "Our support desk is live and customers file tickets from the app. The team's\nconsole (server side, see console/queries.ts) needs two new things: a place for\nstaff to keep notes on a ticket that customers must never see, and a place to\npost replies that the customer can read on their own ticket.\n\nAlso, a nightly job on our server should close any ticket that has sat idle for\n30 days. Make that one call, close_stale_tickets, that returns how many it\nclosed.\n\nThis goes to real customers this week, so it needs to be right. Make sure it all\nworks locally.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/api/securing-your-api.md",
+    "promptSourcePath": "evals/docs/build-docs-018-securing-your-api/PROMPT.md",
+    "run": 2,
+    "sourcePath": "docs/codex-gpt-6-luna-no-skills/build-docs-018-securing-your-api/run-2/result.json"
+  },
+  {
+    "experiment": "codex-gpt-6-luna-no-skills",
+    "experimentDisplay": {
+      "agent": "codex",
+      "modelProvider": "openai",
+      "modelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    },
+    "eval": "build-docs-018-securing-your-api",
+    "stage": "build",
+    "product": [
+      "data-api",
+      "database"
+    ],
+    "topic": [
+      "security",
+      "rls"
+    ],
+    "suite": "docs",
+    "interface": "cli",
+    "cliVersion": "2.117.0",
+    "passed": false,
+    "checks": [
+      {
+        "name": "the agent applied the migrations it wrote",
+        "passed": true,
+        "notes": "nothing pending"
+      },
+      {
+        "name": "the database has ticket_replies, ticket_notes and close_stale_tickets",
+        "passed": true,
+        "notes": "all three exist in public"
+      },
+      {
+        "name": "a signed-out visitor can run no function in the API's schemas except search_help_articles",
+        "passed": true,
+        "notes": "none. schemas from config.toml: public"
+      },
+      {
+        "name": "replies are readable by the ticket's customer and by nobody else",
+        "passed": false,
+        "notes": "could not measure: PGRST303 JWT issued at future"
+      },
+      {
+        "name": "no client can read the internal notes, including a customer on their own ticket",
+        "passed": true,
+        "notes": "nobody read a note the scorer had put there"
+      },
+      {
+        "name": "no client can write an internal note, and a signed-out visitor cannot write a reply",
+        "passed": true,
+        "notes": "no row landed and every refusal was 42501"
+      },
+      {
+        "name": "a signed-out visitor can search the help articles",
+        "passed": true,
+        "notes": "the run-scoped article came back"
+      },
+      {
+        "name": "neither a customer nor a signed-out visitor can run close_stale_tickets",
+        "passed": true,
+        "notes": "every call was refused (42501, 42501, 42501) and no stale ticket was closed"
+      },
+      {
+        "name": "the server key can write and read replies and notes",
+        "passed": false,
+        "notes": "ERROR:  permission denied for table ticket_replies HINT:  Grant the required privileges to the current role with: GRANT SELECT ON public.ticket_replies TO service_role;"
+      },
+      {
+        "name": "the server key can run close_stale_tickets",
+        "passed": true,
+        "notes": "closed 4"
+      },
+      {
+        "name": "the agent read the Securing your API guide the prompt referenced",
+        "passed": true,
+        "notes": "web_search, search_docs"
+      }
+    ],
+    "skills": {
+      "available": [],
+      "loaded": []
+    },
+    "docs": {
+      "calls": [
+        {
+          "source": "web_search",
+          "query": "https://supabase.com/docs/guides/api/securing-your-api.md",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api.md"
+            }
+          ]
+        },
+        {
+          "source": "web_search",
+          "query": "site:supabase.com/docs/guides/api/securing-your-api securing your API Supabase exposed schemas grants RLS",
+          "pages": []
+        },
+        {
+          "source": "search_docs",
+          "query": "{ searchDocs(query: \"securing your API exposed schemas default privileges RLS grants private schema\", limit: 5) { nodes { title href content } } }",
+          "hasContent": true,
+          "pages": [
+            {
+              "url": "https://supabase.com/docs/guides/api/securing-your-api",
+              "title": "Securing your API"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/realtime/postgres-changes",
+              "title": "Postgres Changes"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/database/postgres/row-level-security",
+              "title": "Row Level Security"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/local-development/testing/pgtap-extended",
+              "title": "Advanced pgTAP Testing"
+            },
+            {
+              "url": "https://supabase.com/docs/guides/observability/advisors?queryGroups=lint&lint=0017_foreign_table_in_api",
+              "title": "Database Advisor: Lint 0017_foreign_table_in_api"
+            }
+          ],
+          "resultChars": 127054
+        }
+      ]
+    },
+    "usage": [
+      {
+        "model": "gpt-6-luna",
+        "inputTokens": 1488422,
+        "cacheReadInputTokens": 1417191,
+        "cacheWriteInputTokens": 60512,
+        "outputTokens": 19776
+      }
+    ],
+    "stepCount": 43,
+    "toolCallCount": 34,
+    "agentRunDurationMs": 369129,
+    "sandboxUsage": {
+      "activeCpuDurationMs": 481298,
+      "duration": 573024,
+      "memory": 8192,
+      "networkTransfer": {
+        "ingress": 1636606812,
+        "egress": 16582168
+      }
+    },
+    "prompt": "Our support desk is live and customers file tickets from the app. The team's\nconsole (server side, see console/queries.ts) needs two new things: a place for\nstaff to keep notes on a ticket that customers must never see, and a place to\npost replies that the customer can read on their own ticket.\n\nAlso, a nightly job on our server should close any ticket that has sat idle for\n30 days. Make that one call, close_stale_tickets, that returns how many it\nclosed.\n\nThis goes to real customers this week, so it needs to be right. Make sure it all\nworks locally.\n\nRead the guide below before you start and rely on it for how to set this up,\nrather than on what you already know.\n\nREFERENCE\nhttps://supabase.com/docs/guides/api/securing-your-api.md",
+    "promptSourcePath": "evals/docs/build-docs-018-securing-your-api/PROMPT.md",
+    "run": 3,
+    "sourcePath": "docs/codex-gpt-6-luna-no-skills/build-docs-018-securing-your-api/run-3/result.json"
   }
 ]
