@@ -23,11 +23,11 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: [
       {
-        find: /^@\/data\/eval-results\.json$/,
+        find: /^@\/data\/eval-results\.fixture\.json$/,
         replacement: path.resolve(
           __dirname,
           mode === "test"
-            ? "./src/data/eval-results.json"
+            ? "./src/data/eval-results.fixture.json"
             : "./src/data/braintrust-results.json"
         ),
       },
