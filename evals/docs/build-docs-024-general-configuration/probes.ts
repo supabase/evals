@@ -17,7 +17,7 @@ export const CHECK = {
   strangers: "people who aren't testers still can't get in",
 } as const;
 
-// seed.sql. Every account has the same local password.
+// Matches seed.sql.
 const PASSWORD = 'fernhill-beta';
 const ID = (n: number) => `6d1f4b0a-1c3e-4f6a-9b2d-0a1b2c3d4e0${n}`;
 const CONFIRMED = {
@@ -36,12 +36,9 @@ export type Probe = Step & {
   signup?: Reply;
   magicLink?: Reply;
   logins: Record<string, Login>;
-  /** The fresh emails that ended up in auth.users anyway. */
   created: string[];
 };
 
-// Tries to make two new accounts, one by password and one by emailed link,
-// then logs in as every seeded account. Runs in the sandbox.
 const SCRIPT = `
 const api = process.env.P_API;
 const key = process.env.P_KEY;
@@ -87,8 +84,7 @@ export async function probeAccounts(ctx: Ctx, started: Step): Promise<Probe> {
         ...STRANGERS,
       ]),
     });
-    // Read as the superuser rather than trusting the error: an account that
-    // exists was created, whatever the reply said.
+    // Trust auth.users, not the reply.
     const { rows } = await ctx.query(
       `select email from auth.users where email in ('${fresh.join("', '")}')`
     );
@@ -113,13 +109,12 @@ export function checkStackStarts(started: Step): CheckResult {
   };
 }
 
-// A 429 is the rate limit, not a decision, so it can't count as refused.
+// 429 is rate limiting, not a refusal.
 const refused = (reply?: Reply) =>
   !!reply && reply.status >= 400 && reply.status < 500 && reply.status !== 429;
 const show = (reply?: Reply) =>
   reply ? `${reply.status} ${reply.code}`.trim() : 'no reply';
 
-// Pairs with CHECK.confirmed: turning email logins off entirely passes this.
 export function checkNoNewAccounts(probe: Probe): CheckResult {
   if (!probe.ok) return blocked(CHECK.noNewAccounts, probe);
   const passed =
@@ -140,13 +135,10 @@ export function checkConfirmedLogIn(probe: Probe): CheckResult {
   return logsIn(CHECK.confirmed, probe, CONFIRMED);
 }
 
-// The seeded id is what proves it's the same account, since the plots hang
-// off it. Deleting and recreating the tester gets a session with a new id.
 export function checkUnconfirmedLogIn(probe: Probe): CheckResult {
   return logsIn(CHECK.unconfirmed, probe, UNCONFIRMED);
 }
 
-// Pairs with CHECK.unconfirmed: letting every account in passes that one.
 export function checkStrangersKeptOut(probe: Probe): CheckResult {
   if (!probe.ok) return blocked(CHECK.strangers, probe);
   const inside = STRANGERS.filter((email) => probe.logins[email]?.session);

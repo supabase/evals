@@ -18,9 +18,7 @@ const GUIDE_PATH = 'guides/auth/general-configuration';
 
 const scorer: LocalStackScorer = async (ctx) => {
   try {
-    // Restart first so Auth runs on the project's settings, whether or not
-    // the agent restarted it. The volumes survive, so database fixes count.
-    // Then one round of sign-ups and logins feeds checks 2 to 5.
+    // Restart so Auth runs on the project's config even if the agent didn't.
     const started = await restartStack(ctx);
     const probe = await probeAccounts(ctx, started);
 

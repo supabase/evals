@@ -3,12 +3,7 @@ import type { LocalStackEvalContext } from '@supabase-evals/core';
 type Exec = Pick<LocalStackEvalContext, 'exec'>;
 export type Step = { ok: boolean; message: string };
 
-/**
- * Auth reads its settings when its container is created, so restart the stack
- * to score what the project says rather than what was running. `supabase stop`
- * keeps the data volumes. The sandbox shim adds the eval's service excludes to
- * `start`. Never throws.
- */
+// Auth only reads config at container start. `supabase stop` keeps volumes.
 export async function restartStack(ctx: Exec): Promise<Step> {
   try {
     const result = await ctx.exec(
@@ -25,8 +20,7 @@ export async function restartStack(ctx: Exec): Promise<Step> {
 
 export type Stack = { apiUrl: string; adminKey: string; clientKey: string };
 
-// `ctx.stackStatus()` throws unless every key it wants is present; this reads
-// whichever names the CLI reports.
+// `ctx.stackStatus()` throws if any key it expects is missing.
 export async function readStack(ctx: Exec): Promise<Stack> {
   const result = await ctx.exec('supabase status -o json 2>/dev/null');
   const out = result.stdout ?? '';
@@ -46,12 +40,7 @@ export async function readStack(ctx: Exec): Promise<Stack> {
   return stack;
 }
 
-/**
- * Runs an ES module inside the sandbox, so requests come from where the app
- * would run. Env values are passed through the shell, so keep them free of
- * single quotes. Returns the last line of stdout parsed as JSON, or throws
- * with the error line.
- */
+// Env values are single-quoted in the shell, so they can't contain quotes.
 export async function runScript(
   ctx: Exec,
   script: string,
