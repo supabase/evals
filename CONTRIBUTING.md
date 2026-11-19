@@ -95,23 +95,19 @@ To schedule a suite, add a team-owned workflow that calls [eval-refresh.yml](.gi
 
 Include refreshed results for PRs with new/changed evals so a reviewer can inspect them in Braintrust.
 
-## Publishing and consuming results
+## Consuming results
 
-To publish a benchmark, upload complete runs with `--runs` and update the pins and rationales in [publication.ts](apps/web/src/data/publication.ts). Include every experiment in `experiments/benchmark/`.
+Local eval runs write results to disk as described in [Running evals](README.md#running-evals). Uploaded results are in the [Evals project in Braintrust](https://www.braintrust.dev/app/supabase.io/p/Evals).
+
+Use the [Braintrust CLI](https://docs.braintrust.dev/reference/cli/quickstart) or [MCP server](https://docs.braintrust.dev/integrations/developer-tools/mcp) to query results. See the [Braintrust SQL reference](https://docs.braintrust.dev/reference/sql) for query syntax.
+
+For internal dashboards, see the [guide to reading eval results in Hex](https://app.notion.com/p/41c5004b775f815eb9c2f0485e74de5b).
+
+## Publishing the benchmark
+
+The [evals web app](https://supabase.com/evals) fetches benchmark results from Braintrust at build time. To publish a benchmark, refresh every experiment in `experiments/benchmark/` in CI, then update the pins and rationales in [publication.ts](apps/web/src/data/publication.ts).
 
 For local UI work with a partial run, temporarily keep only the uploaded experiment IDs and their rationales in the catalog and start the server with `EVALS_ALLOW_PARTIAL=1 pnpm web`.
-
-The published benchmark is at https://supabase.com/evals/eval-results.json. For other suites or history, query the Evals Braintrust project. For example, replace `EXPERIMENT_ID` below to read an experiment's scored runs:
-
-```sql
-SELECT root_span_id, metadata.eval, metadata.run, scores.passed
-FROM experiment('EXPERIMENT_ID')
-WHERE is_root = true
-ORDER BY _pagination_key DESC
-LIMIT 1000
-```
-
-Follow the returned cursor as described in https://www.braintrust.dev/docs/api-reference/query. The [web fetcher](apps/web/scripts/fetch-braintrust.ts) shows how to read checks and token usage from child spans.
 
 ## Reviewing an eval
 

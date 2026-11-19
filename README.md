@@ -82,7 +82,7 @@ Set `BRAINTRUST_API_KEY` and `BRAINTRUST_PROJECT_ID` in the repository's `.env`,
 pnpm web
 ```
 
-The server fetches results once at startup. See [CONTRIBUTING.md](CONTRIBUTING.md#publishing-and-consuming-results) for publishing and querying results.
+The server fetches results once at startup. See [consuming results](CONTRIBUTING.md#consuming-results) and [publishing the benchmark](CONTRIBUTING.md#publishing-the-benchmark).
 
 ## Eval Shape
 
