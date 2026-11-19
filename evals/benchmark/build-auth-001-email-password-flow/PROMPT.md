@@ -27,4 +27,3 @@ their profile.
 
 The Supabase project for this app is in `supabase/` and already running
 locally. When you're done, the functions should work for real against it.
-
