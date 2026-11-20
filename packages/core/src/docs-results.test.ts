@@ -1109,3 +1109,141 @@ describe('rehydrateTruncatedDocsResults', () => {
     expect(readFile).not.toHaveBeenCalled();
   });
 });
+
+describe('buildDocsResult with supabase.sh', () => {
+  /** A Claude Code Bash call, the way agents reach supabase.sh. */
+  function bash(
+    command: string,
+    result: unknown,
+    error?: string
+  ): ToolCallRecord {
+    return toolCall(
+      'Bash',
+      { command },
+      { name: 'shell', command, result, ...(error ? { error } : {}) }
+    );
+  }
+
+  it('counts a page printed over ssh and maps it to its supabase.com url', () => {
+    const command =
+      'ssh supabase.sh cat /supabase/docs/guides/auth/server-side/creating-a-client.md';
+    const result = buildDocsResult([bash(command, '# Creating a client')]);
+
+    expect(result.calls).toEqual([
+      {
+        source: 'supabase_sh',
+        query: command,
+        hasContent: true,
+        pages: [
+          {
+            url: 'https://supabase.com/docs/guides/auth/server-side/creating-a-client',
+          },
+        ],
+        resultChars: '# Creating a client'.length,
+      },
+    ]);
+  });
+
+  it('keeps a page read whose output is trimmed by a local pipe', () => {
+    const command =
+      "ssh supabase.sh sed -n '40,80p' /supabase/docs/guides/local-development/cli/migrating-to-v3.md | head -40";
+    const [call] = buildDocsResult([bash(command, 'db push --remote')]).calls;
+
+    expect(call?.hasContent).toBe(true);
+    expect(call?.pages).toEqual([
+      {
+        url: 'https://supabase.com/docs/guides/local-development/cli/migrating-to-v3',
+      },
+    ]);
+  });
+
+  it('counts a search without claiming it delivered page text', () => {
+    const command =
+      "ssh supabase.sh grep -rl 'gen types' /supabase/docs/ | head -20";
+    const result = buildDocsResult([
+      bash(command, '/supabase/docs/guides/api/rest/generating-types.md'),
+    ]);
+
+    expect(result.calls).toEqual([
+      {
+        source: 'supabase_sh',
+        query: command,
+        pages: [],
+        resultChars: expect.any(Number),
+      },
+    ]);
+    expect(result.calls[0]?.hasContent).toBeUndefined();
+  });
+
+  it('collects every page from several ssh calls in one command, mixed with local commands', () => {
+    const command =
+      'ssh supabase.sh ls /supabase/docs/guides/auth/server-side; ssh supabase.sh cat /supabase/docs/guides/auth/server-side/nextjs.md; cat package.json';
+    const [call] = buildDocsResult([bash(command, 'mixed output')]).calls;
+
+    expect(call?.source).toBe('supabase_sh');
+    expect(call?.pages).toEqual([
+      { url: 'https://supabase.com/docs/guides/auth/server-side/nextjs' },
+    ]);
+    // ls is a listing and cat package.json shares the output, so page text isn't proven.
+    expect(call?.hasContent).toBeUndefined();
+  });
+
+  it('reads a quoted command and ssh options before the host', () => {
+    const command =
+      'ssh -o BatchMode=yes supabase.sh "cat /supabase/docs/guides/database/views.md"';
+    const [call] = buildDocsResult([bash(command, '# Views')]).calls;
+
+    expect(call?.hasContent).toBe(true);
+    expect(call?.pages).toEqual([
+      { url: 'https://supabase.com/docs/guides/database/views' },
+    ]);
+  });
+
+  it('unwraps a bash -lc wrapper, the way Codex runs commands', () => {
+    const command =
+      "/bin/bash -lc 'ssh supabase.sh cat /supabase/docs/reference/cli.md'";
+    const [call] = buildDocsResult([bash(command, '# CLI reference')]).calls;
+
+    expect(call?.pages).toEqual([
+      { url: 'https://supabase.com/docs/reference/cli' },
+    ]);
+  });
+
+  it('ignores the setup command, an interactive session, and other hosts', () => {
+    const result = buildDocsResult([
+      bash('ssh supabase.sh agents', '## Supabase docs over SSH'),
+      bash('ssh supabase.sh', 'Welcome'),
+      bash('ssh example.com cat supabase.sh', 'unrelated'),
+      bash('echo ssh supabase.sh cat /supabase/docs/a.md', 'unrelated'),
+    ]);
+
+    expect(result.calls).toEqual([]);
+  });
+
+  it('drops a failed call and one with no output, like a shell fetch', () => {
+    const result = buildDocsResult([
+      bash(
+        "ssh supabase.sh grep -rl 'no such thing' /supabase/docs/",
+        '',
+        'exit code 1'
+      ),
+      bash('ssh supabase.sh cat /supabase/docs/guides/missing.md', ''),
+    ]);
+
+    expect(result.calls).toEqual([]);
+  });
+
+  it('rehydrates a truncated supabase.sh read', async () => {
+    const path = '/home/node/.claude/projects/x/tool-results/abc.txt';
+    const call = bash(
+      'ssh supabase.sh cat /supabase/docs/reference/api.md',
+      `<persisted-output>\nOutput too large (80.1KB). Full output saved to: ${path}`
+    );
+    const readFile = vi.fn().mockResolvedValue('# Management API');
+
+    await rehydrateTruncatedDocsResults({ readFile }, [call]);
+
+    expect(readFile).toHaveBeenCalledWith(path);
+    expect(call.result).toBe('# Management API');
+  });
+});

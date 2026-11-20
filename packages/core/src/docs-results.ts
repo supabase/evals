@@ -50,6 +50,20 @@ const STDOUT_REDIRECT_PATTERN = /(?:^|[^2])>/;
 // Urls inside a shell command, stopping at the shell metacharacters that can
 // legally follow one (`|`, `>`, quotes, backslash-escapes).
 const URL_IN_COMMAND_PATTERN = /https?:\/\/[^\s'"`\\;|&>()]+/g;
+// `ssh [options] supabase.sh <command>`: the docs served over SSH as markdown
+// files under /supabase/docs (https://supabase.com/blog/supabase-docs-over-ssh).
+// Captures the command run on supabase.sh. Allows leading env assignments, as
+// FETCHER_COMMAND_PATTERN does, and ssh options (each with an optional value,
+// `-o BatchMode=yes`) before the host, so `supabase.sh` merely appearing in
+// the command sent to some other host doesn't count.
+const SUPABASE_SH_COMMAND_PATTERN =
+  /^\s*(?:[A-Za-z_]\w*=\S*\s+)*ssh(?:\s+-\S+(?:\s+[^-\s]\S*)?)*\s+supabase\.sh(?=\s|$)([\s\S]*)$/;
+// A docs page on supabase.sh. `/supabase/docs/guides/x.md` is the page served
+// at https://supabase.com/docs/guides/x.
+const SUPABASE_SH_PAGE_PATTERN =
+  /\/supabase\/docs\/([^\s'"`\\;|&>()*?[\]]+?)\.md(?=$|[\s'"`\\;|&>()])/g;
+// Commands that print a page's text, as opposed to searching or listing.
+const SUPABASE_SH_READ_COMMAND_PATTERN = /^(?:cat|head|tail|sed|less|more)$/;
 
 /**
  * True for the apex supabase.com host. Docs, changelog, and blog all live
@@ -103,6 +117,53 @@ function shellFetchUrls(command: string | undefined): string[] {
     }
   }
   return urls;
+}
+
+/**
+ * The commands a shell call ran on supabase.sh, one per `ssh supabase.sh ...`
+ * in it. Skips `ssh supabase.sh agents`, which prints setup instructions
+ * rather than docs, and a bare `ssh supabase.sh`, which opens an interactive
+ * session a headless run can't use.
+ */
+function supabaseShCommands(command: string | undefined): string[] {
+  if (!command) return [];
+  const wrapped = command.match(SHELL_WRAPPER_PATTERN);
+  if (wrapped) return supabaseShCommands(wrapped[2]);
+
+  const remotes: string[] = [];
+  for (const item of command.split(SHELL_COMMAND_LIST_PATTERN)) {
+    // Only the first stage of a pipeline runs on supabase.sh. Later stages
+    // (`| head`) filter its output locally.
+    const [head = ''] = item.split('|');
+    const match = head.match(SUPABASE_SH_COMMAND_PATTERN);
+    if (!match) continue;
+    const remote = match[1]
+      .trim()
+      .replace(/^(['"])([\s\S]*)\1$/, '$2')
+      .trim();
+    if (!remote || remote === 'agents') continue;
+    remotes.push(remote);
+  }
+  return remotes;
+}
+
+/** The docs pages a supabase.sh command names, as their supabase.com urls. */
+function supabaseShPages(remotes: string[]): DocsCallPage[] {
+  const urls: string[] = [];
+  for (const remote of remotes) {
+    for (const match of remote.matchAll(SUPABASE_SH_PAGE_PATTERN)) {
+      const url = `https://supabase.com/docs/${match[1]}`;
+      if (!urls.includes(url)) urls.push(url);
+    }
+  }
+  return urls.map((url) => ({ url }));
+}
+
+/** True when every supabase.sh command prints page text (cat, sed, ...) rather than searching or listing. */
+function supabaseShReadsPages(remotes: string[]): boolean {
+  return remotes.every((remote) =>
+    SUPABASE_SH_READ_COMMAND_PATTERN.test(remote.split(/\s+/)[0] ?? '')
+  );
 }
 
 /** True when no separate command can contribute to a shell fetch's combined result. */
@@ -163,7 +224,8 @@ function isDocsRelatedCall(call: ToolCallRecord): boolean {
     call.tool.toolName === 'search_docs' ||
     call.name === 'web_fetch' ||
     call.name === 'web_search' ||
-    shellFetchUrls(shellCommand(call)).length > 0
+    shellFetchUrls(shellCommand(call)).length > 0 ||
+    supabaseShCommands(shellCommand(call)).length > 0
   );
 }
 
@@ -373,12 +435,31 @@ export function buildDocsResult(toolCalls: ToolCallRecord[]): DocsResult {
 
     if (call.name === 'shell') {
       const command = shellCommand(call);
-      const urls = shellFetchUrls(command);
-      if (!command || urls.length === 0) continue;
+      if (!command) continue;
       // A non-zero exit already proves the fetch failed.
       if (call.error) continue;
       // With no shell output at all, nothing from the fetch reached the model.
       if (typeof result !== 'string' || result.length === 0) continue;
+
+      const remotes = supabaseShCommands(command);
+      if (remotes.length > 0) {
+        calls.push({
+          source: 'supabase_sh',
+          query: command,
+          // grep and find output may or may not include page text, so only a
+          // call that just printed pages, with no other command mixed into
+          // its output, is known to have delivered docs content.
+          hasContent:
+            supabaseShReadsPages(remotes) && shellFetchOwnsResult(command)
+              ? true
+              : undefined,
+          pages: supabaseShPages(remotes),
+          resultChars: resultCharCount(result),
+        });
+      }
+
+      const urls = shellFetchUrls(command);
+      if (urls.length === 0) continue;
       // curl without -f/--fail exits 0 on a 4xx/5xx. wget doesn't need the
       // check: it already exits non-zero on an HTTP error by default
       // (https://www.gnu.org/software/wget/manual/html_node/Exit-Status.html).
