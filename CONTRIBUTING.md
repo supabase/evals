@@ -88,11 +88,9 @@ When you create a PR, run evals in GitHub Actions so reviewers can inspect resul
 - Add the `run-evals-changed` label to run the evals changed in your PR.
 - Dispatch the [Refresh eval results](https://github.com/supabase/evals/actions/workflows/eval-refresh.yml) workflow to choose a branch, suite, experiment, or eval. For framework changes, use `suite: regression`.
 
-Find links to the uploaded Braintrust experiments in the workflow run summary.
+After CI runs, open the workflow run summary and select **Braintrust experiments → view all**. Link the Braintrust run in your PR so reviewers can inspect the results.
 
 To schedule a suite, add a team-owned workflow that calls [eval-refresh.yml](.github/workflows/eval-refresh.yml) with the suite and optional experiments, and add the workflow to [CODEOWNERS](.github/CODEOWNERS). See existing schedules in [.github/workflows](.github/workflows/) for reference.
-
-Include refreshed results for PRs with new/changed evals so a reviewer can inspect them in Braintrust.
 
 ## Consuming results
 
