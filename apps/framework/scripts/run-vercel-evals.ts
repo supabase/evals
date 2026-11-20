@@ -86,6 +86,20 @@ const EVAL_TIMEOUT_BUFFER_MS = 25 * 60 * 1_000;
  * before the platform kills the sandbox.
  */
 const SANDBOX_TIMEOUT_BUFFER_MS = 10 * 60 * 1_000;
+/** A CLI eval that fails reruns once, which repeats the stack restart and scoring. */
+const RETRY_BUFFER_MS = 10 * 60 * 1_000;
+
+/** Only the CLI suite experiments configure a fallback attempt, so it budgets a second attempt. */
+export function evalTimeouts(evalSuite: string, timeoutSec: number) {
+  const attempts = evalSuite === 'cli' ? 2 : 1;
+  const commandMs =
+    attempts * timeoutSec * 1_000 +
+    EVAL_TIMEOUT_BUFFER_MS +
+    (attempts - 1) * RETRY_BUFFER_MS;
+  return { commandMs, sandboxMs: commandMs + SANDBOX_TIMEOUT_BUFFER_MS };
+}
+
+const ATTEMPT_SUFFIXES = ['fallback'] as const;
 
 const evalPairSchema = z.object({
   eval_id: z.string(),
@@ -390,10 +404,7 @@ export async function runPairOnce(
         depth: 1,
       },
       resources: { vcpus: options.vcpus },
-      timeout:
-        options.timeoutSec * 1_000 +
-        EVAL_TIMEOUT_BUFFER_MS +
-        SANDBOX_TIMEOUT_BUFFER_MS,
+      timeout: evalTimeouts(pair.eval_suite, options.timeoutSec).sandboxMs,
       persistent: false,
       networkPolicy: brokeredNetworkPolicy(),
       // Sandboxes cap out at five tags.
@@ -580,7 +591,7 @@ exit 1`,
               DOCKER_BUILDKIT: '0',
             }
           : undefined,
-        timeoutMs: options.timeoutSec * 1_000 + EVAL_TIMEOUT_BUFFER_MS,
+        timeoutMs: evalTimeouts(pair.eval_suite, options.timeoutSec).commandMs,
       },
       !spark
     );
@@ -608,9 +619,8 @@ exit 1`,
         cmd: 'sh',
         args: [
           '-c',
-          packWorkspaceScript(
-            `results/${pair.eval_suite}/${pair.experiment}/${pair.eval_id}/run-${run}/workspace`,
-            '/tmp/eval-workspace.tgz'
+          packRunWorkspacesScript(
+            `results/${pair.eval_suite}/${pair.experiment}/${pair.eval_id}/run-${run}`
           ),
         ],
         cwd: repoCwd,
@@ -839,6 +849,30 @@ export function packWorkspaceScript(workspaceDir: string, archivePath: string) {
   );
 }
 
+/** Packs the run's workspace and any per-attempt workspaces, failing if any `tar` fails. */
+export function packRunWorkspacesScript(runDir: string) {
+  return [
+    packWorkspaceScript(`${runDir}/workspace`, '/tmp/eval-workspace.tgz'),
+    ...ATTEMPT_SUFFIXES.map((attempt) =>
+      packOptionalWorkspaceScript(
+        `${runDir}/workspace-${attempt}`,
+        `/tmp/eval-workspace-${attempt}.tgz`
+      )
+    ),
+  ].join(' && ');
+}
+
+/** Packs a per-attempt workspace only when it exists; unlike the primary one, it has no empty-archive fallback. */
+export function packOptionalWorkspaceScript(
+  workspaceDir: string,
+  archivePath: string
+) {
+  return (
+    `if [ -d '${workspaceDir}' ]; then ` +
+    `tar --exclude='*/node_modules' -czf '${archivePath}' -C '${workspaceDir}' .; fi`
+  );
+}
+
 export async function downloadResults(
   sandbox: Pick<Sandbox, 'downloadFile'>,
   pair: EvalPair,
@@ -887,6 +921,25 @@ export async function downloadResults(
       { path: join(destination, 'session-archive.tar.gz') },
       { mkdirRecursive: true }
     );
+    // Only present when a fallback attempt ran.
+    for (const attempt of ATTEMPT_SUFFIXES) {
+      const attemptWorkspace = join(destination, `workspace-${attempt}.tgz`);
+      const attemptDownloaded = await sandbox.downloadFile(
+        { path: `/tmp/eval-workspace-${attempt}.tgz` },
+        { path: `${attemptWorkspace}.partial` },
+        { mkdirRecursive: true }
+      );
+      if (attemptDownloaded) {
+        renameSync(`${attemptWorkspace}.partial`, attemptWorkspace);
+      }
+      await sandbox.downloadFile(
+        {
+          path: `results/${pair.eval_suite}/${pair.experiment}/${pair.eval_id}/run-${run}/session-archive-${attempt}.tar.gz`,
+        },
+        { path: join(destination, `session-archive-${attempt}.tar.gz`) },
+        { mkdirRecursive: true }
+      );
+    }
   }
   console.log(`${jobLabel(pair, run)} results downloaded to ${destination}`);
   return { partialPath: resultPartial, finalPath: result };

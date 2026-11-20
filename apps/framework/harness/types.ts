@@ -27,6 +27,7 @@ export type {
   ToolScorer,
   LocalStackScorer,
   ExperimentConfig,
+  FallbackResult,
 } from '@supabase-evals/core';
 export { serializeTranscript } from '@supabase-evals/core';
 export type {

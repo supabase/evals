@@ -137,11 +137,15 @@ against `supabase/postgres` 17:
 ## CLI facts that shape the scenario
 
 Checked against the npm dist-tags on 2026-10-26: pinned 2.117.0, stable 2.122.0,
-beta 2.123.0-beta.1, next 3.0.0-next.23.
+beta 2.123.0-beta.1, next 3.0.0-next.23. Rechecked 2026-11-16: stable is now 3.x
+(3.1.0), and on it, beta 3.2.0-beta.17 and next 4.0.0-next.26 `test db` is local by
+default with `--remote` for the linked project (`--local`, `--linked` and
+`--db-url` print a deprecation warning); the `Files=` lines and the rest weren't
+rechecked on 3.x+ beyond next.23.
 
 - `supabase test db` runs every `*.sql` and `*.pg` file under `supabase/tests`
   through pg_prove. On the Docker path pg_prove runs in the
-  `supabase/pg_prove:3.36` image. On 2.x (pinned, stable, beta) it takes
+  `supabase/pg_prove:3.36` image. On 2.x (pinned, and stable and beta then) it takes
   `--local` (the default), `--linked` and `--db-url`. On 3.0.0-next.23 it is
   local by default, `--remote[=<ref|branch|url>]` targets a remote, and in agent
   mode a remote target needs `--yes`. This eval uses the local database.
@@ -273,7 +277,7 @@ the PR.
 | experiment | CLI version | container runtime | expected |
 | --- | --- | --- | --- |
 | `codex-gpt-6-luna-cli-pinned` | this repo's pin, 2.117.0 | Docker available | can pass: `db reset`, `migration up` and the legacy `test db` run against the pre-started stack on Docker |
-| `codex-gpt-6-luna-cli-stable` | npm `latest` (2.122.0 when checked) | Docker available | can pass, as pinned |
+| `codex-gpt-6-luna-cli-stable` | npm `latest` (2.122.0 when checked; 3.1.0 on 2026-11-16) | Docker available | can pass, as pinned; `--local` is deprecated there |
 | `codex-gpt-6-luna-cli-beta` | npm `beta` (2.123.0-beta.1 when checked) | Docker available | can pass, as pinned |
 | `codex-gpt-6-luna-cli-next` | npm `next` (3.0.0-next.23 when checked) | Docker available | can pass, as pinned |
 | `codex-gpt-6-luna-cli-nodaemon` | `beta` | Docker client present, daemon unreachable | skipped: the eval needs a pre-started stack, which the Docker-less arms can't provide |

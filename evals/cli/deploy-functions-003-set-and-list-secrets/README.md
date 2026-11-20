@@ -138,7 +138,10 @@ set` commands over the seeded names, pass through it unchanged.
 
 `secrets set --help` and `secrets list --help` are identical on the pinned
 2.117.0, npm `latest` 2.121.0, npm `beta` 2.122.0-beta.10 and npm `next`
-3.0.0-next.21.
+3.0.0-next.21. Rechecked 2026-11-16 on stable 3.1.0, beta 3.2.0-beta.17 and next
+4.0.0-next.26: `secrets *` use the linked project ("pass --remote=<ref|branch>
+for another") and hosted changes need `--yes` or exported `SUPABASE_YES`; the
+help text itself wasn't rechecked on 3.x+.
 
 - `supabase secrets set [NAME=VALUE...] [--env-file <path>] [--project-ref
   <ref>]` reads the file with a dotenv parser. It never reads

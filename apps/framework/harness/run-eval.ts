@@ -52,6 +52,7 @@ import type {
   ScoreResult,
   SkillResult,
   DocsResult,
+  FallbackResult,
   ToolCallRecord,
   TranscriptPart,
 } from './types.js';
@@ -303,13 +304,28 @@ function resultPath(modelName: string, evalId: string, run: number) {
   return join(runDir(modelName, evalId, run), 'result.json');
 }
 
-function sessionArchivePath(modelName: string, evalId: string, run: number) {
-  return join(runDir(modelName, evalId, run), 'session-archive.tar.gz');
+function sessionArchivePath(
+  modelName: string,
+  evalId: string,
+  run: number,
+  suffix = ''
+) {
+  return join(
+    runDir(modelName, evalId, run),
+    `session-archive${suffix}.tar.gz`
+  );
 }
 
-function workspacePath(modelName: string, evalId: string, run: number) {
-  return join(runDir(modelName, evalId, run), 'workspace');
+function workspacePath(
+  modelName: string,
+  evalId: string,
+  run: number,
+  suffix = ''
+) {
+  return join(runDir(modelName, evalId, run), `workspace${suffix}`);
 }
+
+const FALLBACK_SUFFIX = '-fallback';
 
 function copyWithheldTests(ev: EvalManifest, workspace: string) {
   const testsDir = join(ev.dir, 'tests');
@@ -349,38 +365,220 @@ function disposable<T extends { close(): Promise<unknown> }>(
   });
 }
 
+type EvalRunResult = ScoreResult & {
+  judgeCalls: JudgeCall[];
+  run: number;
+  skills: SkillResult;
+  docs: DocsResult;
+  toolCalls: ToolCallRecord[];
+  transcript: TranscriptPart[];
+  agentReport: string;
+  stoppedReason: string;
+  /**
+   * The system prompt the harness handed the agent, `''` for a CLI agent.
+   * Recorded so a run artifact shows what the agent was told.
+   */
+  systemPrompt: string;
+  usage?: AgentUsage;
+  stepCount?: number;
+  toolCallCount: number;
+  agentRunDurationMs: number;
+  agentRunStartedAt: number;
+  agentPromptAt?: number;
+  agentRunEndedAt: number;
+  scoringEndedAt: number;
+  cliVersion?: string;
+  repoSources?: Record<string, RepoSource>;
+};
+
+export interface LocalStackAttemptContext {
+  expName: string;
+  exp: ExperimentConfig;
+  ev: EvalManifest;
+  runIndex: number;
+  prompt: string;
+  scorer: LocalStackScorer;
+  skillSources: ReturnType<typeof resolveSkillSources>;
+  availableSkills: string[];
+}
+
+async function runLocalStackAttempt(
+  {
+    expName,
+    exp,
+    ev,
+    runIndex,
+    prompt,
+    scorer,
+    skillSources,
+    availableSkills,
+  }: LocalStackAttemptContext,
+  suffix = ''
+): Promise<EvalRunResult> {
+  if (!exp.localStack) {
+    throw new Error(
+      `eval ${ev.id} has interface: cli but experiment "${expName}" does not configure a local stack runtime. ` +
+        `Add \`localStack: localStackRuntime()\` (from "@supabase-evals/sandbox") to experiments/<team>/${expName}.experiment.ts.`
+    );
+  }
+  // Boots a platform-lite backend seeded from the eval's `remote/` dir so scorers
+  // that read remote state (e.g. migration history) have something to assert on.
+  await using hostedBackend = ev.metadata.hostedProject
+    ? disposable(
+        await bootPlatformBackend({
+          ...readSessionSeedArgs(ev),
+          ref: HOSTED_PROJECT_REF,
+          accessToken: HOSTED_ACCESS_TOKEN,
+          hostname: '0.0.0.0',
+          // So linked DB workflows (`db push`, `migration repair`) reach the project too.
+          pgWire: true,
+        })
+      )
+    : undefined;
+  await using session = disposable(
+    await exp.localStack.startSession({
+      agent: exp.agent.id,
+      cliVersion: ev.metadata.cliVersion,
+      localDir: ev.localDir,
+      includeServices: ev.metadata.services,
+      projectRunning: ev.metadata.projectRunning,
+      hosted: hostedBackend
+        ? {
+            port: Number(new URL(hostedBackend.url).port),
+            pgPort: hostedBackend.pgPort,
+            ref: hostedBackend.ref,
+            accessToken: hostedBackend.accessToken,
+            mgmt: hostedBackend.mgmt,
+            query: hostedBackend.query,
+            invokeFunction: hostedBackend.invokeFunction,
+          }
+        : undefined,
+      skills: skillSources,
+      skipCliInstall: ev.metadata.skipCliInstall,
+    })
+  );
+
+  const systemPrompt = buildSystemPrompt({
+    agent: exp.agent.id,
+    addendum: session.promptAddendum,
+  });
+  const run = await exp.agent.run({
+    systemPrompt,
+    userPrompt: prompt,
+    tools: session.tools,
+    sandbox: session.sandbox,
+    mcpServers: session.mcpServers,
+    timeoutSec: TIMEOUT_SEC,
+    sessionArchivePath: sessionArchivePath(expName, ev.id, runIndex, suffix),
+  });
+  const agentRunEndedAt = Date.now();
+  await session.ensureReady?.();
+  // Exports the workspace so scorers can run host tooling (vite/vitest) against it.
+  // Withheld tests are copied in lazily, only if the scorer asks to run Vitest.
+  const hostWorkspace = workspacePath(expName, ev.id, runIndex, suffix);
+  rmSync(hostWorkspace, { recursive: true, force: true });
+  await session.exportWorkspace(hostWorkspace);
+  let copiedWithheldTests = false;
+  const ensureWithheldTests = () => {
+    if (copiedWithheldTests) return;
+    copyWithheldTests(ev, hostWorkspace);
+    copiedWithheldTests = true;
+  };
+
+  const judges = createJudgeRecorder();
+  const last = await (scorer as LocalStackScorer)({
+    ...session.scoringContext,
+    toolCalls: run.toolCalls,
+    transcript: run.transcript,
+    agentReport: run.agentReport,
+    judge: judges.judge,
+    hostWorkspace,
+    runViteBuild: () => viteBuild(hostWorkspace),
+    runVitest: () => {
+      ensureWithheldTests();
+      return vitestRun(hostWorkspace);
+    },
+  });
+  const scoringEndedAt = Date.now();
+
+  // Runs after scoring so the scorer sees what the agent actually saw, not rehydrated content.
+  await rehydrateTruncatedDocsResults(session.sandbox, run.toolCalls);
+
+  // The marker names the CLI binary the sandbox actually staged; falls back to
+  // the frontmatter pin only when there's no marker to read (e.g. skipCliInstall).
+  const marker = await session.scoringContext.environmentMarker();
+
+  const result = {
+    ...last,
+    judgeCalls: [...judges.finish()],
+    run: runIndex,
+    skills: buildSkillResult(availableSkills, run.toolCalls),
+    docs: buildDocsResult(run.toolCalls),
+    toolCalls: run.toolCalls,
+    transcript: run.transcript,
+    agentReport: run.agentReport,
+    stoppedReason: run.stoppedReason,
+    systemPrompt,
+    usage: run.usage,
+    stepCount: run.stepCount,
+    toolCallCount: run.toolCalls.length,
+    agentRunDurationMs: run.durationMs,
+    agentRunStartedAt: run.startedAt,
+    agentPromptAt: run.promptAt,
+    agentRunEndedAt,
+    scoringEndedAt,
+    cliVersion: marker?.cliVersion ?? ev.metadata.cliVersion,
+    repoSources: session.repoSources,
+  };
+  return result;
+}
+
+/** Runs the first attempt, then one fallback attempt when it fails and the experiment configures one; the first attempt's result is always the reported one. */
+export async function runLocalStackWithFallback(
+  ctx: LocalStackAttemptContext
+): Promise<EvalRunResult & { fallback?: FallbackResult }> {
+  const { expName, exp, ev, runIndex } = ctx;
+  const first = await runLocalStackAttempt(ctx);
+  const fallbackRuntime = exp.fallbackConfig?.localStack;
+  if (first.passed || !fallbackRuntime) return first;
+
+  console.log(`↻ FALLBACK ${expName} x ${ev.id} run ${runIndex}`);
+  try {
+    const retry = await runLocalStackAttempt(
+      { ...ctx, exp: { ...exp, localStack: fallbackRuntime } },
+      FALLBACK_SUFFIX
+    );
+    return {
+      ...first,
+      fallback: {
+        outcome: retry.passed ? 'passed' : 'failed',
+        runtime: fallbackRuntime.id,
+        passed: retry.passed,
+        checks: retry.checks,
+        cliVersion: retry.cliVersion,
+        usage: retry.usage,
+        judgeCalls: retry.judgeCalls,
+      },
+    };
+  } catch (e) {
+    return {
+      ...first,
+      fallback: {
+        outcome: 'errored',
+        runtime: fallbackRuntime.id,
+        passed: false,
+        error: e instanceof Error ? e.message : String(e),
+      },
+    };
+  }
+}
+
 async function runOne(
   expName: string,
   exp: ExperimentConfig,
   ev: EvalManifest,
   runIndex: number
-): Promise<
-  ScoreResult & {
-    judgeCalls: JudgeCall[];
-    run: number;
-    skills: SkillResult;
-    docs: DocsResult;
-    toolCalls: ToolCallRecord[];
-    transcript: TranscriptPart[];
-    agentReport: string;
-    stoppedReason: string;
-    /**
-     * The system prompt the harness handed the agent, `''` for a CLI agent.
-     * Recorded so a run artifact shows what the agent was told.
-     */
-    systemPrompt: string;
-    usage?: AgentUsage;
-    stepCount?: number;
-    toolCallCount: number;
-    agentRunDurationMs: number;
-    agentRunStartedAt: number;
-    agentPromptAt?: number;
-    agentRunEndedAt: number;
-    scoringEndedAt: number;
-    cliVersion?: string;
-    repoSources?: Record<string, RepoSource>;
-  }
-> {
+): Promise<EvalRunResult & { fallback?: FallbackResult }> {
   const prompt = parseEvalMarkdown(
     readFileSync(ev.promptPath, 'utf8'),
     ev.promptPath
@@ -403,122 +601,22 @@ async function runOne(
     | ToolScorer
     | LocalStackScorer;
   if (ev.mode === 'local-stack') {
-    // One fresh local-stack session per scored run.
     if (!exp.localStack) {
       throw new Error(
         `eval ${ev.id} has interface: cli but experiment "${expName}" does not configure a local stack runtime. ` +
           `Add \`localStack: localStackRuntime()\` (from "@supabase-evals/sandbox") to experiments/<team>/${expName}.experiment.ts.`
       );
     }
-    // Boots a platform-lite backend seeded from the eval's `remote/` dir so scorers
-    // that read remote state (e.g. migration history) have something to assert on.
-    await using hostedBackend = ev.metadata.hostedProject
-      ? disposable(
-          await bootPlatformBackend({
-            ...readSessionSeedArgs(ev),
-            ref: HOSTED_PROJECT_REF,
-            accessToken: HOSTED_ACCESS_TOKEN,
-            hostname: '0.0.0.0',
-            // So linked DB workflows (`db push`, `migration repair`) reach the project too.
-            pgWire: true,
-          })
-        )
-      : undefined;
-    await using session = disposable(
-      await exp.localStack.startSession({
-        agent: exp.agent.id,
-        cliVersion: ev.metadata.cliVersion,
-        localDir: ev.localDir,
-        includeServices: ev.metadata.services,
-        projectRunning: ev.metadata.projectRunning,
-        hosted: hostedBackend
-          ? {
-              port: Number(new URL(hostedBackend.url).port),
-              pgPort: hostedBackend.pgPort,
-              ref: hostedBackend.ref,
-              accessToken: hostedBackend.accessToken,
-              mgmt: hostedBackend.mgmt,
-              query: hostedBackend.query,
-              invokeFunction: hostedBackend.invokeFunction,
-            }
-          : undefined,
-        skills: skillSources,
-        skipCliInstall: ev.metadata.skipCliInstall,
-      })
-    );
-
-    const systemPrompt = buildSystemPrompt({
-      agent: exp.agent.id,
-      addendum: session.promptAddendum,
+    return runLocalStackWithFallback({
+      expName,
+      exp,
+      ev,
+      runIndex,
+      prompt,
+      scorer: scorer as LocalStackScorer,
+      skillSources,
+      availableSkills,
     });
-    const run = await exp.agent.run({
-      systemPrompt,
-      userPrompt: prompt,
-      tools: session.tools,
-      sandbox: session.sandbox,
-      mcpServers: session.mcpServers,
-      timeoutSec: TIMEOUT_SEC,
-      sessionArchivePath: sessionArchivePath(expName, ev.id, runIndex),
-    });
-    const agentRunEndedAt = Date.now();
-    await session.ensureReady?.();
-    // Exports the workspace so scorers can run host tooling (vite/vitest) against it.
-    // Withheld tests are copied in lazily, only if the scorer asks to run Vitest.
-    const hostWorkspace = workspacePath(expName, ev.id, runIndex);
-    rmSync(hostWorkspace, { recursive: true, force: true });
-    await session.exportWorkspace(hostWorkspace);
-    let copiedWithheldTests = false;
-    const ensureWithheldTests = () => {
-      if (copiedWithheldTests) return;
-      copyWithheldTests(ev, hostWorkspace);
-      copiedWithheldTests = true;
-    };
-
-    const judges = createJudgeRecorder();
-    const last = await (scorer as LocalStackScorer)({
-      ...session.scoringContext,
-      toolCalls: run.toolCalls,
-      transcript: run.transcript,
-      agentReport: run.agentReport,
-      judge: judges.judge,
-      hostWorkspace,
-      runViteBuild: () => viteBuild(hostWorkspace),
-      runVitest: () => {
-        ensureWithheldTests();
-        return vitestRun(hostWorkspace);
-      },
-    });
-    const scoringEndedAt = Date.now();
-
-    // Runs after scoring so the scorer sees what the agent actually saw, not rehydrated content.
-    await rehydrateTruncatedDocsResults(session.sandbox, run.toolCalls);
-
-    // The marker names the CLI binary the sandbox actually staged; falls back to
-    // the frontmatter pin only when there's no marker to read (e.g. skipCliInstall).
-    const marker = await session.scoringContext.environmentMarker();
-
-    return {
-      ...last,
-      judgeCalls: [...judges.finish()],
-      run: runIndex,
-      skills: buildSkillResult(availableSkills, run.toolCalls),
-      docs: buildDocsResult(run.toolCalls),
-      toolCalls: run.toolCalls,
-      transcript: run.transcript,
-      agentReport: run.agentReport,
-      stoppedReason: run.stoppedReason,
-      systemPrompt,
-      usage: run.usage,
-      stepCount: run.stepCount,
-      toolCallCount: run.toolCalls.length,
-      agentRunDurationMs: run.durationMs,
-      agentRunStartedAt: run.startedAt,
-      agentPromptAt: run.promptAt,
-      agentRunEndedAt,
-      scoringEndedAt,
-      cliVersion: marker?.cliVersion ?? ev.metadata.cliVersion,
-      repoSources: session.repoSources,
-    };
   }
 
   await using session = disposable(
@@ -613,6 +711,13 @@ function formatRunSummary(res: ScoreResult): string {
   if (!res.checks?.length) return '';
   const passed = res.checks.filter((check) => check.passed).length;
   return `checks ${passed}/${res.checks.length}`;
+}
+
+function formatFallbackNote(fallback?: FallbackResult): string {
+  if (fallback?.outcome === 'errored') {
+    return ` (fallback errored: ${fallback.error})`;
+  }
+  return fallback ? ` (fallback ${fallback.outcome})` : '';
 }
 
 async function runConcurrent<T>(
@@ -798,7 +903,7 @@ async function main() {
         );
         const elapsed = Math.round((Date.now() - start) / 1000);
         console.log(
-          `${res.passed ? '✅ PASS' : '❌ FAIL'} ${label} (${formatRunSummary(res)}, ${elapsed}s)\n   → ${relative(ROOT, out)}`
+          `${res.passed ? '✅ PASS' : '❌ FAIL'} ${label} (${formatRunSummary(res)}, ${elapsed}s)${formatFallbackNote(res.fallback)}\n   → ${relative(ROOT, out)}`
         );
       } catch (e) {
         errored.push(new Error(label, { cause: e }));

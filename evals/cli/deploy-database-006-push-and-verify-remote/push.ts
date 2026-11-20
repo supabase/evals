@@ -111,9 +111,10 @@ function positionals(argv: readonly string[]): string[] {
 function queryTarget(
   inv: SupabaseInvocation,
   command: string,
-  options: TargetOptions | undefined
+  options: TargetOptions | undefined,
+  call: ToolCallRecord | undefined
 ): QueryTarget {
-  if (isExplicitlyLocal(inv, command, options)) return 'local';
+  if (isExplicitlyLocal(inv, command, options, call)) return 'local';
   const remote =
     invocationFlag(inv, '--db-url') !== undefined ||
     invocationFlag(inv, '--project-ref') !== undefined ||
@@ -175,7 +176,7 @@ function readQuery(
 ): DbQuery {
   const base = {
     order,
-    target: queryTarget(inv, command ?? '', options),
+    target: queryTarget(inv, command ?? '', options, call),
     failed: toolCallFailed(call),
   };
   const withFile = (file: string): DbQuery => {

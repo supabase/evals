@@ -11,6 +11,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import {
+  fallbackResultSchema,
   judgeCallSchema,
   modelUsageSchema,
   type AgentUsage,
@@ -90,6 +91,12 @@ interface PendingRow {
   passed: boolean;
   checks: unknown;
   judgeCalls: JudgeCall[];
+  /** The fallback attempt, whose model spend is logged so trace sums include it. */
+  fallback?: {
+    passed: boolean;
+    usage?: AgentUsage;
+    judgeCalls: JudgeCall[];
+  };
   modelId?: string;
   modelProvider?: string;
   transcript: TranscriptPart[];
@@ -181,6 +188,17 @@ export function runViewUrl(experimentUrl: string, runId: string) {
     ],
   });
   return `${base}?search=${encodeURIComponent(search)}`;
+}
+
+function fallbackOf(
+  fallback: z.infer<typeof fallbackResultSchema> | undefined
+): PendingRow['fallback'] {
+  if (!fallback) return undefined;
+  return {
+    passed: fallback.passed,
+    usage: fallback.usage,
+    judgeCalls: fallback.judgeCalls ?? [],
+  };
 }
 
 /**
@@ -373,6 +391,7 @@ async function collectRows(
       agentReport:
         typeof result.agentReport === 'string' ? result.agentReport : '',
       passed: result.passed === true,
+      fallback: fallbackOf(result.fallback),
       checks: result.checks,
       judgeCalls: judgeCallsSchema.parse(result.judgeCalls),
       modelId: display?.modelId,
@@ -400,6 +419,14 @@ async function collectRows(
         source_path: sourcePath,
         cli_version: result.cliVersion ?? promptData?.cliVersion,
         repo_sources: result.repoSources,
+        ...(result.fallback
+          ? {
+              fallback_outcome: result.fallback.outcome,
+              ...(result.fallback.runtime
+                ? { fallback_runtime: result.fallback.runtime }
+                : {}),
+            }
+          : {}),
       },
       // Braintrust sums tokens across a trace's spans, so only LLM spans carry
       // them. `aiSdkAgent` records no per-request usage, so its rows show none.
@@ -517,6 +544,7 @@ export function logTranscript(
     | 'checks'
     | 'judgeCalls'
     | 'passed'
+    | 'fallback'
     | 'modelId'
     | 'modelProvider'
     | 'transcript'
@@ -720,10 +748,54 @@ export function logTranscript(
   });
   scorer.log({
     output: row.checks,
-    scores: { passed: row.passed ? 1 : 0 },
+    scores: rowScores(row),
   });
-  for (const call of row.judgeCalls) {
-    const span = scorer.startSpan({
+  logJudgeCalls(scorer, row.judgeCalls);
+  scorer.end({ endTime: latest(scoreStart, row.scoringEndTime) });
+
+  const { usage, judgeCalls } = row.fallback ?? {};
+  if (row.fallback && (usage?.length || judgeCalls?.length)) {
+    const attempt = parent.startSpan({
+      name: 'fallback attempt',
+      type: 'task',
+      ...(row.startTime === undefined ? {} : { startTime: row.startTime }),
+    });
+    for (const entry of usage ?? []) {
+      const span = attempt.startSpan({
+        name: entry.model,
+        type: 'llm',
+        ...(row.startTime === undefined ? {} : { startTime: row.startTime }),
+      });
+      span.log({
+        metrics: tokenMetrics([entry]),
+        metadata: {
+          model: entry.model,
+          ...(entry.model === row.modelId && row.modelProvider
+            ? { provider: row.modelProvider }
+            : {}),
+        },
+      });
+      span.end(
+        row.startTime === undefined ? undefined : { endTime: row.startTime }
+      );
+    }
+    logJudgeCalls(attempt, row.fallback.judgeCalls);
+    attempt.end(
+      row.startTime === undefined ? undefined : { endTime: row.startTime }
+    );
+  }
+}
+
+function rowScores(row: Pick<PendingRow, 'passed' | 'fallback'>) {
+  return {
+    passed: row.passed ? 1 : 0,
+    ...(row.fallback ? { fallback_passed: row.fallback.passed ? 1 : 0 } : {}),
+  };
+}
+
+function logJudgeCalls(parent: SpanSink, calls: JudgeCall[]) {
+  for (const call of calls) {
+    const span = parent.startSpan({
       name: call.model,
       type: 'llm',
       spanAttributes: { purpose: 'scorer' },
@@ -740,7 +812,6 @@ export function logTranscript(
     });
     span.end({ endTime: (call.startedAt + call.durationMs) / 1000 });
   }
-  scorer.end({ endTime: latest(scoreStart, row.scoringEndTime) });
 }
 
 function sec(ms: number | undefined) {
@@ -820,7 +891,7 @@ async function main() {
       root.log({
         input: row.prompt,
         output: row.agentReport,
-        scores: { passed: row.passed ? 1 : 0 },
+        scores: rowScores(row),
         metadata: {
           ...row.metadata,
           ...(row.sessionArchivePath

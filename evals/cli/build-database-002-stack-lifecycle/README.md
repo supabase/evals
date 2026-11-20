@@ -78,17 +78,20 @@ The frontmatter has no `services:` key. The sandbox shim turns it into
 | experiment | CLI version | container runtime | tells you | expected today |
 | --- | --- | --- | --- | --- |
 | pinned | this repo's pinned version | Docker available | baseline | pass |
-| stable | npm `latest` tag | Docker available | drift insurance — equals the pin between bumps | pass |
+| stable | npm `latest` tag (3.x; 3.1.0 on 2026-11-16) | Docker available | the CLI users get by default | pass |
 | beta | npm `beta` tag | Docker available | regressions ahead of a stable promotion, compared against `stable` | pass |
 | nodaemon | beta | Docker client present, daemon unreachable | the Docker-less gap | fails the ready/applied/rows checks, passes detours and truthful report |
 | absent | beta | no Docker at all | the Docker-less gap | fails the ready/applied/rows checks, passes detours and truthful report |
 
-`nodaemon` and `absent` pin to beta because the Docker-less path — the CLI's
-native managed stack, which needs no container runtime — only exists in the
-beta channel today. A 0/N on their outcome checks is expected, not a
-regression: the signal on those two is detours and truthfulness. They're
-expected to flip to passing once the managed stack is reachable under beta
-defaults.
+The Docker-less environments run on stable, beta and next (`codex-gpt-6-luna-cli-nodaemon` and `-absent` on beta, plus `-stable-nodaemon`, `-stable-absent`, `-next-nodaemon` and `-next-absent`). The Docker-less path is the CLI's
+native managed stack, which needs no container runtime; it exists on stable,
+beta and next (rechecked 2026-11-16) but only behind
+`SUPABASE_EXPERIMENTAL_STACK=1` or `[experimental] stack = true`. A 0/N on their
+outcome checks is expected when the agent doesn't find it, not a regression:
+the signal is detours and truthfulness. They pass when the agent finds the stack
+backend, or through the experimental fallback (a failed run is rerun once with `SUPABASE_EXPERIMENTAL=true` and
+`SUPABASE_EXPERIMENTAL_STACK=1`); a pass there is recorded as `fallback_passed`,
+not as `passed`, which stays the first attempt.
 
 `skip.ts` gates who runs what: `skipUnlessCli` restricts every experiment
 above to `interface: cli` evals, and `skipUnlessDockerless` additionally

@@ -165,7 +165,10 @@ PERMISSIONS section (2.122.0 onwards, needing `edge_functions_read`).
   `--remote[=<ref|branch>]` replaces `--project-ref` on both `functions
   download` and `functions deploy`, and `config.toml` is read unconditionally,
   even with `--use-api`. `--remote` takes an optional value, so the metrics
-  parser doesn't treat it as a flag that consumes the next word
+  parser doesn't treat it as a flag that consumes the next word. Stable is now
+  3.x (3.1.0 on 2026-11-16) and `functions deploy` there uses the linked project
+  with `--remote=<ref|branch>` for another, as on next; `functions download` and
+  the config.toml read weren't rechecked on stable or beta
 
 What the scorer's harness facts depend on, on platform-lite (the mocked hosted
 platform the harness uses for `hostedProject: true` evals):

@@ -79,6 +79,7 @@ export function toEvalResult(
     prompt: promptData?.prompt,
     promptSourcePath: promptData?.promptSourcePath,
     attempts: parsedResult.attempts,
+    fallback: parsedResult.fallback,
     run: parsedResult.run,
     sourcePath,
   };

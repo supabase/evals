@@ -441,6 +441,103 @@ describe('logTranscript', () => {
   });
 });
 
+describe('logTranscript with a fallback attempt', () => {
+  type Logged = {
+    name?: string;
+    scores?: unknown;
+    metrics?: unknown;
+    metadata?: unknown;
+  };
+  function sink(out: Logged[]): SpanSink {
+    const make = (args?: { name?: string }): SpanSink => {
+      const entry: Logged = { name: args?.name };
+      out.push(entry);
+      return {
+        startSpan: make,
+        log(event) {
+          if (event.scores) entry.scores = event.scores;
+          if (event.metrics) entry.metrics = event.metrics;
+          if (event.metadata) entry.metadata = event.metadata;
+        },
+        end() {},
+      };
+    };
+    return make();
+  }
+
+  const base = {
+    prompt: '',
+    agentReport: '',
+    checks: [],
+    judgeCalls: [],
+    passed: true,
+    startTime: 100,
+    endTime: 170,
+    toolLabels: [],
+    transcript: [],
+  };
+
+  it('scores fallback_passed beside passed and logs the fallback attempt spend', () => {
+    const out: Logged[] = [];
+    logTranscript(sink(out), {
+      ...base,
+      modelId: 'm',
+      modelProvider: 'prov',
+      passed: false,
+      fallback: {
+        passed: true,
+        usage: [
+          {
+            model: 'm',
+            inputTokens: 10,
+            cacheReadInputTokens: 0,
+            cacheWriteInputTokens: 0,
+            outputTokens: 5,
+          },
+          {
+            model: 'helper',
+            inputTokens: 4,
+            cacheReadInputTokens: 0,
+            cacheWriteInputTokens: 0,
+            outputTokens: 2,
+          },
+        ],
+        judgeCalls: [
+          {
+            model: 'judge',
+            provider: 'p',
+            system: 's',
+            prompt: 'q',
+            output: { passed: true, notes: 'o' },
+            usage: { inputTokens: 3, outputTokens: 1 },
+            startedAt: 100_000,
+            durationMs: 1000,
+          },
+        ],
+      },
+    });
+    expect(out.find((span) => span.name === 'passed')?.scores).toEqual({
+      passed: 0,
+      fallback_passed: 1,
+    });
+    const names = out.map((span) => span.name);
+    expect(names).toContain('fallback attempt');
+    expect(out.find((span) => span.name === 'm')?.metrics).toEqual({
+      prompt_tokens: 10,
+      completion_tokens: 5,
+      tokens: 15,
+    });
+    expect(out.find((span) => span.name === 'm')?.metadata).toEqual({
+      model: 'm',
+      provider: 'prov',
+    });
+    expect(out.find((span) => span.name === 'helper')?.metadata).toEqual({
+      model: 'helper',
+    });
+    expect(names).toContain('judge');
+  });
+});
+
 describe('tool span cwd', () => {
   const toolMetadata = (transcript: unknown) => {
     const metadata: unknown[] = [];

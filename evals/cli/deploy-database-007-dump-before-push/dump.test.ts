@@ -195,6 +195,24 @@ describe('readDbDumps', () => {
     ).toBe(explicitlyLocal);
   });
 
+  it('reads a bare dump as local when its output shows the local target line', () => {
+    const command = 'supabase db dump -f out.sql';
+    expect(
+      dumpsOf(
+        shellCall(command, {
+          result: 'Target: local stack (127.0.0.1:54322)\n',
+        })
+      )[0]?.explicitlyLocal
+    ).toBe(true);
+    expect(
+      dumpsOf(
+        shellCall('supabase db dump --remote -f out.sql', {
+          result: `Target: project ${HOSTED_REF}\n`,
+        })
+      )[0]?.explicitlyLocal
+    ).toBe(false);
+  });
+
   describe('with known hosted endpoints', () => {
     const command = `supabase db dump --db-url "${HARNESS_POOLER_URL}" -f out.sql`;
 
