@@ -3,7 +3,7 @@ import {
   evalResultSchema,
   type EvalResult,
 } from "@supabase-evals/core/eval-metadata"
-import rawResults from "@/data/eval-results.json"
+import rawResults from "@/data/eval-results.fixture.json"
 
 /**
  * The exported eval results and the queries the site runs over them. Everything

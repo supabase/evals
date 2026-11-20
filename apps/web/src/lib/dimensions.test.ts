@@ -239,7 +239,7 @@ describe("orderRuns", () => {
   })
 })
 
-describe("the model dimension, against the real export", () => {
+describe("the model dimension, against the results fixture", () => {
   it("presents the experiment axis as Agent", () => {
     expect(DIMENSIONS.model.label).toBe("Agent")
   })
