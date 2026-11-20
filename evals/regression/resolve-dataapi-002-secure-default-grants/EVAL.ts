@@ -301,7 +301,7 @@ async function checkSecureDefaultDiagnosisAndFix(
       includeToolCallInputs: true,
     }),
     rubric: stripIndent`
-      Pass if the assistant handles the empty Data API results as a secure-by-default Data API exposure issue and fixes the missing explicit grants for authenticated clients without weakening the existing owner-scoped RLS policies.
+      Pass if the assistant identifies missing table grants for authenticated clients as the reason the Data API returns no rows, and fixes those grants without weakening the existing owner-scoped RLS policies. A plain-language explanation is enough; the answer does not need to use the term "secure-by-default".
 
       A passing answer should:
       - Diagnose that the table is missing explicit Data API grants for authenticated clients, because SQL-created tables are not exposed automatically (api.auto_expose_new_tables is disabled). Naming the setting is not required: a correct diagnosis that the table lacks grants for authenticated, while RLS policies already exist, is enough.
