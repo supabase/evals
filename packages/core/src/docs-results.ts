@@ -55,13 +55,16 @@ const URL_IN_COMMAND_PATTERN = /https?:\/\/[^\s'"`\\;|&>()]+/g;
 // Captures the command run on supabase.sh. Allows leading env assignments, as
 // FETCHER_COMMAND_PATTERN does, and ssh options (each with an optional value,
 // `-o BatchMode=yes`) before the host, so `supabase.sh` merely appearing in
-// the command sent to some other host doesn't count.
+// the command sent to some other host doesn't count. A leading `do`, `then` or
+// `else` covers a call inside a shell loop or conditional
+// (`for f in a b; do ssh supabase.sh cat .../$f.md; done`).
 const SUPABASE_SH_COMMAND_PATTERN =
-  /^\s*(?:[A-Za-z_]\w*=\S*\s+)*ssh(?:\s+-\S+(?:\s+[^-\s]\S*)?)*\s+supabase\.sh(?=\s|$)([\s\S]*)$/;
+  /^\s*(?:(?:do|then|else)\s+)?(?:[A-Za-z_]\w*=\S*\s+)*ssh(?:\s+-\S+(?:\s+[^-\s]\S*)?)*\s+supabase\.sh(?=\s|$)([\s\S]*)$/;
 // A docs page on supabase.sh. `/supabase/docs/guides/x.md` is the page served
-// at https://supabase.com/docs/guides/x.
+// at https://supabase.com/docs/guides/x. Paths built from shell variables or
+// globs (`$f.md`, `*.md`) name no single page, so they don't match.
 const SUPABASE_SH_PAGE_PATTERN =
-  /\/supabase\/docs\/([^\s'"`\\;|&>()*?[\]]+?)\.md(?=$|[\s'"`\\;|&>()])/g;
+  /\/supabase\/docs\/([^\s'"`\\;|&>()*?[\]${}]+?)\.md(?=$|[\s'"`\\;|&>()])/g;
 // Commands that print a page's text, as opposed to searching or listing.
 const SUPABASE_SH_READ_COMMAND_PATTERN = /^(?:cat|head|tail|sed|less|more)$/;
 

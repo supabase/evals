@@ -1209,6 +1209,21 @@ describe('buildDocsResult with supabase.sh', () => {
     ]);
   });
 
+  it('counts a call inside a shell loop without inventing a page from the loop variable', () => {
+    const command =
+      'for f in auth auth-headers; do ssh supabase.sh cat /supabase/docs/guides/functions/$f.md; done';
+    const result = buildDocsResult([bash(command, '# Auth\n# Auth headers')]);
+
+    expect(result.calls).toEqual([
+      {
+        source: 'supabase_sh',
+        query: command,
+        pages: [],
+        resultChars: '# Auth\n# Auth headers'.length,
+      },
+    ]);
+  });
+
   it('ignores the setup command, an interactive session, and other hosts', () => {
     const result = buildDocsResult([
       bash('ssh supabase.sh agents', '## Supabase docs over SSH'),
