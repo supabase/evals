@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
-import { findLeakedCredentials } from './scoring.js';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { stubSandbox } from './runtime-stub.js';
+import { checkNoRawSql, findLeakedCredentials } from './scoring.js';
 
 const project = {
   projectUrl: 'https://project.example',
@@ -53,5 +54,31 @@ describe('findLeakedCredentials', () => {
         ],
       })
     ).toEqual([]);
+  });
+});
+
+describe('checkNoRawSql', () => {
+  const scan = (source: string) =>
+    checkNoRawSql(stubSandbox({ 'app/report.mjs': source }), 'app');
+
+  it('passes a Data API app and flags psql, raw drivers and the SQL endpoint', async () => {
+    expect(
+      await scan(`import { createClient } from '@supabase/supabase-js';`)
+    ).toMatchObject({
+      name: 'report queries via the Data API, not raw SQL',
+      passed: true,
+      notes: 'no psql / raw Postgres driver / SQL endpoint usage found',
+    });
+    for (const source of [
+      `const driver = 'pg';`,
+      `const driver = "postgres";`,
+      `const driver = 'pg-promise';`,
+      `const command = 'psql -c "select 1"';`,
+      `const path = '/database/query';`,
+    ])
+      expect(await scan(source)).toMatchObject({
+        passed: false,
+        notes: 'app/report.mjs',
+      });
   });
 });

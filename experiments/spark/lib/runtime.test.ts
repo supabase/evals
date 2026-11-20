@@ -2,7 +2,8 @@ import { mkdtemp, readFile, stat, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
-import { sparkRuntime } from './runtime.js';
+import { type SparkScoringContext, sparkRuntime } from './runtime.js';
+import { SPARK_TEST_KEYS, sparkScorer } from './runtime-stub.js';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -75,6 +76,29 @@ it('creates fresh projects, seeds before execution and reads scoring state', asy
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+it('getClient uses the publishable key, client the secret key', async () => {
+  const seen: Record<string, string | null> = {};
+  await sparkScorer(
+    async (ctx) => {
+      const { getClient, client } = ctx as unknown as SparkScoringContext;
+      const first = getClient();
+      expect(getClient()).not.toBe(first);
+      await first.from('publishable_table').select('id');
+      await client.from('secret_table').select('id');
+      return { checks: [] };
+    },
+    (url, init, request) => {
+      const headers = new Headers(request ? request.headers : init?.headers);
+      seen[url.pathname.split('/').pop() ?? ''] = headers.get('apikey');
+      return Response.json([]);
+    }
+  );
+  expect(seen).toEqual({
+    publishable_table: SPARK_TEST_KEYS.publishable,
+    secret_table: SPARK_TEST_KEYS.secret,
+  });
 });
 
 it('rejects configuration and unsupported fixtures before provisioning', async () => {

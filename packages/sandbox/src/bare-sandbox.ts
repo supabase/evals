@@ -16,6 +16,8 @@ export interface BareSandboxOptions {
   mountDockerSocket?: boolean;
   /** Supabase CLI version baked into the sandbox image. */
   cliVersion?: string;
+  /** Host directory whose contents seed the workspace (an eval's `local/`). */
+  localDir?: string;
   /** Skills to install into the sandbox. */
   skills?: readonly SkillSource[];
   /**
@@ -43,6 +45,7 @@ export async function createBareSandbox(
     env: options.env,
     mountDockerSocket: options.mountDockerSocket,
     cliVersion: options.cliVersion,
+    localDir: options.localDir,
     skills: options.skills,
     mounts: options.mounts,
   });

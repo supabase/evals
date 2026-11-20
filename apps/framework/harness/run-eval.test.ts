@@ -13,14 +13,15 @@ describe('assertLocalMatchesInterface', () => {
     ).toThrow('expected cli');
   });
 
-  it('allows local/ with interface: cli, and no local/ with any interface', () => {
-    expect(() =>
-      assertLocalMatchesInterface(
-        'evals/regression/some-eval/PROMPT.md',
-        'cli',
-        true
-      )
-    ).not.toThrow();
+  it('allows local/ with interface: cli or rest, and no local/ with any interface', () => {
+    for (const interfaceKind of ['cli', 'rest'] as const)
+      expect(() =>
+        assertLocalMatchesInterface(
+          'evals/regression/some-eval/PROMPT.md',
+          interfaceKind,
+          true
+        )
+      ).not.toThrow();
     expect(() =>
       assertLocalMatchesInterface(
         'evals/regression/some-eval/PROMPT.md',
