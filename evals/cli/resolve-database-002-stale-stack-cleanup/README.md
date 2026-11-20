@@ -19,6 +19,11 @@ none of the services exist yet, has the agent build and seed all three, and
 only then asks for the changes. It doesn't test discovering stacks the agent
 didn't create; it does test addressing the right one among several.
 
+## Area and journey phase
+
+- Area: `local-stacks`.
+- Journey phase: `resolve`.
+
 ## The prompt names no command
 
 `PROMPT.md` never says `supabase`, never says Docker, and is identical under

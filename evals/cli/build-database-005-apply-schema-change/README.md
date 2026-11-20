@@ -45,9 +45,6 @@ from Codex. `db reset` is in 8.0% of agent sessions and `migration new` in
 - `area: schema-and-migrations`
 - `journeyPhase: design`
 
-Both are the CLI evals plan's unofficial frontmatter keys. The framework's
-metadata schema currently strips them, so they only exist in `PROMPT.md`.
-
 ## The prompt names no command, column, or file
 
 `PROMPT.md` never says `supabase`, `migration`, `column`, `due_date`, `alter`,

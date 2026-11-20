@@ -8,6 +8,8 @@ topic:
 projectRunning: false
 needsDocker: false
 motivation: CLI-2399, https://github.com/orgs/supabase/discussions/5968
+area: local-stacks
+journeyPhase: design
 ---
 
 I'm starting two new client projects in this sandbox, `client-a` and `client-b` — neither

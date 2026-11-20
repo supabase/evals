@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { evalMetadataSchema, rawEvalResultSchema } from './eval-metadata.js';
+import {
+  evalFrontmatterSchema,
+  evalMetadataSchema,
+  rawEvalResultSchema,
+} from './eval-metadata.js';
 
 it('preserves the requested MCP revision and resolved commit in results', () => {
   const repoSources = {
@@ -53,5 +57,40 @@ describe('cliVersion schema', () => {
         cliVersion: 'stable',
       })
     ).toThrow();
+  });
+});
+
+describe('area and journeyPhase frontmatter', () => {
+  const base = {
+    stage: 'build',
+    product: ['database'],
+    topic: ['sql'],
+    interface: 'cli',
+  };
+
+  it('parses and normalizes area and journeyPhase', () => {
+    const parsed = evalFrontmatterSchema.parse({
+      ...base,
+      area: 'Local Stacks',
+      journeyPhase: 'Design',
+    });
+
+    expect(parsed).toMatchObject({
+      area: 'local-stacks',
+      journeyPhase: 'design',
+    });
+  });
+
+  it('rejects an unknown journeyPhase', () => {
+    expect(() =>
+      evalFrontmatterSchema.parse({ ...base, journeyPhase: 'build' })
+    ).toThrow();
+  });
+
+  it('leaves both undefined when omitted', () => {
+    const parsed = evalFrontmatterSchema.parse(base);
+
+    expect(parsed.area).toBeUndefined();
+    expect(parsed.journeyPhase).toBeUndefined();
   });
 });

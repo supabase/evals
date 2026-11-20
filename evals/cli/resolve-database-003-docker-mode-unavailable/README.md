@@ -14,6 +14,11 @@ Whether Docker works is the variable. The questions:
 
 Motivation: CLI-2403 and the CLI-2393 RFC (see `PROMPT.md`).
 
+## Area and journey phase
+
+- Area: `local-stacks`.
+- Journey phase: `resolve`.
+
 ## The prompt names no environment
 
 `PROMPT.md` asks for the Docker runtime and never says whether a daemon exists,

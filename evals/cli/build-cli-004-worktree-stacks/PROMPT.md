@@ -8,6 +8,8 @@ topic:
 projectRunning: false
 needsDocker: false
 motivation: FDBKIN-20391, https://linear.app/supabase/issue/FDBKIN-20391/support-running-multiple-isolated-supabase-stacks-locally-for-parallel, CLI-2400, https://linear.app/supabase/issue/CLI-2400
+area: local-stacks
+journeyPhase: design
 ---
 
 I'm kicking off a brand-new project in this sandbox. I'm about to have three

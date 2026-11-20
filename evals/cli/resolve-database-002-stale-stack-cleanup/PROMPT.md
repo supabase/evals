@@ -8,6 +8,8 @@ topic:
 projectRunning: false
 needsDocker: false
 motivation: CLI-2402, https://linear.app/supabase/issue/CLI-2402/resolve-cli-001-stale-stack-cleanup-findrestartremove-the-right-stack
+area: local-stacks
+journeyPhase: resolve
 ---
 
 None of these services exist in this sandbox yet, so you'll be creating them from scratch.

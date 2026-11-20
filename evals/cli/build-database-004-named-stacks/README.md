@@ -19,6 +19,11 @@ as one aimed at the right one, and the CLI cannot yet point its own database
 commands at a named stack. Motivation: CLI-2401 and FDBKIN-16168 (see
 `PROMPT.md`).
 
+## Area and journey phase
+
+- Area: `local-stacks`.
+- Journey phase: `design`.
+
 ## The prompt names no command, flag, port, or script path
 
 `PROMPT.md` never says `supabase`, a subcommand, a flag, an environment
