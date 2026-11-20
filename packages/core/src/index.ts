@@ -109,6 +109,10 @@ export {
   rehydrateTruncatedDocsResults,
 } from './docs-results.js';
 export type { DocsResultSandbox } from './docs-results.js';
+export {
+  agentInstructionsFile,
+  applyAgentInstructions,
+} from './agent-instructions.js';
 // CLI agent harnesses (Claude Code, Codex, OpenCode, and the framework for adding more).
 export { createCliAgent } from './agents/engine.js';
 export { claudeCodeAgent } from './agents/claude-code/index.js';
@@ -648,6 +652,13 @@ export type ExperimentConfig = {
   /** Local-stack environment (e.g. localStackRuntime() from @supabase-evals/sandbox). */
   localStack?: LocalStackRuntime;
   skills: string[];
+  /**
+   * Project instructions added to the agent's workspace before it starts:
+   * appended to CLAUDE.md for Claude Code, or AGENTS.md for other CLI agents,
+   * the way a user sets up a tool such as supabase.sh. The prompt is
+   * unchanged. Needs an agent that runs in a sandbox.
+   */
+  instructions?: string;
   /**
    * Skip running specific evals against this experiment, e.g. a `*-no-skills`
    * experiment skipping evals whose per-eval `skills` override is already

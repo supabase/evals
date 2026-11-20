@@ -31,6 +31,7 @@ import { bootPlatformBackend } from './platform-backend.js';
 import { viteBuild, vitestRun } from './project-runner.js';
 import { buildSystemPrompt } from './system-prompt.js';
 import {
+  applyAgentInstructions,
   buildDocsResult,
   buildSkillResult,
   createJudgeRecorder,
@@ -447,6 +448,14 @@ async function runOne(
       })
     );
 
+    if (exp.instructions) {
+      await applyAgentInstructions(
+        session.sandbox,
+        exp.agent.id,
+        exp.instructions
+      );
+    }
+
     const systemPrompt = buildSystemPrompt({
       agent: exp.agent.id,
       addendum: session.promptAddendum,
@@ -537,6 +546,19 @@ async function runOne(
         })
       )
     : undefined;
+
+  if (exp.instructions) {
+    if (!cliSandbox) {
+      throw new Error(
+        `${expName}: instructions need an agent that runs in a sandbox, but ${exp.agent.id} runs in-process`
+      );
+    }
+    await applyAgentInstructions(
+      cliSandbox.sandbox,
+      exp.agent.id,
+      exp.instructions
+    );
+  }
 
   // A CLI agent discovers its installed skills itself. An in-process agent has
   // no filesystem, so its skills are advertised in the prompt and pulled on
