@@ -59,6 +59,18 @@ Add to this file. A documentation eval is not finished until whatever went wrong
   **Fix.** Add a permissive `using (true)` policy, rerun the suite, require a failure, and drop the
   policy. Run the suite just before so the failure can only come from the opened read.
 
+- **A check that reads one of many sibling outputs claims all of them.** `other emails are still the standard
+  ones` read only the password reset email, so a project that pointed the magic link, invite, email change and
+  reauthentication templates at the new copy scored green. The README repeated the claim. #528
+  **Fix.** Probe each sibling the claim names, or name the check after the one it reads and list the rest as
+  unscored.
+- **A "not customized" check pinned to a platform default reports a CLI upgrade as a docs change.** The standard
+  subjects (`Reset your password`, `Your sign-in link`) are what the pinned CLI sends. #528
+  **Fix.** Say in the README that the strings are pinned, so a red after an upgrade is read as one.
+- **A rule in the seed's own copy file has no check.** `EMAIL_COPY.md` said the email has no code, and a template
+  adding `{{ .Token }}` passed. Text in `<head><title>` also satisfied a heading check. #528
+  **Fix.** Read only the body, and assert the negative rules the seed states.
+
 ## False red: the check fails correct work
 
 - **A structural read of where code sits.** Requiring the client constructor at module scope red a
@@ -116,6 +128,10 @@ Add to this file. A documentation eval is not finished until whatever went wrong
 - **Extension-owned objects land in scope.** pgTAP creates views in `public` when installed there. #168
   **Fix.** Anti-join `pg_depend` on `deptype = 'e'`.
 
+- **A parser that handles quoted attributes only reds a working link.** Mailpit returns an unquoted `href` with
+  `=` written as `&#61;`, so the link parsed as having no token. #528
+  **Fix.** Accept unquoted values and decode numeric entities before reading the url.
+
 ## Nondeterminism
 
 - **Judge variance was misdiagnosed twice.** A rubric's complaint changed run to run. The first
@@ -141,6 +157,11 @@ Add to this file. A documentation eval is not finished until whatever went wrong
   from.
 - **Fixed marker literals leak between runs.** #168
   **Fix.** Scope markers to the run.
+
+- **A second email to the same user within `max_frequency` is dropped without an error.** The scorer sent a
+  password reset and then a magic link one request apart, and the second never reached Mailpit even though the
+  request returned 200. #528
+  **Fix.** Wait longer than `max_frequency` between emails to one address, or use a different address for each.
 
 ## Crashes and contamination
 
@@ -221,6 +242,10 @@ Add to this file. A documentation eval is not finished until whatever went wrong
   broken branch. #259
   **Fix.** Scope Biome to the paths you touched, or add those three to `biome.json`.
 
+- **A killed `supabase start` leaves a half-removed stack.** The next start failed with
+  `No such container: supabase_kong_<project-id>` and every check red as not run. #528
+  **Fix.** Remove the project's containers before rescoring.
+
 ## Metadata
 
 - **An optional dimension is a silent hole.** `interface:` was optional, so six scenarios never
@@ -278,6 +303,26 @@ Add to this file. A documentation eval is not finished until whatever went wrong
   **Fix.** Silence the status call's stderr, hoist `ERROR`, `FATAL`, `DETAIL` and `HINT` to the front of
   the message, and check which services the eval actually starts before reading `Stopped services` as a
   fault.
+
+- **Removing the cue from the seed did not stop agents enabling the setting the page never mentions.** Three
+  runs set `enable_confirmations = true` with the seed's `config.toml` showing a visible `false`. After the line
+  was deleted and a second email needing two unmentioned settings was added (`password_changed` with `enabled`),
+  three more runs still scored every check. All three searched the docs for `enable_confirmations` by name. The
+  page lacks that key, so it came from the model or from a search result, and the transcripts can't say which.
+  The checks fail the right fixtures, but a pass does not show the guide carried the run. #528
+  **Fix.** None at the seed level. Ask for an unread arm before claiming the page carried the run.
+- **Most baseline agents did not run the stack.** In the first baseline none started Supabase, signed up, or
+  opened Mailpit. In the second, one signed up and read Mailpit and two only started the stack. The scorer's
+  end-to-end checks passed either way, so the eval scores what an agent leaves and not whether it verified it.
+  #528
+- **An "unread" arm still reaches the page.** The prompt's reference line and its "rely on it" sentence were
+  removed for three runs. Every agent still searched the docs through the MCP search tool, and the Email
+  Templates page and the local customizing guide came back in every run. Two runs scored every check. One
+  never turned confirmations on and failed the five sign-up email checks, which is the one thing the page
+  and the customizing guide leave out. The other two searched `enable_confirmations` by name and found it in
+  the testing guide. Taking the pointer away does not remove the page. #528
+  **Fix.** To measure the page's contribution, an arm has to block the docs search tool, which the harness
+  does not offer.
 
 ## Process
 
