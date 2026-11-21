@@ -177,6 +177,9 @@ Add to this file. A documentation eval is not finished until whatever went wrong
 - **Ports.** The range is 54321 to 54329. Another project's stack holding them blocked local runs
   entirely, and one eval shipped for review having never run end to end because of it. #168, #206
   **Fix.** Preflight the ports. Both later evals open their testing steps with it.
+  When another project's stack holds them, copy the eval's `local/` to a scratch directory, shift
+  every port and the `project_id` in its `config.toml`, and start it there. A scorer called with a
+  hand-built context runs against it, so nobody's stack has to stop. #517
 - **`pnpm test` needs `OPENAI_API_KEY`** and stops without it, which reads as a broken diff.
   #228, #168
 - **A stale local `VERCEL_OIDC_TOKEN` shadows the real one** and every sandbox create fails. #192
@@ -284,6 +287,11 @@ Add to this file. A documentation eval is not finished until whatever went wrong
 - **Strip deployment-url churn before diffing two previews.** Every internal link on a docs preview
   carries the deployment hash, so a rebuild rewrites dozens of lines that say nothing. Substitute the
   host out of both copies before comparing, or the real edit is buried. #257
+- **A check list taken from the page saturates.** The first version of an eval built its checks from
+  the page's own access control section, and all three baseline runs passed every check. One check
+  from outside the page, a guest who had just made an account, red all three runs on the next refresh.
+  #517
+  **Fix.** Finish Phase 1 before writing checks, and diff the sources against the page.
 - **Verify your own predictions.** A PR body predicted a check would fail an agent following the page.
   The reviewer found it passing locally and in CI and asked why. #212
 - **An unmeasured rule in the prompt is a defect.** A reviewer found a prompt rule with no check and no
