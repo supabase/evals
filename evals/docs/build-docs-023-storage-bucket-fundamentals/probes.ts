@@ -30,12 +30,12 @@ const MB = 1_000_000;
 
 export const CHECK = {
   photosAccepted: 'press-photos: a png and a jpeg under 2 MB are accepted',
-  photosSize: 'press-photos: a file over 2 MB is turned away',
-  photosType: "press-photos: a file that isn't an image is turned away",
+  photosSize: 'press-photos: a 3 MB image is turned away',
+  photosType: 'press-photos: a PDF is turned away',
   photosVisible: 'press-photos: anyone with the link can see a photo',
   invoicesAccepted: 'invoices: a PDF under 10 MB is accepted',
-  invoicesSize: 'invoices: a file over 10 MB is turned away',
-  invoicesType: "invoices: a file that isn't a PDF is turned away",
+  invoicesSize: 'invoices: a 12 MB PDF is turned away',
+  invoicesType: 'invoices: a png is turned away',
   invoicesHidden: 'invoices: a link alone does not open one',
 } as const;
 

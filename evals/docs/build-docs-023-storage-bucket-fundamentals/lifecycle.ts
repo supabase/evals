@@ -44,8 +44,10 @@ export function checkDeclaredBucketsExist(state: Declared): CheckResult {
   if (state.declared.length === 0) {
     return {
       name,
-      passed: true,
-      notes: state.seedFailed ?? 'none declared, so nothing to check',
+      passed: !state.seedFailed,
+      notes: state.seedFailed
+        ? `could not check: ${state.seedFailed}`
+        : 'none declared, so nothing to check',
     };
   }
   return {

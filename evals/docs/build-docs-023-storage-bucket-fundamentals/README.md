@@ -104,8 +104,8 @@ against a real stack. Predictions were written before running and all held.
 | no limits at all | all four refusal checks |
 | photos limit in bytes confused for MB (2048) | photos accepted, both refusals, visible |
 | photos types `image/png` only | photos accepted, both refusals, visible |
-| photos also allow `application/pdf` | `a file that isn't an image is turned away` |
-| photos limit raised to 50 MB | `a file over 2 MB is turned away` |
+| photos also allow `application/pdf` | `a PDF is turned away` |
+| photos limit raised to 50 MB | `a 3 MB image is turned away` |
 | invoices limit copied as 2 MB | all four invoices checks |
 | nothing created | all eight |
 
