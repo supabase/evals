@@ -10,8 +10,8 @@ import {
   checkOwnedAccepted,
   checkStackStarts,
   probeLinks,
-  restartStack,
 } from './probes.js';
+import { restartStack } from '../lib/local-stack.js';
 
 const GUIDE_PATH = 'guides/auth/redirect-urls';
 
