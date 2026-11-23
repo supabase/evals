@@ -14,7 +14,7 @@ export const NAMES = {
   search: 'a signed-out visitor can search the help articles',
   clientJob:
     'neither a customer nor a signed-out visitor can run close_stale_tickets',
-  serverTables: 'the server key can write and read replies and notes',
+  serverTables: 'the server key can write replies, and write and read notes',
   serverJob: 'the server key can run close_stale_tickets',
   guideRead: 'the agent read the Securing your API guide the prompt referenced',
 } as const;

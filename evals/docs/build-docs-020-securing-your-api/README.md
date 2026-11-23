@@ -1,4 +1,4 @@
-# build-docs-018-securing-your-api
+# build-docs-020-securing-your-api
 
 ## What this eval measures
 
@@ -74,7 +74,7 @@ visitor function whitelist. Do not read them alone.
 - `replies are readable by the ticket's customer and by nobody else` is the control for the tables. The customer's own
   row has to come back before anyone else's absence means anything, so a table closed to everyone fails it. It needs
   the grant and a policy, which is the #645 shape.
-- `the server key can write and read replies and notes` and `the server key can run close_stale_tickets` are the
+- `the server key can write replies, and write and read notes` and `the server key can run close_stale_tickets` are the
   controls for the functions and tables being closed too far. The second needs a ticket idle for 60 days to close, a
   ticket touched today to stay open, and a count back, so a function that closes everything or nothing cannot pass.
 - `a signed-out visitor can search the help articles` passes for an agent that built nothing, because the function is

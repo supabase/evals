@@ -133,6 +133,15 @@ export async function seedMarkers(
       };
 }
 
+async function tokenAccepted(client: SupabaseClient): Promise<boolean> {
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const { error } = await client.from('tickets').select('id').limit(1);
+    if (error?.code !== 'PGRST303') return true;
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  return false;
+}
+
 function notRun(name: string, why: string): CheckResult {
   return { name, passed: false, notes: `not run: ${why}` };
 }
@@ -171,6 +180,19 @@ export async function checkRepliesReadableByTheirCustomerOnly(
   const name = NAMES.replies;
   if (!world.markers.ok) return notRun(name, world.markers.why);
   const { ownerReply, strangerReply } = world.markers.values;
+
+  // A fresh token's `iat` can still be ahead of PostgREST's clock, which
+  // answers PGRST303 to the first call. Wait it out before probing.
+  const settled = await Promise.all(
+    [world.owner, world.stranger].map(tokenAccepted)
+  );
+  if (settled.includes(false)) {
+    return {
+      name,
+      passed: false,
+      notes: 'could not measure: PGRST303 never cleared after sign-up',
+    };
+  }
 
   const [owner, stranger, anon] = await Promise.all(
     [world.owner, world.stranger, world.anon].map((client) =>
@@ -464,22 +486,24 @@ export async function checkServerKeyReachesRepliesAndNotes(
       set local role service_role;
       insert into public.${REPLIES} (ticket_id, body) values (${world.ownerTicket}, '${reply}');
       insert into public.${NOTES} (ticket_id, body) values (${world.ownerTicket}, '${note}');
-      select body from public.${REPLIES} where body = '${reply}';
       select body from public.${NOTES} where body = '${note}';
       commit;
     `,
     { tuplesOnly: true }
   );
-  const ok =
-    result.ok && result.stdout.includes(reply) && result.stdout.includes(note);
+  if (!result.ok) return { name, passed: false, notes: result.message };
+  // The console never reads replies with the server key, so the reply is
+  // confirmed as the superuser rather than read back as the service role.
+  const { rows } = await ctx.query(
+    `SELECT body FROM public.${REPLIES} WHERE body = '${reply}'`
+  );
+  const ok = rows.length > 0 && result.stdout.includes(note);
   return {
     name,
     passed: ok,
     notes: ok
-      ? 'wrote and read one reply and one note as the service role'
-      : result.ok
-        ? 'both inserts ran but the rows did not read back'
-        : result.message,
+      ? 'wrote a reply, and wrote and read a note as the service role'
+      : 'both inserts ran but a row is missing',
   };
 }
 
