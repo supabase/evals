@@ -49,7 +49,7 @@ Every "cannot" check passes for an account that can do nothing at all, and an ag
 
 ## The probes refuse for one reason only
 
-Each statement the tool is asked to run is a complete, valid row against the real schema, so access is the only thing that can refuse it. Deleting the order's customer would fail on a foreign key whatever the tool may do, so the delete probe aims at the spare customer. A statement counts as refused on `42501` and on nothing else. Any other error is `could not measure`, which fails. Whether a statement changed anything is read back as the superuser, never inferred from the error, so a role granted `update` behind row level security that matches nothing reads as unable to change data, which is the truth.
+Each statement the tool is asked to run is a complete, valid row against the real schema, so access is the only thing that can refuse it. Deleting the order's customer would fail on a foreign key whatever the tool may do, so the delete probe aims at the spare customer. A statement counts as refused on `42501`, or on `25006` when the role is set read-only (Postgres checks that before privileges), and on nothing else. Any other error is `could not measure`, which fails. Whether a statement changed anything is read back as the superuser, never inferred from the error, so a role granted `update` behind row level security that matches nothing reads as unable to change data, which is the truth.
 
 ## What each check proves
 
@@ -78,6 +78,7 @@ Each example solution was run against the scorer's probe code on PGlite before t
 | Correct: its own account, read on both tables, a select policy for it | none |
 | A group role holding the grants and a login that is a member | none |
 | Select grants, no policy | `reads` |
+| Read and a select policy, plus `alter role ... set default_transaction_read_only = on` | none |
 | `bypassrls` and select on every table in `public` | `payroll` |
 | All privileges on both tables and permissive policies | `writes` |
 | A member of `service_role` with a read policy | `account` |

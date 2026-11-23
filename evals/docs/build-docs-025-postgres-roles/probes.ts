@@ -35,6 +35,8 @@ const BUILT_IN = [
 ];
 
 const REFUSED = '42501';
+// A role set read-only refuses writes with this before it checks privileges.
+const READ_ONLY = '25006';
 
 // Every name carries a per-run marker. The scorer inserts these rows after the
 // agent finished, so nothing the agent wrote can have matched them.
@@ -246,9 +248,10 @@ export async function checkWrites(
   for (const write of writes) {
     const result = await asTool(write.sql);
     // The database's answer settles it, not the error. Access is the only
-    // thing that can refuse these statements, so a refusal is code 42501 and
-    // anything else means the probe did not measure what it claims to.
-    if (!result.ok && result.code !== REFUSED) {
+    // thing that can refuse these statements, so a refusal is code 42501 (or
+    // 25006 for a role set read-only) and anything else means the probe did
+    // not measure what it claims to.
+    if (!result.ok && result.code !== REFUSED && result.code !== READ_ONLY) {
       unmeasured.push(`${write.label}: ${describe(result)}`);
       continue;
     }
@@ -286,7 +289,7 @@ export async function checkCreate(
   const name = CHECK.create;
   const table = `public.${world.marker}_probe`;
   const result = await asTool(`CREATE TABLE ${table} (id integer);`);
-  if (!result.ok && result.code !== REFUSED) {
+  if (!result.ok && result.code !== REFUSED && result.code !== READ_ONLY) {
     return {
       name,
       passed: false,
