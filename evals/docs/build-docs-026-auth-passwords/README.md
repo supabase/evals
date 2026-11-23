@@ -103,6 +103,7 @@ The probe code ran against a fake Auth server with a configurable policy, backed
 - **Existing users.** The password security FAQ says they can still sign in until they next change their password, and then see `WeakPasswordError`. That needs a user created before the policy.
 - **Reauthentication and current password on change.** Separate settings on the other page.
 - **Phone sign-ups, and email confirmation.** The seed leaves confirmation off, which is the local default. If an agent turns it on, a third sign-up can hit the email rate limit and report `could not measure`.
+- **A policy enforced outside Auth's settings.** The prompt asks for everyone, including the backend directly, so the policy has to live in Auth. An agent that sets `enable_signup = false` and sends sign-ups through its own server code gets `signup_disabled` from the scorer's direct sign-ups. The two refusal checks then report `could not measure` and `passwords that meet the policy are accepted` fails. That is intended.
 - **Pushing the settings to a hosted project.** The prompt asks for the local project, and `auth.password_requirements` is reported not to sync through `config push` (supabase/cli#3148).
 - **How the password is stored.** Not something an agent builds.
 
