@@ -176,11 +176,7 @@ describe("scoreResults", () => {
   })
 })
 
-/**
- * The site renders whatever `pnpm export-results` last wrote, so these guard the
- * boundary between that export and the assumptions the UI makes about it.
- */
-describe("the exported results", () => {
+describe("the results fixture", () => {
   it("parses against the schema and is not empty", () => {
     expect(sortedResults.length).toBeGreaterThan(0)
   })

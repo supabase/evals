@@ -34,7 +34,7 @@ const SANDBOX_IMAGE_REPOSITORY = 'supabase-evals-sandbox';
  * Backoff schedule for the registry-touching steps: the sandbox image build
  * (pulls `node:22-slim`) and `supabase start` (pulls the stack's service
  * images). Docker Hub intermittently answers 5xx/429 — a 502 blip once took
- * out ~130 CI matrix jobs, and a wide `run-evals` fan-out can exhaust the
+ * out ~130 CI matrix jobs, and a wide eval fan-out can exhaust the
  * runners' shared anonymous pull quota (`toomanyrequests`) all by itself. A
  * short outage should cost a delay, not the run. Every failure is retried —
  * the transient registry-error strings come from BuildKit/containerd/daemon

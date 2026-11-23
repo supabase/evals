@@ -30,19 +30,6 @@ on:
         description: "Maximum Vercel Sandboxes running at once"
         type: string
         default: "250"
-      merge: &merge
-        description: "Merge into existing results instead of overwriting (graft new experiment/eval pairs)"
-        type: boolean
-        required: false
-        default: true
-      commit_results:
-        description: "Where to commit exported results JSON"
-        type: choice
-        options:
-          - results-pr
-          - current-branch
-          - none
-        default: results-pr
       cli_stable_version: &cli_stable_version
         description: "Pin the cli suite's stable CLI version instead of resolving npm's latest dist-tag (blank to resolve)"
         type: string
@@ -66,43 +53,32 @@ on:
       runs: *runs
       timeout_sec: *timeout_sec
       sandbox_concurrency: *sandbox_concurrency
-      merge: *merge
       cli_stable_version: *cli_stable_version
       cli_beta_version: *cli_beta_version
       cli_next_version: *cli_next_version
-      commit_results:
-        type: string
-        default: results-pr
   pull_request:
-    # Run whenever a PR carrying the run-evals label is opened, pushed to, or
-    # receives the run-evals label. The job-level `if` gates on those cases.
     types: [opened, synchronize, labeled]
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
+  pull-requests: read
   actions: read
 
 concurrency:
-  # The results app's pushes get a unique group so they can't cancel the run that pushed them.
-  group: eval-refresh-${{ github.workflow }}-${{ github.event.sender.id == 291952723 && github.run_id || github.event_name == 'pull_request' && github.event.pull_request.number || github.ref }}
+  group: eval-refresh-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.ref }}
   # Supersede an in-flight run when a new commit is pushed to the same PR, but
   # never cancel a workflow_dispatch run.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   prepare:
-    # 291952723 is supabase-evals-releaser[bot], which pushes the results commit.
     if: >-
       github.event_name == 'workflow_dispatch' ||
       github.event_name == 'schedule' ||
       (github.event_name == 'pull_request' &&
-        github.event.sender.id != 291952723 &&
-        (contains(github.event.pull_request.labels.*.name, 'run-evals') ||
-         contains(github.event.pull_request.labels.*.name, 'run-evals-changed')) &&
+        contains(github.event.pull_request.labels.*.name, 'run-evals-changed') &&
         github.event.pull_request.head.repo.full_name == github.repository &&
         (github.event.action != 'labeled' ||
-         github.event.label.name == 'run-evals' ||
          github.event.label.name == 'run-evals-changed'))
     runs-on: ubuntu-26.04
     outputs:
@@ -111,7 +87,6 @@ jobs:
       timeout_sec: ${{ steps.inputs.outputs.timeout_sec }}
       sandbox_concurrency: ${{ steps.inputs.outputs.sandbox_concurrency }}
       filter_changed: ${{ steps.inputs.outputs.filter_changed }}
-      do_merge: ${{ steps.inputs.outputs.do_merge }}
       cli_stable_version: ${{ steps.inputs.outputs.cli_stable_version }}
       cli_beta_version: ${{ steps.inputs.outputs.cli_beta_version }}
       cli_next_version: ${{ steps.inputs.outputs.cli_next_version }}
@@ -119,17 +94,8 @@ jobs:
       - name: Prepare inputs
         id: inputs
         shell: bash
-        env:
-          COMMIT_RESULTS: ${{ inputs.commit_results }}
         run: |
           set -euo pipefail
-
-          if [ "${{ github.event_name }}" != "pull_request" ]; then
-            case "$COMMIT_RESULTS" in
-              results-pr|current-branch|none) ;;
-              *) echo "::error::Invalid commit_results: $COMMIT_RESULTS"; exit 1 ;;
-            esac
-          fi
 
           if [ "${{ github.event_name }}" != "pull_request" ]; then
             experiments_override="${{ inputs.experiments }}"
@@ -160,20 +126,9 @@ jobs:
 
           suite_json="$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$suite")"
 
-          # run-evals takes priority; run-evals-changed only filters when run-evals is absent.
-          # filter_changed drives the changed-eval filter (PR-only, needs a PR diff).
           filter_changed="false"
-          if [ "${{ github.event_name }}" = "pull_request" ] && \
-             [ "${{ contains(github.event.pull_request.labels.*.name, 'run-evals-changed') }}" = "true" ] && \
-             [ "${{ contains(github.event.pull_request.labels.*.name, 'run-evals') }}" = "false" ]; then
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
             filter_changed="true"
-          fi
-
-          # do_merge drives the export --merge (graft into existing results). It's
-          # always on for the changed path, and opt-in for manual dispatch.
-          do_merge="$filter_changed"
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.merge }}" = "true" ]; then
-            do_merge="true"
           fi
 
           {
@@ -184,7 +139,6 @@ jobs:
             echo "timeout_sec=$timeout_sec"
             echo "sandbox_concurrency=$sandbox_concurrency"
             echo "filter_changed=$filter_changed"
-            echo "do_merge=$do_merge"
             echo "cli_stable_version=$cli_stable_version"
             echo "cli_beta_version=$cli_beta_version"
             echo "cli_next_version=$cli_next_version"
@@ -386,25 +340,14 @@ jobs:
 
   publish-results:
     needs: [prepare, run-evals]
-    # Runs even after run-evals times out or partially fails, since results
-    # are written per pair and export-results skips any pair that never finished.
+    # Publish completed runs even when the eval job fails partway through.
     if: "always() && needs.run-evals.result != 'skipped' && needs.prepare.outputs.pairs != '[]'"
     runs-on: ubuntu-26.04
     steps:
-      - name: Generate GitHub App token
-        id: generate-token
-        # The App token lets the pushes below trigger gh-pages and PR checks.
-        # https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow#triggering-a-workflow-from-a-workflow
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        with:
-          client-id: ${{ secrets.GH_APP_ID }}
-          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
-
       - name: Checkout
         uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
         with:
           ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
-          token: ${{ steps.generate-token.outputs.token }}
 
       - name: Install pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
@@ -486,7 +429,7 @@ jobs:
             {
               echo "## :warning: Partial results published"
               echo ""
-              echo "${#missing[@]} of $total eval pairs are missing runs, likely because \`run-evals\` hit its timeout or failed partway through. Only the pairs with a complete set of runs were published; these were not:"
+              echo "${#missing[@]} of $total eval pairs are missing runs, likely because \`run-evals\` hit its timeout or failed partway through. These pairs are missing runs:"
               echo ""
               echo '```'
               printf '%s\n' "${missing[@]}"
@@ -496,7 +439,7 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      - name: Export results
+      - name: Collect results
         shell: bash
         run: |
           set -euo pipefail
@@ -512,24 +455,6 @@ jobs:
             done
           done < <(jq -r '.[] | "\(.eval_suite)/\(.experiment)"' <<< "$pairs" | sort -u)
 
-          if jq -e 'any(.[]; .eval_suite == "benchmark")' <<< "$pairs" > /dev/null; then
-            export_args=(--suite benchmark --runs "${{ needs.prepare.outputs.runs }}" --output apps/web/src/data/eval-results.json)
-            if [ "${{ needs.prepare.outputs.do_merge }}" = "true" ]; then
-              export_args+=(--merge)
-            fi
-            pnpm --filter @supabase-evals/framework export-results -- "${export_args[@]}"
-          fi
-
-          for eval_suite in regression docs cli; do
-            if jq -e --arg s "$eval_suite" 'any(.[]; .eval_suite == $s)' <<< "$pairs" > /dev/null; then
-              export_args=(--suite "$eval_suite" --runs "${{ needs.prepare.outputs.runs }}" --output "apps/web/src/data/${eval_suite}-eval-results.json")
-              if [ "${{ needs.prepare.outputs.do_merge }}" = "true" ]; then
-                export_args+=(--merge)
-              fi
-              pnpm --filter @supabase-evals/framework export-results -- "${export_args[@]}"
-            fi
-          done
-
       - name: Find the PRs for this branch
         if: github.event_name == 'workflow_dispatch'
         continue-on-error: true
@@ -540,86 +465,15 @@ jobs:
           echo "PR_URLS=$urls" >> "$GITHUB_ENV"
 
       - name: Upload results to Braintrust
-        # A Braintrust outage shouldn't block publishing results, but with no results PR it is the only record.
-        continue-on-error: ${{ github.event_name == 'pull_request' || inputs.commit_results != 'none' }}
         env:
           BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
           BRAINTRUST_PROJECT_ID: ${{ secrets.BRAINTRUST_PROJECT_ID }}
         run: |
-          if [ "${{ inputs.commit_results }}" = "none" ] && { [ -z "$BRAINTRUST_API_KEY" ] || [ -z "$BRAINTRUST_PROJECT_ID" ]; }; then
-            echo "::error::Braintrust credentials are required when commit_results is none."
+          if [ -z "$BRAINTRUST_API_KEY" ] || [ -z "$BRAINTRUST_PROJECT_ID" ]; then
+            echo "::error::Braintrust credentials are required to upload results."
             exit 1
           fi
           pnpm upload-braintrust --runs "${{ needs.prepare.outputs.runs }}"
-
-      - name: Upload exported results
-        if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: eval-results-json
-          path: apps/web/src/data/*eval-results.json
-          if-no-files-found: error
-          retention-days: 7
-
-      - name: Commit exported results to branch
-        # PR runs commit to the PR head branch.
-        if: >-
-          github.event_name == 'pull_request' ||
-          (github.event_name != 'pull_request' && inputs.commit_results == 'current-branch')
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          git config user.name "github-actions[bot]"
-          # github-actions[bot]'s noreply email uses its public user ID: https://github.com/actions/checkout#push-a-commit-using-the-built-in-token
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          for result_file in apps/web/src/data/*eval-results.json; do
-            [ -f "$result_file" ] && git add "$result_file"
-          done
-
-          if git diff --cached --quiet; then
-            echo "No eval result changes to commit"
-            exit 0
-          fi
-
-          # This push runs the PR checks. prepare skips it so the refresh doesn't loop.
-          git commit -m "chore: refresh eval results"
-          git push
-
-      - name: Create results pull request
-        if: >-
-          github.event_name != 'pull_request' && inputs.commit_results == 'results-pr'
-        id: cpr
-        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
-        with:
-          token: ${{ steps.generate-token.outputs.token }}
-          add-paths: apps/web/src/data/*eval-results.json
-          # The action resets an existing branch, so reusing a name replaces the earlier run's results.
-          # Manual dispatches get a branch per run to keep them apart. Scheduled runs share one branch.
-          # https://github.com/peter-evans/create-pull-request/blob/5f6978faf089d4d20b00c7766989d076bb2fc7f1/src/create-or-update-branch.ts#L297-L310
-          branch: chore/refresh-eval-results-${{ github.ref_name }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.event_name }}
-          base: ${{ github.ref_name }}
-          commit-message: "chore: refresh eval results"
-          title: "chore: refresh eval results"
-          body: |
-            Refreshes `apps/web/src/data/eval-results.json` from the latest automated eval run.
-          # Draft PRs can't be merged, and the scheduled path merges itself.
-          draft: ${{ github.event_name != 'schedule' }}
-          delete-branch: true
-
-      - name: Merge scheduled results pull request
-        # --admin merges without the required review, which the bypass list
-        # entitles the app to.
-        # https://cli.github.com/manual/gh_pr_merge
-        # Skips the merge when results are partial, so it stays open for review.
-        if: >-
-          github.event_name == 'schedule' &&
-          steps.cpr.outputs.pull-request-number &&
-          steps.audit.outputs.count == '0'
-        env:
-          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
-        run: gh pr merge "${{ steps.cpr.outputs.pull-request-number }}" --squash --delete-branch --admin
 
       - name: Require complete results
         # Runs last so partial results still publish, but the job still fails.
