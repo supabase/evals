@@ -89,7 +89,7 @@ export async function search(run: Run, term: string): Promise<Search> {
 
 export const searchTerms = (world: World) => ({
   single: world.marker,
-  typed: `  Cancel  ${world.marker} subscription? `,
+  typed: `  All  about  ${world.marker}? `,
 });
 
 const notRun = (name: string, message: string): CheckResult => ({
@@ -181,7 +181,9 @@ export function checkTyped(world: World, found: Search): CheckResult {
   if (!found.ok) {
     return { name, passed: false, notes: found.message };
   }
-  const present = found.ids.includes(world.ids.bare);
+  // Aimed at an article that has text, so a search that fails on a null column
+  // doesn't also fail here.
+  const present = found.ids.includes(world.ids.hit);
   return {
     name,
     passed: present,

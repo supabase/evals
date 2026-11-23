@@ -82,7 +82,7 @@ written before running and all held.
 | `title \|\| body`, unweighted, raw `to_tsquery` | no text, order, typed |
 | weighted and `coalesce`, raw `to_tsquery` | typed |
 | `coalesce` and `websearch_to_tsquery`, unweighted | order |
-| weighted and `websearch_to_tsquery`, `\|\|` without `coalesce` | no text, typed |
+| weighted and `websearch_to_tsquery`, `\|\|` without `coalesce` | no text |
 | no `where`, ordered by rank only | matches |
 | weighted and `websearch_to_tsquery`, no `order by` | order |
 | function in a schema other than `public` | all five |
