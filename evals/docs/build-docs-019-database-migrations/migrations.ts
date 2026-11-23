@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { CheckResult } from '@supabase-evals/core';
 
 export type MigrationFile = { name: string; version: string; sql: string };
@@ -18,7 +19,12 @@ export const CHECK = {
 
 /** The migrations the eval ships, read from the seed rather than copied. */
 export function seedMigrations(): MigrationFile[] {
-  return readMigrations(new URL(SEED_DIR).pathname);
+  const seed = readMigrations(fileURLToPath(SEED_DIR));
+  // An empty seed would make the history check pass on nothing.
+  if (seed.length === 0) {
+    throw new Error(`no seed migrations found in ${fileURLToPath(SEED_DIR)}`);
+  }
+  return seed;
 }
 
 /** What the agent's workspace holds. Empty when there is no folder. */
