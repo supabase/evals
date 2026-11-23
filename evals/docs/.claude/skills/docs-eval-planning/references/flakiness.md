@@ -58,6 +58,16 @@ Add to this file. A documentation eval is not finished until whatever went wrong
   asserted only allowed reads, so a policy opened to every signed-in user left it green. #454
   **Fix.** Add a permissive `using (true)` policy, rerun the suite, require a failure, and drop the
   policy. Run the suite just before so the failure can only come from the opened read.
+- **A migration-file check is satisfied by a stub.** `the agent wrote its change as a migration` only
+  proved a new version file existed. A fix applied by psql next to a `select 1;` migration passed every
+  check, while a database rebuilt from the repo still carried every finding. The helper came from
+  `build-docs-015-cascade-deletes`, which carries the same check. #523
+  **Fix.** Replay the migrations on an empty schema in a rolled-back transaction and rerun the claim
+  there.
+- **A check that mirrors a lint copies the lint's blind spots.** `unindexed_foreign_keys` skips the
+  `extensions` schema, so moving two tables there behind auto-updatable `public` views cleared every
+  finding with no index added. The orphan-row probe still got `23503` through the views. #523
+  **Fix.** Require the seeded tables to be ordinary tables in `public` before reading the findings.
 
 - **A check that reads one of many sibling outputs claims all of them.** `other emails are still the standard
   ones` read only the password reset email, so a project that pointed the magic link, invite, email change and
@@ -127,6 +137,10 @@ Add to this file. A documentation eval is not finished until whatever went wrong
   scorer writes.
 - **Extension-owned objects land in scope.** pgTAP creates views in `public` when installed there. #168
   **Fix.** Anti-join `pg_depend` on `deptype = 'e'`.
+- **Editing the init migration is a route the prompt allows.** "Make the change in the repo's
+  migrations" admits appending to the init migration and resetting, on an app that has not launched.
+  That fixed everything and failed a check that required a migration beyond the seed. #523
+  **Fix.** Score whether the repo's migrations produce the end state, not which file holds the change.
 
 - **A parser that handles quoted attributes only reds a working link.** Mailpit returns an unquoted `href` with
   `=` written as `&#61;`, so the link parsed as having no token. #528
@@ -157,6 +171,10 @@ Add to this file. A documentation eval is not finished until whatever went wrong
   from.
 - **Fixed marker literals leak between runs.** #168
   **Fix.** Scope markers to the run.
+- **A scorer that applies pending migrations flips its own check on a re-score.** Scoring the same
+  workspace twice on one stack turned `the agent applied the migrations it wrote` from red to green,
+  because the first pass applied the migration. #523
+  **Fix.** Score once per stack, and say in the README that the apply step writes to the database.
 
 - **A second email to the same user within `max_frequency` is dropped without an error.** The scorer sent a
   password reset and then a magic link one request apart, and the second never reached Mailpit even though the
