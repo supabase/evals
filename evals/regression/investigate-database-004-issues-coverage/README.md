@@ -6,10 +6,10 @@ Two tables have RLS disabled. Platform-lite emits two critical security findings
 
 The scenario checks warning-or-higher issue retrieval, a report that preserves the grouping and coverage distinction, and unchanged RLS settings. The report judge receives only the assistant's final report, so tool output alone cannot satisfy the reporting requirement.
 
-Run against a built MCP checkout containing `get_issues` by setting `SUPABASE_MCP_REPO_PATH` in the repository's `.env`, then:
+The `codex-gpt-6-luna-issues-source` experiment pins the MCP source revision under review. Run it with:
 
 ```sh
-pnpm eval -- --suite regression --experiment codex-gpt-6-luna --eval investigate-database-004-issues-coverage --runs 1
+pnpm eval -- --suite regression --experiment codex-gpt-6-luna-issues-source --eval investigate-database-004-issues-coverage --runs 1
 ```
 
-The default published MCP version may not expose this tool yet. See the repository's contributing guide for selecting an MCP source revision in an experiment.
+For local iteration, set `SUPABASE_MCP_REPO_PATH` in the repository's `.env` to a built MCP checkout; it overrides the pinned revision. The default published MCP version may not expose this tool yet.
