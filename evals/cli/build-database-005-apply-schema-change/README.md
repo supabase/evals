@@ -42,11 +42,8 @@ from Codex. `db reset` is in 8.0% of agent sessions and `migration new` in
 
 ## Area and journey phase
 
-- `area: schema-and-migrations`
-- `journeyPhase: design`
-
-Both are the CLI evals plan's unofficial frontmatter keys. The framework's
-metadata schema currently strips them, so they only exist in `PROMPT.md`.
+- `customMetadata.area: schema-and-migrations`
+- `customMetadata.journeyPhase: design`
 
 ## The prompt names no command, column, or file
 

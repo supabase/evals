@@ -32,3 +32,36 @@ describe('toEvalResult cliVersion precedence', () => {
     expect(result.cliVersion).toBe('2.109.1');
   });
 });
+
+describe('toEvalResult customMetadata', () => {
+  const CLI_EVAL_ID = 'build-database-005-apply-schema-change';
+  const build = async (raw: Record<string, unknown>, withPrompt: boolean) =>
+    toEvalResult(
+      rawEvalResultSchema.parse({
+        experiment: 'test-experiment',
+        eval: CLI_EVAL_ID,
+        interface: 'cli',
+        ...raw,
+      }),
+      'test-experiment/run-1/result.json',
+      withPrompt ? await readPrompt(CLI_EVAL_ID) : undefined,
+      undefined
+    );
+
+  it('carries customMetadata from the prompt', async () => {
+    const result = await build(
+      { customMetadata: { area: 'stale', journeyPhase: 'stale' } },
+      true
+    );
+    expect(result.customMetadata).toEqual({
+      area: 'schema-and-migrations',
+      journeyPhase: 'design',
+    });
+  });
+
+  it('falls back to the recorded result when the prompt is missing', async () => {
+    const customMetadata = { area: 'branching', journeyPhase: 'deploy' };
+    const result = await build({ customMetadata }, false);
+    expect(result.customMetadata).toEqual(customMetadata);
+  });
+});

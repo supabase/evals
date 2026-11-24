@@ -139,8 +139,8 @@ describe('PROMPT.md frontmatter', () => {
   it('files the journey under database migrations, branching and the resolve phase', () => {
     expect(frontmatter).toMatch(inList('product', 'database'));
     expect(frontmatter).toMatch(inList('topic', 'migrations'));
-    expect(frontmatter).toMatch(/^area: branching$/m);
-    expect(frontmatter).toMatch(/^journeyPhase: resolve$/m);
+    expect(frontmatter).toMatch(/^  area: branching$/m);
+    expect(frontmatter).toMatch(/^  journeyPhase: resolve$/m);
   });
 
   it('leaves hostedProject and services unset so every CLI experiment runs it', () => {

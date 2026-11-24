@@ -399,6 +399,7 @@ async function collectRows(
         topic: promptData?.topic ?? result.topic ?? [],
         source_path: sourcePath,
         cli_version: result.cliVersion ?? promptData?.cliVersion,
+        custom_metadata: promptData?.customMetadata ?? result.customMetadata,
         repo_sources: result.repoSources,
       },
       // Braintrust sums tokens across a trace's spans, so only LLM spans carry

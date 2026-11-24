@@ -56,7 +56,7 @@ function promptParts() {
 }
 
 const scalar = (frontmatter: string, key: string) =>
-  frontmatter.match(new RegExp(`^${key}: (.+)$`, 'm'))?.[1];
+  frontmatter.match(new RegExp(`^ *${key}: (.+)$`, 'm'))?.[1];
 
 function listItems(frontmatter: string, key: string): string[] {
   const block = frontmatter.match(

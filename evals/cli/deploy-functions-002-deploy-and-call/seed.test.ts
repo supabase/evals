@@ -233,8 +233,8 @@ describe('PROMPT.md', () => {
     expect(frontmatter).toMatch(/^projectRunning: false$/m);
     expect(frontmatter).toMatch(/^product:\s*\n\s*- edge-functions\s*$/m);
     expect(frontmatter).toMatch(/^topic:\s*\n\s*- security\s*$/m);
-    expect(frontmatter).toMatch(/^area: edge-functions$/m);
-    expect(frontmatter).toMatch(/^journeyPhase: deploy$/m);
+    expect(frontmatter).toMatch(/^  area: edge-functions$/m);
+    expect(frontmatter).toMatch(/^  journeyPhase: deploy$/m);
   });
 
   it('leaves hostedProject and services unset so every CLI experiment runs it', () => {

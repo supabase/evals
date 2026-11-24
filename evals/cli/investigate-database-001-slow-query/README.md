@@ -66,11 +66,8 @@ diagnosis paths: a run that skips `inspect` is the signal this eval records.
 
 ## Area and journey phase
 
-- `area: diagnostics`
-- `journeyPhase: observe`
-
-Both are the CLI evals plan's unofficial frontmatter keys. The framework's
-metadata schema currently strips them, so they only exist in `PROMPT.md`.
+- `customMetadata.area: diagnostics`
+- `customMetadata.journeyPhase: observe`
 
 ## The prompt names no subcommand, table, column, or fix
 

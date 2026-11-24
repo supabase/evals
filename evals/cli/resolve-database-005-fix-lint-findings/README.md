@@ -57,11 +57,8 @@ evidence is:
 
 ## Area and journey phase
 
-- `area: tests-and-lint`
-- `journeyPhase: resolve`
-
-Both are the CLI evals plan's unofficial frontmatter keys. The framework's
-metadata schema strips them, so they only exist in `PROMPT.md`.
+- `customMetadata.area: tests-and-lint`
+- `customMetadata.journeyPhase: resolve`
 
 ## The prompt names no command, finding, or object
 

@@ -57,8 +57,8 @@ covers writing tests; this eval covers the fix-and-retry loop.
 
 ## Area and journey phase
 
-- `area: tests-and-lint`
-- `journeyPhase: resolve`
+- `customMetadata.area: tests-and-lint`
+- `customMetadata.journeyPhase: resolve`
 
 ## The prompt names no command, column, function, or test framework
 

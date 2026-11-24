@@ -13,6 +13,7 @@ import {
   type ExperimentConfig,
   type ExperimentDisplayMetadata,
 } from '@supabase-evals/core';
+import { validateCustomMetadata } from './custom-metadata.js';
 import { discoverExperimentFiles } from './experiment-files.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -63,6 +64,11 @@ export async function readPrompt(evalId: string) {
     );
     return {
       ...parsed.metadata,
+      customMetadata: await validateCustomMetadata(
+        join(evalsDir, suiteDir),
+        parsed.metadata.customMetadata,
+        relative(ROOT, promptPath).split(sep).join('/')
+      ),
       suite: evalSuiteSchema.parse(suiteDir),
       prompt: parsed.body,
       promptSourcePath: relative(ROOT, promptPath).split(sep).join('/'),

@@ -94,8 +94,8 @@ describe('PROMPT.md frontmatter', () => {
 
   it('sits in the tests-and-lint area and the resolve journey phase', () => {
     const { frontmatter } = promptParts();
-    expect(frontmatter).toMatch(/^area: tests-and-lint$/m);
-    expect(frontmatter).toMatch(/^journeyPhase: resolve$/m);
+    expect(frontmatter).toMatch(/^  area: tests-and-lint$/m);
+    expect(frontmatter).toMatch(/^  journeyPhase: resolve$/m);
   });
 });
 
