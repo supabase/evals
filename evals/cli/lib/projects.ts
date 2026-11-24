@@ -3,6 +3,20 @@ import { errorMessage } from './shell.js';
 
 const DEFAULT_MAX_DEPTH = 4;
 
+/** Filenames the CLI reads as the project config, under `supabase/`. */
+export const CONFIG_FILES = [
+  'config.toml',
+  'config.json',
+  'config.jsonc',
+] as const;
+
+const CONFIG_PATH_PREDICATE = CONFIG_FILES.map(
+  (file) => `-path '*/supabase/${file}'`
+).join(' -o ');
+const CONFIG_SUFFIX_RE = new RegExp(
+  `/supabase/(?:${CONFIG_FILES.map((file) => file.replace('.', '\\.')).join('|')})$`
+);
+
 function basename(path: string): string {
   return path.slice(path.lastIndexOf('/') + 1);
 }
@@ -27,7 +41,7 @@ function matchProjectDir(
 }
 
 /**
- * Locates every `supabase/config.toml` under the workspace and maps each name
+ * Locates every supabase config file under the workspace and maps each name
  * to its project directory, preferring an exact basename match and falling
  * back to a unique substring match. Names resolve independently, so one
  * missing project never hides the others.
@@ -46,13 +60,17 @@ export async function findProjectDirs<N extends string>(
   let all: string[];
   try {
     const result = await ctx.exec(
-      `find . -maxdepth ${opts.maxDepth ?? DEFAULT_MAX_DEPTH} -path '*/supabase/config.toml' -not -path '*/node_modules/*' -not -path '*/.git/*' 2>/dev/null`
+      `find . -maxdepth ${opts.maxDepth ?? DEFAULT_MAX_DEPTH} \\( ${CONFIG_PATH_PREDICATE} \\) -not -path '*/node_modules/*' -not -path '*/.git/*' 2>/dev/null`
     );
-    all = result.stdout
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .map((path) => path.replace(/\/supabase\/config\.toml$/, ''));
+    all = [
+      ...new Set(
+        result.stdout
+          .split('\n')
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .map((path) => path.replace(CONFIG_SUFFIX_RE, ''))
+      ),
+    ];
   } catch (error) {
     const msg = errorMessage(error);
     for (const name of names) problems[name] = msg;

@@ -28,7 +28,7 @@ export type ServiceDirs = {
   all: string[];
   /** Services whose only trace is a named stack started from the sandbox root. */
   namedAtRoot?: Service[];
-  /** Services whose directory came from `stack list` rather than a `config.toml`. */
+  /** Services whose directory came from `stack list` rather than a supabase config file. */
   fromStackList?: Service[];
 };
 
@@ -103,7 +103,7 @@ async function listedRoots(
 }
 
 /**
- * Finds each service's project directory by `supabase/config.toml`, then, for
+ * Finds each service's project directory by supabase config file, then, for
  * services without one, from the CLI's own `stack list` (default home and
  * every relocated home the agent started the service under), which also
  * covers stacks created without `supabase init`.
@@ -234,7 +234,7 @@ export async function resolveServiceStacks(
   return stacks;
 }
 
-// The agent may have broken the service's config.toml or rooted its stack in
+// The agent may have broken the service's config file or rooted its stack in
 // another directory, so a lone `stack list` entry named for it locates the stack.
 async function resolveListedStack(
   ctx: Pick<LocalStackEvalContext, 'exec'>,

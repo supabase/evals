@@ -23,7 +23,7 @@ reintroduce command names or Docker wording when editing it.
 
 Outcome checks — these ask "did the agent actually build the thing":
 
-- `supabase project initialised (supabase/config.toml exists)`
+- `supabase project initialised (supabase config file exists)`
 - `notes table is created by a migration file` — matched against migration
   contents with SQL comments (`-- …`, `/* … */`, nested) stripped first, so a
   migration that only mentions `CREATE TABLE public.notes` inside a comment

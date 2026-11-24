@@ -34,8 +34,8 @@ runtime` passes automatically when the stack runs on Docker.
 
 Outcome checks:
 
-- `supabase project initialised (supabase/config.toml exists)` — the
-  shallowest `config.toml` under the workspace.
+- `supabase project initialised (supabase config file exists)` — the
+  shallowest `supabase/config.{toml,json,jsonc}` under the workspace.
 - `docker runtime was attempted first` — the first non-invalid start must have
   resolved to Docker.
 - `stack is running` — the resolved stack answers `select 1`.

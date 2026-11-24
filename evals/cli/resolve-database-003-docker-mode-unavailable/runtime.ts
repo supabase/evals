@@ -357,7 +357,8 @@ export async function locateProject(ctx: ExecContext): Promise<ProjectProbe> {
   if (dirs.length === 0) {
     return {
       ok: false,
-      notes: 'no supabase/config.toml found under the workspace',
+      notes:
+        'no supabase config file (config.toml, config.json or config.jsonc) found under the workspace',
     };
   }
   const [dir] = [...dirs].sort(
@@ -368,14 +369,14 @@ export async function locateProject(ctx: ExecContext): Promise<ProjectProbe> {
     dir,
     ...(dirs.length > 1
       ? {
-          note: `multiple config.toml found (${dirs.join(', ')}); using shallowest: ${dir}`,
+          note: `multiple supabase config files found (${dirs.join(', ')}); using shallowest: ${dir}`,
         }
       : {}),
   };
 }
 
 export function checkProjectInitialised(project: ProjectProbe): CheckResult {
-  const name = 'supabase project initialised (supabase/config.toml exists)';
+  const name = 'supabase project initialised (supabase config file exists)';
   return project.ok
     ? { name, passed: true, notes: project.note }
     : { name, passed: false, notes: project.notes };

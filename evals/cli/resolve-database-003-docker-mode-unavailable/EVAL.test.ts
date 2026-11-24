@@ -68,7 +68,7 @@ function fakeCtx(
 }
 
 const CHECK_NAMES = [
-  'supabase project initialised (supabase/config.toml exists)',
+  'supabase project initialised (supabase config file exists)',
   'docker runtime was attempted first',
   'stack is running',
   'recovered via a non-docker runtime',
