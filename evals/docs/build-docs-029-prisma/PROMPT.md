@@ -20,7 +20,9 @@ Tidewater's help center is moving its tables to Prisma. The Prisma project is
 already in app/ with the first model written. I want to run its migrations
 against my local database, but I don't want Prisma running as our admin login.
 Give it a login of its own that has only what it needs, put the connection
-string it should use in app/.env, and run the first migration.
+string it should use in app/.env, and run the first migration. Our own
+migrations keep adding tables to the project, and Prisma has to keep working
+with those too.
 
 Read the guide below before you start and rely on it for how to set this up,
 rather than on what you already know.

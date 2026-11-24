@@ -5,6 +5,7 @@ import {
   type LocalStackScorer,
 } from '@supabase-evals/core';
 import { openToolSession, readTool, SETTINGS_FILE } from './login.js';
+import { execSql } from '../lib/exec-sql.js';
 import {
   applyPendingMigrations,
   checkMigrationsWereApplied,
@@ -13,6 +14,7 @@ import {
   CHECK,
   checkAccount,
   checkConfined,
+  checkLater,
   checkMigrated,
   checkSignIn,
   type Query,
@@ -35,6 +37,7 @@ const scorer: LocalStackScorer = async (ctx) => {
       probe.account,
       probe.migrated,
       probe.confined,
+      probe.later,
       checkGuideWasRead(ctx),
     ];
 
@@ -105,6 +108,8 @@ async function probeAccount(ctx: LocalStackEvalContext): Promise<Probe> {
     account: await checkAccount(query, tool),
     migrated: await checkMigrated(query, tool),
     confined: await checkConfined(query, asTool),
+    // Last, because it adds a table of its own and drops it again.
+    later: await checkLater((sql) => execSql(ctx, sql), asTool),
   };
 }
 
