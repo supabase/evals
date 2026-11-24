@@ -1,61 +1,35 @@
-## What kind of change does this PR introduce?
+## Problem
 
-New eval, new experiment, scorer fix, framework change, docs update, ...
+<!-- What's wrong or missing today, and how you know (failing runs, a user report, a Slack thread). Small PRs can replace this whole template with a couple of sentences. -->
 
-## What is the current behavior?
+## Changes
 
-Please link any relevant issues here.
-
-## What is the new behavior?
-
-Feel free to include screenshots if it includes visual changes.
+<!-- What this PR changes, and why this approach. -->
 
 ## How to Review
 
 <!--
-A reviewer should understand what this PR does within 15-30 seconds, then know where to start reading.
+Optional. Fill this in for multi-file PRs where the reading order isn't obvious; delete it otherwise.
 
-Non-trivial or multi-file PRs must fill in the reading path below. Trivial changes may delete this section when the review path is obvious.
+Give the exact repository-relative files in the order to read them, and what to check in each.
+For a new or changed eval: `PROMPT.md` (task + `motivation:`) -> `EVAL.ts` (scorer) -> seed data.
+For an experiment: the `experiments/` file, and the suite, skills and MCP servers it configures.
 
-- Use bold numbered areas, each with one or two indented bullets: the exact files, then what to inspect.
-- Use exact repository-relative paths, and avoid line numbers while the branch is still changing.
-- Keep it scannable. Don't repeat the PR purpose or the verification steps here.
-
-For a new or changed eval, a good path is `PROMPT.md` (task + `motivation:`) -> `EVAL.ts` (scorer) -> `remote/` or `local/` seed data.
-For an experiment, point at the `experiments/` file and call out the `suite:`, skills, and MCP servers it configures.
--->
-
-1. **Review area**
-   - `path/to/file`
-   - What to follow or verify.
-
-2. **Next review area**
-   - `path/to/next-file`
-   - What to follow or verify.
-
-**Review questions**
-
-<!-- Four to six short questions covering the reviewer's judgment calls. -->
-
-- [ ] Is the change scoped, and does the behavior match the description?
-- [ ] Are edge cases and failure paths handled safely?
-
-<!-- For new or changed evals, also confirm:
-- [ ] Does `motivation:` cite real evidence from the Supabase user journey?
-- [ ] Does the scorer check end state and prefer deterministic checks over prescribing process?
-- [ ] For a benchmark scenario, do results show agents legitimately failing rather than framework limitations?
-- [ ] Is the scenario representative rather than over-indexed on a niche use case?
+For evals, reviewers follow the checklist in CONTRIBUTING.md:
+https://github.com/supabase/evals/blob/main/CONTRIBUTING.md#reviewing-an-eval
 -->
 
 ## Verification
 
-<!-- Include the steps and evidence for how you verified this change. -->
+<!--
+The exact commands you ran and what you saw. For an eval change, include the local command and the pass count before and after, e.g.
 
-For new or changed evals (see [CONTRIBUTING.md](/supabase/evals/blob/main/CONTRIBUTING.md)):
+pnpm eval -- --eval <eval-id> --experiment <experiment> --runs 3
+-->
 
-- [ ] Ran the eval locally to sanity check it completes without framework errors.
-- [ ] Refreshed results in CI (`run-evals-changed` / `run-evals` labels, or the Refresh eval results workflow) and included them so a reviewer can see results directly.
+For new or changed evals (see [Submitting evals for review](https://github.com/supabase/evals/blob/main/CONTRIBUTING.md#submitting-evals-for-review)):
 
-## Additional context
+- [ ] Ran the eval locally, and it completes without framework errors.
+- [ ] Ran it in CI with the `run-evals-changed` label or the Refresh eval results workflow (`suite: regression` for framework changes), and linked the Braintrust run here.
 
-Add any other context or screenshots.
+<!-- Linear issue, e.g. "Closes AI-123" or "Part of AI-123". -->
