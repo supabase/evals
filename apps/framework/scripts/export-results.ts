@@ -67,7 +67,9 @@ export function toEvalResult(
     // The run's recorded version (the binary that actually ran) wins over the
     // frontmatter pin, which only names what the eval requested.
     cliVersion: parsedResult.cliVersion ?? promptData?.cliVersion,
-    customMetadata: promptData?.customMetadata ?? parsedResult.customMetadata,
+    customMetadata: promptData
+      ? promptData.customMetadata
+      : parsedResult.customMetadata,
     passed: parsedResult.passed === true,
     checks: parsedResult.checks,
     skills: parsedResult.skills,

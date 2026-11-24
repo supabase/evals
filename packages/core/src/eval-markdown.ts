@@ -47,7 +47,7 @@ export function parseEvalMarkdown(
   };
 }
 
-function formatZodIssues(issues: z.core.$ZodIssue[]): string {
+export function formatZodIssues(issues: z.core.$ZodIssue[]): string {
   return issues
     .map((issue) => {
       const path = issue.path.join('.');

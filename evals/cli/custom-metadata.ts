@@ -1,3 +1,4 @@
+import type { CustomMetadataSchema } from '@supabase-evals/core/eval-metadata';
 import { z } from 'zod';
 
 export const customMetadataSchema = z
@@ -21,4 +22,4 @@ export const customMetadataSchema = z
       .enum(['design', 'deploy', 'observe', 'detect', 'resolve'])
       .optional(),
   })
-  .optional();
+  .optional() satisfies CustomMetadataSchema;

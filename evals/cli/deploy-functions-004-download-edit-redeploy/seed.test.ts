@@ -1,6 +1,7 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/deploy-functions-004-download-edit-redeploy
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import ts from 'typescript';
+import { parseEvalMarkdown } from '@supabase-evals/core/eval-markdown';
 import { describe, expect, it } from 'vitest';
 import { FUNCTION_SLUG, PROMO_PROBES } from './seed.js';
 
@@ -322,8 +323,9 @@ describe('PROMPT.md', () => {
     expect(frontmatter).toMatch(/^projectRunning: false$/m);
     expect(frontmatter).toMatch(/^product:\s*\n\s*- edge-functions\s*$/m);
     expect(frontmatter).toMatch(/^topic:\s*\n\s*- security\s*$/m);
-    expect(frontmatter).toMatch(/^  area: edge-functions$/m);
-    expect(frontmatter).toMatch(/^  journeyPhase: deploy$/m);
+    expect(
+      parseEvalMarkdown(prompt, 'PROMPT.md').metadata.customMetadata
+    ).toEqual({ area: 'edge-functions', journeyPhase: 'deploy' });
   });
 
   it('leaves hostedProject and services unset so every CLI experiment runs it', () => {

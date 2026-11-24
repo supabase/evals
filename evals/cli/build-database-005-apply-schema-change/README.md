@@ -42,8 +42,8 @@ from Codex. `db reset` is in 8.0% of agent sessions and `migration new` in
 
 ## Area and journey phase
 
-- `customMetadata.area: schema-and-migrations`
-- `customMetadata.journeyPhase: design`
+- Area: `schema-and-migrations`.
+- Journey phase: `design`.
 
 ## The prompt names no command, column, or file
 

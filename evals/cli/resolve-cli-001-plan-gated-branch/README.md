@@ -63,8 +63,8 @@ measures.
 
 ## Area and journey phase
 
-- Area: `branching`
-- Journey phase: `resolve`
+- Area: `branching`.
+- Journey phase: `resolve`.
 
 ## The prompt names no command, flag, plan or upgrade
 

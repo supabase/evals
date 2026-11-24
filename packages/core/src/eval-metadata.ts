@@ -162,6 +162,11 @@ export type EvalMetadata = {
   customMetadata?: Record<string, unknown>;
 };
 
+/** Shape a suite's `custom-metadata.ts` must export as `customMetadataSchema`. */
+export type CustomMetadataSchema = z.ZodType<
+  Record<string, unknown> | undefined
+>;
+
 export type ParsedEvalMarkdown = {
   metadata: EvalMetadata;
   body: string;

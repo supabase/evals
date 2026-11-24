@@ -56,8 +56,8 @@ CLI-2702 also cites PostHog CLI telemetry (1% sample):
 
 ## Area and journey phase
 
-- Area: `schema-and-migrations`
-- Journey phase: `resolve`
+- Area: `schema-and-migrations`.
+- Journey phase: `resolve`.
 
 ## The prompt names no command, flag, path, version, table or column
 

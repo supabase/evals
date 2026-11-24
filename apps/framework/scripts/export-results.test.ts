@@ -59,6 +59,22 @@ describe('toEvalResult customMetadata', () => {
     });
   });
 
+  it('drops a recorded value when the prompt has no customMetadata', async () => {
+    const prompt = await readPrompt(CLI_EVAL_ID);
+    const result = await toEvalResult(
+      rawEvalResultSchema.parse({
+        experiment: 'test-experiment',
+        eval: CLI_EVAL_ID,
+        interface: 'cli',
+        customMetadata: { area: 'stale', journeyPhase: 'stale' },
+      }),
+      'test-experiment/run-1/result.json',
+      { ...prompt!, customMetadata: undefined },
+      undefined
+    );
+    expect(result.customMetadata).toBeUndefined();
+  });
+
   it('falls back to the recorded result when the prompt is missing', async () => {
     const customMetadata = { area: 'branching', journeyPhase: 'deploy' };
     const result = await build({ customMetadata }, false);

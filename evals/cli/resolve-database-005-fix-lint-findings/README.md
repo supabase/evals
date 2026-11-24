@@ -57,8 +57,8 @@ evidence is:
 
 ## Area and journey phase
 
-- `customMetadata.area: tests-and-lint`
-- `customMetadata.journeyPhase: resolve`
+- Area: `tests-and-lint`.
+- Journey phase: `resolve`.
 
 ## The prompt names no command, finding, or object
 

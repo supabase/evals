@@ -66,8 +66,8 @@ diagnosis paths: a run that skips `inspect` is the signal this eval records.
 
 ## Area and journey phase
 
-- `customMetadata.area: diagnostics`
-- `customMetadata.journeyPhase: observe`
+- Area: `diagnostics`.
+- Journey phase: `observe`.
 
 ## The prompt names no subcommand, table, column, or fix
 
