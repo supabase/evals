@@ -1,4 +1,8 @@
-import { parse as parseJsonc } from 'jsonc-parser';
+import {
+  type ParseError,
+  parse as parseJsonc,
+  printParseErrorCode,
+} from 'jsonc-parser';
 import type {
   CheckResult,
   LocalStackEvalContext,
@@ -632,11 +636,23 @@ export function readConfigDbPort(toml: string): number | undefined {
 }
 
 export function readJsoncConfigDbPort(jsonc: string): number | undefined {
-  const port: unknown = parseJsonc(jsonc, [], { allowTrailingComma: true })?.db
-    ?.port;
+  const errors: ParseError[] = [];
+  const config = parseJsonc(jsonc, errors, { allowTrailingComma: true });
+  if (errors.length > 0) {
+    throw new Error(
+      `config is not valid JSONC: ${errors
+        .map(
+          ({ error, offset }) =>
+            `${printParseErrorCode(error)} at offset ${offset}`
+        )
+        .join(', ')}`
+    );
+  }
+  const port: unknown = config?.db?.port;
   return typeof port === 'number' ? port : undefined;
 }
 
+// Same order as the CLI's findConfigInRoot: https://github.com/supabase/cli/blob/931e346d5688e0bf9316177de4e7b7cd22f0d6f2/packages/config/src/paths.ts
 const CONFIG_PRECEDENCE = [
   { file: 'config.json', read: readJsoncConfigDbPort },
   { file: 'config.jsonc', read: readJsoncConfigDbPort },
@@ -644,21 +660,22 @@ const CONFIG_PRECEDENCE = [
 ] as const;
 
 async function readLegacyConfigDbPort(
-  ctx: Pick<LocalStackEvalContext, 'readFile'>,
+  ctx: Pick<LocalStackEvalContext, 'readFile' | 'fileExists'>,
   dir: string
 ): Promise<number | undefined> {
-  const failures: unknown[] = [];
   for (const { file, read } of CONFIG_PRECEDENCE) {
-    let text: string;
+    const path = `${dir}/supabase/${file}`;
+    if (!(await ctx.fileExists(path))) continue;
+    const text = await ctx.readFile(path);
     try {
-      text = await ctx.readFile(`${dir}/supabase/${file}`);
+      return read(text);
     } catch (error) {
-      failures.push(error);
-      continue;
+      throw new Error(`${path}: ${errorMessage(error)}`);
     }
-    return read(text);
   }
-  throw failures[failures.length - 1];
+  throw new Error(
+    `no supabase config file in ${dir}/supabase (tried ${CONFIG_PRECEDENCE.map(({ file }) => file).join(', ')})`
+  );
 }
 
 const DEFAULT_DB_PORT = 54322;
@@ -672,7 +689,7 @@ export type PortProbe = { answered: boolean; notes: string };
  * when the port belongs to a surviving stack, which would answer instead.
  */
 export async function probeLegacyDbPort(
-  ctx: Pick<LocalStackEvalContext, 'exec' | 'readFile'>,
+  ctx: Pick<LocalStackEvalContext, 'exec' | 'readFile' | 'fileExists'>,
   dir: string | undefined,
   survivingDbPorts: readonly number[]
 ): Promise<PortProbe> {
