@@ -4,7 +4,11 @@ import type {
   LocalStackEvalContext,
 } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
-import { checkMetrics, checkStackReady } from './stack.js';
+import {
+  checkMetrics,
+  checkProjectInitialised,
+  checkStackReady,
+} from './stack.js';
 
 function commandResult(stdout: string, ok = true): CommandResult {
   return { ok, exitCode: ok ? 0 : 1, stdout, stderr: ok ? '' : 'error' };
@@ -81,5 +85,27 @@ describe('checkStackReady', () => {
       passed: false,
       notes: 'no stack',
     });
+  });
+});
+
+describe('checkProjectInitialised', () => {
+  const ctxWith = (files: string[]) =>
+    ({
+      fileExists: async (path: string) => files.includes(path),
+    }) as unknown as LocalStackEvalContext;
+
+  it.each(['config.toml', 'config.json', 'config.jsonc'])(
+    'passes when supabase/%s exists',
+    async (file) => {
+      const result = await checkProjectInitialised(
+        ctxWith([`supabase/${file}`])
+      );
+      expect(result.passed).toBe(true);
+    }
+  );
+
+  it('fails when no supabase config file exists', async () => {
+    const result = await checkProjectInitialised(ctxWith(['package.json']));
+    expect(result.passed).toBe(false);
   });
 });

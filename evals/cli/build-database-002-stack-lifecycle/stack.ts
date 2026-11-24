@@ -10,6 +10,7 @@ import {
   readSessionStartMs,
   safely,
 } from '../lib/metrics.js';
+import { CONFIG_FILES } from '../lib/projects.js';
 import { shellQuote } from '../lib/shell.js';
 import {
   probeStackReady,
@@ -22,14 +23,18 @@ const MIN_SEEDED_NOTES = 2;
 
 // Scoring setup state is normally off-limits, but this scenario sets
 // projectRunning: false — initialising the project is part of the agent's
-// task, so config.toml existing is agent-produced state.
+// task, so a config file existing is agent-produced state.
 export async function checkProjectInitialised(
   ctx: LocalStackEvalContext
 ): Promise<CheckResult> {
-  const name = 'supabase project initialised (supabase/config.toml exists)';
+  const name = 'supabase project initialised (supabase config file exists)';
   try {
-    const exists = await ctx.fileExists('supabase/config.toml');
-    return { name, passed: exists };
+    for (const file of CONFIG_FILES) {
+      if (await ctx.fileExists(`supabase/${file}`)) {
+        return { name, passed: true };
+      }
+    }
+    return { name, passed: false };
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     return { name, passed: false, notes: msg };

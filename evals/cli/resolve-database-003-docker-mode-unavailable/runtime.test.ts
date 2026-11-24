@@ -922,12 +922,13 @@ describe('locateProject / checkProjectInitialised', () => {
       'exec'
     >;
 
-  it('fails when no config.toml exists', async () => {
+  it('fails when no supabase config file exists', async () => {
     const project = await locateProject(ctxListing(''));
     expect(checkProjectInitialised(project)).toEqual({
-      name: 'supabase project initialised (supabase/config.toml exists)',
+      name: 'supabase project initialised (supabase config file exists)',
       passed: false,
-      notes: 'no supabase/config.toml found under the workspace',
+      notes:
+        'no supabase config file (config.toml, config.json or config.jsonc) found under the workspace',
     });
   });
 
@@ -951,7 +952,7 @@ describe('locateProject / checkProjectInitialised', () => {
     expect(project).toEqual({
       ok: true,
       dir: './app',
-      note: 'multiple config.toml found (./a/b, ./app); using shallowest: ./app',
+      note: 'multiple supabase config files found (./a/b, ./app); using shallowest: ./app',
     });
     expect(checkProjectInitialised(project)).toMatchObject({
       passed: true,

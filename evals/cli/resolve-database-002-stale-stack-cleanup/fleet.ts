@@ -1,3 +1,4 @@
+import { parse as parseJsonc } from 'jsonc-parser';
 import type {
   CheckResult,
   LocalStackEvalContext,
@@ -630,13 +631,43 @@ export function readConfigDbPort(toml: string): number | undefined {
   return undefined;
 }
 
+export function readJsoncConfigDbPort(jsonc: string): number | undefined {
+  const port: unknown = parseJsonc(jsonc, [], { allowTrailingComma: true })?.db
+    ?.port;
+  return typeof port === 'number' ? port : undefined;
+}
+
+const CONFIG_PRECEDENCE = [
+  { file: 'config.json', read: readJsoncConfigDbPort },
+  { file: 'config.jsonc', read: readJsoncConfigDbPort },
+  { file: 'config.toml', read: readConfigDbPort },
+] as const;
+
+async function readLegacyConfigDbPort(
+  ctx: Pick<LocalStackEvalContext, 'readFile'>,
+  dir: string
+): Promise<number | undefined> {
+  const failures: unknown[] = [];
+  for (const { file, read } of CONFIG_PRECEDENCE) {
+    let text: string;
+    try {
+      text = await ctx.readFile(`${dir}/supabase/${file}`);
+    } catch (error) {
+      failures.push(error);
+      continue;
+    }
+    return read(text);
+  }
+  throw failures[failures.length - 1];
+}
+
 const DEFAULT_DB_PORT = 54322;
 
 export type PortProbe = { answered: boolean; notes: string };
 
 /**
  * Whether Postgres still answers on legacy-import's configured `[db] port`
- * (54322 when `config.toml` sets none),
+ * (54322 when the supabase config file sets none),
  * catching a database left running that the CLI no longer reports. Skipped
  * when the port belongs to a surviving stack, which would answer instead.
  */
@@ -646,12 +677,10 @@ export async function probeLegacyDbPort(
   survivingDbPorts: readonly number[]
 ): Promise<PortProbe> {
   if (dir === undefined) {
-    return { answered: false, notes: 'no legacy-import config.toml to read' };
+    return { answered: false, notes: 'no legacy-import config file to read' };
   }
   try {
-    const configured = readConfigDbPort(
-      await ctx.readFile(`${dir}/supabase/config.toml`)
-    );
+    const configured = await readLegacyConfigDbPort(ctx, dir);
     const port = configured ?? DEFAULT_DB_PORT;
     const label = `[db] port ${port}${configured === undefined ? ' (default)' : ''}`;
     if (survivingDbPorts.includes(port)) {

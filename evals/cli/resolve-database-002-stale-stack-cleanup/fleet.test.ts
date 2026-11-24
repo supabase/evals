@@ -24,6 +24,7 @@ import {
   probeLegacyContainers,
   probeLegacyDbPort,
   readConfigDbPort,
+  readJsoncConfigDbPort,
   readHomeStackLists,
   readPostmasterStarts,
   type ContainerProbe,
@@ -683,7 +684,7 @@ describe('dir removed after a proper teardown', () => {
       gone(commands, {
         portProbe: {
           answered: false,
-          notes: 'no legacy-import config.toml to read',
+          notes: 'no legacy-import config file to read',
         },
       }).passed
     ).toBe(true);
@@ -1222,6 +1223,25 @@ describe('readConfigDbPort', () => {
   });
 });
 
+describe('readJsoncConfigDbPort', () => {
+  it('reads db.port from JSONC with comments and trailing commas', () => {
+    expect(
+      readJsoncConfigDbPort(
+        '{\n  // local ports\n  "api": { "port": 54321 },\n  "db": { "port": 54522, },\n}'
+      )
+    ).toBe(54522);
+  });
+
+  it('is undefined without a db.port number', () => {
+    expect(readJsoncConfigDbPort('{ "api": { "port": 54321 } }')).toBe(
+      undefined
+    );
+    expect(readJsoncConfigDbPort('{ "db": { "port": "54522" } }')).toBe(
+      undefined
+    );
+  });
+});
+
 describe('probeLegacyDbPort', () => {
   function fakeCtx(
     config: string | Error,
@@ -1229,8 +1249,9 @@ describe('probeLegacyDbPort', () => {
   ) {
     const commands: string[] = [];
     const ctx = {
-      readFile: async () => {
+      readFile: async (path: string) => {
         if (config instanceof Error) throw config;
+        if (!path.endsWith('.toml')) throw new Error('ENOENT');
         return config;
       },
       exec: async (command: string) => {
@@ -1245,7 +1266,7 @@ describe('probeLegacyDbPort', () => {
     const { ctx, commands } = fakeCtx('');
     expect(await probeLegacyDbPort(ctx, undefined, [])).toEqual({
       answered: false,
-      notes: 'no legacy-import config.toml to read',
+      notes: 'no legacy-import config file to read',
     });
     expect(commands).toEqual([]);
   });
@@ -1274,7 +1295,7 @@ describe('probeLegacyDbPort', () => {
     });
   });
 
-  it('probes the default port when config.toml sets no [db] port', async () => {
+  it('probes the default port when the config file sets no [db] port', async () => {
     const { ctx, commands } = fakeCtx('[api]\nport = 54321', {
       ok: true,
       exitCode: 0,
@@ -1309,7 +1330,68 @@ describe('probeLegacyDbPort', () => {
     expect(commands).toEqual([]);
   });
 
-  it('never throws when config.toml is unreadable', async () => {
+  describe('with config files by name', () => {
+    const answers = { ok: true, exitCode: 0, stdout: '1\n', stderr: '' };
+    function filesCtx(files: Record<string, string>) {
+      const commands: string[] = [];
+      const ctx = {
+        readFile: async (path: string) => {
+          const file = path.slice(path.lastIndexOf('/') + 1);
+          if (!(file in files)) throw new Error('ENOENT');
+          return files[file];
+        },
+        exec: async (command: string) => {
+          commands.push(command);
+          return answers;
+        },
+      } as unknown as Pick<LocalStackEvalContext, 'exec' | 'readFile'>;
+      return { ctx, commands };
+    }
+
+    it('reads the port from config.jsonc with comments', async () => {
+      const { ctx } = filesCtx({
+        'config.jsonc': '{\n  // db\n  "db": { "port": 54522 }\n}',
+      });
+      expect(await probeLegacyDbPort(ctx, './legacy-import', [])).toEqual({
+        answered: true,
+        notes: '[db] port 54522 still answers select 1',
+      });
+    });
+
+    it('reads the port from config.json', async () => {
+      const { ctx } = filesCtx({
+        'config.json': '{ "db": { "port": 54622 } }',
+      });
+      expect(await probeLegacyDbPort(ctx, './legacy-import', [])).toEqual({
+        answered: true,
+        notes: '[db] port 54622 still answers select 1',
+      });
+    });
+
+    it('prefers config.jsonc over config.toml', async () => {
+      const { ctx } = filesCtx({
+        'config.jsonc': '{ "db": { "port": 54522 } }',
+        'config.toml': '[db]\nport = 54999',
+      });
+      expect(await probeLegacyDbPort(ctx, './legacy-import', [])).toEqual({
+        answered: true,
+        notes: '[db] port 54522 still answers select 1',
+      });
+    });
+
+    it('prefers config.json over config.jsonc', async () => {
+      const { ctx } = filesCtx({
+        'config.json': '{ "db": { "port": 54622 } }',
+        'config.jsonc': '{ "db": { "port": 54522 } }',
+      });
+      expect(await probeLegacyDbPort(ctx, './legacy-import', [])).toEqual({
+        answered: true,
+        notes: '[db] port 54622 still answers select 1',
+      });
+    });
+  });
+
+  it('never throws when the config file is unreadable', async () => {
     const { ctx } = fakeCtx(new Error('ENOENT'));
     expect(await probeLegacyDbPort(ctx, './legacy-import', [])).toEqual({
       answered: false,
