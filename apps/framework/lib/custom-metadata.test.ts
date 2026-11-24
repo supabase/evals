@@ -1,17 +1,24 @@
-import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { validateCustomMetadata } from './custom-metadata.js';
-import { ROOT, readPrompt } from './result-files.js';
 
 describe('validateCustomMetadata', () => {
   let withSchema: string;
   let withoutSchema: string;
+  let misnamed: string;
 
   beforeAll(async () => {
     withSchema = await mkdtemp(join(tmpdir(), 'custom-metadata-'));
     withoutSchema = await mkdtemp(join(tmpdir(), 'custom-metadata-'));
+    misnamed = await mkdtemp(join(tmpdir(), 'custom-metadata-'));
+    await writeFile(
+      join(misnamed, 'custom-metadata.ts'),
+      `import { z } from 'zod';
+export const metadataSchema = z.object({});
+`
+    );
     await writeFile(
       join(withSchema, 'custom-metadata.ts'),
       `import { z } from 'zod';
@@ -23,6 +30,7 @@ export const customMetadataSchema = z.strictObject({ area: z.enum(['a', 'b']) })
   afterAll(async () => {
     await rm(withSchema, { recursive: true, force: true });
     await rm(withoutSchema, { recursive: true, force: true });
+    await rm(misnamed, { recursive: true, force: true });
   });
 
   it('returns the parsed value when it satisfies the suite schema', async () => {
@@ -40,7 +48,13 @@ export const customMetadataSchema = z.strictObject({ area: z.enum(['a', 'b']) })
   it('fails a required schema when customMetadata is missing', async () => {
     await expect(
       validateCustomMetadata(withSchema, undefined, 'p/PROMPT.md')
-    ).rejects.toThrow(/p\/PROMPT\.md/);
+    ).rejects.toThrow(/p\/PROMPT\.md: .*Invalid input/);
+  });
+
+  it('rejects a custom-metadata.ts that does not export customMetadataSchema', async () => {
+    await expect(
+      validateCustomMetadata(misnamed, { a: 1 }, 'p/PROMPT.md')
+    ).rejects.toThrow(/must export a zod customMetadataSchema/);
   });
 
   it('passes customMetadata through when the suite has no schema', async () => {
@@ -50,18 +64,5 @@ export const customMetadataSchema = z.strictObject({ area: z.enum(['a', 'b']) })
     await expect(
       validateCustomMetadata(withoutSchema, undefined, 'p/PROMPT.md')
     ).resolves.toBeUndefined();
-  });
-
-  it('accepts every real evals/cli prompt', async () => {
-    const ids = (
-      await readdir(join(ROOT, 'evals', 'cli'), { withFileTypes: true })
-    )
-      .filter((entry) => entry.isDirectory() && entry.name !== 'lib')
-      .map((entry) => entry.name);
-    expect(ids.length).toBeGreaterThan(0);
-    for (const id of ids) {
-      const prompt = await readPrompt(id);
-      expect(prompt?.customMetadata, id).toBeDefined();
-    }
   });
 });

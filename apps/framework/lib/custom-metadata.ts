@@ -1,16 +1,29 @@
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import type { ZodType } from 'zod';
+import type { CustomMetadataSchema } from '@supabase-evals/core/eval-metadata';
+import { formatZodIssues } from '@supabase-evals/core/eval-markdown';
 
-const schemaCache = new Map<string, Promise<ZodType | undefined>>();
+const schemaCache = new Map<
+  string,
+  Promise<CustomMetadataSchema | undefined>
+>();
 
-function loadSuiteSchema(suiteDir: string): Promise<ZodType | undefined> {
+function loadSuiteSchema(
+  suiteDir: string
+): Promise<CustomMetadataSchema | undefined> {
   let schema = schemaCache.get(suiteDir);
   if (!schema) {
     const file = join(suiteDir, 'custom-metadata.ts');
     schema = existsSync(file)
-      ? import(pathToFileURL(file).href).then((mod) => mod.customMetadataSchema)
+      ? import(pathToFileURL(file).href).then((mod) => {
+          if (typeof mod.customMetadataSchema?.safeParse !== 'function') {
+            throw new Error(
+              `evals/${basename(suiteDir)}/custom-metadata.ts must export a zod customMetadataSchema`
+            );
+          }
+          return mod.customMetadataSchema as CustomMetadataSchema;
+        })
       : Promise.resolve(undefined);
     schemaCache.set(suiteDir, schema);
   }
@@ -28,8 +41,8 @@ export async function validateCustomMetadata(
   const parsed = schema.safeParse(customMetadata);
   if (!parsed.success) {
     throw new Error(
-      `Invalid customMetadata in ${promptPath}: ${parsed.error.message}`
+      `Invalid customMetadata in ${promptPath}: ${formatZodIssues(parsed.error.issues)}`
     );
   }
-  return parsed.data as Record<string, unknown>;
+  return parsed.data;
 }

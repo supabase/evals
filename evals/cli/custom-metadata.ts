@@ -1,3 +1,4 @@
+import type { CustomMetadataSchema } from '@supabase-evals/core/eval-metadata';
 import { z } from 'zod';
 
 export const customMetadataSchema = z.strictObject({
@@ -15,4 +16,4 @@ export const customMetadataSchema = z.strictObject({
   ]),
   // KPI 2 journey phases, which differ from `stage`.
   journeyPhase: z.enum(['design', 'deploy', 'observe', 'detect', 'resolve']),
-});
+}) satisfies CustomMetadataSchema;

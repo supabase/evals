@@ -10,6 +10,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseEvalMarkdown } from '@supabase-evals/core/eval-markdown';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   DEVELOPMENT_VALUES,
@@ -414,8 +415,9 @@ describe('PROMPT.md', () => {
     expect(frontmatter).toMatch(/^topic:\s*\n\s*- security\s*$/m);
     expect(frontmatter).toMatch(/^projectRunning: false$/m);
     expect(frontmatter).toMatch(/^needsDocker: false$/m);
-    expect(frontmatter).toMatch(/^  area: config-and-secrets$/m);
-    expect(frontmatter).toMatch(/^  journeyPhase: deploy$/m);
+    expect(
+      parseEvalMarkdown(prompt, 'PROMPT.md').metadata.customMetadata
+    ).toEqual({ area: 'config-and-secrets', journeyPhase: 'deploy' });
   });
 
   it('leaves hostedProject and services unset so every CLI experiment runs it', () => {

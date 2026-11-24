@@ -65,8 +65,8 @@ as intended.
 
 ## Area and journey phase
 
-- `customMetadata.area: tests-and-lint`
-- `customMetadata.journeyPhase: detect`
+- Area: `tests-and-lint`.
+- Journey phase: `detect`.
 
 ## The prompt names no command, policy, or test framework
 
