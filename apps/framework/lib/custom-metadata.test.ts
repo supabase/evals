@@ -61,7 +61,7 @@ export const customMetadataSchema = z.strictObject({ area: z.enum(['a', 'b']) })
     expect(ids.length).toBeGreaterThan(0);
     for (const id of ids) {
       const prompt = await readPrompt(id);
-      expect(prompt, id).toBeDefined();
+      expect(prompt?.customMetadata, id).toBeDefined();
     }
   });
 });
