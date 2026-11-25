@@ -39,7 +39,7 @@ export type Probe = {
   joins: Record<Bystander, string[]>;
   delivered: Partial<Record<Source, Delivery>>;
   leaks: Record<Bystander, string[]>;
-  openTopicDelivered: boolean;
+  controlDelivered: boolean;
   forgery: {
     tried: string[];
     rowStored: boolean;
@@ -195,7 +195,7 @@ export function checkNeverSees(outcome: Outcome, who: Bystander): CheckResult {
   return {
     name,
     passed: true,
-    notes: `nothing carrying a room message arrived. Tried: ${tried}`,
+    notes: `nothing carrying a room message arrived. Tried: ${tried}.${publicRefused(probe.joins[who])}`,
   };
 }
 
@@ -223,9 +223,9 @@ export function checkCannotForge(outcome: Outcome): CheckResult {
     probe.topics.length === 0
       ? 'watchRoom joined nothing on the client it was given, so there was no topic to send on'
       : '',
-    probe.openTopicDelivered
+    probe.controlDelivered
       ? ''
-      : "the scorer's own message on an open test topic never arrived",
+      : "the scorer's own message on its private control topic never arrived",
     forgery.rowNote.startsWith('could not') ? forgery.rowNote : '',
   ].filter((part) => part !== '');
   if (unmeasured.length > 0) {
@@ -238,8 +238,19 @@ export function checkCannotForge(outcome: Outcome): CheckResult {
   return {
     name: CHECK.forged,
     passed: true,
-    notes: `${forgery.rowNote}. The member's callback got none of the forged messages. Tried: ${tried}`,
+    notes: `${forgery.rowNote}. The member's callback got none of the forged messages. Tried: ${tried}.${publicRefused(forgery.tried)}`,
   };
+}
+
+const PUBLIC_REFUSED =
+  ' Public joins that never reached joined were refused, which counts as no leak and no forgery.';
+
+function publicRefused(lines: string[]): string {
+  return lines.some((line) =>
+    / public (join )?(joining|errored|closed)$/.test(line)
+  )
+    ? PUBLIC_REFUSED
+    : '';
 }
 
 function listed(lines: string[]): string {

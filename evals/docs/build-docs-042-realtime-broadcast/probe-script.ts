@@ -36,7 +36,7 @@ const markers = {
 };
 const forgedBroadcast = 'forged-' + runId;
 const forgedRow = 'forged-row-' + runId;
-const openTopic = 'eval-open-' + runId;
+const controlTopic = 'eval-control-' + runId;
 const options = { auth: { persistSession: false, autoRefreshToken: false } };
 const sleep = (ms) => new Promise((resolve) => setTimeout(() => resolve(), ms));
 const text = (value) => {
@@ -54,7 +54,7 @@ const result = {
   joins: { outsider: [], visitor: [] },
   delivered: {},
   leaks: { outsider: [], visitor: [] },
-  openTopicDelivered: false,
+  controlDelivered: false,
   forgery: { tried: [], rowStored: false, rowNote: '', seen: [] },
 };
 const finish = () => {
@@ -101,24 +101,25 @@ async function settle(clients) {
   await sleep(500);
 }
 
-const opener = visitorClient();
-const openMessages = [];
-opener
-  .channel(openTopic)
-  .on('broadcast', { event: '*' }, (message) => openMessages.push(text(message)))
+const serviceClient = () => createClient(env.EVAL_API_URL, env.EVAL_ADMIN_KEY, options);
+const controller = serviceClient();
+const controlMessages = [];
+controller
+  .channel(controlTopic, { config: { private: true } })
+  .on('broadcast', { event: '*' }, (message) => controlMessages.push(text(message)))
   .subscribe();
-await settle([opener]);
+await settle([controller]);
 const readyEnd = Date.now() + 40000;
 let readyError = '';
-while (openMessages.length === 0 && Date.now() < readyEnd) {
+while (controlMessages.length === 0 && Date.now() < readyEnd) {
   try {
-    psql("select realtime.send(jsonb_build_object('ping', true), 'ping', " + literal(openTopic) + ', false);');
+    psql("select realtime.send(jsonb_build_object('ping', true), 'ping', " + literal(controlTopic) + ', true);');
   } catch (error) {
     readyError = short(error.stderr ? error.stderr.toString() : error);
   }
-  for (let i = 0; i < 10 && openMessages.length === 0; i++) await sleep(150);
+  for (let i = 0; i < 10 && controlMessages.length === 0; i++) await sleep(150);
 }
-if (openMessages.length === 0) {
+if (controlMessages.length === 0) {
   result.note = 'a test message sent from the database never arrived' + (readyError ? ': ' + readyError : '');
   finish();
 }
@@ -294,9 +295,9 @@ if (templates.length === 0) {
   }
 }
 
-const openControl = tokenClient(outsider.token);
-const openChannel = openControl.channel(openTopic);
-openChannel.subscribe();
+const controlSender = serviceClient();
+const controlChannel = controlSender.channel(controlTopic, { config: { private: true } });
+controlChannel.subscribe();
 const forgers = [];
 for (const ch of memberChannels) {
   for (const isPrivate of [true, false]) {
@@ -305,11 +306,12 @@ for (const ch of memberChannels) {
   }
 }
 for (const forger of forgers) forger.channel.subscribe();
-await settle([openControl, ...forgers.map((forger) => forger.client)]);
-await openChannel.send({ type: 'broadcast', event: 'ping', payload: { forgedBroadcast } });
+await settle([controlSender, ...forgers.map((forger) => forger.client)]);
+await controlChannel.send({ type: 'broadcast', event: 'ping', payload: { forgedBroadcast } });
 const forgeEnd = Date.now() + 15000;
 for (const { channel } of forgers) {
   const label = channel.subTopic + (channel.private ? ' private' : ' public');
+  tried.push(label + ' join ' + channel.state);
   for (const template of templates) {
     if (Date.now() > forgeEnd) break;
     if (channel.state === 'joined') {
@@ -326,7 +328,7 @@ for (const { channel } of forgers) {
   }
 }
 await sleep(4000);
-result.openTopicDelivered = openMessages.some((message) => message.includes(forgedBroadcast));
+result.controlDelivered = controlMessages.some((message) => message.includes(forgedBroadcast));
 result.forgery.seen = seen.member
   .filter((message) => message.includes(forgedBroadcast) || message.includes(forgedRow))
   .map((message) => message.slice(0, 300));

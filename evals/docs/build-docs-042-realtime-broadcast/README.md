@@ -40,7 +40,7 @@ as a lost run, unless the note shows `npm ci` failed on a lockfile the agent cha
 The outsider, visitor and forgery checks pass for a project with no live path at all. The three member checks are what
 make them mean something. The outsider and visitor checks also fail as could-not-measure when `watchRoom` joined nothing
 on the client it was given, because then there is no topic to try directly. The forgery check fails as could-not-measure
-in that case too, and when the scorer's own message on an open test topic never arrives.
+in that case too, and when the scorer's own message on its control topic never arrives.
 
 ## How the checks read the end state
 
@@ -58,11 +58,14 @@ in that case too, and when the scorer's own message on an open test topic never 
   as the outsider on each topic, both joins, over the socket and the HTTP endpoint. An HTTP send is listed as tried only
   when the request got a response. A stored row, or either body at the member's callback, fails the check.
 - The shape of what the callback gets is not scored. Only that it carries the body.
-- Before any of this, the scorer sends a test message from the database to an open topic and waits for it. If it never
-  arrives, every probe fails as could-not-measure. Either the stack is not delivering, or the agent's migration broke
-  sending from the database.
-- The local stack allows open joins, as hosted projects do until "Allow public access" is off. An open join to the room's
-  topic is attempted on purpose, because that setting is not the agent's to change locally.
+- Before any of this, the scorer sends a members-only test message from the database to its own control topic, and
+  listens there with the service role key, which no rule on `realtime.messages` can refuse. If it never arrives, every
+  probe fails as could-not-measure. Either the stack is not delivering, or the agent's migration broke sending from the
+  database. The forgery check's control is a message the scorer sends on the same topic.
+- The local stack allows open joins unless the project turns them off, as hosted projects do with "Allow public
+  access". An open join to the room's topic is attempted on purpose. A project that turns public channels off is
+  accepted: the scorer's own control does not depend on public channels, and a refused open join or send counts as no
+  leak and no forgery.
 
 ## Order of the scorer
 
