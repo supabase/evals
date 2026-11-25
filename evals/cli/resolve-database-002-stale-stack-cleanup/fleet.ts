@@ -1,3 +1,8 @@
+import {
+  type ParseError,
+  parse as parseJsonc,
+  printParseErrorCode,
+} from 'jsonc-parser';
 import type {
   CheckResult,
   LocalStackEvalContext,
@@ -630,28 +635,69 @@ export function readConfigDbPort(toml: string): number | undefined {
   return undefined;
 }
 
+export function readJsoncConfigDbPort(jsonc: string): number | undefined {
+  const errors: ParseError[] = [];
+  const config = parseJsonc(jsonc, errors, { allowTrailingComma: true });
+  if (errors.length > 0) {
+    throw new Error(
+      `config is not valid JSONC: ${errors
+        .map(
+          ({ error, offset }) =>
+            `${printParseErrorCode(error)} at offset ${offset}`
+        )
+        .join(', ')}`
+    );
+  }
+  const port: unknown = config?.db?.port;
+  return typeof port === 'number' ? port : undefined;
+}
+
+// Same order as the CLI's findConfigInRoot: https://github.com/supabase/cli/blob/931e346d5688e0bf9316177de4e7b7cd22f0d6f2/packages/config/src/paths.ts
+const CONFIG_PRECEDENCE = [
+  { file: 'config.json', read: readJsoncConfigDbPort },
+  { file: 'config.jsonc', read: readJsoncConfigDbPort },
+  { file: 'config.toml', read: readConfigDbPort },
+] as const;
+
+async function readLegacyConfigDbPort(
+  ctx: Pick<LocalStackEvalContext, 'readFile' | 'fileExists'>,
+  dir: string
+): Promise<number | undefined> {
+  for (const { file, read } of CONFIG_PRECEDENCE) {
+    const path = `${dir}/supabase/${file}`;
+    if (!(await ctx.fileExists(path))) continue;
+    const text = await ctx.readFile(path);
+    try {
+      return read(text);
+    } catch (error) {
+      throw new Error(`${path}: ${errorMessage(error)}`);
+    }
+  }
+  throw new Error(
+    `no supabase config file in ${dir}/supabase (tried ${CONFIG_PRECEDENCE.map(({ file }) => file).join(', ')})`
+  );
+}
+
 const DEFAULT_DB_PORT = 54322;
 
 export type PortProbe = { answered: boolean; notes: string };
 
 /**
  * Whether Postgres still answers on legacy-import's configured `[db] port`
- * (54322 when `config.toml` sets none),
+ * (54322 when the supabase config file sets none),
  * catching a database left running that the CLI no longer reports. Skipped
  * when the port belongs to a surviving stack, which would answer instead.
  */
 export async function probeLegacyDbPort(
-  ctx: Pick<LocalStackEvalContext, 'exec' | 'readFile'>,
+  ctx: Pick<LocalStackEvalContext, 'exec' | 'readFile' | 'fileExists'>,
   dir: string | undefined,
   survivingDbPorts: readonly number[]
 ): Promise<PortProbe> {
   if (dir === undefined) {
-    return { answered: false, notes: 'no legacy-import config.toml to read' };
+    return { answered: false, notes: 'no legacy-import config file to read' };
   }
   try {
-    const configured = readConfigDbPort(
-      await ctx.readFile(`${dir}/supabase/config.toml`)
-    );
+    const configured = await readLegacyConfigDbPort(ctx, dir);
     const port = configured ?? DEFAULT_DB_PORT;
     const label = `[db] port ${port}${configured === undefined ? ' (default)' : ''}`;
     if (survivingDbPorts.includes(port)) {

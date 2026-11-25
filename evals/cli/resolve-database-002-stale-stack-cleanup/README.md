@@ -33,7 +33,7 @@ Outcome checks:
 
 - `checkout-service and payments-api projects exist` — each service's
   project is found independently, so one missing project never hides the
-  others: by `supabase/config.toml` basename, else (for agents that never ran
+  others: by the basename of the directory holding its supabase config file (`config.toml`, `config.json` or `config.jsonc`), else (for agents that never ran
   `supabase init`) by the CLI's own `stack list`, read under the default home
   and each relocated home the agent started the service with. A `stack list`
   entry whose `name` is the service (reachable entries preferred) gives its
@@ -44,7 +44,7 @@ Outcome checks:
   isn't required: deleting it is a fair reading of "we killed `legacy-import`".
 - `checkout-service stack is running` and `payments-api stack is running` —
   the stack resolves and answers `select 1`.
-  When resolution from the service's `config.toml` directory fails (an agent
+  When resolution from the directory holding the service's supabase config file fails (an agent
   that broke its own config, or rooted the stack elsewhere), the one `stack
   list` entry named exactly for the service gives the directory to resolve in,
   under the default and each relocated home; two or more distinct roots leave
@@ -95,7 +95,7 @@ fail, and the notes say there was no change phase.
 - `legacy-import stack is gone` — decided by the end state. It requires a
   start targeting `legacy-import` that didn't fail (so it can't pass
   vacuously), and that `stack list` doesn't list it, its stack doesn't
-  resolve, and, when its `config.toml` survives, nothing answers `select 1` on
+  resolve, and, when its supabase config file survives, nothing answers `select 1` on
   its `[db] port` (54322 when none is set; skipped if a surviving stack owns
   that port). When its directory is gone, `docker ps` must also show no container labelled
   `com.supabase.cli.project=legacy-import` or named

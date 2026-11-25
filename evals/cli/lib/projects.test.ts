@@ -21,12 +21,42 @@ function fakeCtx(configPaths: string[] | Error) {
 }
 
 describe('findProjectDirs', () => {
-  it('discovers config.toml up to depth 4 by default', async () => {
+  it('discovers supabase config files up to depth 4 by default', async () => {
     const { ctx, commands } = fakeCtx([]);
     await findProjectDirs(ctx, ['client-a']);
     expect(commands).toEqual([
-      "find . -maxdepth 4 -path '*/supabase/config.toml' -not -path '*/node_modules/*' -not -path '*/.git/*' 2>/dev/null",
+      "find . -maxdepth 4 \\( -path '*/supabase/config.toml' -o -path '*/supabase/config.json' -o -path '*/supabase/config.jsonc' \\) -not -path '*/node_modules/*' -not -path '*/.git/*' 2>/dev/null",
     ]);
+  });
+
+  it('finds a project with only config.jsonc', async () => {
+    const { ctx } = fakeCtx(['./client-a/supabase/config.jsonc']);
+    expect(await findProjectDirs(ctx, ['client-a'])).toEqual({
+      found: { 'client-a': './client-a' },
+      problems: {},
+      all: ['./client-a'],
+    });
+  });
+
+  it('finds a project with only config.json', async () => {
+    const { ctx } = fakeCtx(['./client-a/supabase/config.json']);
+    expect(await findProjectDirs(ctx, ['client-a'])).toEqual({
+      found: { 'client-a': './client-a' },
+      problems: {},
+      all: ['./client-a'],
+    });
+  });
+
+  it('counts a project with both config.toml and config.jsonc once', async () => {
+    const { ctx } = fakeCtx([
+      './client-a/supabase/config.toml',
+      './client-a/supabase/config.jsonc',
+    ]);
+    expect(await findProjectDirs(ctx, ['client-a'])).toEqual({
+      found: { 'client-a': './client-a' },
+      problems: {},
+      all: ['./client-a'],
+    });
   });
 
   it('honours maxDepth', async () => {

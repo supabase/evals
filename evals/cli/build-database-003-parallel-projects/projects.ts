@@ -7,7 +7,7 @@ export type ProjectDirs = Awaited<ReturnType<typeof findProjectDirs<Client>>>;
 
 export function checkProjectsInitialised(dirs: ProjectDirs): CheckResult {
   const name =
-    'client-a and client-b projects initialised (each has supabase/config.toml)';
+    'client-a and client-b projects initialised (each has a supabase config file)';
   const resolved = CLIENTS.map((client) => dirs.found[client]);
   const allFound = resolved.every((dir) => dir !== undefined);
   const shared = allFound && new Set(resolved).size < CLIENTS.length;
@@ -19,7 +19,7 @@ export function checkProjectsInitialised(dirs: ProjectDirs): CheckResult {
   return {
     name,
     passed: false,
-    notes: `${perClient}${shared ? ' (both resolved to the same directory)' : ''}; supabase/config.toml found under: ${
+    notes: `${perClient}${shared ? ' (both resolved to the same directory)' : ''}; supabase config file found under: ${
       dirs.all.length > 0 ? dirs.all.join(', ') : 'none'
     }`,
   };

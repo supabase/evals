@@ -58,6 +58,28 @@ Add to this file. A documentation eval is not finished until whatever went wrong
   asserted only allowed reads, so a policy opened to every signed-in user left it green. #454
   **Fix.** Add a permissive `using (true)` policy, rerun the suite, require a failure, and drop the
   policy. Run the suite just before so the failure can only come from the opened read.
+- **A migration-file check is satisfied by a stub.** `the agent wrote its change as a migration` only
+  proved a new version file existed. A fix applied by psql next to a `select 1;` migration passed every
+  check, while a database rebuilt from the repo still carried every finding. The helper came from
+  `build-docs-015-cascade-deletes`, which carries the same check. #523
+  **Fix.** Replay the migrations on an empty schema in a rolled-back transaction and rerun the claim
+  there.
+- **A check that mirrors a lint copies the lint's blind spots.** `unindexed_foreign_keys` skips the
+  `extensions` schema, so moving two tables there behind auto-updatable `public` views cleared every
+  finding with no index added. The orphan-row probe still got `23503` through the views. #523
+  **Fix.** Require the seeded tables to be ordinary tables in `public` before reading the findings.
+
+- **A check that reads one of many sibling outputs claims all of them.** `other emails are still the standard
+  ones` read only the password reset email, so a project that pointed the magic link, invite, email change and
+  reauthentication templates at the new copy scored green. The README repeated the claim. #528
+  **Fix.** Probe each sibling the claim names, or name the check after the one it reads and list the rest as
+  unscored.
+- **A "not customized" check pinned to a platform default reports a CLI upgrade as a docs change.** The standard
+  subjects (`Reset your password`, `Your sign-in link`) are what the pinned CLI sends. #528
+  **Fix.** Say in the README that the strings are pinned, so a red after an upgrade is read as one.
+- **A rule in the seed's own copy file has no check.** `EMAIL_COPY.md` said the email has no code, and a template
+  adding `{{ .Token }}` passed. Text in `<head><title>` also satisfied a heading check. #528
+  **Fix.** Read only the body, and assert the negative rules the seed states.
 
 ## False red: the check fails correct work
 
@@ -115,6 +137,14 @@ Add to this file. A documentation eval is not finished until whatever went wrong
   scorer writes.
 - **Extension-owned objects land in scope.** pgTAP creates views in `public` when installed there. #168
   **Fix.** Anti-join `pg_depend` on `deptype = 'e'`.
+- **Editing the init migration is a route the prompt allows.** "Make the change in the repo's
+  migrations" admits appending to the init migration and resetting, on an app that has not launched.
+  That fixed everything and failed a check that required a migration beyond the seed. #523
+  **Fix.** Score whether the repo's migrations produce the end state, not which file holds the change.
+
+- **A parser that handles quoted attributes only reds a working link.** Mailpit returns an unquoted `href` with
+  `=` written as `&#61;`, so the link parsed as having no token. #528
+  **Fix.** Accept unquoted values and decode numeric entities before reading the url.
 
 ## Nondeterminism
 
@@ -141,6 +171,15 @@ Add to this file. A documentation eval is not finished until whatever went wrong
   from.
 - **Fixed marker literals leak between runs.** #168
   **Fix.** Scope markers to the run.
+- **A scorer that applies pending migrations flips its own check on a re-score.** Scoring the same
+  workspace twice on one stack turned `the agent applied the migrations it wrote` from red to green,
+  because the first pass applied the migration. #523
+  **Fix.** Score once per stack, and say in the README that the apply step writes to the database.
+
+- **A second email to the same user within `max_frequency` is dropped without an error.** The scorer sent a
+  password reset and then a magic link one request apart, and the second never reached Mailpit even though the
+  request returned 200. #528
+  **Fix.** Wait longer than `max_frequency` between emails to one address, or use a different address for each.
 
 ## Crashes and contamination
 
@@ -177,6 +216,9 @@ Add to this file. A documentation eval is not finished until whatever went wrong
 - **Ports.** The range is 54321 to 54329. Another project's stack holding them blocked local runs
   entirely, and one eval shipped for review having never run end to end because of it. #168, #206
   **Fix.** Preflight the ports. Both later evals open their testing steps with it.
+  When another project's stack holds them, copy the eval's `local/` to a scratch directory, shift
+  every port and the `project_id` in its `config.toml`, and start it there. A scorer called with a
+  hand-built context runs against it, so nobody's stack has to stop. #517
 - **`pnpm test` needs `OPENAI_API_KEY`** and stops without it, which reads as a broken diff.
   #228, #168
 - **A stale local `VERCEL_OIDC_TOKEN` shadows the real one** and every sandbox create fails. #192
@@ -220,6 +262,10 @@ Add to this file. A documentation eval is not finished until whatever went wrong
   `evals/*/*/solutions/`, which is where a deliberate parse-error fixture lives. The failure reads as a
   broken branch. #259
   **Fix.** Scope Biome to the paths you touched, or add those three to `biome.json`.
+
+- **A killed `supabase start` leaves a half-removed stack.** The next start failed with
+  `No such container: supabase_kong_<project-id>` and every check red as not run. #528
+  **Fix.** Remove the project's containers before rescoring.
 
 ## Metadata
 
@@ -279,11 +325,36 @@ Add to this file. A documentation eval is not finished until whatever went wrong
   the message, and check which services the eval actually starts before reading `Stopped services` as a
   fault.
 
+- **Removing the cue from the seed did not stop agents enabling the setting the page never mentions.** Three
+  runs set `enable_confirmations = true` with the seed's `config.toml` showing a visible `false`. After the line
+  was deleted and a second email needing two unmentioned settings was added (`password_changed` with `enabled`),
+  three more runs still scored every check. All three searched the docs for `enable_confirmations` by name. The
+  page lacks that key, so it came from the model or from a search result, and the transcripts can't say which.
+  The checks fail the right fixtures, but a pass does not show the guide carried the run. #528
+  **Fix.** None at the seed level. Ask for an unread arm before claiming the page carried the run.
+- **Most baseline agents did not run the stack.** In the first baseline none started Supabase, signed up, or
+  opened Mailpit. In the second, one signed up and read Mailpit and two only started the stack. The scorer's
+  end-to-end checks passed either way, so the eval scores what an agent leaves and not whether it verified it.
+  #528
+- **An "unread" arm still reaches the page.** The prompt's reference line and its "rely on it" sentence were
+  removed for three runs. Every agent still searched the docs through the MCP search tool, and the Email
+  Templates page and the local customizing guide came back in every run. Two runs scored every check. One
+  never turned confirmations on and failed the five sign-up email checks, which is the one thing the page
+  and the customizing guide leave out. The other two searched `enable_confirmations` by name and found it in
+  the testing guide. Taking the pointer away does not remove the page. #528
+  **Fix.** To measure the page's contribution, an arm has to block the docs search tool, which the harness
+  does not offer.
+
 ## Process
 
 - **Strip deployment-url churn before diffing two previews.** Every internal link on a docs preview
   carries the deployment hash, so a rebuild rewrites dozens of lines that say nothing. Substitute the
   host out of both copies before comparing, or the real edit is buried. #257
+- **A check list taken from the page saturates.** The first version of an eval built its checks from
+  the page's own access control section, and all three baseline runs passed every check. One check
+  from outside the page, a guest who had just made an account, red all three runs on the next refresh.
+  #517
+  **Fix.** Finish Phase 1 before writing checks, and diff the sources against the page.
 - **Verify your own predictions.** A PR body predicted a check would fail an agent following the page.
   The reviewer found it passing locally and in CI and asked why. #212
 - **An unmeasured rule in the prompt is a defect.** A reviewer found a prompt rule with no check and no

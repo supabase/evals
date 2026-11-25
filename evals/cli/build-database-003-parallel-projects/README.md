@@ -26,7 +26,7 @@ numbers, or Docker wording when editing it.
 
 Outcome checks — these ask "did the agent actually build the thing":
 
-- `client-a and client-b projects initialised (each has supabase/config.toml)`
+- `client-a and client-b projects initialised (each has a supabase config file)`
   — both project directories are discovered (see below), and they're two
   different directories
 - `both stacks reach ready` — `select 1` against each project's own `DB_URL`
@@ -73,7 +73,7 @@ experiment, never asserted against.
 
 ## How stacks are resolved per project
 
-Project directories are found by locating every `supabase/config.toml` under
+Project directories are found by locating every `supabase/config.{toml,json,jsonc}` under
 the workspace (`../lib/projects.ts`, default `maxDepth` 4), so a project can
 sit at the workspace root (`./client-a`) or one level down
 (`./projects/client-a`), but no deeper. An exact basename match wins, so

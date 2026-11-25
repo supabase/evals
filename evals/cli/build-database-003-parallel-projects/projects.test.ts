@@ -54,7 +54,7 @@ describe('checkProjectsInitialised', () => {
     const result = await initialised(['./client-a/supabase/config.toml']);
     expect(result.passed).toBe(false);
     expect(result.notes).toBe(
-      'client-a: ./client-a; client-b: no matching project directory; supabase/config.toml found under: ./client-a'
+      'client-a: ./client-a; client-b: no matching project directory; supabase config file found under: ./client-a'
     );
   });
 
