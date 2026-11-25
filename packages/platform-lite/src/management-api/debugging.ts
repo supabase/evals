@@ -3,6 +3,7 @@ import {
   createManagementApiRoutes,
   type ManagementApiRoutes,
 } from './routes.js';
+import { runAdvisorLints } from './advisor-lints.js';
 import { extractRows } from './utils.js';
 
 const RLS_DISABLED_SQL = `
@@ -116,7 +117,8 @@ export function createDebuggingRoutes(
         description:
           'Table is accessible to all roles without row-level security.',
         detail: `Table "${row.schema}"."${row.name}" has RLS disabled.`,
-        remediation: `Enable RLS: ALTER TABLE "${row.schema}"."${row.name}" ENABLE ROW LEVEL SECURITY;`,
+        remediation:
+          'https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public',
         metadata: {
           schema: row.schema,
           name: row.name,
@@ -124,7 +126,10 @@ export function createDebuggingRoutes(
         },
         cache_key: `rls_disabled_in_public:${row.schema}.${row.name}`,
       }));
-      return c.json({ lints });
+      const more = await runAdvisorLints('SECURITY', async (sql) =>
+        extractRows(await project.app.connection.exec(sql))
+      );
+      return c.json({ lints: [...lints, ...more] });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return c.json({ message }, 500);
@@ -135,7 +140,16 @@ export function createDebuggingRoutes(
     const { ref } = c.req.param();
     const project = store.get(ref);
     if (!project) return c.json({ message: 'Project not found' }, 404);
-    return c.json({ lints: [] });
+
+    try {
+      const lints = await runAdvisorLints('PERFORMANCE', async (sql) =>
+        extractRows(await project.app.connection.exec(sql))
+      );
+      return c.json({ lints });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return c.json({ message }, 500);
+    }
   });
 
   // Health lints score hosted log error rates, so error loudly. An empty list would read as healthy.
