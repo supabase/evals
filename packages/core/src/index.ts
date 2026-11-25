@@ -551,8 +551,8 @@ export type LocalStackSessionArgs = {
    * Agent skills to install into the sandbox (one host source dir per skill).
    * Installed with Vercel's `skills` CLI and discovered by the agent reading
    * each skill's SKILL.md with its file tools — not preloaded into the system
-   * prompt. Tools-mode evals (no filesystem) inject skills into the prompt
-   * instead, so they ignore this.
+   * prompt. In-process agents in tools mode receive skill descriptions in the
+   * prompt and load the full instructions on demand.
    */
   skills?: readonly SkillSource[];
   /**
