@@ -82,7 +82,7 @@ leaves what is wrong to the checks, so the agent has to run them and read the
 output. Finding out that the two commands exist, that they read a running local
 database, and what each covers is part of what's measured. Don't reintroduce
 command, finding or object wording when editing it. The frontmatter has
-`projectRunning: false`, so the harness starts no stack, and `needsDocker:
+`startLocalStack` defaults to false, so the harness starts no stack, and `needsDocker:
 false`, so Docker-less experiments run the eval.
 
 ## The seeded project
@@ -276,7 +276,7 @@ ground truth or the transcript's own output contradicts fail.
 The four Docker arms are expected to pass, because every CLI can start a stack,
 run both checks, write a migration and apply it. The two Docker-less arms are
 red by design until CLI-2534, as in `build-database-005-apply-schema-change`.
-The frontmatter sets `needsDocker: false` and `projectRunning: false`, so all
+The frontmatter sets `needsDocker: false`, and `startLocalStack` defaults to false, so all
 six experiments pick the eval up. The scorer never reads which experiment it
 runs under; the backend and runtime the stack came up on are reported through
 `metrics`.

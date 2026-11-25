@@ -43,9 +43,7 @@ setup", because those are the user's words for what they want. Finding out
 which bucket holds the invoices, whether the stack is already running, how to
 move files between buckets, and where the project declares what a fresh setup
 seeds is part of what's measured. Don't reintroduce command, flag or path
-wording when editing it. The frontmatter has no `services:`, `projectRunning`
-or `needsDocker` key, so the harness starts the full stack before the agent
-runs.
+wording when editing it. The frontmatter starts the stack before the agent runs. With no `services` setting, it starts all services.
 
 The prompt has no sentence asking the agent to leave the stack running. The
 stack is already running when the agent starts, and nothing in the task needs

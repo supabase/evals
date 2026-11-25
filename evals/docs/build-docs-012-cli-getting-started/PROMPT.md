@@ -5,8 +5,6 @@ product:
   - database
 topic:
   - sdk
-projectRunning: false
-skipCliInstall: true
 motivation: >-
   the Supabase CLI page is the front door for local development, and it was
   revised to lead with installing the CLI into the project rather than onto the

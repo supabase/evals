@@ -46,7 +46,7 @@ describe('skipUnlessDockerless', () => {
   const dockerlessMetadata: EvalMetadata = {
     ...baseMetadata,
     needsDocker: false,
-    projectRunning: false,
+    startLocalStack: false,
   };
 
   it('runs a cli eval that needs no Docker and has no pre-started stack', () => {
@@ -86,7 +86,7 @@ describe('skipUnlessDockerless', () => {
     expect(
       skipUnlessDockerless({
         id: 'e',
-        metadata: { ...baseMetadata, projectRunning: false },
+        metadata: { ...baseMetadata, startLocalStack: false },
       })
     ).toBe(true);
   });
@@ -95,17 +95,17 @@ describe('skipUnlessDockerless', () => {
     expect(
       skipUnlessDockerless({
         id: 'e',
-        metadata: { ...dockerlessMetadata, projectRunning: true },
+        metadata: { ...dockerlessMetadata, startLocalStack: true },
       })
     ).toBe(true);
   });
 
-  it('skips an eval whose projectRunning is unset (defaults to true)', () => {
+  it('runs an eval whose startLocalStack is unset (defaults to false)', () => {
     expect(
       skipUnlessDockerless({
         id: 'e',
         metadata: { ...baseMetadata, needsDocker: false },
       })
-    ).toBe(true);
+    ).toBe(false);
   });
 });

@@ -43,7 +43,7 @@ The frontmatter has no `services:` key. With it set, the sandbox shim appends
 `-x gotrue,kong,...` to every `supabase start`, which the managed stack
 rejects (it only accepts capability names such as `rest`, `auth`). The agent
 gets the full stack per `config.toml` and may trim it itself.
-`projectRunning: false` and `needsDocker: false` let the Docker-less
+`startLocalStack` defaults to false and `needsDocker: false` let the Docker-less
 experiments run it; the harness starts no stack.
 
 Nothing tells the agent about the managed stack, the feature flag, or port

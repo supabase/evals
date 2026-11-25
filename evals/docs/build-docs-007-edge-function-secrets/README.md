@@ -36,7 +36,7 @@ The key literal is not `sk-` or `sk-proj-` shaped. Push protection on this repo 
 provider-shaped credential. The scorer reads the literal out of the seed at module load, so rotating it cannot leave
 the checks hunting a value the app never carried.
 
-`projectRunning: false` is load-bearing. `supabase start` bakes `supabase/functions/.env` into the edge runtime
+The default `startLocalStack: false` is load-bearing. `supabase start` bakes `supabase/functions/.env` into the edge runtime
 container's environment at creation time, so a file written after the stack is up is invisible to it. Letting the agent
 own the lifecycle is what makes the runtime claim measurable without the scorer restarting anything.
 

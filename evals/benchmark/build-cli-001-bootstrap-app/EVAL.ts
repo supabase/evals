@@ -39,9 +39,7 @@ const scorer: LocalStackScorer = async (ctx) => {
 
 export default scorer;
 
-// Scoring setup state is normally off-limits, but this scenario sets
-// projectRunning: false — initialising the project is part of the agent's
-// task, so config.toml existing is agent-produced state.
+// The agent initializes the project, so config.toml is agent-produced state.
 async function checkProjectInitialised(
   ctx: LocalStackEvalContext
 ): Promise<CheckResult> {

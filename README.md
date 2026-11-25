@@ -114,12 +114,14 @@ Allowed metadata values are defined in `packages/core/src/eval-metadata.ts`.
 
 ## Eval Modes
 
-There are two runtimes, chosen automatically per eval:
+There are two runtime paths:
 
-- **Tools evals** run the agent against the experiment's MCP/tool surface (no `local/` directory, no `interface: cli`), then score the resulting project state or report.
-- **Local-stack evals** run the agent inside a Docker sandbox — a `bash` tool plus file tools with the real Supabase CLI installed — so it can run `supabase init/start/db/test` against a real local stack. An eval uses this runtime when it ships a `local/` workspace **or** declares `interface: cli` (the latter covers bootstrap scenarios that start from an empty workspace).
+- **Tools evals** use the experiment's remote runtime. Sandboxed agents run in a workspace, while in-process agents use tools without a filesystem.
+- **Local-stack evals** use the CLI-capable sandbox. Evals with `interface: cli` or `preinstallCli: true` use this path.
 
-`interface` (`mcp` | `cli` | `rest`) is otherwise a benchmark dimension (a cross-team KPI label), not the runtime switch — the `local/` directory and `interface: cli` are what decide whether a sandbox boots.
+In either path, `local/` supplies starter files for the sandbox workspace. An eval with starter files requires a sandboxed agent.
+
+`preinstallCli` and `startLocalStack` default to false. Starting the stack requires `preinstallCli: true` and `local/supabase/config.toml`.
 
 ### Local-stack evals
 
@@ -139,7 +141,7 @@ An experiment can pass `localStackRuntime({ docker: 'no-daemon' })` or `'absent'
 
 An experiment can pass `localStackRuntime({ env: { SUPABASE_EXPERIMENTAL_STACK: '1' } })` to turn on feature-flagged CLI behaviour for every eval it runs. The eval itself stays flag-agnostic, so once the feature graduates you drop the entry and the eval's history carries on. Names the harness manages itself (`PATH`, `HOME`, `DOCKER_HOST`, hosted-link credentials and so on) are rejected.
 
-Scorers check what the agent produced, never what the harness provisioned: with `projectRunning: true` (the default) the running stack and the seeded `local/` workspace are setup, so score only the deltas the agent made on top; with `projectRunning: false` the agent creates that state itself, so depending on it is fair game.
+Scorers check what the agent produced. When `startLocalStack: true`, score changes to the provisioned stack and workspace.
 
 Test the sandbox plumbing without an agent run (Docker required, not part of `pnpm test`):
 

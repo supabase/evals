@@ -1,11 +1,11 @@
 ---
 stage: resolve
 interface: cli
+preinstallCli: true
 product:
   - database
 topic:
   - sql
-projectRunning: false
 needsDocker: false
 motivation: CLI-2402, https://linear.app/supabase/issue/CLI-2402/resolve-cli-001-stale-stack-cleanup-findrestartremove-the-right-stack
 ---

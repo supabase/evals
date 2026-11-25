@@ -258,7 +258,8 @@ describe('PROMPT.md', () => {
       'migrations',
       'observability',
     ]);
-    expect(scalar(frontmatter, 'projectRunning')).toBe('false');
+    expect(scalar(frontmatter, 'startLocalStack')).toBeUndefined();
+    expect(frontmatter).toMatch(/^preinstallCli: true$/m);
     expect(scalar(frontmatter, 'needsDocker')).toBe('false');
     expect(scalar(frontmatter, 'area')).toBe('diagnostics');
     expect(scalar(frontmatter, 'journeyPhase')).toBe('observe');

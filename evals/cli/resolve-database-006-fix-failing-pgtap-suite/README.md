@@ -79,7 +79,7 @@ what's measured.
 The prompt says the tests passed before yesterday's change, but not which file
 changed, which tests fail, or that there are two bugs. Don't reintroduce command,
 column or function wording when editing it. The frontmatter has
-`projectRunning: true` and `needsDocker: true`, so the harness starts the stack
+`startLocalStack: true` and `needsDocker: true`, so the harness starts the stack
 and the Docker-less experiments skip the eval.
 
 The prompt's last sentence asks the agent to leave the database running. Every

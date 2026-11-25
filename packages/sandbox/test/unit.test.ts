@@ -694,37 +694,6 @@ describe('skills frontmatter', () => {
   });
 });
 
-describe('skipCliInstall frontmatter', () => {
-  const buildMarkdown = (extra: string) =>
-    [
-      '---',
-      'stage: build',
-      'interface: cli',
-      'product: [database]',
-      'topic: [sdk]',
-      extra,
-      '---',
-      'body',
-    ].join('\n');
-
-  it('accepts a real boolean and a quoted string form', () => {
-    expect(
-      parseEvalMarkdown(buildMarkdown('skipCliInstall: true')).metadata
-        .skipCliInstall
-    ).toBe(true);
-    expect(
-      parseEvalMarkdown(buildMarkdown('skipCliInstall: "true"')).metadata
-        .skipCliInstall
-    ).toBe(true);
-  });
-
-  it('defaults to undefined when omitted', () => {
-    expect(
-      parseEvalMarkdown(buildMarkdown('')).metadata.skipCliInstall
-    ).toBeUndefined();
-  });
-});
-
 describe('needsDocker frontmatter', () => {
   const buildMarkdown = (extra: string) =>
     [

@@ -86,7 +86,7 @@ The prompt keeps the user's own words: "notes", "database tests", "run them" and
 it looks under `supabase/tests`, and that the thing to test is the row level
 security layer on the notes table is part of what's measured. Don't
 reintroduce command, policy or path wording when editing it. The frontmatter has
-`projectRunning: false`, so the harness starts no stack, and `needsDocker:
+`startLocalStack` defaults to false, so the harness starts no stack, and `needsDocker:
 false`, so Docker-less experiments run the eval.
 
 The prompt's last sentence asks the agent to leave everything running, because
@@ -280,7 +280,7 @@ and the leak run fails it too; or the whole file passes only when owners alone
 can and fails its plan or stops the same way under the leak. The two Docker-less
 arms are red by design until CLI-2534.
 
-The frontmatter sets `needsDocker: false` and `projectRunning: false`, so all
+The frontmatter sets `needsDocker: false`, and `startLocalStack` defaults to false, so all
 six experiments pick the eval up, as the Docker-less ones require. The scorer
 never reads which experiment it runs under; the backend and runtime the stack
 came up on are reported through `metrics`.

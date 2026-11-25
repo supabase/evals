@@ -1,11 +1,11 @@
 ---
 stage: build
 interface: cli
+preinstallCli: true
 product:
   - database
 topic:
   - migrations
-projectRunning: false
 motivation: AI-825, https://supabase.com/docs/guides/platform/migrating-to-supabase/postgres
 ---
 

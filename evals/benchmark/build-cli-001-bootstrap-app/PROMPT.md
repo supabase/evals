@@ -1,6 +1,7 @@
 ---
 stage: build
 interface: cli
+preinstallCli: true
 product:
   - database
   - data-api
@@ -11,7 +12,6 @@ services:
   - gotrue
   - kong
   - postgrest
-projectRunning: false
 motivation: AI-809, https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs
 ---
 

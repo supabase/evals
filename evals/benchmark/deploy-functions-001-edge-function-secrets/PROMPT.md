@@ -1,8 +1,8 @@
 ---
 stage: deploy
 interface: cli
+preinstallCli: true
 hostedProject: true
-projectRunning: false
 services: []
 product:
   - edge-functions

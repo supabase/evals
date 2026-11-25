@@ -1,11 +1,11 @@
 ---
 stage: build
 interface: cli
+preinstallCli: true
 product:
   - database
 topic:
   - migrations
-projectRunning: false
 needsDocker: false
 motivation: CLI-2701, https://linear.app/supabase/issue/CLI-2701/eval-make-a-schema-change-and-apply-it-locally
 area: schema-and-migrations

@@ -1,12 +1,12 @@
 ---
 stage: build
 interface: cli
+preinstallCli: true
 product:
   - database
 topic:
   - migrations
   - sql
-projectRunning: false
 needsDocker: false
 motivation: CLI-2398, https://linear.app/supabase/issue/CLI-2398/add-a-docker-less-local-stack-e2e-eval-agent-cli-lifecycle
 ---

@@ -1,6 +1,8 @@
 ---
 stage: build
 interface: cli
+preinstallCli: true
+startLocalStack: true
 product:
   - data-api
   - database
@@ -10,7 +12,6 @@ services:
   - gotrue
   - kong
   - postgrest
-projectRunning: true
 motivation: >-
   build-dataapi-001-relational-report found every codex variant (0/4) skips
   @supabase/supabase-js for a bare backend Data API script, hand-rolling raw

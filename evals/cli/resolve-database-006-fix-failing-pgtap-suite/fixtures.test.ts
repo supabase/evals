@@ -82,7 +82,8 @@ describe('PROMPT.md frontmatter', () => {
     expect(frontmatter).toMatch(/^interface: cli$/m);
     expect(listOf(frontmatter, 'product')).toEqual(['database']);
     expect(listOf(frontmatter, 'topic')).toEqual(['tests', 'migrations']);
-    expect(frontmatter).toMatch(/^projectRunning: true$/m);
+    expect(frontmatter).toMatch(/^startLocalStack: true$/m);
+    expect(frontmatter).toMatch(/^preinstallCli: true$/m);
     expect(frontmatter).toMatch(/^needsDocker: true$/m);
   });
 

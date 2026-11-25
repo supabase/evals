@@ -1,12 +1,12 @@
 ---
 stage: build
 interface: cli
+preinstallCli: true
 product:
   - auth
   - storage
 topic:
   - security
-projectRunning: false
 needsDocker: false
 motivation: CLI-2872, https://linear.app/supabase/issue/CLI-2872/agent-eval-configtoml-vs-configjsonc-with-config-validate, supabase/cli#5894, https://github.com/supabase/cli/issues/5894
 area: config-and-secrets

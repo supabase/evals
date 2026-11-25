@@ -1,12 +1,12 @@
 ---
 stage: deploy
 interface: cli
+preinstallCli: true
 product:
   - data-api
 topic:
   - security
   - sdk
-projectRunning: false
 needsDocker: false
 motivation: CLI-2736, https://linear.app/supabase/issue/CLI-2736/eval-find-a-project-fetch-its-api-keys-and-use-them-hosted
 area: linking-and-login

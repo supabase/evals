@@ -33,9 +33,7 @@ dev`, and no `supabase/` directory. Two things follow from that.
 - **Supabase is genuinely absent.** `supabase init` has something real to do, and `the repository has a Supabase
   project in it` is the agent's work rather than the seed's.
 
-`skipCliInstall: true` is load-bearing. The harness normally installs the CLI into the sandbox before the agent
-starts, which would hand the agent the machine-wide command whose absence is the whole measurement. `projectRunning:
-false` follows from it, because the harness cannot start a stack with no CLI.
+The CLI is not preinstalled, so the agent must install it. Preinstalling it would hide the setup step this eval measures.
 
 ## Do not drop the positive controls
 

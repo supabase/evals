@@ -1,6 +1,7 @@
 ---
 stage: build
 interface: cli
+preinstallCli: true
 product:
   - auth
   - database
@@ -11,7 +12,6 @@ services:
   - gotrue
   - kong
   - postgrest
-projectRunning: false
 motivation: >-
   the Custom Claims and RBAC guide is the page agents are pointed at to build
   role-based permissions, and its own worked example only works once the access

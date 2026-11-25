@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { evalMetadataSchema, rawEvalResultSchema } from './eval-metadata.js';
+import {
+  evalFrontmatterSchema,
+  evalMetadataSchema,
+  rawEvalResultSchema,
+} from './eval-metadata.js';
 
 it('preserves the requested MCP revision and resolved commit in results', () => {
   const repoSources = {
@@ -53,5 +57,48 @@ describe('cliVersion schema', () => {
         cliVersion: 'stable',
       })
     ).toThrow();
+  });
+});
+
+describe('local setup', () => {
+  const base = {
+    stage: 'build',
+    product: ['database'],
+    topic: ['sql'],
+    interface: 'cli',
+  };
+
+  it('allows a preinstalled CLI with or without a running stack', () => {
+    expect(
+      evalFrontmatterSchema.safeParse({ ...base, preinstallCli: true }).success
+    ).toBe(true);
+    expect(
+      evalFrontmatterSchema.safeParse({
+        ...base,
+        preinstallCli: true,
+        startLocalStack: true,
+      }).success
+    ).toBe(true);
+  });
+
+  it('accepts quoted booleans and a stopped stack without the CLI', () => {
+    expect(
+      evalFrontmatterSchema.parse({
+        ...base,
+        preinstallCli: 'true',
+        startLocalStack: 'true',
+      }).startLocalStack
+    ).toBe(true);
+    expect(
+      evalFrontmatterSchema.parse({ ...base, startLocalStack: 'false' })
+        .startLocalStack
+    ).toBe(false);
+  });
+
+  it('rejects starting the stack without preinstalling the CLI', () => {
+    expect(
+      evalFrontmatterSchema.safeParse({ ...base, startLocalStack: true })
+        .success
+    ).toBe(false);
   });
 });

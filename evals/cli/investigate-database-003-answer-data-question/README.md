@@ -63,7 +63,7 @@ fallback checks would measure taste, not the CLI (`investigate-database-001`
 says "use the Supabase CLI" for the same reason). Don't reintroduce command
 wording when editing it. The frontmatter has no `services:` key (the sandbox
 shim turns it into `supabase start -x <containers>`, which the managed stack
-rejects). `projectRunning: true` and `needsDocker: true` mean the harness
+rejects). `startLocalStack: true` and `needsDocker: true` mean the harness
 starts the stack before the agent runs, so the agent starts from a live
 database instead of spending the run on `supabase start`.
 
@@ -248,7 +248,7 @@ the PR.
 | `codex-gpt-6-luna-cli-next` | npm `next` (3.0.0-next.25 when checked) | Docker available | green, as pinned; the flags are `--remote` and `--read-only` instead of `--linked` and `--db-url`, and `--local` only warns, none of which a plain local `db query` needs |
 
 The eval needs Docker and a pre-started stack (`needsDocker: true`,
-`projectRunning: true`), so the nodaemon and absent experiments skip it and only
+`startLocalStack: true`), so the nodaemon and absent experiments skip it and only
 these four run it. A red run is an agent gap (psql by habit, wrong SQL, a
 reply without the number) or a CLI regression on one channel, read from the
 failing check's notes. The scorer never reads which experiment it runs under;

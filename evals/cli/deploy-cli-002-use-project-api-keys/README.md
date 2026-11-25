@@ -156,8 +156,7 @@ the seeded `src/supabase.ts` already reads both variables. The secret check,
 detours and metrics pass; the report check passes when the agent says honestly
 that it couldn't reach a project.
 
-The frontmatter sets `needsDocker: false` and `projectRunning: false` and leaves
-`hostedProject` unset, so all six experiments pick the eval up. The scorer never
+The frontmatter sets `needsDocker: false` and leaves `hostedProject` unset. `startLocalStack` defaults to false, so all six experiments pick the eval up. The scorer never
 reads which experiment it runs under.
 
 ### What turns it green

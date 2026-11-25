@@ -62,7 +62,7 @@ the column is called and what type it has. Finding out that the CLI starts the
 local stack, how to write and apply a migration, and where the CLI records
 what it applied is part of what's measured, and "schema change" favours neither
 the imperative nor the declarative route. Don't reintroduce command, file or
-column wording when editing it. The frontmatter has `projectRunning: false`, so
+column wording when editing it. `startLocalStack` defaults to false, so
 the harness starts no stack, and `needsDocker: false`, so Docker-less
 experiments run the eval.
 
@@ -336,7 +336,7 @@ and a history row. On the Docker-less arms the declarative route may fail if its
 shadow database needs Docker; an agent that falls back to a plain migration
 still passes the migration check.
 
-The frontmatter sets `needsDocker: false` and `projectRunning: false`, so all
+The frontmatter sets `needsDocker: false`, and `startLocalStack` defaults to false, so all
 six experiments pick the eval up, as the Docker-less ones require. The scorer
 never reads which experiment it runs under; the backend and runtime the stack
 came up on are reported through `metrics`.

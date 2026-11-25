@@ -1,12 +1,12 @@
 ---
 stage: investigate
 interface: cli
+preinstallCli: true
 product:
   - database
 topic:
   - observability
   - migrations
-projectRunning: false
 needsDocker: false
 motivation: CLI-2712, https://linear.app/supabase/issue/CLI-2712/eval-diagnose-a-slow-query-bloat-or-locks-with-inspect-db, FDBKIN-1481, https://linear.app/supabase/issue/FDBKIN-1481/provide-tooling-to-identify-and-optimize-long-running-queries-causing, FDBKIN-1663, https://linear.app/supabase/issue/FDBKIN-1663/improve-documentation-and-visibility-of-index-usage-analysis-tools, FDBKIN-13604, https://linear.app/supabase/issue/FDBKIN-13604/fix-supabase-inspect-db-commands-failing-due-to-incorrect-search-path
 area: diagnostics

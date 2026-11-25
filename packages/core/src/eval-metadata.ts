@@ -87,19 +87,7 @@ export type ExperimentDisplayMetadata = z.infer<
   typeof experimentDisplayMetadataSchema
 >;
 
-/**
- * Interface(s) the agent uses to act on Supabase — a benchmark dimension
- * (cross-team KPI), not the runtime switch. `mcp` = the platform-lite MCP/tool
- * surface; `cli` = the real Supabase CLI inside a local-stack Docker sandbox.
- * `rest` = direct HTTP access to the hosted API.
- * Required on every scenario, so each one is categorized on this dimension
- * rather than silently exported without a value.
- *
- * Whether a sandbox boots is decided separately by the presence of a `local/`
- * directory (see the eval runner): `local/` ⇒ sandbox, otherwise the in-memory
- * tools runtime. `interface: cli` additionally forces a sandbox for scenarios
- * that start from an empty workspace (no `local/`).
- */
+/** Interface used for reporting. CLI evals use the CLI-capable runtime. */
 export const evalInterfaceSchema = z.enum(['mcp', 'cli', 'rest']);
 export const EVAL_INTERFACES = evalInterfaceSchema.options;
 export type EvalInterface = z.infer<typeof evalInterfaceSchema>;
@@ -122,12 +110,10 @@ export type EvalMetadata = {
    * service list when the sandbox session starts.
    */
   services?: string[];
-  /**
-   * Whether the local stack is already running when the agent starts (sandbox
-   * evals only). Defaults to true; scenarios where starting the project is
-   * part of the task set false.
-   */
-  projectRunning?: boolean;
+  /** Install the CLI before the agent starts. Defaults to false. */
+  preinstallCli?: boolean;
+  /** Start the local stack before the agent starts. Defaults to false. */
+  startLocalStack?: boolean;
   /**
    * Link the sandbox CLI to a mocked hosted project (platform-lite) so hosted
    * workflows (`supabase functions deploy`, `secrets set`) reach it (sandbox
@@ -143,14 +129,6 @@ export type EvalMetadata = {
    */
   skills?: string[];
   /**
-   * Skips installing the real Supabase CLI into the sandbox before the agent
-   * starts (sandbox evals only). Defaults to false. Set true only for
-   * scenarios whose prompt has the agent install the CLI itself — the
-   * harness itself never invokes `supabase` when this is set, so pair it
-   * with `projectRunning: false`.
-   */
-  skipCliInstall?: boolean;
-  /**
    * Whether this scenario needs a working Docker daemon (sandbox evals
    * only). Defaults to true. Set false when the scenario can run, and is
    * meaningful, in a sandbox without Docker (e.g. starting the stack is the
@@ -165,22 +143,27 @@ export type ParsedEvalMarkdown = {
   body: string;
 };
 
-export const evalMetadataSchema = z.object({
-  stage: evalStageSchema,
-  product: z.array(evalProductSchema).min(1),
-  topic: z.array(evalTopicSchema).min(1),
-  interface: evalInterfaceSchema,
-  cliVersion: cliVersionSchema.optional(),
-  services: z.array(z.string().min(1)).optional(),
-  // Real YAML booleans or quoted string forms ("true"/"false", yes/no/on/off);
-  // anything else is rejected. Avoids z.coerce.boolean, which treats every
-  // non-empty string as true.
-  projectRunning: z.union([z.boolean(), z.stringbool()]).optional(),
-  hostedProject: z.union([z.boolean(), z.stringbool()]).optional(),
-  skills: z.array(z.string().min(1)).optional(),
-  skipCliInstall: z.union([z.boolean(), z.stringbool()]).optional(),
-  needsDocker: z.union([z.boolean(), z.stringbool()]).optional(),
-});
+export const evalMetadataSchema = z
+  .object({
+    stage: evalStageSchema,
+    product: z.array(evalProductSchema).min(1),
+    topic: z.array(evalTopicSchema).min(1),
+    interface: evalInterfaceSchema,
+    cliVersion: cliVersionSchema.optional(),
+    services: z.array(z.string().min(1)).optional(),
+    // Real YAML booleans or quoted string forms ("true"/"false", yes/no/on/off);
+    // anything else is rejected. Avoids z.coerce.boolean, which treats every
+    // non-empty string as true.
+    preinstallCli: z.union([z.boolean(), z.stringbool()]).optional(),
+    startLocalStack: z.union([z.boolean(), z.stringbool()]).optional(),
+    hostedProject: z.union([z.boolean(), z.stringbool()]).optional(),
+    skills: z.array(z.string().min(1)).optional(),
+    needsDocker: z.union([z.boolean(), z.stringbool()]).optional(),
+  })
+  .refine((data) => !data.startLocalStack || data.preinstallCli === true, {
+    message: 'startLocalStack requires preinstallCli: true',
+    path: ['startLocalStack'],
+  });
 
 // Collapse a YAML scalar into a comparable token: trim, lowercase, and fold
 // runs of whitespace or underscores to a single hyphen. Lets authors write
@@ -249,7 +232,8 @@ export const evalFrontmatterSchema = z.preprocess((raw) => {
     services: Array.isArray(data.services)
       ? toIdentifierList(data.services)
       : undefined,
-    projectRunning: data.projectRunning,
+    preinstallCli: data.preinstallCli,
+    startLocalStack: data.startLocalStack,
     hostedProject: data.hostedProject,
     // `skills: []` means no pre-installed skills for this eval; an omitted
     // key means "use the experiment's own skill list" (see resolveSkillSources
@@ -257,7 +241,6 @@ export const evalFrontmatterSchema = z.preprocess((raw) => {
     skills: Array.isArray(data.skills)
       ? toIdentifierList(data.skills)
       : undefined,
-    skipCliInstall: data.skipCliInstall,
     needsDocker: data.needsDocker,
   };
 }, evalMetadataSchema);

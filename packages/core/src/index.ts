@@ -307,6 +307,9 @@ export interface ToolScoringContext {
 }
 
 export interface ToolEvalContext extends ToolScoringContext {
+  hostWorkspace?: string;
+  runViteBuild?: () => Promise<CommandResult>;
+  runVitest?: () => Promise<VitestResult>;
   toolCalls: ToolCallRecord[];
   transcript: TranscriptPart[];
   agentReport?: string;
@@ -560,7 +563,7 @@ export type LocalStackSessionArgs = {
   mounts?: readonly SandboxMount[];
   /**
    * Skip installing the real Supabase CLI into the sandbox (from
-   * `skipCliInstall:` frontmatter), for scenarios whose prompt has the agent
+   * `preinstallCli: false` frontmatter), for scenarios whose prompt has the agent
    * install the CLI itself. Also skips the CLI shim that enforces
    * `includeServices`, since there's no real binary yet to resolve and wrap.
    */
@@ -630,10 +633,7 @@ export type LocalStackSession = {
 /**
  * Provider of a local-stack environment — a sandboxed developer machine where
  * the Supabase CLI (the tool the agent wields) can run the local Docker stack.
- * Declared per experiment like MCP servers and skills. Evals that need a
- * sandbox (a `local/` workspace or `interface: cli`) run against this;
- * experiments without one skip those evals. Distinct from the remote/hosted
- * platform, which platform-lite mocks.
+ * Experiments without this runtime skip CLI evals and evals that preinstall the CLI.
  */
 export type LocalStackRuntime = {
   id: string;

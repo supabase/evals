@@ -92,7 +92,7 @@ defaults.
 
 `skip.ts` gates who runs what: `skipUnlessCli` restricts every experiment
 above to `interface: cli` evals, and `skipUnlessDockerless` additionally
-requires `needsDocker: false` and `projectRunning: false` — both true here —
+requires `needsDocker: false` and `startLocalStack` defaults to false — both true here —
 before `nodaemon` or `absent` will run an eval at all.
 
 ## Reading results

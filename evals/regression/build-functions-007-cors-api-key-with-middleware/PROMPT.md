@@ -1,6 +1,7 @@
 ---
 stage: build
 interface: cli
+preinstallCli: true
 product:
   - edge-functions
 topic:
@@ -9,7 +10,6 @@ topic:
 services:
   - kong
   - edge-runtime
-projectRunning: false
 motivation: SDK-1420
 ---
 

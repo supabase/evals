@@ -1,6 +1,8 @@
 ---
 stage: resolve
 interface: cli
+preinstallCli: true
+startLocalStack: true
 product:
   - data-api
   - database

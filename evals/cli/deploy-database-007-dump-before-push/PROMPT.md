@@ -1,11 +1,11 @@
 ---
 stage: deploy
 interface: cli
+preinstallCli: true
 product:
   - database
 topic:
   - migrations
-projectRunning: false
 needsDocker: true
 motivation: CLI-2738, https://linear.app/supabase/issue/CLI-2738/eval-dump-the-remote-database-before-a-risky-push-hosted
 area: schema-and-migrations
