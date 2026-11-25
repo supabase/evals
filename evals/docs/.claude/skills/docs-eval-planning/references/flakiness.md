@@ -236,7 +236,7 @@ Add to this file. A documentation eval is not finished until whatever went wrong
   runtime.** `supabase start` calls `ServeFunctions` with an empty env path, `parseEnvFile("")` falls
   back to that path, and the values become the container's environment at creation time. Function
   source is a live bind mount, so code written mid-run is served. Environment is not. #285
-  **Fix.** `projectRunning: false`, so the agent starts the stack after writing its files and owns the
+  **Fix.** `startLocalStack` defaults to false, so the agent starts the stack after writing its files and owns the
   ordering. Restarting the stack from the scorer would be first-of-its-kind and is not needed.
 - **A scorer cannot delete from the Storage tables.** `storage.objects` and `storage.buckets` carry
   `protect_objects_delete` and `protect_buckets_delete`, which raise on any delete, and `postgres` owns

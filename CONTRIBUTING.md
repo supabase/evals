@@ -141,7 +141,7 @@ The CLI team owns `evals/cli/` and its results. CLI evals run on `codex-gpt-6-lu
 Which evals each arm picks up:
 
 - **pinned, stable, beta, next** run every `interface: cli` eval that isn't `hostedProject: true`. The `<model>-cli-{stable,next}` matrix arms pick up the same evals as `stable` and `next`.
-- **nodaemon, absent** additionally only run evals that also set `needsDocker: false` and `projectRunning: false` — the harness cannot pre-start a stack, or link a hosted project, without Docker.
+- **nodaemon, absent** additionally only run evals that also set `needsDocker: false` and `startLocalStack: false` (the default) — the harness cannot pre-start a stack, or link a hosted project, without Docker.
 
 Common workflows:
 

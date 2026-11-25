@@ -21,9 +21,7 @@ import {
 
 const MIN_SEEDED_NOTES = 2;
 
-// Scoring setup state is normally off-limits, but this scenario sets
-// projectRunning: false — initialising the project is part of the agent's
-// task, so a config file existing is agent-produced state.
+// The agent initializes the project, so its config file is agent-produced state.
 export async function checkProjectInitialised(
   ctx: LocalStackEvalContext
 ): Promise<CheckResult> {

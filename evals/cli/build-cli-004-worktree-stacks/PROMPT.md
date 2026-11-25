@@ -1,11 +1,11 @@
 ---
 stage: build
 interface: cli
+preinstallCli: true
 product:
   - database
 topic:
   - migrations
-projectRunning: false
 needsDocker: false
 motivation: FDBKIN-20391, https://linear.app/supabase/issue/FDBKIN-20391/support-running-multiple-isolated-supabase-stacks-locally-for-parallel, CLI-2400, https://linear.app/supabase/issue/CLI-2400
 ---

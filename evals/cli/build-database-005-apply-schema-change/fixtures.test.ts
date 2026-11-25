@@ -132,7 +132,8 @@ describe('PROMPT.md', () => {
   it('declares a CLI eval that starts without a running project or docker', () => {
     const { frontmatter } = promptParts();
     expect(frontmatter).toMatch(/^interface: cli$/m);
-    expect(frontmatter).toMatch(/^projectRunning: false$/m);
+    expect(frontmatter).not.toMatch(/^startLocalStack: true$/m);
+    expect(frontmatter).toMatch(/^preinstallCli: true$/m);
     expect(frontmatter).toMatch(/^needsDocker: false$/m);
   });
 });

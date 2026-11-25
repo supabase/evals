@@ -161,7 +161,7 @@ listed in `metrics.cliRunnerUnverified` instead.
 
 The frontmatter has no `services:` key. The sandbox shim turns it into
 `supabase start -x <container names>`, which the managed stack rejects. With
-`projectRunning: false` the harness starts no stack at all — both are the
+`startLocalStack` defaults to false the harness starts no stack at all — both are the
 agent's work.
 
 ## The experiments and expected results

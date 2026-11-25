@@ -29,7 +29,7 @@ how to start two of them, how to reach each one's database, and what the
 reset script does is part of what's measured. Don't reintroduce command or
 path wording when editing it. The frontmatter has no `services:` key (the
 sandbox shim turns it into `supabase start -x <containers>`, which the managed
-stack rejects), and `projectRunning: false` means the harness starts no stack.
+stack rejects), and `startLocalStack` defaults to false, so the harness starts no stack.
 
 ## The seeded project
 
@@ -242,7 +242,7 @@ why agents relocate the home.
 | nodaemon | beta | Docker client present, daemon unreachable | pass via the native runtime, which `stack start` picks when Docker doesn't answer; stack and data checks fail if the agent stops at the unreachable daemon; behaviour checks still pass |
 | absent | beta | no Docker at all | as nodaemon (auto picks the native runtime) |
 
-The frontmatter sets `needsDocker: false` and `projectRunning: false`, so all
+The frontmatter sets `needsDocker: false`, and `startLocalStack` defaults to false, so all
 five experiments pick the eval up, as the Docker-less ones require. The scorer
 never reads which experiment it runs under; the runtime each stack came up on is reported
 through `metrics`.

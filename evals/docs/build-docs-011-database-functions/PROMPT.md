@@ -1,6 +1,7 @@
 ---
 stage: build
 interface: cli
+preinstallCli: true
 product:
   - database
   - data-api
@@ -12,7 +13,6 @@ services:
   - gotrue
   - kong
   - postgrest
-projectRunning: false
 motivation: >-
   the Database Functions guide is the page agents are pointed at to move a
   calculation into Postgres, and the choice it presents in one short subsection

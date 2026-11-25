@@ -15,7 +15,7 @@ export type ProbeChecks = {
 };
 
 /**
- * The end-to-end phase. `projectRunning: false`, so the agent starts the stack
+ * The end-to-end phase. `startLocalStack` defaults to false, so the agent starts the stack
  * itself and its own env file is on disk before the edge runtime container is
  * created. That ordering is the thing under test: the guide is the only place
  * that says where the file has to sit for `supabase start` to pick it up.

@@ -90,7 +90,7 @@ project so it ships with everything else, not just applied on my machine" asks
 for a file in the project without naming a migration. Finding that the CLI has
 an `inspect` command, and which flag aims it at the local database, is part of
 what's measured. Don't reintroduce command, table or column wording when
-editing it. The frontmatter has `projectRunning: false`, so the harness starts
+editing it. `startLocalStack` defaults to false, so the harness starts
 no stack, and `needsDocker: false`, so Docker-less experiments run the eval.
 
 ## The seeded project
@@ -184,7 +184,7 @@ the PR.
 The four Docker arms are expected to pass because every CLI can start a stack,
 report on it and apply a migration. The two Docker-less arms are red by design
 until CLI-2534. The frontmatter sets `needsDocker: false` and
-`projectRunning: false`, so all six experiments pick the eval up, and the
+`startLocalStack` defaults to false, so all six experiments pick the eval up, and the
 scorer never reads which one it runs under.
 
 A failure on a Docker arm most likely means one of three things. The agent

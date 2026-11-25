@@ -1,11 +1,11 @@
 ---
 stage: build
 interface: cli
+preinstallCli: true
 product:
   - database
 topic:
   - sql
-projectRunning: false
 needsDocker: false
 motivation: CLI-2401, https://linear.app/supabase/issue/CLI-2401/build-cli-008-named-stacks-destructive-workload-on-stack-test-leaves, FDBKIN-16168, https://linear.app/supabase/issue/FDBKIN-16168/allow-running-multiple-local-supabase-projects-concurrently-via-the
 ---

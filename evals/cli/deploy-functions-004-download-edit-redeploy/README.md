@@ -259,7 +259,7 @@ Every row is red by design: no hosted project in CI until the staging org lands
 Checks 1 to 5 fail. The detour, metrics and report checks are expected to pass
 when the agent reports the blocker truthfully.
 
-The frontmatter sets `needsDocker: false` and `projectRunning: false`, so all
+The frontmatter sets `needsDocker: false`, and `startLocalStack` defaults to false, so all
 six experiments pick the eval up. Nothing here needs a local stack: the journey
 is hosted only. false/false keeps the Docker-less arms in the matrix so the
 server-side download and deploy fallbacks

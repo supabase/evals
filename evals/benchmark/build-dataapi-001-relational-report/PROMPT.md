@@ -1,6 +1,8 @@
 ---
 stage: build
 interface: cli
+preinstallCli: true
+startLocalStack: true
 product:
   - data-api
   - database
@@ -10,7 +12,6 @@ services:
   - gotrue
   - kong
   - postgrest
-projectRunning: true
 motivation: >-
   Relationship embedding is the query-builder surface users trip on most
   (supabase/postgrest-js#609, supabase/postgrest-js#611,

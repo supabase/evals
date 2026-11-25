@@ -256,7 +256,7 @@ Checks 1 to 7 fail. For an agent that reports the blocker truthfully (no access
 token, no linked project, a workspace that isn't a Git checkout), checks 8 to 10
 pass: no detours, the metrics, and the final report.
 
-The frontmatter sets `needsDocker: false` and `projectRunning: false`, so all
+The frontmatter sets `needsDocker: false`, and `startLocalStack` defaults to false, so all
 six experiments pick the eval up, including the two where Docker is unreachable.
 The scorer never reads which experiment it runs under; the channel and Docker
 state are recorded in the metrics only.

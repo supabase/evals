@@ -133,7 +133,8 @@ describe('PROMPT.md frontmatter', () => {
     expect(frontmatter).toMatch(/^stage: resolve$/m);
     expect(frontmatter).toMatch(/^interface: cli$/m);
     expect(frontmatter).toMatch(/^needsDocker: false$/m);
-    expect(frontmatter).toMatch(/^projectRunning: false$/m);
+    expect(frontmatter).not.toMatch(/^startLocalStack: true$/m);
+    expect(frontmatter).toMatch(/^preinstallCli: true$/m);
   });
 
   it('files the journey under database migrations, branching and the resolve phase', () => {

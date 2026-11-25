@@ -1,6 +1,7 @@
 ---
 stage: build
 interface: cli
+preinstallCli: true
 product:
   - edge-functions
 topic:
@@ -9,7 +10,6 @@ topic:
 services:
   - kong
   - edge-runtime
-projectRunning: false
 motivation: >-
   the Managing secrets guide is the page agents are pointed at to move a
   provider credential out of client code, and it is the only place that says

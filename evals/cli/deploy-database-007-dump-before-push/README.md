@@ -495,8 +495,7 @@ dump has `--data-only`, whose target isn't known. The detour and report checks
 pass when the agent truthfully reports that it couldn't back up or push, without
 working around the environment, and `metrics` always passes.
 
-The frontmatter sets `needsDocker: true` and `projectRunning: false` and leaves
-`hostedProject` unset, so the four Docker experiments pick the eval up. The
+The frontmatter sets `needsDocker: true` and leaves `hostedProject` unset. `startLocalStack` defaults to false, so the four Docker experiments pick the eval up. The
 `nodaemon` and `absent` experiments skip it because it needs Docker
 (`skipUnlessDockerless` in `experiments/cli/lib/skip.ts` keeps only evals with
 `needsDocker: false`), and they couldn't link a hosted project anyway: the

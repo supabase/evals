@@ -85,7 +85,7 @@ export interface LocalStackRuntimeOptions {
    * Docker availability to stage in the sandbox (default `'available'`).
    * `'no-daemon'` leaves `docker --version` working but unreachable;
    * `'absent'` removes the binary entirely. Both require
-   * `projectRunning: false` and no hosted project link, since the harness
+   * no pre-started stack and no hosted project link, since the harness
    * cannot pre-start a stack or link a hosted project without Docker.
    */
   docker?: DockerState;
@@ -260,7 +260,7 @@ export function localStackRuntime(
       // hosted project without Docker.
       if (projectRunning !== false) {
         throw new Error(
-          'docker-less sandbox evals must set `projectRunning: false`; the harness cannot pre-start a stack without Docker'
+          'docker-less sandbox evals cannot pre-start a stack; the harness cannot pre-start a stack without Docker'
         );
       }
       if (hosted) {

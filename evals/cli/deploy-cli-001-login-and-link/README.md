@@ -184,8 +184,7 @@ The first three checks fail: there is no hosted project, nothing is linked, and
 the probe gets "Access token not provided". The token, detour and report checks
 pass when the agent reports truthfully that there is no token to log in with.
 
-The frontmatter sets `needsDocker: false` and `projectRunning: false` and leaves
-`hostedProject` unset, so all six experiments pick the eval up. The scorer never
+The frontmatter sets `needsDocker: false` and leaves `hostedProject` unset. `startLocalStack` defaults to false, so all six experiments pick the eval up. The scorer never
 reads which experiment it runs under.
 
 ### What turns it green

@@ -1,13 +1,13 @@
 ---
 stage: deploy
 interface: cli
+preinstallCli: true
 product:
   - database
   - auth
   - storage
 topic:
   - self-hosting
-projectRunning: false
 services: []
 motivation: AI-816, https://supabase.com/docs/guides/self-hosting/docker
 ---

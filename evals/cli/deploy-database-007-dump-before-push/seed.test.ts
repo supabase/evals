@@ -368,7 +368,8 @@ describe('PROMPT.md', () => {
     expect(frontmatter).toMatch(/^stage: deploy$/m);
     expect(frontmatter).toMatch(/^interface: cli$/m);
     expect(frontmatter).toMatch(/^needsDocker: true$/m);
-    expect(frontmatter).toMatch(/^projectRunning: false$/m);
+    expect(frontmatter).not.toMatch(/^startLocalStack: true$/m);
+    expect(frontmatter).toMatch(/^preinstallCli: true$/m);
     expect(frontmatter).toMatch(/^product:\s*\n\s*- database\s*$/m);
     expect(frontmatter).toMatch(/^topic:\s*\n\s*- migrations\s*$/m);
     expect(frontmatter).toMatch(/^area: schema-and-migrations$/m);

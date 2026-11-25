@@ -1,6 +1,8 @@
 ---
 stage: build
 interface: cli
+preinstallCli: true
+startLocalStack: true
 product:
   - auth
   - database
@@ -11,7 +13,6 @@ services:
   - gotrue
   - kong
   - postgrest
-projectRunning: true
 motivation: >-
   The signup → profile-trigger flow is a recurring pain point
   (supabase/supabase#37497, supabase/supabase#35997, and the canonical

@@ -447,7 +447,8 @@ describe('PROMPT.md', () => {
     expect(scalar(frontmatter, 'interface')).toBe('cli');
     expect(listItems(frontmatter, 'product')).toEqual(['database']);
     expect(listItems(frontmatter, 'topic')).toEqual(['sql']);
-    expect(scalar(frontmatter, 'projectRunning')).toBe('true');
+    expect(scalar(frontmatter, 'startLocalStack')).toBe('true');
+    expect(frontmatter).toMatch(/^preinstallCli: true$/m);
     expect(scalar(frontmatter, 'needsDocker')).toBe('true');
     expect(scalar(frontmatter, 'area')).toBe('schema-and-migrations');
     expect(scalar(frontmatter, 'journeyPhase')).toBe('observe');

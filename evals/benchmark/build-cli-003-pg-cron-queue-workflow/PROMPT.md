@@ -1,6 +1,8 @@
 ---
 stage: build
 interface: cli
+preinstallCli: true
+startLocalStack: true
 product:
   - database
   - edge-functions

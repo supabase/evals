@@ -286,8 +286,7 @@ export async function setupSupabaseSandbox(
     // confusing one: a prestarted project needs a config in the workspace.
     if (!(await sandbox.fileExists('supabase/config.toml'))) {
       throw new Error(
-        'projectRunning is enabled (the default) but the workspace has no supabase/config.toml — ' +
-          "ship one in the eval's local/ directory or set `projectRunning: false` in the eval frontmatter"
+        'Starting the stack requires supabase/config.toml in the workspace'
       );
     }
     // Start the stack with the real binary first; the wrapper (installed next)

@@ -1,6 +1,8 @@
 ---
 stage: resolve
 interface: cli
+preinstallCli: true
+startLocalStack: true
 product:
   - data-api
   - auth
@@ -11,7 +13,6 @@ services:
   - gotrue
   - kong
   - postgrest
-projectRunning: true
 motivation: https://github.com/orgs/supabase/discussions/29260
 ---
 

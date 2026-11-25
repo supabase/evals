@@ -6,7 +6,13 @@
  *   pnpm --filter @supabase-evals/sandbox test:docker
  */
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -35,6 +41,34 @@ const TEST_TIMEOUT_MS = 600_000;
 describe.runIf(process.env.SANDBOX_DOCKER_TESTS)(
   'local-stack sandbox (docker)',
   () => {
+    it(
+      'copies starter files and exports agent edits',
+      { timeout: TEST_TIMEOUT_MS },
+      async () => {
+        const seed = mkdtempSync(join(tmpdir(), 'eval-seed-'));
+        const output = mkdtempSync(join(tmpdir(), 'eval-workspace-'));
+        writeFileSync(join(seed, 'app.txt'), 'starter');
+        try {
+          const handle = await createBareSandbox({ localDir: seed });
+          try {
+            const result = await handle.sandbox.exec(
+              "printf 'updated' > app.txt"
+            );
+            expect(result.ok).toBe(true);
+            await handle.sandbox.copyToHost(handle.sandbox.workspace, output);
+            expect(readFileSync(join(output, 'app.txt'), 'utf8')).toBe(
+              'updated'
+            );
+          } finally {
+            await handle.close();
+          }
+        } finally {
+          rmSync(seed, { recursive: true, force: true });
+          rmSync(output, { recursive: true, force: true });
+        }
+      }
+    );
+
     it(
       'bare agents honor Docker socket access',
       { timeout: TEST_TIMEOUT_MS },

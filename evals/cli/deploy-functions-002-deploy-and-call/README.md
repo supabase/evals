@@ -208,7 +208,7 @@ Every row is red by design: no hosted project in CI until the staging org lands
 ASK-06 in the plan). Checks 1 to 5 fail. The detour, metrics and report checks
 are expected to pass when the agent reports the blocker truthfully.
 
-The frontmatter sets `needsDocker: false` and `projectRunning: false`, so all
+The frontmatter sets `needsDocker: false`, and `startLocalStack` defaults to false, so all
 six experiments pick the eval up. The scorer never reads which experiment it
 runs under.
 

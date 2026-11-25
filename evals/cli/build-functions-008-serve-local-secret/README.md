@@ -50,7 +50,7 @@ thing that needs an endpoint. The details live in the seed (`docs/scheduler.md`
 and the comment in `.env`). Finding out which file the function runtime loads,
 how to serve the function, and how to call it is part of what's measured. Don't
 reintroduce command, flag or path wording when editing it. The frontmatter has
-no `services:` key and sets `projectRunning: false`, so the harness starts no
+no `services:` key and `startLocalStack` defaults to false, so the harness starts no
 stack.
 
 ## The seeded project
@@ -210,7 +210,7 @@ transcript doesn't show.
 In nodaemon and absent, the experimental stack's native runtime can serve the
 function, so a pass there is possible and is not a false pass.
 
-The frontmatter sets `needsDocker: false` and `projectRunning: false`, so all
+The frontmatter sets `needsDocker: false`, and `startLocalStack` defaults to false, so all
 six experiments pick the eval up. The scorer never reads which experiment it
 runs under; the channel, the Docker state and the stack's backend and runtime
 are reported through `metrics`.

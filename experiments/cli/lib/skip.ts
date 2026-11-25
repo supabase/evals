@@ -16,6 +16,6 @@ export function skipUnlessDockerless(ev: {
   return (
     skipUnlessCli(ev) ||
     ev.metadata.needsDocker !== false ||
-    ev.metadata.projectRunning !== false
+    ev.metadata.startLocalStack === true
   );
 }

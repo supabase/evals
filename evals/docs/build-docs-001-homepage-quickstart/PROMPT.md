@@ -6,8 +6,6 @@ product:
   - data-api
 topic:
   - sdk
-projectRunning: false
-skipCliInstall: true
 motivation: the "Help me get set up with Supabase" prompt shown on the supabase.com/docs homepage
 ---
 

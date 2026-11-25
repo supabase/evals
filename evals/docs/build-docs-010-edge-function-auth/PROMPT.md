@@ -1,6 +1,7 @@
 ---
 stage: build
 interface: cli
+preinstallCli: true
 cliVersion: 2.109.1
 product:
   - edge-functions
@@ -15,7 +16,6 @@ services:
   - kong
   - postgrest
   - edge-runtime
-projectRunning: false
 motivation: >-
   the Securing Edge Functions guide is the page agents are pointed at when a
   function has to act for the person calling it, and getting it wrong hands one

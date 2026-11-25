@@ -1,33 +1,17 @@
 import { execFileSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
-import { assertLocalMatchesInterface } from './run-eval.js';
+import { resolveEvalMode } from './run-eval.js';
 
-describe('assertLocalMatchesInterface', () => {
-  it('throws when a local/ workspace is declared as interface: mcp', () => {
-    expect(() =>
-      assertLocalMatchesInterface(
-        'evals/regression/some-eval/PROMPT.md',
-        'mcp',
-        true
-      )
-    ).toThrow('expected cli');
+describe('resolveEvalMode', () => {
+  it('selects the CLI runtime for CLI evals or preinstalled CLI', () => {
+    expect(resolveEvalMode('cli')).toBe('local-stack');
+    expect(resolveEvalMode('mcp', true)).toBe('local-stack');
+    expect(resolveEvalMode('rest', true)).toBe('local-stack');
   });
 
-  it('allows local/ with interface: cli, and no local/ with any interface', () => {
-    expect(() =>
-      assertLocalMatchesInterface(
-        'evals/regression/some-eval/PROMPT.md',
-        'cli',
-        true
-      )
-    ).not.toThrow();
-    expect(() =>
-      assertLocalMatchesInterface(
-        'evals/regression/some-eval/PROMPT.md',
-        'mcp',
-        false
-      )
-    ).not.toThrow();
+  it('uses the remote runtime otherwise', () => {
+    expect(resolveEvalMode('mcp')).toBe('tools');
+    expect(resolveEvalMode('rest', false)).toBe('tools');
   });
 });
 

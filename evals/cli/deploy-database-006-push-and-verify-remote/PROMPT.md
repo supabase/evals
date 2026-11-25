@@ -1,12 +1,12 @@
 ---
 stage: deploy
 interface: cli
+preinstallCli: true
 product:
   - database
 topic:
   - migrations
   - sql
-projectRunning: false
 needsDocker: false
 motivation: CLI-2734, https://linear.app/supabase/issue/CLI-2734/eval-push-a-schema-change-and-verify-it-on-the-remote-with-db-query
 area: schema-and-migrations

@@ -292,7 +292,7 @@ The managed fleet commands (`stack list`, `stack start --stack`,
 `stack restart`, `stack destroy`) exist only in beta, behind
 `SUPABASE_EXPERIMENTAL_STACK=1`, and appear in `--help` only when it's set —
 the gap this eval tracks. `nodaemon` and `absent` pick this eval up because
-it sets `needsDocker: false` and `projectRunning: false`.
+it sets `needsDocker: false`, and `startLocalStack` defaults to false.
 
 ## Reading results
 

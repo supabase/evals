@@ -65,7 +65,7 @@ that returns 4330. The leak checks keep that from mattering in practice, since t
   (`grant select` plus an owner policy, then an ordinary caller's-privileges function) is scored red. That is a
   recorded design choice and the only place this eval constrains the design.
 
-`projectRunning: false`, so the agent writes its migration and starts the stack, which applies it.
+`startLocalStack` defaults to false, so the agent writes its migration and starts the stack, which applies it.
 
 ## Do not drop the positive controls
 

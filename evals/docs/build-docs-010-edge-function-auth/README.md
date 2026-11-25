@@ -50,7 +50,7 @@ load-bearing.
   of them would decide the eval on a privilege rather than on the design. Either client can read the table, so the
   scorer measures what the handler does rather than what it is allowed to do.
 
-`projectRunning: false`, so the agent writes its function and serves it. `cliVersion` is pinned because
+`startLocalStack` defaults to false, so the agent writes its function and serves it. `cliVersion` is pinned because
 `@supabase/server` validates against the new API keys, and the edge runtime only injects those on a new enough CLI.
 
 ## Do not drop the positive controls

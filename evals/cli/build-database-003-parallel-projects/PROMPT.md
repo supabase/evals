@@ -1,11 +1,11 @@
 ---
 stage: build
 interface: cli
+preinstallCli: true
 product:
   - database
 topic:
   - sql
-projectRunning: false
 needsDocker: false
 motivation: CLI-2399, https://github.com/orgs/supabase/discussions/5968
 ---

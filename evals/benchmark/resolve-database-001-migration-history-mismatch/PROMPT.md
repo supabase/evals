@@ -1,8 +1,9 @@
 ---
 stage: resolve
 interface: cli
+preinstallCli: true
+startLocalStack: true
 hostedProject: true
-projectRunning: true
 services: []
 product:
   - database

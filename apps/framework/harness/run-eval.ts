@@ -111,33 +111,11 @@ async function loadExperiments() {
   return out;
 }
 
-/**
- * Resolve the run mode. The sandbox (local-stack) is needed when the agent
- * uses the Supabase CLI (`interface: cli`) — including bootstrap scenarios that
- * start from an empty workspace — or when the eval ships a `local/` workspace
- * of starting files. Everything else runs against the in-memory tools runtime.
- *
- * `interface` is otherwise a benchmark dimension (KPI), not a runtime switch.
- */
-function resolveEvalMode(
+export function resolveEvalMode(
   interfaceKind: EvalInterface,
-  hasLocal: boolean
+  preinstallCli?: boolean
 ): EvalMode {
-  if (interfaceKind === 'cli' || hasLocal) return 'local-stack';
-  return 'tools';
-}
-
-/** Throws if a scenario ships a `local/` workspace but isn't declared `interface: cli`. */
-export function assertLocalMatchesInterface(
-  promptPath: string,
-  interfaceKind: EvalInterface,
-  hasLocal: boolean
-): void {
-  if (hasLocal && interfaceKind !== 'cli') {
-    throw new Error(
-      `${promptPath}: ships a local/ workspace but declares interface: ${interfaceKind}, expected cli`
-    );
-  }
+  return interfaceKind === 'cli' || preinstallCli ? 'local-stack' : 'tools';
 }
 
 function discoverEvals(): EvalManifest[] {
@@ -162,8 +140,15 @@ function discoverEvals(): EvalManifest[] {
         relPath
       ).metadata;
       const hasLocal = existsSync(localDir) && statSync(localDir).isDirectory();
-      assertLocalMatchesInterface(relPath, metadata.interface, hasLocal);
-      const mode = resolveEvalMode(metadata.interface, hasLocal);
+      const mode = resolveEvalMode(metadata.interface, metadata.preinstallCli);
+      if (
+        metadata.startLocalStack &&
+        !existsSync(join(localDir, 'supabase/config.toml'))
+      ) {
+        throw new Error(
+          `${relPath}: startLocalStack requires local/supabase/config.toml`
+        );
+      }
       out.push({
         id,
         mode,
@@ -406,7 +391,7 @@ async function runOne(
     // One fresh local-stack session per scored run.
     if (!exp.localStack) {
       throw new Error(
-        `eval ${ev.id} has interface: cli but experiment "${expName}" does not configure a local stack runtime. ` +
+        `eval ${ev.id} requires the CLI runtime but experiment "${expName}" does not configure a local stack runtime. ` +
           `Add \`localStack: localStackRuntime()\` (from "@supabase-evals/sandbox") to experiments/<team>/${expName}.experiment.ts.`
       );
     }
@@ -430,7 +415,7 @@ async function runOne(
         cliVersion: ev.metadata.cliVersion,
         localDir: ev.localDir,
         includeServices: ev.metadata.services,
-        projectRunning: ev.metadata.projectRunning,
+        projectRunning: ev.metadata.startLocalStack ?? false,
         hosted: hostedBackend
           ? {
               port: Number(new URL(hostedBackend.url).port),
@@ -443,7 +428,7 @@ async function runOne(
             }
           : undefined,
         skills: skillSources,
-        skipCliInstall: ev.metadata.skipCliInstall,
+        skipCliInstall: !ev.metadata.preinstallCli,
       })
     );
 
@@ -494,7 +479,7 @@ async function runOne(
     await rehydrateTruncatedDocsResults(session.sandbox, run.toolCalls);
 
     // The marker names the CLI binary the sandbox actually staged; falls back to
-    // the frontmatter pin only when there's no marker to read (e.g. skipCliInstall).
+    // the frontmatter pin only when there's no marker to read (e.g. when the agent installs the CLI).
     const marker = await session.scoringContext.environmentMarker();
 
     return {
@@ -531,6 +516,7 @@ async function runOne(
     ? disposable(
         await createBareSandbox({
           env: session.env,
+          localDir: ev.localDir,
           mountDockerSocket: session.mountDockerSocket,
           skills: skillSources,
           mounts: session.mounts,
@@ -558,9 +544,31 @@ async function runOne(
     sessionArchivePath: sessionArchivePath(expName, ev.id, runIndex),
   });
   const agentRunEndedAt = Date.now();
+  const hostWorkspace = cliSandbox
+    ? workspacePath(expName, ev.id, runIndex)
+    : undefined;
+  if (cliSandbox && hostWorkspace) {
+    rmSync(hostWorkspace, { recursive: true, force: true });
+    await cliSandbox.sandbox.copyToHost(
+      cliSandbox.sandbox.workspace,
+      hostWorkspace
+    );
+  }
+  let copiedWithheldTests = false;
   const judges = createJudgeRecorder();
   const last = await (scorer as ToolScorer)({
     ...session.scoringContext,
+    hostWorkspace,
+    runViteBuild: hostWorkspace ? () => viteBuild(hostWorkspace) : undefined,
+    runVitest: hostWorkspace
+      ? () => {
+          if (!copiedWithheldTests) {
+            copyWithheldTests(ev, hostWorkspace);
+            copiedWithheldTests = true;
+          }
+          return vitestRun(hostWorkspace);
+        }
+      : undefined,
     toolCalls: run.toolCalls,
     transcript: run.transcript,
     agentReport: run.agentReport,
@@ -647,7 +655,16 @@ async function main() {
         EVAL_FILTERS.includes(ev.id)
       );
       filtered = filtered.filter(({ config, suite }) =>
-        evals.some((ev) => ev.suite === suite && !config.skipEval?.(ev))
+        evals.some(
+          (ev) =>
+            ev.suite === suite &&
+            !(
+              ev.mode === 'tools' &&
+              ev.localDir &&
+              !config.agent.runsInSandbox
+            ) &&
+            !config.skipEval?.(ev)
+        )
       );
     }
     console.log(JSON.stringify(filtered.map((e) => `${e.suite}/${e.name}`)));
@@ -733,6 +750,12 @@ async function main() {
     const smokeStages = new Set<string>();
     for (const ev of suiteFiltered) {
       if (ev.suite !== suite) continue;
+      if (ev.mode === 'tools' && ev.localDir && !config.agent.runsInSandbox) {
+        console.log(
+          `SKIP ${experimentPath} x ${ev.id} (starter files require a sandboxed agent)`
+        );
+        continue;
+      }
       if (ev.mode === 'local-stack' && !config.localStack) {
         console.log(
           `SKIP ${experimentPath} x ${ev.id} (no local stack runtime — add \`localStack: localStackRuntime()\` from "@supabase-evals/sandbox" to experiments/<team>/${experimentPath}.experiment.ts)`

@@ -49,8 +49,8 @@ tasks are finished". The only schema-adjacent word is "tasks", the app's
 subject. Finding out that the database has to be running with the new migration
 applied, which command regenerates the types, how to reach the database from it,
 and what each stale line of app code has to become is part of what's measured.
-Don't reintroduce command, path or column wording when editing it. The
-frontmatter sets `projectRunning: false`, so the harness starts no stack.
+Don't reintroduce command, path or column wording when editing it.
+`startLocalStack` defaults to false, so the harness starts no stack.
 
 ## The seeded project
 
@@ -89,7 +89,7 @@ frontmatter sets `projectRunning: false`, so the harness starts no stack.
 
 There is no `node_modules`, no lockfile and no script that runs `supabase gen
 types`, so the agent has to find the command and install what it needs. No stack
-is running at the start (`projectRunning: false`), so both migrations apply when
+is running at the start (`startLocalStack` defaults to false), so both migrations apply when
 the agent starts one.
 
 ## CLI facts that shape the scenario
@@ -175,7 +175,7 @@ earns the migration credit and the regenerated check, but only where a Postgres
 server is available. nodaemon and absent have none, so they stay red by design
 ([CLI-2534](https://linear.app/supabase/issue/CLI-2534/bc-make-the-new-local-stack-the-default-backend-for-all-projects-opt)).
 
-The frontmatter sets `needsDocker: false` and `projectRunning: false`, so all
+The frontmatter sets `needsDocker: false`, and `startLocalStack` defaults to false, so all
 six experiments pick the eval up. The scorer never reads which experiment it
 runs under; the channel and the runtime each stack came up on are reported
 through `metrics`.

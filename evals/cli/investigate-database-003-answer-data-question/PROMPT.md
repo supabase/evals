@@ -1,11 +1,12 @@
 ---
 stage: investigate
 interface: cli
+preinstallCli: true
+startLocalStack: true
 product:
   - database
 topic:
   - sql
-projectRunning: true
 needsDocker: true
 motivation: CLI-2735, https://linear.app/supabase/issue/CLI-2735/eval-answer-a-data-question-with-db-query-against-the-local-database
 area: schema-and-migrations

@@ -44,7 +44,7 @@ load-bearing.
 
 `member_roles` has row level security on and no grants to `authenticated`, which is the state a fresh project is in.
 
-`projectRunning: false` is load-bearing. `supabase start` renders `config.toml` into the Auth container's
+The default `startLocalStack: false` is load-bearing. `supabase start` renders `config.toml` into the Auth container's
 environment at creation time, so a hook enabled after the stack is up is invisible to it. Letting the agent own the
 lifecycle is what makes the claim measurable without the scorer restarting anything.
 
