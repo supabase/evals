@@ -5,14 +5,14 @@ import {
 } from '@supabase-evals/core';
 import { claudeCodeOpus55 } from '../presets.js';
 
-// Pins the supabase/mcp#546 head, which adds get_issues. Drop the pin once
-// a published MCP release includes it.
+// Pins the supabase/mcp#546 merge commit on main, which adds get_issues.
+// Drop the pin once a published MCP release includes it.
 export default defineExperiment({
   ...claudeCodeOpus55,
   runtime: platformLiteRuntime({
     mcpServers: [
       supabaseMcpServer({
-        revision: 'a0137116ef03998cb00dc3ac9b18b698fea5234b',
+        revision: '01f8021f4978ba71c978286ce4943a8dcfbdb5ff',
       }),
     ],
   }),
