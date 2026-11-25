@@ -27,7 +27,7 @@ export type Run = (sql: string) => Promise<SqlResult>;
 
 type Row = Record<string, unknown>;
 
-type Change = { eventType: string; new: Row; old: Row };
+type Change = { eventType: string; new: Row; old: Row; errors?: unknown };
 
 type SystemMessage = { status?: string; message?: string; extension?: string };
 
@@ -169,6 +169,7 @@ function listen(
             eventType: payload.eventType,
             new: payload.new ?? {},
             old: payload.old ?? {},
+            errors: payload.errors,
           });
         }
       )
@@ -306,15 +307,48 @@ function bannerUpdate(observation: Observation): Change | undefined {
   );
 }
 
+function isStub(change: Change): boolean {
+  const hasErrors = Array.isArray(change.errors)
+    ? change.errors.length > 0
+    : Boolean(change.errors);
+  return (
+    hasErrors ||
+    (Object.keys(change.new).length === 0 &&
+      Object.keys(change.old).length === 0)
+  );
+}
+
+function orderLeaks(listener: Listener): Change[] {
+  return listener.changes.filter(
+    (change) =>
+      change.eventType !== 'DELETE' &&
+      !isStub(change) &&
+      Object.keys(change.new).length > 0
+  );
+}
+
 function ownerOrderLeaks(
   observation: Observation,
   listener: Listener
 ): Change[] {
-  return listener.changes.filter(
+  return orderLeaks(listener).filter(
     (change) =>
-      change.eventType !== 'DELETE' &&
-      (change.new.customer_id === observation.ownerId ||
-        String(change.new.item ?? '').startsWith(`${observation.marker} fern`))
+      change.new.customer_id === observation.ownerId ||
+      String(change.new.id) === observation.orderId ||
+      String(change.new.item ?? '').startsWith(`${observation.marker} fern`)
+  );
+}
+
+function stubNote(listener: Listener): string {
+  const stubs = listener.changes.filter((change) => isStub(change));
+  if (stubs.length === 0) return '';
+  const errors = stubs
+    .map((change) => JSON.stringify(change.errors ?? null))
+    .filter((entry, index, all) => all.indexOf(entry) === index)
+    .join(', ');
+  return `; received ${stubs.length} empty unauthorized event${stubs.length === 1 ? '' : 's'}, not counted (errors: ${errors})`.slice(
+    0,
+    300
   );
 }
 
@@ -371,7 +405,7 @@ export function checkOthers(observation: Observation): CheckResult {
     return {
       name: CHECK.others,
       passed: false,
-      notes: `another customer listening to every order got ${describe(leaks)}`,
+      notes: `another customer listening to every order got ${describe(leaks)}${stubNote(observation.other)}`,
     };
   }
   if (!otherOwnInsert(observation)) {
@@ -384,20 +418,17 @@ export function checkOthers(observation: Observation): CheckResult {
   return {
     name: CHECK.others,
     passed: true,
-    notes:
-      "another customer listening to every order got their own order and nothing of the first customer's",
+    notes: `another customer listening to every order got their own order and nothing of the first customer's${stubNote(observation.other)}`,
   };
 }
 
 export function checkVisitor(observation: Observation): CheckResult {
-  const leaks = observation.visitorOrders.changes.filter(
-    (change) => change.eventType !== 'DELETE'
-  );
+  const leaks = orderLeaks(observation.visitorOrders);
   if (leaks.length > 0) {
     return {
       name: CHECK.visitor,
       passed: false,
-      notes: `a visitor listening to every order got ${describe(leaks)}`,
+      notes: `a visitor listening to every order got ${describe(leaks)}${stubNote(observation.visitorOrders)}`,
     };
   }
   if (!accepted(observation.visitorOrders)) {
@@ -424,8 +455,7 @@ export function checkVisitor(observation: Observation): CheckResult {
   return {
     name: CHECK.visitor,
     passed: true,
-    notes:
-      'the server accepted the visitor on orders, and the visitor got the banner change on the same connection and no order changes, while the owner got theirs',
+    notes: `the server accepted the visitor on orders, and the visitor got the banner change on the same connection and no order data, while the owner got theirs${stubNote(observation.visitorOrders)}`,
   };
 }
 

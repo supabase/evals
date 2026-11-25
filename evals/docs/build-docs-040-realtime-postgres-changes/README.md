@@ -56,6 +56,9 @@ Every row the scorer writes carries a marker scoped to the run, and the changes 
   never arrives, the checks that then fail say the result could not be measured.
 - As the superuser it adds an order for each customer, changes the owner's order from packed to shipped, changes the
   banner, and deletes the owner's order. It waits up to 20 seconds for the expected changes, then 3 more for leaks.
+- An event with no row data, or one marked unauthorized, is not a leak. Realtime sends that to a subscriber whose role
+  cannot read the table at all, so the leak checks count only events that carry an order and name the empty ones in the
+  note.
 - Deletes are left out of both leak checks. Realtime sends a delete to every subscriber whose filter matches, carrying
   only the primary key when row level security is on. That is the platform's behavior, not the agent's.
 - A filtered delete and the old status both need the table to send whole old rows. One missing setting fails both
