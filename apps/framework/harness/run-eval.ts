@@ -573,6 +573,7 @@ async function runOne(
     transcript: run.transcript,
     agentReport: run.agentReport,
     judge: judges.judge,
+    sandbox: cliSandbox?.sandbox,
   });
   const scoringEndedAt = Date.now();
 
