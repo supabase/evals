@@ -2,6 +2,7 @@ import {
   claudeCodeAgent,
   codexAgent,
   grokAgent,
+  museAgent,
   opencodeAgent,
   platformLiteRuntime,
   supabaseMcpServer,
@@ -77,6 +78,16 @@ export const grok47 = {
   }),
   runtime: defaultRuntime(),
   localStack: localStackRuntime({ mcpRevision }),
+  skills,
+} satisfies ExperimentPreset;
+
+export const museSpark13 = {
+  agent: museAgent({
+    model: 'muse-spark-1.3',
+    reasoningEffort: 'high',
+  }),
+  runtime: defaultRuntime(),
+  localStack: localStackRuntime(),
   skills,
 } satisfies ExperimentPreset;
 

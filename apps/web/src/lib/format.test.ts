@@ -101,6 +101,29 @@ describe("formatExperimentLabel", () => {
       expect(grok("spacexai/grok-4.7")).toBe("Grok Build / Grok 4.7")
     })
   })
+
+  describe("meta model ids", () => {
+    const muse = (modelId: string, reasoningEffort?: "high") =>
+      formatExperimentLabel(
+        display({
+          agent: "muse",
+          modelProvider: "meta",
+          modelId,
+          reasoningEffort,
+        }),
+        "x"
+      )
+
+    it("title-cases every hyphen-separated part", () => {
+      expect(muse("muse-spark-1.3")).toBe("Muse Code / Muse Spark 1.3")
+    })
+
+    it("appends the reasoning effort", () => {
+      expect(muse("muse-spark-1.3", "high")).toBe(
+        "Muse Code / Muse Spark 1.3 (high)"
+      )
+    })
+  })
 })
 
 describe("formatModelColumnLabel", () => {
