@@ -102,7 +102,11 @@ all three are absent.
 
 Verified on `supabase@2.117.0` (this repo's pin), `2.121.0` (npm `latest`),
 `2.122.0-beta.1` (`beta`) and `3.0.0-next.16` (`next`). The first CI refresh ran
-`2.122.0-beta.3` (`beta`) and `3.0.0-next.18` (`next`).
+`2.122.0-beta.3` (`beta`) and `3.0.0-next.18` (`next`). Rechecked 2026-11-16
+(stable 3.1.0, beta 3.2.0-beta.17, next 4.0.0-next.26): `db push`, `db reset` and
+`migration up` are local by default there, `--local` still parses but prints a
+deprecation warning ("isn't needed (local is the default)"), and the command
+lists below weren't rechecked.
 
 - All four have `migration new|up|list|repair|squash|down|fetch`,
   `db reset|diff|push|query`, and `db schema declarative sync|generate`.
@@ -318,10 +322,10 @@ the PR.
 | experiment | CLI version | container runtime | expected |
 | --- | --- | --- | --- |
 | `codex-gpt-6-luna-cli-pinned` | this repo's pin, 2.117.0 | Docker available | pass: the imperative route works on every CLI |
-| `codex-gpt-6-luna-cli-stable` | npm `latest` (2.121.0 when verified) | Docker available | pass |
+| `codex-gpt-6-luna-cli-stable` | npm `latest` (2.121.0 when verified; 3.1.0 on 2026-11-16) | Docker available | pass; not rechecked on 3.x |
 | `codex-gpt-6-luna-cli-beta` | npm `beta` (2.122.0-beta.1 when verified) | Docker available | pass |
 | `codex-gpt-6-luna-cli-next` | npm `next` (3.0.0-next.16 when verified) | Docker available | pass; the declarative command has no experimental gate here |
-| `codex-gpt-6-luna-cli-nodaemon` | `beta` | Docker client present, daemon unreachable | stack, column and history fail: the Docker-less gap. `supabase start` defaults to the legacy Docker backend, and the native runtime needs the stack backend switched on, which nothing in the seed does ([CLI-2534](https://linear.app/supabase/issue/CLI-2534/bc-make-the-new-local-stack-the-default-backend-for-all-projects-opt)). Migration, detours and the truthful report pass; a run passes only if the agent finds the stack backend |
+| `codex-gpt-6-luna-cli-nodaemon` | `beta` | Docker client present, daemon unreachable | stack, column and history fail: the Docker-less gap. `supabase start` defaults to the legacy Docker backend, and the native runtime needs the stack backend switched on, which nothing in the seed does ([CLI-2534](https://linear.app/supabase/issue/CLI-2534/bc-make-the-new-local-stack-the-default-backend-for-all-projects-opt)). Migration, detours and the truthful report pass; a run passes only if the agent finds the stack backend, or through the experimental fallback (which sets `SUPABASE_EXPERIMENTAL_STACK=1`), recorded as `fallback_passed`, not as `passed`. The same two rows exist on stable and next as `-stable-nodaemon`/`-stable-absent` and `-next-nodaemon`/`-next-absent`; the stack backend exists on all three channels behind the same opt-in |
 | `codex-gpt-6-luna-cli-absent` | `beta` | no Docker at all | as nodaemon |
 
 The four Docker arms are expected to pass, because every CLI can start a stack,

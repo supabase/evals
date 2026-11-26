@@ -84,7 +84,10 @@ There is no `supabase/functions` directory, so the agent creates the function.
 ## CLI facts that shape the scenario
 
 Checked on `supabase@2.117.0` (pinned), `2.121.0` (stable), `2.122.0-beta.5` and
-`3.0.0-next.21`.
+`3.0.0-next.21`. Rechecked 2026-11-16 (stable 3.1.0, beta 3.2.0-beta.17, next
+4.0.0-next.26): the managed stack (`supabase stack ...`, `supabase start --runtime
+auto|docker|native`) exists on all three, but only with `SUPABASE_EXPERIMENTAL_STACK=1`
+or `[experimental] stack = true`; the `serve` flags weren't rechecked.
 
 - `supabase functions serve` has the same flags on all four: `--env-file`
   ("Overrides supabase/functions/.env and per-Function .env files"),
@@ -201,14 +204,19 @@ transcript doesn't show.
 | experiment | CLI version | container runtime | expected today |
 | --- | --- | --- | --- |
 | `codex-gpt-6-luna-cli-pinned` | this repo's pinned version (2.117.0) | Docker available | pass: the secret reaches the function from a local env file, and the agent serves the function and calls it. A red here is an agent gap, for example the secret left only in the root `.env` (the CLI-818 trap), a hardcoded secret, the function not served, or the secret check missing, and is read from the failing check's notes |
-| `codex-gpt-6-luna-cli-stable` | npm `latest` tag | Docker available | pass, as pinned |
+| `codex-gpt-6-luna-cli-stable` | npm `latest` tag (3.x; 3.1.0 on 2026-11-16) | Docker available | pass, as pinned |
 | `codex-gpt-6-luna-cli-beta` | npm `beta` tag | Docker available | pass, as pinned |
 | `codex-gpt-6-luna-cli-next` | npm `next` tag | Docker available | pass, as pinned |
 | `codex-gpt-6-luna-cli-nodaemon` | beta | Docker client present, daemon unreachable | red by design ([CLI-2534](https://linear.app/supabase/issue/CLI-2534/bc-make-the-new-local-stack-the-default-backend-for-all-projects-opt)): `supabase start` needs Docker, so no Supabase stack starts. In CI, agents served the function directly with Deno or Node, and the harness only probes the Supabase stack, so the first two checks fail, and serving it outside the CLI also fails the detour check when the launch is in the transcript (see Known limitations); the secret and report checks can still pass when the agent reports truthfully |
 | `codex-gpt-6-luna-cli-absent` | beta | no Docker at all | as nodaemon |
 
-In nodaemon and absent, the experimental stack's native runtime can serve the
-function, so a pass there is possible and is not a false pass.
+In the Docker-less environments (`codex-gpt-6-luna-cli-nodaemon` and `-absent`
+on beta, `-stable-nodaemon`, `-stable-absent`, `-next-nodaemon`, `-next-absent`),
+the experimental stack's native runtime can serve the function, so a pass there
+is possible and is not a false pass. It needs the agent to find the stack
+backend, or the experimental fallback (a failed run is rerun once with `SUPABASE_EXPERIMENTAL=true` and
+`SUPABASE_EXPERIMENTAL_STACK=1`); a pass there is recorded as `fallback_passed`,
+not as `passed`, which stays the first attempt.
 
 The frontmatter sets `needsDocker: false` and `projectRunning: false`, so all
 six experiments pick the eval up. The scorer never reads which experiment it

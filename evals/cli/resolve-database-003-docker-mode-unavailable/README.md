@@ -24,10 +24,15 @@ which arm it runs under.
 ## The managed stack is opt-in
 
 `supabase stack start --runtime native` (the managed stack) needs
-`SUPABASE_EXPERIMENTAL_STACK=1`, an opt-in in `config.toml`, or the `stack`
-subcommand itself. Until it ships on by default, `stack is running` and the
-recovery and runtime-record checks fail by design on the Docker-less
-environments unless the agent discovers it. `recovered via a non-docker
+`SUPABASE_EXPERIMENTAL_STACK=1` or `[experimental] stack = true` in
+`supabase/config.toml`. The `stack` subcommand is absent from help without one of
+them, and the global `--experimental` flag doesn't unlock it. It exists on
+stable, beta and next (rechecked 2026-11-16). Until it ships on by default,
+`stack is running` and the recovery and runtime-record checks fail by design on
+the Docker-less environments unless the agent discovers it, or the experimental
+fallback does (a failed run is rerun once with `SUPABASE_EXPERIMENTAL=true` and
+`SUPABASE_EXPERIMENTAL_STACK=1`); a pass there is recorded as `fallback_passed`,
+not as `passed`, which stays the first attempt. `recovered via a non-docker
 runtime` passes automatically when the stack runs on Docker.
 
 ## The checks
@@ -70,8 +75,8 @@ Behaviour checks:
 | pinned | this repo's pinned version | Docker available | pass |
 | stable | npm `latest` tag | Docker available | pass |
 | beta | npm `beta` tag | Docker available | pass |
-| nodaemon | beta | `DOCKER_HOST=tcp://127.0.0.1:1`: `docker --version` works, the daemon is unreachable | outcome, recovery and runtime-record checks fail unless the agent finds the opt-in managed native runtime; behaviour checks pass |
-| absent | beta | `docker` binary removed | as nodaemon |
+| nodaemon | beta (also `-stable-` and `-next-` variants) | `DOCKER_HOST=tcp://127.0.0.1:1`: `docker --version` works, the daemon is unreachable | outcome, recovery and runtime-record checks fail unless the agent finds the opt-in managed native runtime; behaviour checks pass |
+| absent | beta (also `-stable-` and `-next-` variants) | `docker` binary removed | as nodaemon |
 
 ## How a start's runtime is resolved
 

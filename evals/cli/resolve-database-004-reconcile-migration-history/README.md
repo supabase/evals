@@ -112,7 +112,10 @@ which it does not yet (see the expected results).
 Verified on `supabase` 2.117.0 (pinned), 2.121.0 (npm `latest`) and
 2.122.0-beta.1 (npm `beta`). `migration list`, `migration repair`,
 `migration fetch`, `db push`, `db pull` and `link` exist with identical flags
-on all three.
+on all three. Stable is now 3.x (3.1.0 on 2026-11-16), where `migration list|up`,
+`db push` and `db query` are local by default, `--remote[=<ref|branch|url>]` targets
+the linked project, and `--linked`, `--db-url` and `--project-ref` print a
+deprecation warning; the rest below wasn't rechecked on 3.x+.
 
 - Without a linked project, `migration list`, `migration fetch`,
   `migration repair`, `db push` and `db pull` fail with "Cannot find project

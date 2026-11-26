@@ -642,11 +642,26 @@ export type LocalStackRuntime = {
   cliChannel?: 'stable' | 'beta' | 'next';
 };
 
+/** Result of the experiment's fallback attempt, recorded beside the first attempt's result. */
+export type FallbackResult = {
+  outcome: 'passed' | 'failed' | 'errored';
+  /** Id of the fallback runtime. */
+  runtime?: string;
+  passed: boolean;
+  checks?: CheckResult[];
+  cliVersion?: string;
+  error?: string;
+  usage?: AgentUsage;
+  judgeCalls?: JudgeCall[];
+};
+
 export type ExperimentConfig = {
   agent: AgentHarness;
   runtime: EvalRuntime;
   /** Local-stack environment (e.g. localStackRuntime() from @supabase-evals/sandbox). */
   localStack?: LocalStackRuntime;
+  /** Rerun a failed local-stack eval once with these overrides; the result stays the first attempt's. */
+  fallbackConfig?: { localStack: LocalStackRuntime };
   skills: string[];
   /**
    * Skip running specific evals against this experiment, e.g. a `*-no-skills`
@@ -664,6 +679,19 @@ export function getExperimentDisplayMetadata(
 }
 
 export function defineExperiment(config: ExperimentConfig): ExperimentConfig {
+  if (config.fallbackConfig) {
+    const extra = Object.keys(config.fallbackConfig).filter(
+      (key) => key !== 'localStack'
+    );
+    if (extra.length > 0) {
+      throw new Error(
+        `fallbackConfig only supports localStack; found: ${extra.join(', ')}`
+      );
+    }
+    if (!config.localStack) {
+      throw new Error('fallbackConfig requires localStack on the experiment');
+    }
+  }
   return config;
 }
 

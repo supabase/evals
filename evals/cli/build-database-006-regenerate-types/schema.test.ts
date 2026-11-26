@@ -464,8 +464,11 @@ describe('readMigrationEvidence', () => {
 
   it.each([
     'supabase db reset --linked',
+    'supabase db reset --remote',
+    'supabase db reset --remote=abcdefghijklmnopqrst',
     'supabase db reset --db-url postgresql://postgres:postgres@db.example.com:5432/postgres',
     'supabase migration up --linked',
+    'supabase migration up --remote',
     'supabase migration up --db-url=postgresql://postgres:postgres@db.example.com:5432/postgres',
   ])(
     'ignores the applying line in the output of the remote `%s`',

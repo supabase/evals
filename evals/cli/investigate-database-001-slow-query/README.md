@@ -128,10 +128,14 @@ seed ran. `fixtures.test.ts` asserts the seed never mentions that customer.
 
 Read from the CLI source on `develop` (the TypeScript CLI) and the last Go source before it was removed, and checked against `--help` on each channel.
 
-- On 2.x (pinned, stable, beta), `inspect db *` and `inspect report` default to
+- On 2.x (pinned), `inspect db *` and `inspect report` default to
   `--linked`. With no linked project they fail with "Cannot find project ref.
   Have you run supabase link?", so the agent has to find `--local` (or
-  `--db-url`). On 3.0.0-next the default is local. `--local` connects as
+  `--db-url`). On 3.x+ (stable, beta, next; checked on 3.0.0-next and, for
+  `inspect db *` being local by default, rechecked 2026-11-16 on stable 3.1.0,
+  beta 3.2.0-beta.17 and next 4.0.0-next.26; the inspect report's contents
+  weren't rechecked) the default is local, and `--remote` targets the linked
+  project. `--local` connects as
   `postgres` to the `[db]` port on the legacy backend, or to the registered
   stack's SQL endpoint on the stack backend
 - `inspect db outliers` reads `extensions.pg_stat_statements` filtered to the
@@ -172,10 +176,10 @@ the PR.
 | experiment | CLI version | container runtime | expected |
 | --- | --- | --- | --- |
 | `codex-gpt-6-luna-cli-pinned` | this repo's pin | Docker available | pass |
-| `codex-gpt-6-luna-cli-stable` | npm `latest` | Docker available | pass |
-| `codex-gpt-6-luna-cli-beta` | npm `beta` | Docker available | pass |
+| `codex-gpt-6-luna-cli-stable` | npm `latest` (3.x; 3.1.0 on 2026-11-16) | Docker available | pass; `inspect db` defaults to local here too, so the agent doesn't need to find `--local` |
+| `codex-gpt-6-luna-cli-beta` | npm `beta` | Docker available | pass; local by default on 3.x betas |
 | `codex-gpt-6-luna-cli-next` | npm `next` | Docker available | pass; `inspect db` defaults to local here, so the agent doesn't need to find `--local` |
-| `codex-gpt-6-luna-cli-nodaemon` | `beta` | Docker client present, daemon unreachable | stack, inspect, plan, row count and history fail: the Docker-less gap. `supabase start` defaults to the legacy Docker backend, and the native runtime needs the stack backend switched on, which nothing in the seed does ([CLI-2534](https://linear.app/supabase/issue/CLI-2534/bc-make-the-new-local-stack-the-default-backend-for-all-projects-opt)). The migration, detours and truthful-report checks can still pass; a run passes only if the agent finds the stack backend |
+| `codex-gpt-6-luna-cli-nodaemon` | `beta` | Docker client present, daemon unreachable | stack, inspect, plan, row count and history fail: the Docker-less gap. `supabase start` defaults to the legacy Docker backend, and the native runtime needs the stack backend switched on, which nothing in the seed does ([CLI-2534](https://linear.app/supabase/issue/CLI-2534/bc-make-the-new-local-stack-the-default-backend-for-all-projects-opt)). The migration, detours and truthful-report checks can still pass; a run passes only if the agent finds the stack backend, or through the experimental fallback (it sets `SUPABASE_EXPERIMENTAL_STACK=1`; a fallback pass is recorded as `fallback_passed`, not as `passed`). The same rows run on stable and next as `-stable-nodaemon`/`-stable-absent` and `-next-nodaemon`/`-next-absent`, and the stack backend exists on all three channels behind the same opt-in |
 | `codex-gpt-6-luna-cli-absent` | `beta` | no Docker at all | as nodaemon |
 
 The four Docker arms are expected to pass because every CLI can start a stack,
@@ -185,7 +189,7 @@ until CLI-2534. The frontmatter sets `needsDocker: false` and
 scorer never reads which one it runs under.
 
 A failure on a Docker arm most likely means one of three things. The agent
-didn't find `--local` on 2.x and fell back to `psql` or gave up on `inspect`, so
+didn't find `--local` on 2.x (pinned) and fell back to `psql` or gave up on `inspect`, so
 the inspect check fails. The agent never ran `inspect` at all, so the same check
 fails alone. Or the agent created the index by hand and never recorded a
 migration, so the migration and history checks fail while the plan check passes.

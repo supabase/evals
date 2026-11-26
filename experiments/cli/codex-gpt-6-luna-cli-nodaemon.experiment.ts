@@ -1,16 +1,20 @@
 import { defineExperiment } from '@supabase-evals/core';
-import { localStackRuntime } from '@supabase-evals/sandbox';
 import { codexGpt6Luna } from '../presets.js';
+import { cliRuntime } from './lib/cli-runtime.js';
 import { EVAL_ENV } from './lib/eval-env.js';
 import { skipUnlessDockerless } from './lib/skip.js';
 
+const runtime = {
+  cliVersion: 'beta',
+  docker: 'no-daemon',
+  env: EVAL_ENV,
+} as const;
+
 export default defineExperiment({
   ...codexGpt6Luna,
-  // beta: the Docker-less path only exists in the managed stack, which ships in beta.
-  localStack: localStackRuntime({
-    cliVersion: 'beta',
-    docker: 'no-daemon',
-    env: EVAL_ENV,
-  }),
+  localStack: cliRuntime(runtime),
+  fallbackConfig: {
+    localStack: cliRuntime({ ...runtime, experimental: true }),
+  },
   skipEval: skipUnlessDockerless,
 });

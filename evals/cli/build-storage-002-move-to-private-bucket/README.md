@@ -83,8 +83,10 @@ Verified on `supabase@2.117.0`, `2.122.0`, `2.123.0-beta.1` and
 `3.0.0-next.23`.
 
 - `supabase storage ls|cp|mv|rm` need `--experimental`. On 2.x they default to
-  the linked project and need `--local`; on 3.0.0-next they are local by
-  default. Paths are `ss:///bucket/prefix`.
+  the linked project and need `--local`; on 3.0.0-next and, rechecked
+  2026-11-16, on 3.x+ (stable 3.1.0, beta 3.2.0-beta.17, next 4.0.0-next.26,
+  which still need `--experimental` or `SUPABASE_EXPERIMENTAL=true`) they are
+  local by default and `--remote` targets the linked project. Paths are `ss:///bucket/prefix`.
 - `storage mv` across buckets is rejected ("Moving between buckets is
   unsupported") and `storage cp` ss to ss is rejected ("Copying between buckets
   is not supported"). A cross-bucket move is download, upload, `rm`.
@@ -323,8 +325,8 @@ the detour judge).
 | experiment | CLI version | container runtime | expected today |
 | --- | --- | --- | --- |
 | `codex-gpt-6-luna-cli-pinned` | this repo's pinned version (2.117.0) | Docker available | a pass is possible; expected friction is `--experimental`, `--local`, and no cross-bucket `mv` or `cp`. A red is an agent gap, read from the failing check's notes |
-| `codex-gpt-6-luna-cli-stable` | npm `latest` tag | Docker available | as pinned |
-| `codex-gpt-6-luna-cli-beta` | npm `beta` tag | Docker available | as pinned |
+| `codex-gpt-6-luna-cli-stable` | npm `latest` tag (3.x; 3.1.0 on 2026-11-16) | Docker available | as pinned, except storage commands are local by default, so no `--local` (as on next) |
+| `codex-gpt-6-luna-cli-beta` | npm `beta` tag | Docker available | as pinned, except storage commands are local by default on 3.x betas, so no `--local` |
 | `codex-gpt-6-luna-cli-next` | npm `next` tag (3.0.0-next) | Docker available | as pinned, except storage commands are local by default, so no `--local` |
 
 The eval needs Docker and a pre-started stack, so `skipUnlessDockerless`

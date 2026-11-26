@@ -1,6 +1,12 @@
 import { execFileSync } from 'node:child_process';
-import { describe, expect, it } from 'vitest';
-import { assertLocalMatchesInterface } from './run-eval.js';
+import { mkdirSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  assertLocalMatchesInterface,
+  runLocalStackWithFallback,
+  type LocalStackAttemptContext,
+} from './run-eval.js';
 
 describe('assertLocalMatchesInterface', () => {
   it('throws when a local/ workspace is declared as interface: mcp', () => {
@@ -100,4 +106,141 @@ describe('experiment selection', () => {
       plan('--suite', 'benchmark,regression', '--experiment', 'grok-4.7')
     ).toThrow('regression/grok-4.7');
   }, 15000);
+});
+
+describe('runLocalStackWithFallback', () => {
+  const expName = 'zz-fallback-test';
+  const resultsDir = join(
+    import.meta.dirname,
+    '..',
+    '..',
+    '..',
+    'results',
+    expName
+  );
+  afterEach(() => rmSync(resultsDir, { recursive: true, force: true }));
+
+  function fakeRuntime(id: string, startedIds: string[]) {
+    return {
+      id,
+      startSession: vi.fn(async () => {
+        startedIds.push(id);
+        return {
+          sandbox: { readFile: async () => '' },
+          tools: {},
+          mcpServers: [],
+          promptAddendum: '',
+          scoringContext: { environmentMarker: async () => undefined },
+          exportWorkspace: async (dir: string) => {
+            mkdirSync(dir, { recursive: true });
+          },
+          close: async () => {},
+        };
+      }),
+    };
+  }
+
+  function setup({
+    fallback,
+    scores,
+    fallbackThrows = false,
+  }: {
+    fallback: boolean;
+    scores: boolean[];
+    fallbackThrows?: boolean;
+  }) {
+    const startedIds: string[] = [];
+    const fallbackRuntime = fakeRuntime('fallback-runtime', startedIds);
+    if (fallbackThrows) {
+      fallbackRuntime.startSession.mockRejectedValue(new Error('boom'));
+    }
+    const exp = {
+      agent: {
+        id: 'fake-agent',
+        run: vi.fn(async (args: { sessionArchivePath: string }) => {
+          archivePaths.push(args.sessionArchivePath);
+          return {
+            toolCalls: [],
+            transcript: [],
+            agentReport: '',
+            stoppedReason: 'done',
+            durationMs: 1,
+            startedAt: 0,
+          };
+        }),
+      },
+      localStack: fakeRuntime('primary-runtime', startedIds),
+      ...(fallback ? { fallbackConfig: { localStack: fallbackRuntime } } : {}),
+    };
+    const archivePaths: string[] = [];
+    const ctx = {
+      expName,
+      exp,
+      ev: {
+        id: 'fake-eval',
+        metadata: { services: [], projectRunning: true, product: [] },
+        localDir: undefined,
+        dir: '/nonexistent',
+      },
+      runIndex: 1,
+      prompt: 'do it',
+      scorer: async () => ({ passed: scores.shift() ?? true, checks: [] }),
+      skillSources: [],
+      availableSkills: [],
+    } as unknown as LocalStackAttemptContext;
+    return { ctx, startedIds, archivePaths };
+  }
+
+  it('reruns a failed first attempt on the fallback runtime and keeps the first result', async () => {
+    const { ctx, startedIds, archivePaths } = setup({
+      fallback: true,
+      scores: [false, true],
+    });
+    const result = await runLocalStackWithFallback(ctx);
+    expect(startedIds).toEqual(['primary-runtime', 'fallback-runtime']);
+    expect(result.passed).toBe(false);
+    expect(result.fallback).toMatchObject({
+      outcome: 'passed',
+      runtime: 'fallback-runtime',
+      passed: true,
+    });
+    expect(archivePaths[0]).toMatch(/session-archive\.tar\.gz$/);
+    expect(archivePaths[1]).toMatch(/session-archive-fallback\.tar\.gz$/);
+  });
+
+  it('records a failing fallback', async () => {
+    const { ctx } = setup({ fallback: true, scores: [false, false] });
+    const result = await runLocalStackWithFallback(ctx);
+    expect(result.passed).toBe(false);
+    expect(result.fallback?.outcome).toBe('failed');
+  });
+
+  it('records an errored fallback and keeps the first result', async () => {
+    const { ctx } = setup({
+      fallback: true,
+      scores: [false],
+      fallbackThrows: true,
+    });
+    const result = await runLocalStackWithFallback(ctx);
+    expect(result.passed).toBe(false);
+    expect(result.fallback).toMatchObject({
+      outcome: 'errored',
+      passed: false,
+      error: 'boom',
+    });
+  });
+
+  it('does not run the fallback when the first attempt passes', async () => {
+    const { ctx, startedIds } = setup({ fallback: true, scores: [true] });
+    const result = await runLocalStackWithFallback(ctx);
+    expect(startedIds).toEqual(['primary-runtime']);
+    expect(result.fallback).toBeUndefined();
+  });
+
+  it('does not run a fallback when none is configured', async () => {
+    const { ctx, startedIds } = setup({ fallback: false, scores: [false] });
+    const result = await runLocalStackWithFallback(ctx);
+    expect(startedIds).toEqual(['primary-runtime']);
+    expect(result.fallback).toBeUndefined();
+  });
 });

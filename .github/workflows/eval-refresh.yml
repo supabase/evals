@@ -263,9 +263,8 @@ jobs:
     needs: prepare
     if: needs.prepare.outputs.pairs != '[]'
     runs-on: ubuntu-26.04
-    # 60 min gives ~2x margin over the slowest observed run:
-    # https://github.com/supabase/evals/actions/runs/31802584549
-    timeout-minutes: 60
+    # A cli pair can use two attempts, a ~69 min Sandbox at the default timeout.
+    timeout-minutes: 100
     env:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}

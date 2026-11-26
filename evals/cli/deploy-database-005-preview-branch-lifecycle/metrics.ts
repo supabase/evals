@@ -42,6 +42,7 @@ const PUSH_FLAGS = [
   '--linked',
   '--local',
   '--project-ref',
+  '--remote',
   '--dry-run',
   '--include-all',
 ];

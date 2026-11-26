@@ -283,15 +283,16 @@ runner is never replayed.
 | experiment | CLI version | container runtime | expected today |
 | --- | --- | --- | --- |
 | pinned | this repo's pinned version | Docker available | hard: no `stack` subcommand, so passing needs three legacy stacks on distinct ports, then `supabase stop` for legacy-import |
-| stable | npm `latest` tag | Docker available | as pinned |
+| stable | npm `latest` tag | Docker available | as pinned, unless the agent finds the experimental managed `stack` commands, which exist on 3.x stable |
 | beta | npm `beta` tag | Docker available | as pinned, unless the agent finds the experimental managed `stack` commands |
-| nodaemon | beta | Docker client present, daemon unreachable | fails the outcome and fleet checks unless the agent runs the stacks natively through the managed `stack` commands; the truthful-report verdict depends on the agent |
+| nodaemon | beta | Docker client present, daemon unreachable | fails the outcome and fleet checks unless the agent runs the stacks natively through the managed `stack` commands, or the experimental fallback passes (it sets `SUPABASE_EXPERIMENTAL_STACK=1`; recorded as `fallback_passed`, not as `passed`); the truthful-report verdict depends on the agent. The same rows run on stable and next as `-stable-` and `-next-` variants |
 | absent | beta | no Docker at all | as nodaemon |
 
 The managed fleet commands (`stack list`, `stack start --stack`,
-`stack restart`, `stack destroy`) exist only in beta, behind
-`SUPABASE_EXPERIMENTAL_STACK=1`, and appear in `--help` only when it's set —
-the gap this eval tracks. `nodaemon` and `absent` pick this eval up because
+`stack restart`, `stack destroy`) exist on stable, beta and next (rechecked
+2026-11-16), behind `SUPABASE_EXPERIMENTAL_STACK=1` or `[experimental] stack =
+true` (the global `--experimental` flag doesn't unlock them), and appear in
+`--help` only then — the gap this eval tracks. `nodaemon` and `absent` pick this eval up because
 it sets `needsDocker: false` and `projectRunning: false`.
 
 ## Reading results

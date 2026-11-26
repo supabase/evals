@@ -420,6 +420,17 @@ const repoSourceSchema = z.object({
 });
 export type RepoSource = z.infer<typeof repoSourceSchema>;
 
+export const fallbackResultSchema = z.object({
+  outcome: z.enum(['passed', 'failed', 'errored']),
+  runtime: z.string().optional(),
+  passed: z.boolean(),
+  checks: z.array(checkResultSchema).optional(),
+  cliVersion: cliVersionSchema.optional(),
+  error: z.string().optional(),
+  usage: agentUsageSchema.optional(),
+  judgeCalls: z.array(judgeCallSchema).optional(),
+});
+
 // Every dimension that has an authoring enum is enforced against that same
 // enum here — the enum is the single source of truth for both authoring
 // (evalMetadataSchema) and results. Result files are gitignored, regenerated
@@ -442,6 +453,7 @@ const evalResultShape = {
   checks: z.array(checkResultSchema).optional(),
   judgeCalls: z.array(judgeCallSchema).optional(),
   attempts: z.number().optional(),
+  fallback: fallbackResultSchema.optional(),
   // 1-based index of this scored run within a pair's sample set. Absent on
   // legacy rows exported before pairs ran more than once.
   run: z.number().optional(),

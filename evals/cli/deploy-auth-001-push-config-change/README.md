@@ -75,7 +75,10 @@ the harness links the repo.
 
 Checked against the npm dist-tags on 2026-10-21: pinned 2.117.0, stable 2.121.0,
 beta 2.122.0-beta.10, next 3.0.0-next.21. Each fact holds on all four channels
-unless noted.
+unless noted. Stable is now 3.x (npm `latest` 3.1.0, checked 2026-11-16, with beta
+3.2.0-beta.17 and next 4.0.0-next.26): there `config push` uses the linked project
+("pass --remote=<ref|branch> for another") and hosted changes need `--yes` or
+exported `SUPABASE_YES`; the other facts below weren't rechecked on 3.x+.
 
 - `config` has `diff`, `pull` and `push` on all four channels. `config push
   [--project-ref]` takes the global `--yes`. It pushes only the properties the

@@ -169,14 +169,17 @@ agent's work.
 | experiment | CLI version | container runtime | tells you | expected today |
 | --- | --- | --- | --- | --- |
 | pinned | this repo's pinned version | Docker available | baseline | pass |
-| stable | npm `latest` tag | Docker available | drift insurance — equals the pin between bumps | pass |
+| stable | npm `latest` tag (3.x; 3.1.0 on 2026-11-16) | Docker available | the CLI users get by default | pass |
 | beta | npm `beta` tag | Docker available | regressions ahead of a stable promotion, compared against `stable` | pass |
 | nodaemon | beta | Docker client present, daemon unreachable | the Docker-less gap | pass via `--runtime native` |
 | absent | beta | no Docker at all | the Docker-less gap | pass via `--runtime native` |
 
 The expected column is what each experiment should do when the agent behaves.
-`nodaemon` and `absent` pin to beta because the native managed stack only
-exists in the beta channel today; on the Docker arms the agent has to move one
+The Docker-less environments run on stable, beta and next (`codex-gpt-6-luna-cli-nodaemon` and `-absent` on beta, plus `-stable-nodaemon`, `-stable-absent`, `-next-nodaemon` and `-next-absent`). The native managed
+stack exists on stable, beta and next (rechecked 2026-11-16) but only behind
+`SUPABASE_EXPERIMENTAL_STACK=1` or `[experimental] stack = true`; a pass there
+needs the agent to find it, or the experimental fallback (a failed run is rerun once with `SUPABASE_EXPERIMENTAL=true` and `SUPABASE_EXPERIMENTAL_STACK=1`), and a fallback pass is recorded as `fallback_passed`, not as `passed`, which stays the first attempt. On
+the Docker arms the agent has to move one
 project off the default ports in `config.toml` (unless the CLI allocates
 them), since two stacks on the defaults collide.
 
