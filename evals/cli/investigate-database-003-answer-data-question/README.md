@@ -41,8 +41,8 @@ CLI eval scores it on its own: `build-database-005`, `resolve-database-005` and
 
 ## Area and journey phase
 
-- `area: schema-and-migrations`
-- `journeyPhase: observe`
+- Area: `schema-and-migrations`.
+- Journey phase: `observe`.
 
 ## The prompt names no command, flag, SQL, column, port, or URL
 

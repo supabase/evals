@@ -158,7 +158,14 @@ export type EvalMetadata = {
    * which evals they can run.
    */
   needsDocker?: boolean;
+  /** Suite-owned fields, validated by `evals/<suite>/custom-metadata.ts` when present. */
+  customMetadata?: Record<string, unknown>;
 };
+
+/** Shape a suite's `custom-metadata.ts` must export as `customMetadataSchema`. */
+export type CustomMetadataSchema = z.ZodType<
+  Record<string, unknown> | undefined
+>;
 
 export type ParsedEvalMarkdown = {
   metadata: EvalMetadata;
@@ -180,6 +187,7 @@ export const evalMetadataSchema = z.object({
   skills: z.array(z.string().min(1)).optional(),
   skipCliInstall: z.union([z.boolean(), z.stringbool()]).optional(),
   needsDocker: z.union([z.boolean(), z.stringbool()]).optional(),
+  customMetadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 // Collapse a YAML scalar into a comparable token: trim, lowercase, and fold
@@ -259,6 +267,7 @@ export const evalFrontmatterSchema = z.preprocess((raw) => {
       : undefined,
     skipCliInstall: data.skipCliInstall,
     needsDocker: data.needsDocker,
+    customMetadata: data.customMetadata,
   };
 }, evalMetadataSchema);
 
@@ -428,6 +437,7 @@ const evalResultShape = {
   suite: evalSuiteSchema.optional(),
   interface: evalInterfaceSchema,
   cliVersion: cliVersionSchema.optional(),
+  customMetadata: z.record(z.string(), z.unknown()).optional(),
   passed: z.boolean().optional(),
   checks: z.array(checkResultSchema).optional(),
   judgeCalls: z.array(judgeCallSchema).optional(),

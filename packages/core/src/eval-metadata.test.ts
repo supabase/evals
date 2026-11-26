@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { evalMetadataSchema, rawEvalResultSchema } from './eval-metadata.js';
+import {
+  evalFrontmatterSchema,
+  evalMetadataSchema,
+  rawEvalResultSchema,
+} from './eval-metadata.js';
 
 it('preserves the requested MCP revision and resolved commit in results', () => {
   const repoSources = {
@@ -53,5 +57,43 @@ describe('cliVersion schema', () => {
         cliVersion: 'stable',
       })
     ).toThrow();
+  });
+});
+
+describe('customMetadata frontmatter', () => {
+  const base = {
+    stage: 'build',
+    product: ['database'],
+    topic: ['sql'],
+    interface: 'cli',
+  };
+
+  it('passes the object through unchanged', () => {
+    const customMetadata = { area: 'local-stacks', nested: { a: 1 } };
+    expect(
+      evalFrontmatterSchema.parse({ ...base, customMetadata }).customMetadata
+    ).toEqual(customMetadata);
+  });
+
+  it('stays undefined when absent', () => {
+    expect(evalFrontmatterSchema.parse(base).customMetadata).toBeUndefined();
+  });
+
+  it('rejects a non-object', () => {
+    for (const customMetadata of ['local-stacks', ['a'], 3, null]) {
+      expect(
+        evalFrontmatterSchema.safeParse({ ...base, customMetadata }).success
+      ).toBe(false);
+    }
+  });
+
+  it('is kept in result files', () => {
+    const parsed = rawEvalResultSchema.parse({
+      experiment: 'e',
+      eval: 'x',
+      interface: 'cli',
+      customMetadata: { area: 'local-stacks' },
+    });
+    expect(parsed.customMetadata).toEqual({ area: 'local-stacks' });
   });
 });

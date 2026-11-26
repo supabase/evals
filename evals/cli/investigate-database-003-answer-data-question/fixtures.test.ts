@@ -2,6 +2,7 @@
 import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
 import { parse as parseToml } from 'smol-toml';
+import { parseEvalMarkdown } from '@supabase-evals/core/eval-markdown';
 import { describe, expect, it } from 'vitest';
 import {
   maskSqlLiteralsAndComments,
@@ -449,8 +450,9 @@ describe('PROMPT.md', () => {
     expect(listItems(frontmatter, 'topic')).toEqual(['sql']);
     expect(scalar(frontmatter, 'projectRunning')).toBe('true');
     expect(scalar(frontmatter, 'needsDocker')).toBe('true');
-    expect(scalar(frontmatter, 'area')).toBe('schema-and-migrations');
-    expect(scalar(frontmatter, 'journeyPhase')).toBe('observe');
+    expect(
+      parseEvalMarkdown(read('PROMPT.md'), 'PROMPT.md').metadata.customMetadata
+    ).toEqual({ area: 'schema-and-migrations', journeyPhase: 'observe' });
   });
 
   it('links CLI-2735 as its motivation', () => {

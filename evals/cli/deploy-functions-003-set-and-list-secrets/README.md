@@ -54,8 +54,8 @@ Motivation: CLI-2708 and the evidence it cites (all linked from `PROMPT.md`):
 
 ## Area and journey phase
 
-- Area: `config-and-secrets`
-- Journey phase: `deploy`
+- Area: `config-and-secrets`.
+- Journey phase: `deploy`.
 
 ## The prompt names no command, file, secret name or value
 

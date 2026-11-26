@@ -65,8 +65,8 @@ as intended.
 
 ## Area and journey phase
 
-- `area: tests-and-lint`
-- `journeyPhase: detect`
+- Area: `tests-and-lint`.
+- Journey phase: `detect`.
 
 ## The prompt names no command, policy, or test framework
 

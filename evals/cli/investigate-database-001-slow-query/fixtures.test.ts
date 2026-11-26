@@ -1,6 +1,7 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/investigate-database-001-slow-query
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { parseEvalMarkdown } from '@supabase-evals/core/eval-markdown';
 import { describe, expect, it } from 'vitest';
 import { migrationCreatesTable } from '../lib/migrations.js';
 import {
@@ -260,8 +261,9 @@ describe('PROMPT.md', () => {
     ]);
     expect(scalar(frontmatter, 'projectRunning')).toBe('false');
     expect(scalar(frontmatter, 'needsDocker')).toBe('false');
-    expect(scalar(frontmatter, 'area')).toBe('diagnostics');
-    expect(scalar(frontmatter, 'journeyPhase')).toBe('observe');
+    expect(
+      parseEvalMarkdown(read('PROMPT.md'), 'PROMPT.md').metadata.customMetadata
+    ).toEqual({ area: 'diagnostics', journeyPhase: 'observe' });
   });
 
   it.each(['CLI-2712', 'FDBKIN-1481', 'FDBKIN-1663', 'FDBKIN-13604'])(

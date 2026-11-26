@@ -1,5 +1,6 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/deploy-database-005-preview-branch-lifecycle
 import { readdirSync, readFileSync } from 'node:fs';
+import { parseEvalMarkdown } from '@supabase-evals/core/eval-markdown';
 import { describe, expect, it } from 'vitest';
 import { migrationCreatesTable, stripSqlComments } from '../lib/migrations.js';
 import {
@@ -126,8 +127,9 @@ describe('PROMPT.md frontmatter', () => {
   it('files the journey under database migrations, branching and the deploy phase', () => {
     expect(frontmatter).toMatch(/^product:\s*\n\s*- database\s*$/m);
     expect(frontmatter).toMatch(/^topic:\s*\n\s*- migrations\s*$/m);
-    expect(frontmatter).toMatch(/^area: branching$/m);
-    expect(frontmatter).toMatch(/^journeyPhase: deploy$/m);
+    expect(
+      parseEvalMarkdown(prompt, 'PROMPT.md').metadata.customMetadata
+    ).toEqual({ area: 'branching', journeyPhase: 'deploy' });
   });
 
   it('leaves hostedProject and services unset so every CLI experiment runs it', () => {

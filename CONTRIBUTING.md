@@ -24,6 +24,8 @@ If your scenario contains anything not self-explanatory, consider adding a `READ
 
 Every new scenario needs a `motivation:` defined in `PROMPT.md` frontmatter that cites concrete evidence for the scenario being part of the Supabase user journey, ideally a pain point. Examples include Supabase troubleshooting guides, user or support reports, GitHub or Linear issues, Slack threads, or social posts.
 
+Suite-specific fields go under an optional `customMetadata:` object in `PROMPT.md` frontmatter rather than as new top-level keys. A suite can validate them by exporting a zod `customMetadataSchema` from `evals/<suite>/custom-metadata.ts` (see `evals/cli/custom-metadata.ts`); an invalid or missing value then fails before any run. Suites without that file pass `customMetadata` through unvalidated, and it is carried into results.
+
 For new **benchmark** scenarios, we need to see at least one agent, ideally more, failing the new scenario to ensure we're getting signal from results. If agents are already acing your scenario, consider hardening it with a more ambiguous or misleading prompt, unusual seed data, or subtle footgun. Run locally and review agent failures to ensure they're legitimate reasoning mistakes, not eval framework limitations. We also want to keep benchmarks representative of the user journey. Review the [Evals coverage table](https://app.hex.tech/supabase/app/Evals-033abDlwqlTbW5ktgwFffU/latest) and make sure you're not over-indexing on a niche use case.
 
 ## Writing prompts

@@ -26,6 +26,7 @@ import {
   readRepeatedFlag,
   readSuiteFilters,
 } from '../lib/cli-args.js';
+import { validateCustomMetadata } from '../lib/custom-metadata.js';
 import { discoverExperimentFiles } from '../lib/experiment-files.js';
 import { bootPlatformBackend } from './platform-backend.js';
 import { viteBuild, vitestRun } from './project-runner.js';
@@ -140,7 +141,7 @@ export function assertLocalMatchesInterface(
   }
 }
 
-function discoverEvals(): EvalManifest[] {
+async function discoverEvals(): Promise<EvalManifest[]> {
   const root = join(ROOT, 'evals');
   if (!existsSync(root)) return [];
   const out: EvalManifest[] = [];
@@ -161,6 +162,11 @@ function discoverEvals(): EvalManifest[] {
         readFileSync(promptPath, 'utf8'),
         relPath
       ).metadata;
+      metadata.customMetadata = await validateCustomMetadata(
+        dir,
+        metadata.customMetadata,
+        relPath
+      );
       const hasLocal = existsSync(localDir) && statSync(localDir).isDirectory();
       assertLocalMatchesInterface(relPath, metadata.interface, hasLocal);
       const mode = resolveEvalMode(metadata.interface, hasLocal);
@@ -643,7 +649,7 @@ async function main() {
       // building an experiment x eval matrix (e.g. the eval-refresh workflow)
       // don't plan a pair that will produce no results — and no artifact —
       // to upload.
-      const evals = discoverEvals().filter((ev) =>
+      const evals = (await discoverEvals()).filter((ev) =>
         EVAL_FILTERS.includes(ev.id)
       );
       filtered = filtered.filter(({ config, suite }) =>
@@ -655,7 +661,7 @@ async function main() {
   }
 
   const allExperiments = await loadExperiments();
-  const evals = discoverEvals();
+  const evals = await discoverEvals();
   if (EVAL_FILTERS.length > 0) {
     const evalIds = new Set(evals.map((e) => e.id));
     const missing = EVAL_FILTERS.filter((evalId) => !evalIds.has(evalId));

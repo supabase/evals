@@ -48,8 +48,8 @@ Motivation: CLI-2705 and the evidence it cites (all linked from `PROMPT.md`):
 
 ## Area and journey phase
 
-- Area: `edge-functions`
-- Journey phase: `deploy`
+- Area: `edge-functions`.
+- Journey phase: `deploy`.
 
 ## The prompt names no command, flag, path, key or URL
 

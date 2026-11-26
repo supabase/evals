@@ -1,5 +1,6 @@
 // Run: pnpm --filter @supabase-evals/framework exec vitest run --config vitest.cli-lib.config.ts evals/cli/resolve-database-006-fix-failing-pgtap-suite
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { parseEvalMarkdown } from '@supabase-evals/core/eval-markdown';
 import { describe, expect, it } from 'vitest';
 import { stripSqlComments } from '../lib/migrations.js';
 import {
@@ -94,8 +95,9 @@ describe('PROMPT.md frontmatter', () => {
 
   it('sits in the tests-and-lint area and the resolve journey phase', () => {
     const { frontmatter } = promptParts();
-    expect(frontmatter).toMatch(/^area: tests-and-lint$/m);
-    expect(frontmatter).toMatch(/^journeyPhase: resolve$/m);
+    expect(
+      parseEvalMarkdown(read('PROMPT.md'), 'PROMPT.md').metadata.customMetadata
+    ).toEqual({ area: 'tests-and-lint', journeyPhase: 'resolve' });
   });
 });
 
