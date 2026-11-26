@@ -387,10 +387,17 @@ async function runOne(
     repoSources?: Record<string, RepoSource>;
   }
 > {
-  const prompt = parseEvalMarkdown(
+  const previewHost = process.env.DOCS_PREVIEW_HOST;
+  const parsedBody = parseEvalMarkdown(
     readFileSync(ev.promptPath, 'utf8'),
     ev.promptPath
   ).body;
+  const prompt = previewHost
+    ? parsedBody.replaceAll(
+        'https://supabase.com/docs/',
+        `https://${previewHost}/docs/`
+      )
+    : parsedBody;
   // A CLI agent always runs in a sandbox and reads skills from disk with its
   // file tools (both modes). An in-process (ai-sdk) agent has no sandbox, so in
   // tools mode its skills are advertised in the prompt and loaded via the
@@ -462,7 +469,7 @@ async function runOne(
       userPrompt: prompt,
       tools: session.tools,
       sandbox: session.sandbox,
-      mcpServers: session.mcpServers,
+      mcpServers: process.env.DOCS_PREVIEW_HOST ? {} : session.mcpServers,
       timeoutSec: TIMEOUT_SEC,
       sessionArchivePath: sessionArchivePath(expName, ev.id, runIndex),
     });
@@ -558,7 +565,7 @@ async function runOne(
     systemPrompt,
     userPrompt: prompt,
     tools: agentRunsInSandbox ? undefined : buildLoadSkillTool(toolsSkills),
-    mcpServers: session.mcpServers,
+    mcpServers: process.env.DOCS_PREVIEW_HOST ? {} : session.mcpServers,
     sandbox: cliSandbox?.sandbox,
     timeoutSec: TIMEOUT_SEC,
     sessionArchivePath: sessionArchivePath(expName, ev.id, runIndex),
