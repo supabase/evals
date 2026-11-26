@@ -7,7 +7,7 @@ import type {
 
 const scorer: LocalStackScorer = async (ctx) => {
   const checks: CheckResult[] = [
-    checkDbDiffUsed(ctx),
+    checkMigrationGeneratedByCli(ctx),
     await checkSchemaFileUpdated(ctx),
     await checkNewMigrationGenerated(ctx),
     await checkDescriptionColumnLive(ctx),
@@ -21,11 +21,20 @@ const scorer: LocalStackScorer = async (ctx) => {
 
 export default scorer;
 
-/** Checks that the agent ran `supabase db diff` rather than hand-writing the migration. */
-function checkDbDiffUsed(ctx: LocalStackEvalContext): CheckResult {
-  const name = 'supabase db diff used to generate the migration';
+/**
+ * Commands that generate a migration from the schema files. The declarative
+ * schemas guide uses `supabase db schema declarative sync` on the `pg-delta`
+ * engine, and `supabase db diff` on the legacy `migra` engine.
+ */
+const MIGRATION_GENERATOR_PATTERN =
+  /supabase\s+db\s+(?:diff|schema\s+declarative\s+sync)\b/;
+
+/** Checks that the agent generated the migration with the CLI rather than hand-writing it. */
+function checkMigrationGeneratedByCli(ctx: LocalStackEvalContext): CheckResult {
+  const name =
+    'migration generated with supabase db schema declarative sync or db diff';
   const used = ctx.toolCalls.some((tc) =>
-    /supabase\s+db\s+diff/.test(tc.command ?? '')
+    MIGRATION_GENERATOR_PATTERN.test(tc.command ?? '')
   );
   return { name, passed: used };
 }
