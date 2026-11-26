@@ -366,11 +366,14 @@ export type SkillResult = z.infer<typeof skillResultSchema>;
 // action, spelled differently per harness) collapse into one value here.
 // `shell_fetch` is a docs url fetched to shell stdout, which is how an agent
 // with no fetch tool of its own reads a page (Codex curls the changelog).
+// `supabase_sh` is a shell command run against supabase.sh, the docs served
+// over SSH as markdown files (`ssh supabase.sh grep ... /supabase/docs`).
 export const docsPageSourceSchema = z.enum([
   'search_docs',
   'web_fetch',
   'web_search',
   'shell_fetch',
+  'supabase_sh',
 ]);
 export type DocsPageSource = z.infer<typeof docsPageSourceSchema>;
 
