@@ -21,5 +21,7 @@ export const customMetadataSchema = z
     journeyPhase: z
       .enum(['design', 'deploy', 'observe', 'detect', 'resolve'])
       .optional(),
+    // Evals only the matching A/B experiments run. The scheduled CLI experiments skip them.
+    abGroup: z.enum(['cli-docurl']).optional(),
   })
   .optional() satisfies CustomMetadataSchema;

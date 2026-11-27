@@ -1,6 +1,11 @@
 import type { EvalMetadata } from '@supabase-evals/core';
 import { describe, expect, it } from 'vitest';
-import { skipUnlessCli, skipUnlessDockerless } from './skip.js';
+import {
+  DOC_URL_AB_GROUP,
+  skipUnlessCli,
+  skipUnlessDockerless,
+  skipUnlessDocUrlAb,
+} from './skip.js';
 
 const baseMetadata: EvalMetadata = {
   stage: 'build',
@@ -39,6 +44,40 @@ describe('skipUnlessCli', () => {
         metadata: { ...baseMetadata, hostedProject: false },
       })
     ).toBe(false);
+  });
+});
+
+describe('docUrl A/B evals', () => {
+  const abMetadata: EvalMetadata = {
+    ...baseMetadata,
+    customMetadata: { abGroup: DOC_URL_AB_GROUP },
+  };
+
+  it('skipUnlessCli skips an A/B eval', () => {
+    expect(skipUnlessCli({ id: 'e', metadata: abMetadata })).toBe(true);
+  });
+
+  it('skipUnlessDocUrlAb runs an A/B eval', () => {
+    expect(skipUnlessDocUrlAb({ id: 'e', metadata: abMetadata })).toBe(false);
+  });
+
+  it('skipUnlessDocUrlAb skips a regular cli eval', () => {
+    expect(skipUnlessDocUrlAb({ id: 'e', metadata: baseMetadata })).toBe(true);
+  });
+
+  it('skipUnlessDocUrlAb skips a non-cli or hosted-linked A/B eval', () => {
+    expect(
+      skipUnlessDocUrlAb({
+        id: 'e',
+        metadata: { ...abMetadata, interface: 'mcp' },
+      })
+    ).toBe(true);
+    expect(
+      skipUnlessDocUrlAb({
+        id: 'e',
+        metadata: { ...abMetadata, hostedProject: true },
+      })
+    ).toBe(true);
   });
 });
 
