@@ -122,12 +122,12 @@ export function scoreWithDocUrlMetrics(
 
 export type SqlRun = { ok: boolean; stdout: string; notes: string };
 
-/** Runs `sql` through psql in the stack's database with `ON_ERROR_STOP`, quiet and unaligned. */
+/** Runs `sql` through psql in the stack's database (or at `options.dbUrl`, as another role or through the pooler) with `ON_ERROR_STOP`, quiet and unaligned. */
 export async function runSql(
   ctx: Pick<LocalStackEvalContext, 'exec'>,
   stack: StackProbe,
   sql: string,
-  options: { fieldSeparator?: string } = {}
+  options: { fieldSeparator?: string; dbUrl?: string } = {}
 ): Promise<SqlRun> {
   if (!stack.ok) return { ok: false, stdout: '', notes: stack.notes };
   const encoded = Buffer.from(sql, 'utf8').toString('base64');
@@ -136,7 +136,7 @@ export async function runSql(
     : '';
   try {
     const result = await ctx.exec(
-      `echo ${encoded} | base64 -d | psql ${shellQuote(stack.dbUrl)} -XqtA -v ON_ERROR_STOP=1${separator}`
+      `echo ${encoded} | base64 -d | psql ${shellQuote(options.dbUrl ?? stack.dbUrl)} -XqtA -v ON_ERROR_STOP=1${separator}`
     );
     return {
       ok: result.ok,

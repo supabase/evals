@@ -7,7 +7,8 @@ import type {
 export const TEST_DB_URL =
   'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
 
-export type FakePsql = (sql: string) => Partial<CommandResult>;
+/** `url` is the connection string the scorer passed to psql. */
+export type FakePsql = (sql: string, url: string) => Partial<CommandResult>;
 
 export type FakeContextOptions = {
   /** Answers each SQL text the scorer pipes into psql. */
@@ -34,10 +35,12 @@ export function fakeContext(
     if (command.includes('status') && command.includes('supabase')) {
       return done({ stdout: JSON.stringify({ DB_URL: TEST_DB_URL }) });
     }
-    const piped = command.match(/^echo (\S+) \| base64 -d \| psql/);
+    const piped = command.match(
+      /^echo (\S+) \| base64 -d \| psql '?([^' ]+)'? /
+    );
     if (piped) {
       return done(
-        options.psql(Buffer.from(piped[1], 'base64').toString('utf8'))
+        options.psql(Buffer.from(piped[1], 'base64').toString('utf8'), piped[2])
       );
     }
     if (command.includes('select 1')) return done({ stdout: '1\n' });
