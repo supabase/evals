@@ -9,7 +9,7 @@ import {
 } from '@supabase-evals/core';
 import { localStackRuntime } from '@supabase-evals/sandbox';
 
-type ExperimentPreset = Pick<
+export type ExperimentPreset = Pick<
   ExperimentConfig,
   'agent' | 'runtime' | 'localStack' | 'skills' | 'skipEval'
 >;
